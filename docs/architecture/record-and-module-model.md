@@ -28,11 +28,17 @@ Codebase Record package ──┘          ├─> MariaDB metadata and table mi
 
 The same logical definition must be usable from the dashboard and the codebase. Before both paths are implemented, decide how to track provenance and ownership, how conflicts are detected, whether edits to generated Go are preserved, and how upgrades migrate a deployed customer's table.
 
+### Frappe comparison and Go source boundary
+
+Frappe supports both code-backed and database-backed DocTypes. In the developer workflow, a non-custom DocType is exported as app files, including a JSON definition, a Python controller, and a JavaScript client script. Custom DocTypes and site-level changes can instead be stored as metadata records. Client Scripts and (when enabled) Server Scripts provide a separate runtime customization path. The controller code is Python source loaded by Frappe; creating or editing a DocType is not the same action as compiling a new application binary.
+
+Athena's corresponding split is: Record metadata and its MariaDB schema are data; Go packages own trusted lifecycle behavior, invariants, and controls; Starlark is the planned runtime path for bounded configurable conditions and actions. Dashboard authoring is intended to create a Go source scaffold in the developer/codebase workflow, but that file cannot alter the already-running executable. Saving a Record updates metadata and schema; generated Go behavior becomes active only after a new build and deployment. A hosted production process may not have a writable source tree, so the code-generation destination and dashboard-to-codebase synchronization must be designed explicitly.
+
 ### Go source generation boundary
 
-Dashboard-created Records are intended to produce Go files in a dedicated generated package. The files should contain deterministic type names, typed field declarations, validation/lifecycle interfaces, and clearly marked extension hooks. Go must not interpret user-provided text as source code; names and types are validated and all output is generated from a constrained schema.
+Dashboard-created Records are intended to generate Go source scaffolds in a dedicated package through the developer/codebase workflow. The files should contain deterministic type names, typed field declarations, validation/lifecycle interfaces, and clearly marked extension hooks. Go must not interpret user-provided text as source code; names and types are validated and all output is generated from a constrained schema.
 
-Generated Go source cannot become active inside an already-running Go binary. The first workflow should therefore make the stages explicit: save the definition and DDL, generate/update the source file, then rebuild and restart/deploy the executable to activate Go hooks. Starlark is the editable, runtime-configurable path for bounded conditions and actions that do not require recompilation. The source generator, build/reload workflow, overwrite policy, and file ownership are not implemented yet.
+Generated Go source cannot become active inside an already-running Go binary. The source workflow must make its stages explicit: save the definition and DDL, generate and review source in the codebase, then rebuild and restart/deploy the executable to activate Go hooks. Saving a Record alone only persists metadata and database schema. Starlark is the editable, runtime-configurable path for bounded conditions and actions that do not require recompilation. The source generator, build/reload workflow, overwrite policy, and file ownership are not implemented yet.
 
 ### MariaDB mapping
 
@@ -76,6 +82,11 @@ The current repository can store Record definitions in MariaDB and provision a p
 7. Module package versioning, dependency resolution, installation, upgrades, and removal.
 
 ## References
+
+- [Frappe Controllers](https://docs.frappe.io/framework/user/en/basics/doctypes/controllers)
+- [Frappe Create a DocType](https://docs.frappe.io/framework/user/en/tutorial/create-a-doctype)
+- [Frappe Customizing DocTypes](https://docs.frappe.io/framework/user/en/basics/doctypes/customize)
+- [Frappe Client Script](https://docs.frappe.io/framework/user/en/desk/scripting/client-script)
 
 - [shadcn-vue Vite installation](https://www.shadcn-vue.com/docs/installation/vite)
 - [shadcn-vue CLI](https://www.shadcn-vue.com/docs/cli)

@@ -26,12 +26,15 @@ Browser
 
 ## Frontend direction
 
+See [Frontend theme and typography](frontend-theme-and-type.md) for the centralized palette and type scale.
+
 - One supported frontend: Vue 3 + TypeScript + Vite.
 - Primary component system: shadcn-vue, using the existing project's Vite setup.
 - The current `components.json` records the requested `aeaM05w` preset output: `reka-luma`, Zinc base tokens, Inter, `0.625rem` base radius, and pointer cursors. The exact command was applied to the existing `web/` app; no replacement frontend was created.
 - Theme is class-based and token-driven. A visible toggle follows the operating-system preference on first use and stores an explicit choice in local storage.
 - The **Build** desk contains Overview, Records, Modules, and Rules. **View** previews how a selected Record entry will be presented.
 - The core UI starts without industry-specific sample Records or Modules.
+- App colors and light/dark semantic tokens live in `web/src/theme.css`; the supplied typography scale lives in `web/src/typography.css`. Buttons use shadcn-vue semantic primary, secondary, outline, ghost, and destructive variants so palette changes flow from the shared theme.
 
 ## Domain vocabulary and data model
 
@@ -40,7 +43,7 @@ Browser
 - A **Module** groups related Record definitions and their explicit relationships, rules, actions, reports, permissions, and navigation into a reusable capability.
 - Module relationships must have concrete database meaning: foreign keys for direct links, and join tables for many-to-many relationships when supported. Relationship cardinality and delete/update rules need to be explicit.
 - Definitions must be usable from both the dashboard and the codebase. Dashboard-authored definitions are stored in MariaDB. Code-authored definitions live in the repository. Their merge, precedence, upgrade, and export rules remain to be designed.
-- Creating a Record is intended to generate a Go source file with typed fields and hook points for conditions, actions, controls, and trusted behavior. This generator and its compile/reload workflow are not implemented yet. A running Go process does not compile new source at runtime; generated code must be built into a new executable before Go hooks change.
+- Dashboard-authored Records are intended to generate Go source scaffolds in the developer/codebase workflow. Saving a Record updates metadata and database schema; it does not compile or activate Go code in the running server. The generator, writable destination, and synchronization lifecycle are not implemented.
 
 ## Logic boundaries
 

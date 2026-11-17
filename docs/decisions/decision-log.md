@@ -16,7 +16,8 @@ This is the canonical status of product and architecture choices. Keep [`AGENTS.
 | D-006 | Cloud provider integrations remain optional to the ERP core | Accepted direction | AWS, Cloudflare, Cognito, queues, and object storage are not core dependencies. |
 | D-007 | Athena is an ERP platform core, not a preconfigured industry ERP | Accepted product scope | Start without industry-specific seed Records or Modules. Domain products can be installed later. |
 | D-008 | shadcn-vue is the primary component system with a theme toggle | Accepted | Existing Vite app uses preset `aeaM05w`, resolved to `reka-luma`, Zinc tokens, Inter, token radius, pointer cursor, and class-based dark mode. |
-| D-009 | Records can be authored in the dashboard and codebase; dashboard authoring generates Go source | Accepted direction | Generated Go requires build/restart to take effect. Source generation, ownership, synchronization, and upgrades are not implemented; see [Record and Module model](../architecture/record-and-module-model.md). |
+| D-009 | Records can be authored in the dashboard and codebase; dashboard authoring generates Go source scaffolds | Accepted direction | Generated Go is source for the developer/codebase workflow and requires build/deploy before it affects the server. A Record save only updates metadata/schema. Generator destination, ownership, synchronization, and upgrades are not implemented; see [Record and Module model](../architecture/record-and-module-model.md). |
+| D-010 | Keep the frontend palette and typography as shared semantic token sets | Accepted | Edit colors in `web/src/theme.css` and the supplied type scale in `web/src/typography.css`; action buttons use shadcn-vue semantic variants for readable text in both themes. |
 
 ## Open decisions
 
