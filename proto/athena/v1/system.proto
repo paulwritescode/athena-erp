@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package athena.v1;
+
+option go_package = "athena-erp/gen/athena/v1;athenav1";
+
+service SystemService {
+  rpc GetSystemInfo(GetSystemInfoRequest) returns (GetSystemInfoResponse);
+}
+
+message GetSystemInfoRequest {}
+
+message GetSystemInfoResponse {
+  string product_name = 1;
+  string version = 2;
+}
