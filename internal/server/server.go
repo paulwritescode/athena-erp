@@ -52,7 +52,7 @@ func Serve(ctx context.Context, addr string) error {
 	rpcServer := connect.NewServer()
 	athenav1connect.RegisterSystemServiceHandler(rpcServer, systemService{})
 	connecthttp.Mount(mux, rpcServer)
-	mux.Handle("/api/forms", formHandler(db))
+	mux.Handle("/api/records", recordHandler(db))
 
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -91,10 +91,9 @@ func Serve(ctx context.Context, addr string) error {
 
 func migrate(db *sql.DB) error {
 	statements := []string{
-		`CREATE TABLE IF NOT EXISTS athena_forms (
+		`CREATE TABLE IF NOT EXISTS athena_records (
 			name VARCHAR(140) NOT NULL PRIMARY KEY,
 			label VARCHAR(255) NOT NULL,
-			module_name VARCHAR(140) NOT NULL DEFAULT 'Core',
 			definition JSON NOT NULL,
 			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP

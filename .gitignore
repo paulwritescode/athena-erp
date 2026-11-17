@@ -4,4 +4,5 @@ internal/webui/dist/*
 !internal/webui/dist/.gitkeep
 bin/
 .cache/
+.pnpm-store/
 .DS_Store

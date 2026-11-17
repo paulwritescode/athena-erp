@@ -1,83 +1,78 @@
 # Architecture overview
 
 **Last updated:** 2026-11-17
-**Status:** Starter implementation with MariaDB metadata persistence and Build/View desk; domain data model remains in progress.
+**Status:** Core-platform direction accepted; starter implementation is being reshaped around Records, MariaDB tables, and Go/Starlark extension points.
 
 ## Product intent
 
-Athena is an extensible ERP platform inspired by Frappe's metadata-driven way of defining business records and building workflows. The goal is to let people shape business capabilities through the application while retaining a dependable Go core. Specific Frappe gaps to fix still need to be named from real user needs.
+Athena is the reusable core on which different ERP products and business modules can be built. It is not currently an ERP configured for one industry, country, or company. The core provides the runtime, data model, permissions, API, rules, and module boundaries; domain-specific Records and Modules are added on top.
 
-The core should work without a specific cloud provider. A future installer may guide operators through a small set of supported deployment choices and optional integrations, but its profiles and questions have not been designed yet.
-
-## Current starter architecture
+## Runtime shape
 
 ```text
 Browser
-  └── one origin / one Go process (default :3000)
-      ├── Vue 3 + TypeScript app (Vite build, embedded static files)
-      ├── ConnectRPC services (Protobuf contract, generated clients/handlers)
-      ├── Form-definition JSON endpoints
-      ├── MariaDB metadata store (optional configuration)
-      └── health endpoint with database state
+  └── one origin / one Go process (:3000 by default)
+      ├── Vue 3 + TypeScript + Vite frontend, embedded at build time
+      ├── ConnectRPC API and generated Protobuf clients
+      ├── MariaDB metadata and per-Record tables
+      └── optional generated Go behavior compiled into the server
 ```
 
-- `make run` builds the frontend and starts the Go server at `:3000` by default.
-- `make build` builds the frontend and embeds it in `bin/athena`.
-- `athena serve [--addr :8080]` runs the embedded app and API together.
-- The frontend calls the API using the same origin.
-- `GET /healthz` is a basic HTTP health endpoint. `athena.v1.SystemService/GetSystemInfo` is the initial ConnectRPC method.
-- `ATHENA_DATABASE_URL` configures MariaDB using the Go MySQL driver's DSN syntax. When set, Athena connects at startup and creates the initial metadata tables.
-- `GET /api/forms` reads persisted Form definitions and `PUT /api/forms` creates or updates one definition. This first metadata endpoint is JSON/HTTP; broader API shape and ConnectRPC coverage remain to be reconciled before expanding it.
-- With no database DSN, the server still runs and reports `Not configured`; the UI uses sample Form definitions in browser memory.
+- `make run` builds the Vite application and starts Go at port `3000`.
+- `make build` embeds the built frontend in `bin/athena`.
+- ConnectRPC remains the selected Go RPC library and Protobuf remains the intended API contract. The initial metadata JSON endpoints are transitional and should be replaced before the API surface expands.
+- MariaDB is the only relational database being implemented now. PostgreSQL is a later adapter, not a current choice.
+- AWS, Cloudflare, identity providers, queues, and object storage remain optional integrations around the core.
 
-## Admin interface
+## Frontend direction
 
-The desk is intentionally a neutral, control-oriented interface. **Build** contains Overview, Forms, Modules, and Rules. The Form builder exposes the definition fields and settings; Modules group Forms conceptually; Rules show the intended event/condition/action area. **View** renders the selected Form as an end-user entry screen. The View page is a preview, not business-record persistence.
+- One supported frontend: Vue 3 + TypeScript + Vite.
+- Primary component system: shadcn-vue, using the existing project's Vite setup.
+- The current `components.json` records the requested `aeaM05w` preset output: `reka-luma`, Zinc base tokens, Inter, `0.625rem` base radius, and pointer cursors. The exact command was applied to the existing `web/` app; no replacement frontend was created.
+- Theme is class-based and token-driven. A visible toggle follows the operating-system preference on first use and stores an explicit choice in local storage.
+- The **Build** desk contains Overview, Records, Modules, and Rules. **View** previews how a selected Record entry will be presented.
+- The core UI starts without industry-specific sample Records or Modules.
 
-The ConnectRPC API follows the official Protobuf code-generation workflow: the `.proto` contract produces Go server/client code and TypeScript descriptors. Generated files are committed so normal builds do not require Buf. `make generate` requires Buf on `PATH` and the web dependencies installed.
+## Domain vocabulary and data model
 
-## Intended domain model
+- A **Record definition** names a data structure, its fields, validation, and behavior hooks. A Record definition maps to a dedicated MariaDB table. A saved **Record entry** is a row in that table.
+- A field has a stable code name, display label, type, and validation attributes. A Link field identifies another Record and represents a database relationship.
+- A **Module** groups related Record definitions and their explicit relationships, rules, actions, reports, permissions, and navigation into a reusable capability.
+- Module relationships must have concrete database meaning: foreign keys for direct links, and join tables for many-to-many relationships when supported. Relationship cardinality and delete/update rules need to be explicit.
+- Definitions must be usable from both the dashboard and the codebase. Dashboard-authored definitions are stored in MariaDB. Code-authored definitions live in the repository. Their merge, precedence, upgrade, and export rules remain to be designed.
+- Creating a Record is intended to generate a Go source file with typed fields and hook points for conditions, actions, controls, and trusted behavior. This generator and its compile/reload workflow are not implemented yet. A running Go process does not compile new source at runtime; generated code must be built into a new executable before Go hooks change.
 
-- A **Form** defines a kind of business record, such as Customer, Invoice, or Ticket. It can carry the metadata needed to describe fields and related behavior.
-- A **Record** is one saved instance of a Form.
-- A **Module** is an installable business capability that bundles related Forms and supporting workflows, configurable rules, reports, permissions, and navigation. Invoicing and Ticket Management are example modules.
-- Modules should be reusable in another Athena project. Dependency declarations, compatibility rules, upgrades, and migrations remain undecided.
-- A region-specific pack such as Kenya localization could extend a broader Invoicing module. This is a design direction, not an implemented extension system.
+## Logic boundaries
 
-The interface may let an administrator configure Forms and rules. The distinction between Go-authored core definitions, UI-authored metadata, and Starlark-authored configuration still needs a concrete model.
+- Go owns trusted lifecycle code, permission checks, invariants, persistence, and transaction boundaries.
+- Starlark is the configurable rule language for conditions and bounded actions. It receives typed Record/Module values and explicit Go-provided capabilities; it does not execute arbitrary SQL or bypass Go enforcement.
+- A rule may reference Record and field identifiers, and Module relationships. The rule editor/compiler must validate references against the current definitions.
+- No Starlark runtime, Go hook generator, or general Record-entry CRUD is currently implemented.
 
-## Business logic boundaries
+## MariaDB persistence
 
-- **Go** owns trusted core behavior: permissions, transaction boundaries, lifecycle guarantees, and business invariants.
-- **Starlark** is intended for configurable conditions, macros, and constrained actions, for example requiring approval when an invoice exceeds a configured amount.
-- Starlark must receive only explicit Go-provided capabilities. It must not execute arbitrary SQL or bypass authorization or core invariants.
-- The initial project has no Starlark runtime or configurable rule engine yet.
-
-## Persistence and deployment
-
-- The primary store is intended to be relational and capable of serving multiple users from a hosted database.
-- MariaDB is the first metadata database adapter. A hosted MariaDB instance is suitable for multi-user server deployments; local Homebrew MariaDB is the current development option.
-- PostgreSQL is not implemented. The metadata DDL uses MariaDB JSON columns; SQL dialect and migration compatibility must be designed before adding another relational database.
-- Current persistence covers Form definitions only. Modules and Rules are sample UI data; business Records, transactions, tenant boundaries, and audit history are not persisted.
-- The single-process Go server is the simple deployment shape. Production persistence still requires an external database, configuration, backups, and operational guidance once implemented.
-- AWS, Cloudflare, Cognito, RDS, DynamoDB, object storage, and queues are exploratory optional integrations. None is currently required or implemented.
+- `ATHENA_DATABASE_URL` configures the Go MySQL driver DSN. When configured, Athena connects at startup and creates metadata tables.
+- `athena_records` stores Record definitions. Saving a Record provisions `athena_record_<name>` with an `id`, timestamps, and columns mapped from its fields. Supported field types currently map to MariaDB types in Go.
+- Link fields require a known target Record and create a foreign-key constraint when its table exists. The relationship editor and module grouping workflow are not implemented yet.
+- Current table evolution is additive only. Renames, drops, type changes, data migration, and incompatible required-field changes need a versioned migration design before production use.
+- Record-entry CRUD, modules, rules, multi-tenancy, audit history, authentication, and backups are not production-ready.
 
 ## Current implementation status
 
 | Capability | Status |
 | --- | --- |
-| Go command and HTTP server | Implemented |
-| Embedded Vue 3 + TypeScript + Vite UI | Implemented; rebuilt by `make run` / `make build` |
-| ConnectRPC + Protobuf system info service | Implemented |
-| MariaDB connection and initial metadata tables | Implemented when `ATHENA_DATABASE_URL` is configured |
-| Form-definition persistence | Implemented via `GET/PUT /api/forms` when MariaDB is connected |
-| Business record persistence | Not implemented |
-| Authentication and authorization | Not implemented |
-| Form builder and View preview | Implemented as starter UI; edits are persisted only when MariaDB is connected |
-| Installable Modules | Product concept and sample UI only |
-| Starlark rules/macros | Intended direction; not implemented |
-| Cloud integrations and installer profiles | Exploratory; not implemented |
+| Single Go server and port 3000 | Implemented |
+| Vue 3 + TypeScript + Vite | Implemented |
+| shadcn-vue and requested preset | Initialized in existing app; core UI primitives generated |
+| Light/dark theme toggle | Implemented in the desk |
+| Record builder without seeded business examples | Implemented |
+| MariaDB metadata connection | Implemented when `ATHENA_DATABASE_URL` is configured; live local service still needs verification |
+| Per-Record MariaDB table provisioning | Implemented on Record-definition save; live DDL is not yet verified against the local service |
+| Link-field foreign keys | Implemented for new/updated Record definitions when the target table exists; relationship migration limits apply |
+| Record-entry CRUD | Not implemented |
+| Module composer and relation/join table management | Product direction accepted; implementation pending |
+| Go Record source generation | Product direction accepted; implementation pending |
+| Starlark rules and safe execution | Product direction accepted; implementation pending |
+| PostgreSQL adapter | Later; not implemented |
 
-## Next architecture decisions
-
-See the [decision log](../decisions/decision-log.md). Near-term choices include the first relational database, the first business workflow, Form metadata and persistence, Starlark capabilities, and module versioning and installation.
+See the [decision log](../decisions/decision-log.md) and [Record and Module model](record-and-module-model.md) for details and remaining design work.

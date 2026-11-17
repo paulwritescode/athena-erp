@@ -1,12 +1,10 @@
 <script setup lang="ts">
-const rules = [
-  { label: 'Require a due date', event: 'Before save · Sales Invoice', condition: 'If payment terms are set', status: 'Draft' },
-  { label: 'Escalate urgent tickets', event: 'After save · Support Ticket', condition: 'If priority is Urgent', status: 'Draft' },
-]
+import { Button } from '@/components/ui/button'
 </script>
 <template>
-  <section class="page-content"><div class="page-title-row"><div><div class="eyebrow">BUILD · BUSINESS LOGIC</div><h1>Rules</h1><p class="lead">Configure conditions and actions around your business records.</p></div><button class="button primary" disabled>＋ New Rule</button></div>
-    <div class="notice-row info-notice">Go owns trusted business logic and invariants. Starlark is planned for sandboxed, configurable conditions and actions.</div>
-    <section class="panel rule-panel"><div class="rule-table-head"><span>RULE</span><span>WHEN</span><span>CONDITION</span><span>STATUS</span></div><div v-for="rule in rules" :key="rule.label" class="rule-row"><span><strong>{{ rule.label }}</strong><small>Starlark rule · not executable yet</small></span><span>{{ rule.event }}</span><span>{{ rule.condition }}</span><span class="status-chip">{{ rule.status }}</span></div></section>
+  <section class="page-content"><div class="page-title-row"><div><div class="eyebrow">BUILD · BUSINESS LOGIC</div><h1>Rules</h1><p class="lead">Configure conditions and bounded actions over Record fields.</p></div><Button disabled>＋ New Rule</Button></div>
+    <div class="notice-row info-notice">Go code owns trusted lifecycle behavior, controls, permissions, and invariants. Starlark conditions will reference named Records, fields, and Module relationships through a restricted API.</div>
+    <div class="empty-builder"><div class="card-icon">⌘</div><h2>No Rules yet</h2><p>Starlark execution, event selection, field-aware rule editing, validation, and sandbox limits are not implemented.</p></div>
   </section>
 </template>
+import { Button } from '@/components/ui/button'

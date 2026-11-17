@@ -16,8 +16,11 @@ This file is the short, current guide for anyone working in this repository. Kee
 - **Frontend:** Vue 3 + TypeScript + Vite is the one supported frontend stack. Vite builds static files; it is not a production server/runtime dependency.
 - **API:** ConnectRPC for typed RPC over the Go HTTP server, with Protobuf as the service contract and generated Go/TypeScript code.
 - **Runtime shape:** One Go process serves the embedded frontend and API. The normal entry point is `make run`; `make build` produces `bin/athena`.
-- **Data:** MariaDB is the first supported metadata store. Configure it with `ATHENA_DATABASE_URL`; when configured, Go verifies the connection and creates starter metadata tables. Form definitions can be loaded and saved. Record persistence, module/rule persistence, PostgreSQL support, and multi-tenancy are not implemented.
-- **Vocabulary:** A **Form** defines a kind of business record; a **Record** is one instance. A **Module** is an installable business capability made from related Forms and supporting workflows, rules, reports, permissions, and navigation. A user-facing editor can be called a **Form view** to distinguish it from the definition.
+- **Product scope:** Athena is the reusable ERP core, not an ERP for one industry or company. Do not seed domain-specific Records or Modules into the platform shell.
+- **Data:** MariaDB is the current database. A **Record definition** maps to its own MariaDB table; a **Record entry** is one row. Saving a definition provisions the table and stores definition metadata. Record-entry CRUD, versioned migrations, module relationships, and PostgreSQL are not implemented.
+- **Vocabulary:** A **Record** means the definition that maps to a table; use **Record entry** for a row. A **Module** groups Records and explicit relationships into an installable capability.
+- **Code authoring:** Records must be definable from the dashboard and the codebase. Dashboard-created Records are intended to generate Go type/hook source, which requires rebuilding/restarting Go before compiled hooks take effect. This source generator and synchronization policy are not implemented.
+- **Frontend design:** Use shadcn-vue as the primary component system. The existing app uses the requested `aeaM05w` preset output; preserve its Reka Luma style, Zinc semantic tokens, Inter typography, token radius, pointer cursors, and class-based light/dark theme toggle.
 - **Extensions:** Modules should be reusable/installable in another Athena project. Packaging, dependency resolution, versioning, and upgrade migrations are still open design decisions.
 - **Cloud services:** AWS, Cloudflare, identity providers, queues, and object storage are optional future integrations. They are not core dependencies or selected deployment commitments.
 
@@ -34,9 +37,10 @@ This file is the short, current guide for anyone working in this repository. Kee
 
 - Keep the application frontend and ConnectRPC API on the same Go server/origin.
 - The default listen address is `:3000`; keep the README, CLI help, and Makefile aligned if it changes.
-- The admin interface must retain separate Build and View modes. Build covers Overview, Forms, Modules, and Rules; View previews the end-user record form. Keep the desk neutral and control-oriented rather than adding a decorative product palette.
+- The admin interface must retain separate Build and View modes. Build covers Overview, Records, Modules, and Rules; View previews a Record entry. Keep the desk neutral and token-driven.
 - Keep generated Protobuf artifacts in sync with `proto/athena/v1/` when the schema changes; use `make generate` (requires Buf on `PATH`).
 - Do not add database, authentication, Starlark execution, cloud provider, or module-install behavior and describe it as production-ready until it is implemented and its relevant docs are updated.
-- MariaDB is the current metadata adapter. Keep the DSN out of source control and say clearly which metadata is actually persisted; sample records and the View form preview are not business-record persistence.
+- MariaDB is the current database. Keep the DSN out of source control and say clearly that table provisioning exists but Record-entry CRUD does not.
+- Keep the product's metadata API on the selected ConnectRPC/Protobuf contract as it grows; `/api/records` is a transitional JSON endpoint and must not become an unreviewed second API system.
 - Preserve the current separation: Go enforces trusted rules and boundaries; Starlark supplies controlled configuration.
 - Do not commit credentials, local cache directories, `node_modules`, or build output unless the project docs explicitly establish a reason.

@@ -1,75 +1,64 @@
 # Athena ERP
 
-Athena is an early ERP platform foundation built around Go, Starlark, Vue 3, TypeScript, Vite, and ConnectRPC. **Athena is a working name; the public product name is not finalized.**
+Athena is a reusable ERP platform core built with Go, ConnectRPC, MariaDB, and a Vue 3 + TypeScript + Vite control desk. It is not preconfigured for a particular industry. Records and Modules will be installed or authored on top of the core.
 
-One Go server serves the embedded Vue application and a typed ConnectRPC API from the same address. The admin UI has distinct **Build** and **View** modes: Build contains Overview, Forms, Modules, and Rules; View renders a selected Form as an end-user record screen. MariaDB metadata persistence is optional until configured and currently saves Form definitions; record data, module installation, and executable Starlark rules are not implemented yet.
+The admin desk has separate **Build** and **View** modes. Build contains Overview, Records, Modules, and Rules. A Record definition describes a database table; a Record entry is a row. Modules compose Records and their relationships into reusable capabilities.
 
 ## Documentation
 
-- Start at [`docs/README.md`](docs/README.md) for the documentation map.
-- Read [`AGENTS.md`](AGENTS.md) before making project changes. It summarizes the current accepted decisions and the documentation workflow for keeping them current.
-- Architecture and decision records live under `docs/architecture/` and `docs/decisions/`.
+- Start with [`docs/README.md`](docs/README.md).
+- Read [`AGENTS.md`](AGENTS.md) for current decisions and contributor guidance.
+- See the [Record and Module model](docs/architecture/record-and-module-model.md) for intended data mapping and code generation boundaries.
 
-## Requirements
+## Run
 
-- Go 1.26 or newer
-- Node.js 20.19 or newer and npm
-
-## Run the app
-
-From the repository root:
+Requirements: Go 1.26+, Node.js 20.19+, and npm. MariaDB is optional while inspecting the UI and required to save Record definitions and provision their tables.
 
 ```sh
 make run
 ```
 
-This builds the Vue app into embedded assets, then runs the Go server at <http://localhost:3000>. The UI and ConnectRPC API share the same Go process and origin. Set `ATHENA_DATABASE_URL` to a MariaDB DSN to enable persistent Form definitions and metadata tables.
+The Vue app is built into embedded assets, then one Go process serves the UI and API at <http://localhost:3000>. The same-origin health endpoint is `GET /healthz`.
 
-For a local Homebrew MariaDB install, start the database service and create a database and user with access to it. Then run Athena with the DSN for that account:
+Set `ATHENA_DATABASE_URL` to a Go MySQL-driver DSN to enable MariaDB:
 
 ```sh
-brew services start mariadb@11.8
-mariadb -u root -e "CREATE DATABASE athena CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; CREATE USER 'athena'@'127.0.0.1' IDENTIFIED BY 'change-me'; GRANT ALL PRIVILEGES ON athena.* TO 'athena'@'127.0.0.1';"
 ATHENA_DATABASE_URL='athena:change-me@tcp(127.0.0.1:3306)/athena?parseTime=true' make run
 ```
 
-This is a development-only account example; use a strong secret and a restricted account outside local development. The server creates the initial Forms, Modules, and Rules metadata tables when a database is configured. Do not put credentials in tracked files.
+Create the database and dedicated local user in MariaDB first. The password above is only an example; supply credentials through the environment, never a tracked file. On startup Athena creates metadata tables. Saving a Record definition creates its dedicated table and adds its field columns. A Link field requires a target Record table and creates a foreign key.
 
-To choose another address:
+To use a different address:
 
 ```sh
 make run ARGS='--addr :3001'
 ```
 
-To build a standalone executable:
+Build the single-server executable:
 
 ```sh
 make build
 ./bin/athena serve --addr :3000
 ```
 
-The generated web assets are embedded in the executable. Node and npm are only needed to build the app.
+## Current limits
+
+- Record-entry CRUD is not implemented: table provisioning does not yet save business rows.
+- Module composition, relationship/join-table management, and package installation are not implemented.
+- Go source generation for dashboard-created Records and Starlark rule execution are accepted product directions but are not implemented.
+- Authentication and authorization are not implemented. Do not expose database-backed authoring endpoints to an untrusted network.
+- PostgreSQL support is planned for later; MariaDB is the only current database target.
 
 ## Project layout
 
 ```text
 cmd/athena/             CLI entry point (`athena serve`)
-internal/server/         HTTP server and ConnectRPC service implementation
+internal/server/         Go HTTP/ConnectRPC server and MariaDB-backed Record schema
 internal/webui/          embedded frontend assets
-proto/athena/v1/         protobuf API contract
+proto/athena/v1/         Protobuf API contract
 gen/                    generated Go API code
-web/                    Vue 3 + TypeScript + Vite app and generated TS clients
-docs/                   architecture notes, decision records, and open questions
-AGENTS.md               contributor guidance and current decision summary
+web/                    Vue 3 + TypeScript + Vite and shadcn-vue components
+docs/                   architecture and decision records
 ```
 
-## Useful commands
-
-```sh
-make generate            # regenerate Go and TypeScript RPC code (requires Buf on PATH)
-make web-build           # compile Vue into embedded static assets
-make build               # build ./bin/athena
-make run                 # generate, build the UI, and run one Go server
-```
-
-The initial RPC is `athena.v1.SystemService/GetSystemInfo`, which the UI calls to confirm that it is talking to the Go server. MariaDB integration uses `ATHENA_DATABASE_URL`; without it, the UI remains available with sample definitions held only in browser memory. Authentication and record persistence are not implemented.
+Useful commands: `make web-build`, `make generate` (requires Buf), `make build`, and `make run`.

@@ -1,39 +1,43 @@
 # Decision log
 
-This is the canonical status of current product and architecture decisions. Update it when a decision changes; update [`AGENTS.md`](../../AGENTS.md) in the same change so agent guidance does not go stale.
+This is the canonical status of product and architecture choices. Keep [`AGENTS.md`](../../AGENTS.md) aligned when accepted direction changes.
 
-## Accepted direction
+## Accepted decisions and direction
 
 | ID | Decision | Status | Notes |
 | --- | --- | --- | --- |
-| ADR-0001 | One Go server serves the embedded frontend and API | Accepted | The frontend is built by Vite and embedded in the Go executable; one run command starts the UI and API together. See [ADR-0001](adr-0001-single-server.md). |
-| ADR-0002 | Use MariaDB first for platform metadata | Accepted | Configure with `ATHENA_DATABASE_URL`; the first implementation persists Form definitions and initializes metadata tables. See [ADR-0002](adr-0002-mariadb-first.md). |
-| D-002 | Vue 3 + TypeScript + Vite is the single frontend stack | Accepted | No additional frontend frameworks are planned for the base product. |
-| D-003 | ConnectRPC is the Go RPC library, with Protobuf as the contract | Accepted | Generate Go server code and TypeScript descriptors/clients from `.proto` definitions. |
-| D-004 | Go owns trusted core business logic; Starlark provides configurable rules | Accepted direction | The exact Starlark API, execution limits, and rule lifecycle need design before implementation. |
-| D-005 | Use “Form” for a business-record definition and “Module” for an installable capability bundle | Accepted vocabulary | A module groups Forms with related workflows, rules, reports, permissions, and navigation. The UI editor can be called a Form view. |
-| D-006 | Keep cloud-provider services optional to the core ERP | Accepted direction | Providers and first supported deployment profiles have not been selected. |
+| ADR-0001 | One Go server serves the embedded frontend and API | Accepted | Vite builds static assets; Go serves them with ConnectRPC. Default address is port 3000. |
+| ADR-0002 | MariaDB is the first relational database | Accepted | PostgreSQL is a later adapter. See [ADR-0002](adr-0002-mariadb-first.md). |
+| ADR-0003 | A Record definition maps to one MariaDB table | Accepted | Go validates the schema and provisions the table. Record-entry CRUD and safe versioned migrations remain incomplete. See [ADR-0003](adr-0003-record-table-model.md). |
+| D-002 | Vue 3 + TypeScript + Vite is the single frontend stack | Accepted | Do not introduce another frontend runtime. |
+| D-003 | ConnectRPC is the Go RPC library and Protobuf is the API contract | Accepted | The current JSON Record endpoints are transitional. |
+| D-004 | Go owns trusted behavior; Starlark supplies configurable rules | Accepted direction | Rules may reference Record fields and Module relationships through limited Go capabilities. Execution limits and lifecycle remain open. |
+| D-005 | Use “Record” for table definitions and “Record entry” for rows | Accepted vocabulary | A Module bundles Records and relationships. |
+| D-006 | Cloud provider integrations remain optional to the ERP core | Accepted direction | AWS, Cloudflare, Cognito, queues, and object storage are not core dependencies. |
+| D-007 | Athena is an ERP platform core, not a preconfigured industry ERP | Accepted product scope | Start without industry-specific seed Records or Modules. Domain products can be installed later. |
+| D-008 | shadcn-vue is the primary component system with a theme toggle | Accepted | Existing Vite app uses preset `aeaM05w`, resolved to `reka-luma`, Zinc tokens, Inter, token radius, pointer cursor, and class-based dark mode. |
+| D-009 | Records can be authored in the dashboard and codebase; dashboard authoring generates Go source | Accepted direction | Generated Go requires build/restart to take effect. Source generation, ownership, synchronization, and upgrades are not implemented; see [Record and Module model](../architecture/record-and-module-model.md). |
 
 ## Open decisions
 
-| ID | Question | Current options / context |
+| ID | Question | Current context |
 | --- | --- | --- |
-| O-001 | Should PostgreSQL be added as a second supported relational database? | MariaDB is the first metadata database; multi-dialect support adds query, migration, and operations costs. |
-| O-002 | What first business workflow should prove the model? | Candidate: Customer → Sales Invoice → Payment → Ledger Entry. No workflow selected. |
-| O-003 | Where do Form definitions live and how are they edited? | Go-defined core, UI-authored metadata, Starlark, or a carefully defined combination. Schema upgrades and validation are unresolved. |
-| O-004 | What exact capabilities may Starlark rules use? | Define available events, inputs, actions, limits, failure handling, permissions, and versioning. |
-| O-005 | How are modules packaged, installed, upgraded, and removed? | Reusable across projects is the product goal; dependency/version constraints and upgrade migrations are open. |
-| O-006 | What multi-tenancy model is required? | Not selected. Do not assume one database, schema, or process per tenant. |
-| O-007 | What concrete Frappe gaps should Athena fix first? | Gather user/workflow evidence before making comparative product claims. |
-| O-008 | Which authentication, file storage, queue, and cloud adapters are needed first? | All provider examples remain exploratory. |
-| O-009 | What should the installation wizard configure? | Profiles and supported combinations are not yet defined. |
-| O-010 | Is Athena the final product name? | It is the working name in this repository; no naming clearance or final decision has been made. |
-| O-011 | Should metadata CRUD use ConnectRPC or a typed JSON/HTTP interface? | Initial Form metadata read/write is JSON/HTTP on the same origin; avoid growing this surface until the API contract is deliberately selected. |
+| O-001 | When should the PostgreSQL adapter be added? | MariaDB is the only active database target; wait for a concrete need and a dialect/migration design. |
+| O-002 | How do dashboard and codebase Record definitions synchronize? | Decide ownership, precedence, conflict detection, generated-file boundaries, and deployment behavior. |
+| O-003 | How are Record schema upgrades reviewed and applied? | Current provisioning adds missing fields; rename/drop/type changes, backfills, and rollback are open. |
+| O-004 | Which relationship cardinalities are supported first? | Link fields currently represent a direct foreign-key reference. Module composition and join tables are not implemented. Define delete/update rules. |
+| O-005 | How are Modules versioned, installed, upgraded, and removed? | Modules must package Record definitions, relationships, rules, UI, dependencies, and migrations. |
+| O-006 | What is the tenancy model? | Not selected; do not assume one schema, database, or process per tenant. |
+| O-007 | What exactly can Starlark read and change? | Define events, typed inputs, actions, step/memory limits, permissions, failures, and versions. |
+| O-008 | What authentication and authorization model is needed before hosted use? | Not implemented; database-backed builder endpoints are currently unauthenticated and intended for local development only. |
+| O-009 | Is Athena the final product name? | Working name only; no naming clearance or final decision. |
+| O-010 | When should the transitional JSON Record endpoints move to ConnectRPC? | ConnectRPC/Protobuf remains the intended API. Do not expand `/api/records` as an independent API without an explicit design. |
 
 ## Rejected or unverified assumptions
 
-- PostgreSQL and MariaDB are not yet both supported just because both were discussed.
-- The Go executable does not replace a hosted relational database for a multi-user deployment.
-- ConnectRPC protocol compatibility does not automatically create a conventional REST API.
-- Storage, identity, queues, and databases are not interchangeable abstractions merely because adapters can be written.
-- Claims about provider pricing, operational cost, performance, or superiority to Frappe/SAP remain unverified unless documented with current evidence.
+- A MariaDB schema definition is not the same as a persisted Record entry.
+- Go source generated by the dashboard does not become active in a running executable without rebuilding/restarting it.
+- A Module grouping is not a database relationship until the FK or join-table mapping is materialized.
+- ConnectRPC support does not automatically provide conventional REST semantics.
+- The core ERP has no default invoice, ticketing, regional, or industry-specific business model.
+- Claims of superiority to Frappe or another ERP need evidence and defined user workflows.

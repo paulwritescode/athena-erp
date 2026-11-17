@@ -1,28 +1,28 @@
-# ADR-0002: Use MariaDB first for platform metadata
+# ADR-0002: Use MariaDB as the first relational database
 
 - **Status:** Accepted
 - **Date:** 2026-11-17
 - **Decision owner:** Project owner
-- **Related decisions:** ADR-0001
+- **Related decisions:** ADR-0001, ADR-0003
 
 ## Context
 
-The project needs a relational store that can run locally during development and be hosted for a multi-user deployment. The owner selected the already-installed MariaDB as the initial database. Supporting PostgreSQL at the same time would expand the SQL, schema migration, and operations surface before the first use case is proven.
+Athena needs a relational database that can run locally and be hosted for multiple users. The owner selected the already-installed MariaDB for the first implementation. Supporting PostgreSQL at the same time would expand the SQL, migration, and operations surface before the core Record model is proven.
 
 ## Decision
 
-Use MariaDB as the first supported platform metadata database. Configure it with the `ATHENA_DATABASE_URL` environment variable using the Go MySQL driver's DSN format. On startup, Athena verifies the connection and creates initial InnoDB tables for Forms, Modules, and Rules. The first persisted entity is a Form definition, exposed through same-origin JSON endpoints.
+Use MariaDB as the only active relational database target for now. Configure the Go MySQL driver with `ATHENA_DATABASE_URL`. On startup, Athena verifies the connection and creates metadata tables. Saving a Record definition stores its metadata and provisions the Record's table, as detailed in [ADR-0003](adr-0003-record-table-model.md).
 
-The application may run without a configured database so the Build/View desk remains inspectable. In that mode, sample Forms are held in browser memory and are not persistent.
+The app can run without a database DSN so the core desk remains inspectable. It does not seed domain-specific Records or Modules.
 
 ## Consequences
 
-- The default application address is `:3000`; the Go server remains the only runtime process for UI and API.
-- MariaDB credentials are supplied through the environment, not checked into the repository.
-- Current JSON definition storage is an initial metadata implementation; business Records, module installation, rule execution, and audit history are not implemented.
-- PostgreSQL remains a possible later adapter and will require an explicit dialect/migration design.
-- The current Form metadata endpoints are JSON/HTTP while the initial system information API uses ConnectRPC. Decide the durable API contract before expanding metadata endpoints.
+- The default Go server address is `:3000` and UI/API share the same process.
+- Credentials are supplied through environment/configuration and never committed.
+- Record-entry CRUD, Module persistence/composition, authentication, Starlark execution, and production migrations remain incomplete.
+- PostgreSQL is a later adapter and requires a deliberate dialect/migration plan.
+- The initial Record metadata endpoints use same-origin JSON/HTTP; ConnectRPC/Protobuf remains the intended API contract before the endpoint surface grows.
 
 ## Revisit when
 
-Reconsider this choice when a real deployment requires PostgreSQL, when multiple SQL dialects become a customer requirement, or when the first metadata model needs stronger schema migration and versioning guarantees.
+Reconsider when there is a concrete PostgreSQL deployment need, when SQL dialects become a customer requirement, or before the current schema updater is used for production upgrades.
