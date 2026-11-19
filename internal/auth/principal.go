@@ -36,10 +36,14 @@ const (
 	// PermissionFilesWrite creates, replaces, moves and deletes Workspace
 	// files. It does not include reading them.
 	PermissionFilesWrite = "files:write"
+	// PermissionRulesRead lists Rules, their versions and the Rule Run log.
+	PermissionRulesRead = "rules:read"
+	// PermissionRulesWrite saves, deletes and simulates Rules. Treat it like build: a Rule runs on every matching save.
+	PermissionRulesWrite = "rules:write"
 )
 
 // SystemPermissions lists every system permission.
-var SystemPermissions = []string{PermissionBuild, PermissionAccess, PermissionAudit, PermissionFilesRead, PermissionFilesWrite}
+var SystemPermissions = []string{PermissionBuild, PermissionAccess, PermissionAudit, PermissionFilesRead, PermissionFilesWrite, PermissionRulesRead, PermissionRulesWrite}
 
 // AllRecordTypes is the Grant target that covers every Record Type.
 const AllRecordTypes = "*"

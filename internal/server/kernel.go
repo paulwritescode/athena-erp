@@ -29,6 +29,8 @@ type Kernel struct {
 	// Files is the FileService handler over the Workspace directory. It
 	// refuses every call when the Kernel has no Workspace.
 	Files athenav1connect.FileServiceHandler
+	// Rules is the RuleService handler (Starlark Rules, ADR-0016).
+	Rules athenav1connect.RuleServiceHandler
 	// Hooks takes Go hooks for the lifecycle events (spec 5.2).
 	Hooks *lifecycle.Registry
 	db    *sql.DB
@@ -52,8 +54,9 @@ func OpenKernel(ctx context.Context, cfg *mysql.Config, workspace *Workspace) (*
 	}
 	files := newFileService(workspace, db)
 	hooks := lifecycle.NewRegistry()
+	registerRules(hooks, db)
 	users := &auth.Service{DB: db}
-	return &Kernel{RecordTypes: recordTypeService{db: db}, Records: recordService{db: db, hooks: hooks}, System: systemService{db: db}, Auth: authService{auth: users}, Users: users, Files: files, Hooks: hooks, db: db}, nil
+	return &Kernel{RecordTypes: recordTypeService{db: db}, Records: recordService{db: db, hooks: hooks}, System: systemService{db: db}, Auth: authService{auth: users}, Users: users, Files: files, Rules: newRuleService(db), Hooks: hooks, db: db}, nil
 }
 
 // Close releases the database connection.

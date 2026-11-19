@@ -201,7 +201,13 @@ func (s recordService) CreateRecord(ctx context.Context, req *athenav1.CreateRec
 	}
 	event := lifecycle.Event{RecordType: recordType.Name, RecordID: id.String(), RequestID: requestID, To: lifecycle.Draft, Tx: tx}
 	if recordType.kind() == kindDocument {
+		if event.Doc, err = pendingDocument(ctx, recordType, id.String(), nil, columns, args); err != nil {
+			return nil, err
+		}
 		if err := s.fireSteps(ctx, lifecycle.Sequence(lifecycle.SaveNew), event, 0, 4); err != nil {
+			return nil, err
+		}
+		if columns, args, _, err = mergeRuleWrites(recordType, nil, event.Doc, columns, args, nil); err != nil {
 			return nil, err
 		}
 	}
@@ -418,7 +424,13 @@ func (s recordService) UpdateRecord(ctx context.Context, req *athenav1.UpdateRec
 	}
 	event := lifecycle.Event{RecordType: recordType.Name, RecordID: req.GetId(), RequestID: requestID, From: state, To: state, Tx: tx}
 	if recordType.kind() == kindDocument {
+		if event.Doc, err = pendingDocument(ctx, recordType, req.GetId(), current, changedColumns, changedArgs); err != nil {
+			return nil, err
+		}
 		if err := s.fireSteps(ctx, lifecycle.Sequence(lifecycle.SaveEdit), event, 0, 3); err != nil {
+			return nil, err
+		}
+		if changedColumns, changedArgs, changed, err = mergeRuleWrites(recordType, current, event.Doc, changedColumns, changedArgs, changed); err != nil {
 			return nil, err
 		}
 	}
@@ -533,6 +545,9 @@ func (s recordService) DeleteRecord(ctx context.Context, req *athenav1.DeleteRec
 			return nil, connect.NewError(connect.CodeFailedPrecondition, "only a draft can be deleted; a submitted document is cancelled instead")
 		}
 		event := lifecycle.Event{RecordType: recordType.Name, RecordID: req.GetId(), RequestID: requestID, From: lifecycle.Draft, To: lifecycle.Draft, Tx: tx}
+		if event.Doc, err = pendingDocument(ctx, recordType, req.GetId(), current, nil, nil); err != nil {
+			return nil, err
+		}
 		if err := s.fireSteps(ctx, lifecycle.Sequence(lifecycle.Trash), event, 0, 1); err != nil {
 			return nil, err
 		}
@@ -665,9 +680,17 @@ func (s recordService) recordType(ctx context.Context, key string) (recordTypeDe
 	if s.db == nil {
 		return recordTypeDefinition{}, connect.NewError(connect.CodeUnavailable, "the database is not configured")
 	}
+	return loadRecordTypeFrom(ctx, s.db, key)
+}
+
+// loadRecordTypeFrom reads a saved definition through a database or a
+// transaction, so a Rule reads the same revision the document is saved under.
+func loadRecordTypeFrom(ctx context.Context, q interface {
+	QueryRowContext(context.Context, string, ...any) *sql.Row
+}, key string) (recordTypeDefinition, error) {
 	var payload []byte
 	var revision int64
-	err := s.db.QueryRowContext(ctx, `SELECT definition, revision FROM athena_record_types WHERE name = ?`, key).Scan(&payload, &revision)
+	err := q.QueryRowContext(ctx, `SELECT definition, revision FROM athena_record_types WHERE name = ?`, key).Scan(&payload, &revision)
 	if errors.Is(err, sql.ErrNoRows) {
 		return recordTypeDefinition{}, connect.NewError(connect.CodeNotFound, fmt.Sprintf("Record Type %q does not exist", key))
 	}

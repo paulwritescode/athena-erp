@@ -1,0 +1,208 @@
+syntax = "proto3";
+
+package athena.v1;
+
+import "athena/v1/records.proto";
+
+option go_package = "athena-erp/gen/athena/v1;athenav1";
+
+// RuleService manages Rules, which are Starlark programs the kernel runs at
+// document lifecycle events (spec 13, ADR-0016, Proposed). A Rule never
+// reaches the database itself: it calls Go host functions that read as the
+// acting user and set fields of the document it runs on. Reading needs the
+// rules:read system permission; saving, deleting and simulating need
+// rules:write. Starlark rules are not production-ready.
+service RuleService {
+  // ListRules returns every Rule with its current source.
+  rpc ListRules(ListRulesRequest) returns (ListRulesResponse);
+  // GetRule returns one Rule.
+  rpc GetRule(GetRuleRequest) returns (GetRuleResponse);
+  // SaveRule creates a Rule (expected_version 0) or saves a new version of
+  // one. The source is compiled first, so a program that does not compile,
+  // uses a float, or names a field the Record Type lacks is refused with a
+  // line number. Every save is a new version.
+  rpc SaveRule(SaveRuleRequest) returns (SaveRuleResponse);
+  // DeleteRule removes a Rule. Its versions and runs stay.
+  rpc DeleteRule(DeleteRuleRequest) returns (DeleteRuleResponse);
+  // ListRuleVersions returns the versions of a Rule, newest first, with
+  // their source. Restoring one means saving its source again.
+  rpc ListRuleVersions(ListRuleVersionsRequest) returns (ListRuleVersionsResponse);
+  // SimulateRule is a dry run: it runs a Rule (saved or an unsaved draft)
+  // against a stored Record or supplied values in a transaction that is
+  // rolled back, and returns the outcome and a diff of what it would set.
+  rpc SimulateRule(SimulateRuleRequest) returns (SimulateRuleResponse);
+  // ListRuleRuns returns the Rule Run log, newest first.
+  rpc ListRuleRuns(ListRuleRunsRequest) returns (ListRuleRunsResponse);
+}
+
+// RuleDefinition is what a person edits.
+message RuleDefinition {
+  // Lowercase key, letters, digits and underscores, up to 63 characters.
+  string key = 1;
+  string label = 2;
+  // validation, derivation, guard or transform. Posting arrives with the
+  // posting engine, reaction and scheduled Rules with jobs.
+  string rule_type = 3;
+  // The document Record Type the Rule belongs to. Empty only for transform.
+  string record_type_key = 4;
+  // Lifecycle event: validation runs at validate or before_submit,
+  // derivation at validate, guard at before_submit, before_cancel or
+  // on_trash. A transform runs only when called and has no event.
+  string event = 5;
+  // Lower numbers run first within the same type; derivations run before
+  // validations, then guards.
+  int32 priority = 6;
+  bool enabled = 7;
+  // Starlark source, at most 64 KiB.
+  string source = 8;
+}
+
+message Rule {
+  RuleDefinition definition = 1;
+  // Starts at 1 and grows by one on every save.
+  int64 version = 2;
+  // SHA-256 of the source, lowercase hex.
+  string source_hash = 3;
+  string modified_by = 4;
+  // RFC 3339 time of the last save.
+  string modified_at = 5;
+}
+
+message ListRulesRequest {}
+
+message ListRulesResponse {
+  repeated Rule rules = 1;
+}
+
+message GetRuleRequest {
+  string key = 1;
+}
+
+message GetRuleResponse {
+  Rule rule = 1;
+}
+
+message SaveRuleRequest {
+  RuleDefinition definition = 1;
+  // The version the editor loaded; 0 creates the Rule.
+  int64 expected_version = 2;
+}
+
+message SaveRuleResponse {
+  Rule rule = 1;
+}
+
+message DeleteRuleRequest {
+  string key = 1;
+  int64 expected_version = 2;
+}
+
+message DeleteRuleResponse {}
+
+message RuleVersion {
+  int64 version = 1;
+  RuleDefinition definition = 2;
+  string source_hash = 3;
+  string actor = 4;
+  // RFC 3339 time.
+  string created_at = 5;
+}
+
+message ListRuleVersionsRequest {
+  string key = 1;
+}
+
+message ListRuleVersionsResponse {
+  repeated RuleVersion versions = 1;
+}
+
+// RuleMessage is one warning, or one line a Rule wrote with log.
+message RuleMessage {
+  // The code the Rule gave, or the level of a log line.
+  string code = 1;
+  string text = 2;
+}
+
+// RuleChange is one field a Rule sets, with the value before and after as
+// text. A field above the acting user's permission level is never shown.
+message RuleChange {
+  string field = 1;
+  optional string old_value = 2;
+  optional string new_value = 3;
+}
+
+message SimulateRuleRequest {
+  // The Rule to run. A draft need not be saved; when key matches a saved Rule
+  // the draft replaces it for this run only.
+  RuleDefinition definition = 1;
+  // Run against this stored Record of the Rule's Record Type...
+  string record_id = 2;
+  // ...or against these values (a transform needs these). Fields not given
+  // are empty.
+  map<string, FieldValue> values = 3;
+}
+
+message SimulateRuleResponse {
+  // ok, rejected or error.
+  string outcome = 1;
+  // Machine code of a rejection or an error, such as rejected, step_limit or
+  // time_limit.
+  string code = 2;
+  string message = 3;
+  repeated RuleMessage warnings = 4;
+  repeated RuleMessage logs = 5;
+  // The fields the Rule would set, as a diff against the document.
+  repeated RuleChange changes = 6;
+  // The rows a transform returned.
+  map<string, FieldValue> result = 7;
+  int64 steps = 8;
+  int64 reads = 9;
+  int64 duration_micros = 10;
+  // SHA-256 of the input the Rule saw; the same input gives the same hash.
+  string input_hash = 11;
+}
+
+message ListRuleRunsRequest {
+  // Filters; empty means any.
+  string rule_key = 1;
+  string record_type_key = 2;
+  string record_id = 3;
+  string request_id = 4;
+  // ok, rejected or error.
+  string outcome = 5;
+  int32 page_size = 6;
+  // Opaque token from the previous page.
+  string page_token = 7;
+}
+
+// RuleRun is one execution of a Rule (spec 12.1). It holds the hash of the
+// input, never the Record values.
+message RuleRun {
+  string id = 1;
+  string rule_key = 2;
+  int64 rule_version = 3;
+  string rule_type = 4;
+  string record_type_key = 5;
+  string record_id = 6;
+  string event = 7;
+  string input_hash = 8;
+  string outcome = 9;
+  string code = 10;
+  string message = 11;
+  int64 steps = 12;
+  int64 reads = 13;
+  int64 writes = 14;
+  int64 duration_micros = 15;
+  bool dry_run = 16;
+  string actor = 17;
+  string request_id = 18;
+  // RFC 3339 time.
+  string created_at = 19;
+  repeated RuleMessage warnings = 20;
+  repeated RuleMessage logs = 21;
+}
+
+message ListRuleRunsResponse {
+  repeated RuleRun runs = 1;
+  string next_page_token = 2;
+}

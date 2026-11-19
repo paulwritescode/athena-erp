@@ -13,6 +13,7 @@ import (
 	"athena-erp/gen/athena/v1/athenav1connect"
 	"athena-erp/internal/audit"
 	"athena-erp/internal/auth"
+	"athena-erp/internal/lifecycle"
 	"athena-erp/internal/store"
 	"athena-erp/internal/telemetry"
 	"athena-erp/internal/webui"
@@ -38,6 +39,9 @@ type Config struct {
 	Database *mysql.Config
 	// Workspace, when set, must match the athena_workspace row in Database.
 	Workspace *Workspace
+	// FilesRoot is the directory FileService manages when no Workspace is
+	// set, as with athena serve. Ignored when Workspace has a Root.
+	FilesRoot string
 	Version   string
 }
 
@@ -156,6 +160,19 @@ func Serve(ctx context.Context, config Config) error {
 	}
 }
 
+// filesWorkspace is the Workspace whose directory FileService manages: the
+// bound Workspace, or for athena serve a Workspace that only carries
+// FilesRoot.
+func filesWorkspace(config Config) *Workspace {
+	if config.Workspace != nil && config.Workspace.Root != "" {
+		return config.Workspace
+	}
+	if config.FilesRoot != "" {
+		return &Workspace{Root: config.FilesRoot}
+	}
+	return config.Workspace
+}
+
 // mountRPC registers every ConnectRPC service on mux behind interceptors and
 // the permission gate. The gate runs last, so denials are traced and carry the
 // request ID. Without a database it refuses every call.
@@ -169,8 +186,11 @@ func mountRPC(mux *http.ServeMux, config Config, db *sql.DB, telemetry bool, int
 	athenav1connect.RegisterSystemServiceHandler(rpcServer, systemService{config: config, telemetry: telemetry, db: db})
 	athenav1connect.RegisterAuthServiceHandler(rpcServer, authService{auth: authSvc})
 	athenav1connect.RegisterRecordTypeServiceHandler(rpcServer, recordTypeService{db: db})
-	athenav1connect.RegisterRecordServiceHandler(rpcServer, recordService{db: db})
-	athenav1connect.RegisterFileServiceHandler(rpcServer, newFileService(config.Workspace, db))
+	hooks := lifecycle.NewRegistry()
+	registerRules(hooks, db)
+	athenav1connect.RegisterRecordServiceHandler(rpcServer, recordService{db: db, hooks: hooks})
+	athenav1connect.RegisterRuleServiceHandler(rpcServer, newRuleService(db))
+	athenav1connect.RegisterFileServiceHandler(rpcServer, newFileService(filesWorkspace(config), db))
 	connecthttp.Mount(mux, rpcServer)
 }
 

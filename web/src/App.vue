@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { ConnectError } from '@connectrpc/connect'
+import { classify, describeFailure, type Failure } from './apiErrors'
 import { authClient, deleteRecordType, listRecordTypes, onSessionEnded, planRecordTypeSave, saveRecordType, setCsrfToken, systemClient, type SaveAnswers, type SavePlan } from './api'
 import type { SessionInfo } from './gen/athena/v1/auth_pb'
 import ChangePasswordDialog from './components/ChangePasswordDialog.vue'
@@ -64,6 +65,10 @@ const viewRecordType = computed(() => viewRecordTypes.value.find((item) => item.
 // session; every call is checked again on the server.
 const authState = ref<'checking' | 'signed-out' | 'signed-in'>('checking')
 const hasUsers = ref(true)
+// What the sign-in card shows when the desk cannot start normally.
+const pageState = ref<Failure | null>(null)
+const signInNote = ref('')
+const rechecking = ref(false)
 const user = ref<SessionUser | null>(null)
 const changingPassword = ref(false)
 // Build needs the build permission. Everyone else works in View only. Without
@@ -73,19 +78,25 @@ const canBuild = computed(() => (user.value ? user.value.systemPermissions.inclu
 // page edits only with files:write. The server checks both on every call.
 const canFiles = computed(() => (user.value ? user.value.systemPermissions.includes('files:read') : false))
 const canWriteFiles = computed(() => (user.value ? user.value.systemPermissions.includes('files:write') : false))
-// Build opens for the build permission or for files:read, which sees only Files.
-const canBuildDesk = computed(() => canBuild.value || canFiles.value)
+// Rules follow rules:read and the page edits only with rules:write; without a
+// database there is no session and the page shows why it is unavailable.
+const canRules = computed(() => (user.value ? user.value.systemPermissions.includes('rules:read') : databaseState.value !== 'Connected'))
+const canWriteRules = computed(() => (user.value ? user.value.systemPermissions.includes('rules:write') : false))
+// Build opens for the build permission, files:read or rules:read; a user with
+// only the last two sees just those pages.
+const canBuildDesk = computed(() => canBuild.value || canFiles.value || canRules.value)
 const buildNav = computed<[Page, string][]>(() => {
-  const items: [Page, string][] = canBuild.value ? [['overview', 'Overview'], ['record-types', 'Record Types'], ['packs', 'Packs'], ['rules', 'Rules']] : []
+  const items: [Page, string][] = canBuild.value ? [['overview', 'Overview'], ['record-types', 'Record Types'], ['packs', 'Packs']] : []
+  if (canRules.value) items.push(['rules', 'Rules'])
   if (canFiles.value) items.push(['files', 'Files'])
   return items
 })
 watch(canBuildDesk, (value) => { if (!value) mode.value = 'view' })
-// A user who can only read files lands on Files, the one Build page they have.
-function landOnFiles() {
-  if (!canBuild.value && canFiles.value && page.value !== 'files') page.value = 'files'
+// A user without build lands on the first Build page they have.
+function landOnBuildPage() {
+  const first = buildNav.value[0]?.[0]
+  if (!canBuild.value && first && !buildNav.value.some(([name]) => name === page.value)) page.value = first
 }
-
 function applySession(info: SessionInfo | undefined) {
   if (info?.authenticated) {
     setCsrfToken(info.csrfToken)
@@ -108,10 +119,11 @@ async function loadRecordTypes() {
 }
 
 async function signedIn(info: SessionInfo) {
+  signInNote.value = ''
   applySession(info)
   toast.success(`Signed in as ${info.displayName || info.username}.`)
   if (!canBuildDesk.value) mode.value = 'view'
-  landOnFiles()
+  landOnBuildPage()
   await loadRecordTypes()
 }
 
@@ -129,49 +141,77 @@ async function signOut() {
 onSessionEnded(() => {
   if (authState.value !== 'signed-in') return
   applySession(undefined)
-  toast.error('Your session has ended. Sign in again.')
+  signInNote.value = 'Your session ended. Sign in again.'
 })
 
 watch([mode, page, selectedRecordType, recordRoute], writeLocation)
 watch(mode, (value) => { if (value === 'build') recordRoute.value = '' })
 
-onMounted(async () => {
-  const storedTheme = localStorage.getItem('athena-theme')
-  isDark.value = storedTheme ? storedTheme === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches
-  document.documentElement.classList.toggle('dark', isDark.value)
-  try {
-    const info = await systemClient.getSystemInfo({})
-    workspaceName.value = info.workspaceName
-    if (info.telemetryEnabled) startBrowserTelemetry(info.version, info.workspaceSlug)
-    apiState.value = 'connected'
-  } catch { apiState.value = 'error' }
+// startDesk finds out what state the server is in and opens the right page. It
+// runs at start and again from "Check again" on the sign-in card.
+async function startDesk() {
+  pageState.value = null
+  // /healthz does not need the database, so it tells a server that is down
+  // from a database that is down.
   try {
     const response = await fetch('/healthz')
     const health = await response.json() as { database?: string }
     databaseState.value = health.database ?? 'Not configured'
-  } catch { databaseState.value = 'Unavailable' }
-  if (databaseState.value === 'Connected') {
-    try {
-      const res = await authClient.getSession({})
-      hasUsers.value = res.hasUsers
-      applySession(res.session)
-      if (!canBuildDesk.value) mode.value = 'view'
-      landOnFiles()
-      if (authState.value === 'signed-in') await loadRecordTypes()
-    } catch {
-      authState.value = 'signed-out'
-      toast.error('Could not check the session.')
-    }
-  } else {
-    // Without a database there are no users, so the desk opens as before
-    // and every call is refused by the server.
-    authState.value = 'signed-in'
+    apiState.value = 'connected'
+  } catch {
+    databaseState.value = 'Unavailable'
+    apiState.value = 'error'
   }
-  // The sidebar has no status line, so report a missing connection once here.
-  if (apiState.value === 'error') toast.error('The Athena server is unavailable.')
-  else if (databaseState.value !== 'Connected') toast.error(`Database: ${databaseState.value}. Changes stay in this browser session.`)
+  if (apiState.value === 'error') {
+    pageState.value = { kind: 'unreachable', message: 'Cannot reach the Athena server. Check that it is running, then try again.', persistent: true }
+    authState.value = 'signed-out'
+    return
+  }
+  if (databaseState.value !== 'Connected') {
+    const detail = databaseState.value === 'Not configured' ? 'No database is configured. Set ATHENA_DATABASE_URL and restart Athena.' : 'The database is not connected. Start MariaDB and check ATHENA_DATABASE_URL, then try again.'
+    pageState.value = { kind: 'database', message: detail, persistent: true }
+    authState.value = 'signed-out'
+    return
+  }
+  try {
+    const info = await systemClient.getSystemInfo({})
+    workspaceName.value = info.workspaceName
+    if (info.telemetryEnabled) startBrowserTelemetry(info.version, info.workspaceSlug)
+  } catch (err) {
+    apiState.value = 'error'
+    pageState.value = classify(err)
+    authState.value = 'signed-out'
+    return
+  }
+  try {
+    const res = await authClient.getSession({})
+    hasUsers.value = res.hasUsers
+    applySession(res.session)
+    if (!canBuildDesk.value) mode.value = 'view'
+    landOnBuildPage()
+    if (authState.value === 'signed-in') await loadRecordTypes()
+  } catch (err) {
+    const failure = classify(err)
+    if (failure.persistent) pageState.value = failure
+    else toast.error(describeFailure(failure))
+    authState.value = 'signed-out'
+  }
+}
+async function recheck() {
+  rechecking.value = true
+  try {
+    await startDesk()
+    if (pageState.value === null && !hasUsers.value) toast.error('Still no users. Run the command, then check again.')
+  } finally {
+    rechecking.value = false
+  }
+}
+onMounted(async () => {
+  const storedTheme = localStorage.getItem('athena-theme')
+  isDark.value = storedTheme ? storedTheme === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches
+  document.documentElement.classList.toggle('dark', isDark.value)
+  await startDesk()
 })
-
 function toggleTheme() {
   isDark.value = !isDark.value
   document.documentElement.classList.toggle('dark', isDark.value)
@@ -267,7 +307,7 @@ function cancelPendingSave() {
 </script>
 
 <template>
-  <SignInPage v-if="authState === 'signed-out'" :has-users="hasUsers" :workspace-name="workspaceName" @signed-in="signedIn" />
+  <SignInPage v-if="authState === 'signed-out'" :has-users="hasUsers" :workspace-name="workspaceName" :page-state="pageState" :note="signInNote" :checking="rechecking" @signed-in="signedIn" @recheck="recheck" />
   <div v-else-if="authState === 'signed-in'" class="app-shell">
     <aside class="sidebar">
       <a class="brand" href="#overview" @click.prevent="page = 'overview'; mode = 'build'">Athena<small v-if="workspaceName" class="brand-project">{{ workspaceName }}</small></a>
@@ -285,7 +325,7 @@ function cancelPendingSave() {
       <OverviewPage v-if="mode === 'build' && page === 'overview'" :record-types="recordTypes" :database-state="databaseState" :api-state="apiState" @navigate="page = $event" @create-record-type="page = 'record-types'; addRecordType()" />
       <RecordTypesPage v-else-if="mode === 'build' && page === 'record-types'" :record-types="recordTypes" :current-record-type="currentRecordType" :database-state="databaseState" @select="selectedRecordType = $event" @add-record-type="addRecordType" @add-field="addField" @rename="renameRecordType" @delete="removeRecordType" @save="saveCurrentRecordType" @preview="mode = 'view'" />
       <PacksPage v-else-if="mode === 'build' && page === 'packs'" @open-record-types="page = 'record-types'" />
-      <RulesPage v-else-if="mode === 'build' && page === 'rules'" />
+      <RulesPage v-else-if="mode === 'build' && page === 'rules'" :can-write="canWriteRules" :record-types="recordTypes" />
       <FilesPage v-else-if="mode === 'build' && page === 'files'" :can-write="canWriteFiles" />
       <RecordsPage v-else v-model:record-id="recordRoute" :record-type="viewRecordType" :record-types="viewRecordTypes" @back="mode = 'build'" />
     </main>

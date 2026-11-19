@@ -222,6 +222,9 @@ func SystemMigrations() []store.Migration {
 				CONSTRAINT fk_file_versions_file FOREIGN KEY (file_id) REFERENCES athena_files (id)
 			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 		)},
+		// Starlark Rules, their versions and the Rule Run log (ADR-0016). The
+		// unused first athena_rules table is kept as athena_rules_legacy.
+		{Version: 11, Name: "starlark_rules", Up: createRules},
 	}
 }
 
@@ -325,4 +328,80 @@ func openMigrationDB(ctx context.Context, cfg *mysql.Config, workspace *Workspac
 		}
 	}
 	return db, nil
+}
+
+// createRules gives Starlark Rules their tables. The first athena_rules table
+// (name, label, pack_name, definition JSON) was never read or written by any
+// code; it is renamed athena_rules_legacy with its rows, not dropped. Rule Run rows hold hashes and counts, never Record values.
+func createRules(ctx context.Context, x store.Execer) error {
+	// The old table has a definition column; the new one does not, which
+	// also makes a repeated run harmless.
+	legacy, err := dialect.ColumnExists(ctx, x, "athena_rules", "definition")
+	if err != nil {
+		return err
+	}
+	if legacy {
+		if _, err := x.ExecContext(ctx, "RENAME TABLE athena_rules TO athena_rules_legacy"); err != nil {
+			return err
+		}
+	}
+	return execAll(
+		`CREATE TABLE IF NOT EXISTS athena_rules (
+			name VARCHAR(63) NOT NULL PRIMARY KEY,
+			label VARCHAR(255) NOT NULL,
+			rule_type VARCHAR(20) NOT NULL,
+			record_type VARCHAR(140) NULL,
+			event VARCHAR(40) NULL,
+			priority INT NOT NULL DEFAULT 100,
+			enabled TINYINT(1) NOT NULL DEFAULT 1,
+			version BIGINT NOT NULL,
+			source MEDIUMTEXT NOT NULL,
+			source_hash CHAR(64) NOT NULL,
+			modified_by VARCHAR(255) NOT NULL,
+			created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+			updated_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+			KEY idx_rules_event (record_type, event, enabled)
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+		`CREATE TABLE IF NOT EXISTS athena_rule_versions (
+			rule_name VARCHAR(63) NOT NULL,
+			version BIGINT NOT NULL,
+			label VARCHAR(255) NOT NULL,
+			rule_type VARCHAR(20) NOT NULL,
+			record_type VARCHAR(140) NULL,
+			event VARCHAR(40) NULL,
+			priority INT NOT NULL,
+			enabled TINYINT(1) NOT NULL,
+			source MEDIUMTEXT NOT NULL,
+			source_hash CHAR(64) NOT NULL,
+			actor VARCHAR(255) NOT NULL,
+			request_id CHAR(36) NULL,
+			created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+			PRIMARY KEY (rule_name, version)
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+		`CREATE TABLE IF NOT EXISTS athena_rule_runs (
+			id CHAR(36) NOT NULL PRIMARY KEY,
+			rule_name VARCHAR(63) NOT NULL,
+			rule_version BIGINT NOT NULL,
+			rule_type VARCHAR(20) NOT NULL,
+			record_type VARCHAR(140) NULL,
+			record_id CHAR(36) NULL,
+			event VARCHAR(40) NULL,
+			input_hash CHAR(64) NOT NULL,
+			outcome VARCHAR(20) NOT NULL,
+			code VARCHAR(40) NOT NULL DEFAULT '',
+			message VARCHAR(600) NOT NULL DEFAULT '',
+			steps BIGINT NOT NULL,
+			rows_read INT NOT NULL,
+			rows_written INT NOT NULL,
+			duration_micros BIGINT NOT NULL,
+			dry_run TINYINT(1) NOT NULL,
+			actor VARCHAR(255) NOT NULL,
+			request_id CHAR(36) NULL,
+			messages JSON NOT NULL,
+			created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+			KEY idx_rule_runs_rule (rule_name, id),
+			KEY idx_rule_runs_record (record_type, record_id),
+			KEY idx_rule_runs_request (request_id)
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+	)(ctx, x)
 }

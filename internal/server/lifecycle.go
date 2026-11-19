@@ -247,6 +247,9 @@ func (s recordService) transition(ctx context.Context, requestID string, action 
 		}
 	}
 	event := lifecycle.Event{RecordType: key, RecordID: id, RequestID: requestID, From: from, To: to, Tx: tx}
+	if event.Doc, err = pendingDocument(ctx, recordType, id, current, nil, nil); err != nil {
+		return nil, err
+	}
 	steps := lifecycle.Sequence(action)
 	if err := s.fireSteps(ctx, steps, event, 0, 1); err != nil {
 		return nil, err

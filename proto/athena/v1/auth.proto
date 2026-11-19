@@ -166,3 +166,13 @@ message AccessEvent {
 message ListAccessLogResponse {
   repeated AccessEvent events = 1;
 }
+
+// AuthFailure is attached as an error detail to a failed Login that the
+// server may describe without revealing whether a user exists: it is sent only
+// when the correct password was given for a locked or disabled account.
+message AuthFailure {
+  // locked or disabled.
+  string reason = 1;
+  // RFC 3339 time a lock ends; empty for a disabled account.
+  string unlocks_at = 2;
+}

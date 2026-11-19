@@ -17,6 +17,7 @@ import (
 	athenav1 "athena-erp/gen/athena/v1"
 	"athena-erp/gen/athena/v1/athenav1connect"
 	"athena-erp/internal/auth"
+	"athena-erp/internal/lifecycle"
 	"athena-erp/internal/store"
 	"athena-erp/internal/testdb"
 
@@ -40,6 +41,7 @@ type accessFixture struct {
 	// Operator services: they run as the CLI does, with no principal.
 	types   recordTypeService
 	records recordService
+	rules   ruleService
 }
 
 func newAccessFixture(t *testing.T) *accessFixture {
@@ -59,7 +61,9 @@ func newAccessFixtureAt(t *testing.T, root string) *accessFixture {
 	mountRPC(mux, Config{Workspace: &Workspace{Root: root}}, db, false, []connect.ServerInterceptor{requestInterceptor()})
 	srv := httptest.NewServer(securityHeaders(mux))
 	t.Cleanup(srv.Close)
-	return &accessFixture{db: db, url: srv.URL, users: &auth.Service{DB: db}, types: recordTypeService{db: db}, records: recordService{db: db}}
+	hooks := lifecycle.NewRegistry()
+	registerRules(hooks, db)
+	return &accessFixture{db: db, url: srv.URL, users: &auth.Service{DB: db}, types: recordTypeService{db: db}, records: recordService{db: db, hooks: hooks}, rules: newRuleService(db)}
 }
 
 // csrfTransport sends the CSRF token the last sign-in returned.
@@ -82,6 +86,7 @@ type session struct {
 	types   athenav1connect.RecordTypeServiceClient
 	system  athenav1connect.SystemServiceClient
 	files   athenav1connect.FileServiceClient
+	rules   athenav1connect.RuleServiceClient
 	jar     *cookiejar.Jar
 	csrf    *string
 	base    string
@@ -96,7 +101,7 @@ func (f *accessFixture) browser(t *testing.T) *session {
 	token := ""
 	client := connect.NewClient(connecthttp.NewTransport(&http.Client{Jar: jar, Transport: csrfTransport{token: &token}}, f.url))
 	return &session{auth: athenav1connect.NewAuthServiceClient(client), records: athenav1connect.NewRecordServiceClient(client), types: athenav1connect.NewRecordTypeServiceClient(client),
-		system: athenav1connect.NewSystemServiceClient(client), files: athenav1connect.NewFileServiceClient(client), jar: jar, csrf: &token, base: f.url}
+		system: athenav1connect.NewSystemServiceClient(client), files: athenav1connect.NewFileServiceClient(client), rules: athenav1connect.NewRuleServiceClient(client), jar: jar, csrf: &token, base: f.url}
 }
 
 func (s *session) login(t *testing.T, username string) {

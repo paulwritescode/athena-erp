@@ -143,7 +143,38 @@ type Event struct {
 	RequestID string
 	From, To  State
 	Tx        *sql.Tx
+	// Doc is the document the event is about, when it has one in hand.
+	Doc *Document
 }
+
+// Document is a document as the kernel holds it during an event, in the
+// stored (database argument) form: nil, bool, string, or int64 minor units
+// for a Money field. A hook changes it with Set; the kernel applies those
+// writes after the event, through the same checks as a user's save.
+type Document struct {
+	// Values holds every field by key.
+	Values map[string]any
+	// System holds the kernel columns (revision, docstate, owner and so on).
+	System map[string]any
+	// Writes holds what hooks set, by field key.
+	Writes map[string]any
+	order  []string
+}
+
+// Set records a field change. Later hooks see the new value.
+func (d *Document) Set(key string, value any) {
+	if d.Writes == nil {
+		d.Writes = map[string]any{}
+	}
+	if _, seen := d.Writes[key]; !seen {
+		d.order = append(d.order, key)
+	}
+	d.Writes[key] = value
+	d.Values[key] = value
+}
+
+// Written returns the keys hooks set, in the order they first set them.
+func (d *Document) Written() []string { return append([]string(nil), d.order...) }
 
 // Hook reacts to an event. An error from an in-transaction hook rejects the
 // operation and rolls it back.
@@ -154,8 +185,8 @@ type registration struct {
 	hook       Hook
 }
 
-// Registry holds the Go hooks. A nil Registry has none. Starlark rules attach
-// to the same events in a later phase and never bypass these checks.
+// Registry holds the hooks. A nil Registry has none. Starlark Rules attach to
+// the same events through one hook and never bypass these checks.
 type Registry struct {
 	mu    sync.RWMutex
 	hooks map[Name][]registration

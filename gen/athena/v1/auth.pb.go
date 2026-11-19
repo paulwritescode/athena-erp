@@ -1620,6 +1620,63 @@ func (x *ListAccessLogResponse) GetEvents() []*AccessEvent {
 	return nil
 }
 
+// AuthFailure is attached as an error detail to a failed Login that the
+// server may describe without revealing whether a user exists: it is sent only
+// when the correct password was given for a locked or disabled account.
+type AuthFailure struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// locked or disabled.
+	Reason string `protobuf:"bytes,1,opt,name=reason,proto3" json:"reason,omitempty"`
+	// RFC 3339 time a lock ends; empty for a disabled account.
+	UnlocksAt     string `protobuf:"bytes,2,opt,name=unlocks_at,json=unlocksAt,proto3" json:"unlocks_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AuthFailure) Reset() {
+	*x = AuthFailure{}
+	mi := &file_athena_v1_auth_proto_msgTypes[30]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AuthFailure) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AuthFailure) ProtoMessage() {}
+
+func (x *AuthFailure) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_auth_proto_msgTypes[30]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AuthFailure.ProtoReflect.Descriptor instead.
+func (*AuthFailure) Descriptor() ([]byte, []int) {
+	return file_athena_v1_auth_proto_rawDescGZIP(), []int{30}
+}
+
+func (x *AuthFailure) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+func (x *AuthFailure) GetUnlocksAt() string {
+	if x != nil {
+		return x.UnlocksAt
+	}
+	return ""
+}
+
 var File_athena_v1_auth_proto protoreflect.FileDescriptor
 
 const file_athena_v1_auth_proto_rawDesc = "" +
@@ -1723,7 +1780,11 @@ const file_athena_v1_auth_proto_rawDesc = "" +
 	"\x06detail\x18\n" +
 	" \x01(\tR\x06detail\"G\n" +
 	"\x15ListAccessLogResponse\x12.\n" +
-	"\x06events\x18\x01 \x03(\v2\x16.athena.v1.AccessEventR\x06events2\x88\a\n" +
+	"\x06events\x18\x01 \x03(\v2\x16.athena.v1.AccessEventR\x06events\"D\n" +
+	"\vAuthFailure\x12\x16\n" +
+	"\x06reason\x18\x01 \x01(\tR\x06reason\x12\x1d\n" +
+	"\n" +
+	"unlocks_at\x18\x02 \x01(\tR\tunlocksAt2\x88\a\n" +
 	"\vAuthService\x12:\n" +
 	"\x05Login\x12\x17.athena.v1.LoginRequest\x1a\x18.athena.v1.LoginResponse\x12=\n" +
 	"\x06Logout\x12\x18.athena.v1.LogoutRequest\x1a\x19.athena.v1.LogoutResponse\x12I\n" +
@@ -1754,7 +1815,7 @@ func file_athena_v1_auth_proto_rawDescGZIP() []byte {
 	return file_athena_v1_auth_proto_rawDescData
 }
 
-var file_athena_v1_auth_proto_msgTypes = make([]protoimpl.MessageInfo, 30)
+var file_athena_v1_auth_proto_msgTypes = make([]protoimpl.MessageInfo, 31)
 var file_athena_v1_auth_proto_goTypes = []any{
 	(*LoginRequest)(nil),           // 0: athena.v1.LoginRequest
 	(*LoginResponse)(nil),          // 1: athena.v1.LoginResponse
@@ -1786,6 +1847,7 @@ var file_athena_v1_auth_proto_goTypes = []any{
 	(*ListAccessLogRequest)(nil),   // 27: athena.v1.ListAccessLogRequest
 	(*AccessEvent)(nil),            // 28: athena.v1.AccessEvent
 	(*ListAccessLogResponse)(nil),  // 29: athena.v1.ListAccessLogResponse
+	(*AuthFailure)(nil),            // 30: athena.v1.AuthFailure
 }
 var file_athena_v1_auth_proto_depIdxs = []int32{
 	6,  // 0: athena.v1.LoginResponse.session:type_name -> athena.v1.SessionInfo
@@ -1842,7 +1904,7 @@ func file_athena_v1_auth_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_athena_v1_auth_proto_rawDesc), len(file_athena_v1_auth_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   30,
+			NumMessages:   31,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	athenav1 "athena-erp/gen/athena/v1"
 	"athena-erp/gen/athena/v1/athenav1connect"
 	"athena-erp/internal/auth"
 
@@ -66,6 +67,13 @@ var procedurePolicies = map[string]policy{
 	athenav1connect.FileServicePutFileProcedure:          {kind: policySystem, permission: auth.PermissionFilesWrite},
 	athenav1connect.FileServiceMoveFileProcedure:         {kind: policySystem, permission: auth.PermissionFilesWrite},
 	athenav1connect.FileServiceDeleteFileProcedure:       {kind: policySystem, permission: auth.PermissionFilesWrite},
+	athenav1connect.RuleServiceListRulesProcedure:        {kind: policySystem, permission: auth.PermissionRulesRead},
+	athenav1connect.RuleServiceGetRuleProcedure:          {kind: policySystem, permission: auth.PermissionRulesRead},
+	athenav1connect.RuleServiceListRuleVersionsProcedure: {kind: policySystem, permission: auth.PermissionRulesRead},
+	athenav1connect.RuleServiceListRuleRunsProcedure:     {kind: policySystem, permission: auth.PermissionRulesRead},
+	athenav1connect.RuleServiceSaveRuleProcedure:         {kind: policySystem, permission: auth.PermissionRulesWrite},
+	athenav1connect.RuleServiceDeleteRuleProcedure:       {kind: policySystem, permission: auth.PermissionRulesWrite},
+	athenav1connect.RuleServiceSimulateRuleProcedure:     {kind: policySystem, permission: auth.PermissionRulesWrite},
 	// The handler filters the list to the Record Types the user may read.
 	athenav1connect.RecordTypeServiceListRecordTypesProcedure:    {kind: policySession},
 	athenav1connect.RecordTypeServicePlanRecordTypeSaveProcedure: {kind: policySystem, permission: auth.PermissionBuild},
@@ -134,6 +142,9 @@ func gateInterceptor(svc *auth.Service) connect.ServerInterceptor {
 					principal = p
 				case !errors.Is(err, auth.ErrUnauthenticated):
 					log.Printf("authenticate: session lookup failed")
+					if isConnectionError(err) {
+						return connect.NewError(connect.CodeUnavailable, "the database is not reachable")
+					}
 					return connect.NewError(connect.CodeInternal, "could not check the session")
 				}
 			}
@@ -142,7 +153,8 @@ func gateInterceptor(svc *auth.Service) connect.ServerInterceptor {
 					return connect.NewError(connect.CodeUnauthenticated, "sign in to continue")
 				}
 				if !auth.CheckCSRF(token, sent) {
-					return deny(principal, "", "", "csrf", connect.CodePermissionDenied, "the request did not carry a valid CSRF token; reload the page")
+					_ = deny(principal, "", "", "csrf", connect.CodePermissionDenied, "")
+					return failureError(connect.CodePermissionDenied, "the request did not carry a valid CSRF token; reload the page", &athenav1.AuthFailure{Reason: "csrf"})
 				}
 			}
 			if pol.kind == policySystem && !principal.HasSystem(pol.permission) {

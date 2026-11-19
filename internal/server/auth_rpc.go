@@ -2,13 +2,17 @@ package server
 
 import (
 	"context"
+	"database/sql/driver"
 	"errors"
+	"net"
 	"time"
 
 	athenav1 "athena-erp/gen/athena/v1"
 	"athena-erp/internal/auth"
 
 	"connectrpc.com/connect/v2"
+	"connectrpc.com/connect/v2/connectproto"
+	"github.com/go-sql-driver/mysql"
 )
 
 // authService implements athena.v1.AuthService over internal/auth. The gate
@@ -21,7 +25,14 @@ type authService struct {
 // authError maps an auth package error to a ConnectRPC error whose message is
 // safe to show.
 func authError(op string, err error) error {
+	var locked *auth.LockedError
 	switch {
+	case errors.As(err, &locked):
+		return failureError(connect.CodeFailedPrecondition, err.Error(), &athenav1.AuthFailure{Reason: "locked", UnlocksAt: locked.Until.UTC().Format(time.RFC3339)})
+	case errors.Is(err, auth.ErrDisabled):
+		return failureError(connect.CodeFailedPrecondition, err.Error(), &athenav1.AuthFailure{Reason: "disabled"})
+	case isConnectionError(err):
+		return connect.NewError(connect.CodeUnavailable, "the database is not reachable")
 	case errors.Is(err, auth.ErrInvalidCredentials):
 		return connect.NewError(connect.CodeUnauthenticated, err.Error())
 	case errors.Is(err, auth.ErrUnauthenticated):
@@ -285,4 +296,20 @@ func (s authService) ListAccessLog(ctx context.Context, req *athenav1.ListAccess
 		res.Events = append(res.Events, AccessEventMessage(r))
 	}
 	return res, nil
+}
+
+// failureError attaches an AuthFailure detail to an error.
+func failureError(code connect.Code, message string, failure *athenav1.AuthFailure) error {
+	err := connect.NewError(code, message)
+	if detail, derr := connectproto.NewErrorDetail(failure); derr == nil {
+		err = err.WithDetail(detail)
+	}
+	return err
+}
+
+// isConnectionError reports a failure to reach the database, as opposed to a
+// failure of a statement.
+func isConnectionError(err error) bool {
+	var netErr net.Error
+	return errors.Is(err, driver.ErrBadConn) || errors.Is(err, mysql.ErrInvalidConn) || errors.As(err, &netErr)
 }

@@ -37,11 +37,15 @@ var (
 	// ErrInvalidCredentials covers a wrong password, an unknown or disabled
 	// user and a locked user, so a sign-in reveals nothing about which.
 	ErrInvalidCredentials = errors.New("wrong username or password, or the user is locked")
-	ErrUnauthenticated    = errors.New("sign in to continue")
-	ErrNotFound           = errors.New("not found")
-	ErrExists             = errors.New("already exists")
-	ErrLastOwner          = errors.New("the instance needs at least one enabled owner")
-	ErrInvalid            = errors.New("invalid input")
+	// ErrLocked and ErrDisabled are returned only when the right password was
+	// given, so they reveal nothing to someone guessing names.
+	ErrLocked          = errors.New("this account is locked after too many failed sign-ins")
+	ErrDisabled        = errors.New("this account is disabled")
+	ErrUnauthenticated = errors.New("sign in to continue")
+	ErrNotFound        = errors.New("not found")
+	ErrExists          = errors.New("already exists")
+	ErrLastOwner       = errors.New("the instance needs at least one enabled owner")
+	ErrInvalid         = errors.New("invalid input")
 )
 
 var usernamePattern = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{1,62}$`)
@@ -384,13 +388,21 @@ func (s *Service) Login(ctx context.Context, username, password, requestID strin
 		return LoginResult{}, fmt.Errorf("sign in: %w", err)
 	}
 	if user.Disabled || (locked.Valid && locked.Time.After(now)) {
-		VerifyPassword(password, dummyHash)
+		// The real hash is checked so that only the owner of the password
+		// learns the state; anyone else gets the generic failure.
+		correct, _ := VerifyPassword(password, hash)
 		detail := "disabled"
 		if !user.Disabled {
 			detail = "locked"
 		}
 		s.LogAccess(ctx, AccessEvent{Event: EventLoginFailed, Outcome: OutcomeDenied, UserID: user.ID, Username: user.Username, RequestID: requestID, Detail: detail})
-		return LoginResult{}, ErrInvalidCredentials
+		switch {
+		case !correct:
+			return LoginResult{}, ErrInvalidCredentials
+		case user.Disabled:
+			return LoginResult{}, ErrDisabled
+		}
+		return LoginResult{}, &LockedError{Until: locked.Time}
 	}
 	ok, rehash := VerifyPassword(password, hash)
 	if !ok {
@@ -701,3 +713,9 @@ func (s *Service) DeleteRole(ctx context.Context, name string) error {
 	}
 	return nil
 }
+
+// LockedError is ErrLocked with the time the lock ends.
+type LockedError struct{ Until time.Time }
+
+func (e *LockedError) Error() string        { return ErrLocked.Error() }
+func (e *LockedError) Is(target error) bool { return target == ErrLocked }

@@ -67,6 +67,8 @@ func run(args []string) error {
 		return accessLogCommand(args[1:], os.Stdout)
 	case "files":
 		return filesCommand(args[1:], os.Stdin, os.Stdout)
+	case "rules":
+		return rulesCommand(args[1:], os.Stdout)
 	case "version", "--version", "-v":
 		fmt.Println(version)
 		return nil
@@ -123,7 +125,7 @@ Usage:
       --disable, --enable, --unlock and --display-name.
   athena role list|show|save|delete [name] [--workspace slug] [--json]
       Manage Roles and their Grants. "save --file role.json" takes a JSON
-      Role: system permissions (build, access, audit, files:read, files:write) and Grants of actions
+      Role: system permissions (build, access, audit, files:read, files:write, rules:read, rules:write) and Grants of actions
       on a Record Type with a permission level and an optional row condition.
   athena access-log [--event name] [--limit N] [--workspace slug] [--json]
       Print sign-ins, failures, lockouts, denials and access changes.
@@ -135,6 +137,12 @@ Usage:
       shows which file backs which Record Type, Rule or Report. "put" reads
       --file or standard input; --expected-hash, --new and "rm --yes" guard
       against overwriting. "history" lists versions and "get --revision N" reads one.
+  athena rules list|show|save|rm|versions|simulate|runs [key] [--workspace slug] [--json]
+      Manage Starlark Rules (validation, derivation, guard, transform). Rules run
+      at document events inside the save, through Go host functions only, under
+      step and time limits, with no files, network, clock or floats. "save --file
+      rule.star" creates a version; "simulate" is a rolled-back dry run with a diff;
+      "runs" prints the Rule Run log. Not production-ready (ADR-0016, Proposed).
   athena audit verify|anchor [--anchor seq:hash] [--workspace slug] [--json]
       verify checks the Audit Log hash chain from the first row to the last and
       prints the chain head. anchor verifies, then prints only "seq:hash" for a
@@ -288,10 +296,21 @@ func resolveWorkspace(slug string) (workspace.Workspace, *mysql.Config, error) {
 func serveCommand(args []string) error {
 	flags := flag.NewFlagSet("serve", flag.ContinueOnError)
 	addr := flags.String("addr", defaultAddr, "HTTP listen address (loopback by default)")
+	filesDir := flags.String("files-dir", os.Getenv("ATHENA_FILES_DIR"), "directory the Files page manages (default $ATHENA_FILES_DIR; created if missing; empty disables Files)")
 	if ok, err := parse(flags, args); !ok {
 		return err
 	}
 	config := server.Config{Addr: *addr, Version: version}
+	if *filesDir != "" {
+		abs, err := filepath.Abs(*filesDir)
+		if err != nil {
+			return fmt.Errorf("resolve --files-dir: %w", err)
+		}
+		if err := os.MkdirAll(abs, 0o750); err != nil {
+			return fmt.Errorf("create --files-dir: %w", err)
+		}
+		config.FilesRoot = abs
+	}
 	label := "athena serve (no database)"
 	if dsn := os.Getenv("ATHENA_DATABASE_URL"); dsn != "" {
 		cfg, err := mysql.ParseDSN(dsn)
