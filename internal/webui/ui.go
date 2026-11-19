@@ -26,6 +26,11 @@ func Handler() http.Handler {
 		if name == "." || name == "" {
 			name = "index.html"
 		}
+		// Hashed asset files never change, but the HTML entry point names the current hashes.
+		// Without revalidation a browser keeps showing an older build after a rebuild.
+		if !strings.HasPrefix(name, "assets/") {
+			w.Header().Set("Cache-Control", "no-cache")
+		}
 		if _, err := fs.Stat(static, name); err == nil {
 			files.ServeHTTP(w, r)
 			return

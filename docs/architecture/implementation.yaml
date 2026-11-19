@@ -1,0 +1,365 @@
+plan:
+  title: Athena Bare Metal implementation
+  revision: 7
+  date: "2026-11-17"
+  status: in_progress
+  purpose: Deliver a reusable ERP runtime in which creating a Record in Build creates the table and project source and makes the Record usable immediately.
+  terms:
+    project: Named workspace owning its schema, entries, Modules, Rules, media and access policies.
+    record: Versioned definition of fields, controls and permitted actions.
+    entry: One instance of a Record, persisted as one MariaDB row.
+    module: Installable capability composed from linked Records or a typed query extending one or more Records. May expose a live or materialized read-only output.
+    rule: Versioned Starlark condition or action attached to a Record or Module event.
+  baseline:
+    present: [Go CLI with serve and version, embedded Vue desk on port 3000, ConnectRPC system and entry services, MariaDB adapter, entry CRUD with optimistic revisions and keyset paging, RecordService with journaled, revision-checked saves, additive table provisioning, link field support, pnpm 11.22.0 with frozen lockfile and supply-chain age verification]
+    pending: [publish recovery, generated project files, Module installation, Starlark execution, media, authentication, high-volume entry table]
+    known_gap: Resolved 2026-11-17. Record saves are journaled in athena_record_operations, apply idempotent DDL, then activate the definition with a revision compare-and-swap; pending operations resume at startup. A failed save can leave already-created tables or columns, which the next save reuses.
+
+implementation_progress:
+  completed:
+    - Move the shared desk from npm to the exact pnpm 11.22.0 toolchain, commit a frozen lockfile, and retire package-lock.json.
+    - Make Makefile dependency installation frozen and run typecheck and Vite build through pnpm.
+    - Retain pnpm's minimum-release-age verification; lockfile generation selected an older mature Lucide release rather than bypassing the check.
+    - Generate snake_case field keys from new field labels, avoid reserved names and collisions, and let a developer edit the generated key until that field saves successfully.
+    - Preserve stable field-row keys while typing; keep manually entered names intact during composition and normalize on blur or save.
+    - Bind the unauthenticated development server to loopback on port 3000 by default.
+    - Update the README, contributor guide, architecture status, and decision log to match the toolchain.
+    - Derive an unsaved Record's key from its label, allow manual key edits until first save, and keep label renames after save.
+    - Require ATHENA_DATABASE_URL for make run so the served desk always has a database; send no-cache for the HTML entry point so rebuilds load.
+    - Use Satori Medium for page headings and Satori Regular for section headings, loaded from locally installed fonts via local() and not bundled (Personal Use Only licence).
+    - Simplify the sidebar, header and Overview page.
+    - Add athena.v1.EntryService (list, get, create, update, delete) with UUIDv7 IDs, per-type validation, bound values, revision-checked updates and deletes, and Record-bound keyset cursors. Add the revision column to existing Record tables at startup.
+    - Replace the View preview with an entries table, New entry form, edit, delete and conflict reload. Route browser RPC calls through web/src/api.ts.
+    - Run MariaDB sessions in UTC so TIMESTAMP values round-trip correctly. Verified against local MariaDB 11.8.
+    - Add athena.v1.RecordService (ListRecords, SaveRecord) and remove /api/records. Saves validate first, hold a per-database GET_LOCK, check expected_revision, journal the operation, apply idempotent DDL and activate with a compare-and-swap. Startup resumes pending operations and marks superseded ones failed.
+    - Reject non-additive changes before any DDL: removed fields, type or link-target changes, new required fields on tables with entries, and required promotion while values are missing. Make field columns nullable and enforce required in Go. Verify an existing foreign key's referenced table, not just its name.
+    - Verified against local MariaDB 11.8: duplicate create, stale revision, four concurrent writers (one revision, three conflicts), DDL failure leaving the previous revision active, and resume of an interrupted save after restart.
+    - Add shadcn-vue Sonner (vue-sonner) and show save, delete, conflict and load results as toasts in the bottom right; conflicts offer Reload and load failures offer Retry.
+    - Give inputs and selects a transparent fill, an --input hairline border and 12px inner padding in both themes; align field-table headers with input text.
+    - Add make stop and make restart; stop only terminates an athena process on the configured port.
+    - Add RecordService.DeleteRecord: journaled (action delete), revision-checked, refused while other Records link to it, requires delete_entries when entries exist; DROP TABLE IF EXISTS then a compare-and-swap removal of the definition; resumed at startup. The desk confirms with a shadcn-vue alert dialog. Verified against local MariaDB, including resume after an interrupted delete.
+    - Add Record migrations: PlanRecordSave reports add, remove, type-change, link-change and require steps with affected entry counts; SaveRecord needs confirm_data_loss for destructive steps and backfills for required fields; options are journaled and steps are idempotent. Verified against local MariaDB (Text to Number with one unconvertible value cleared, required field filled for existing entries, field removed).
+    - Build asks for the plan before saving a saved Record. When it deletes values or needs fill-in values, a review dialog lists the steps (destructive ones in red), takes a typed fill-in value per required field and requires an explicit data-loss checkbox. Verified in the browser end to end.
+    - Add athena_entry_history, written in the same transaction as each entry create, update (changed fields only; an unchanged save keeps the revision) and delete, and EntryService.ListEntryHistory (newest first; entries saved before history existed get created/updated events from their row timestamps). The actor is "Local administrator" until sign-in exists.
+    - The entries table no longer shows Updated. The entry page shows Details (created, last updated, revision, entry ID) and History with the shadcn-vue marker component, newest first.
+    - Keep the screen in the URL (?mode, page, record, entry) so refresh and the back button return to the same Build page, Record or entry.
+    - Add optional OpenTelemetry (D-011): internal/telemetry sets up OTLP/HTTP traces and metrics from OTEL_EXPORTER_OTLP_ENDPOINT; otelconnect traces RPCs (trusting the loopback browser's traceparent); otelsql traces statements without parameter values and exports pool metrics; the desk traces document load and fetch with @opentelemetry/sdk-trace 3.x and posts to /otlp/v1/traces, forwarded by the server. make telemetry runs grafana/otel-lgtm:0.41.0 on loopback. Verified with a stand-in OTLP receiver that browser and server spans for SaveRecord and CreateEntry share one trace ID; Grafana itself was not started because Docker Desktop failed to unpack the image (I/O error, 7.4 GB free on the host).
+    - Verify slice 3 end to end (see ADR-0004 Verification), including database creation with a temporary login limited to zz_% databases, then remove it.
+    - Remove the connection status line from the sidebar; a load-time toast reports an unavailable server or database instead.
+    - Replace the entries table with shadcn-vue Table and TanStack Table v9 (column sizing and resizing, widths kept per Record in localStorage, sticky header, horizontal scroll inside the card).
+    - View mode shows only saved Records in the sidebar; the header holds only the mode switch and theme toggle. Entry forms validate per field (required, length, email, number, date, link ID) on blur and submit, show errors under each field, focus the first error, and place server field errors under the matching field.
+    - Add athena init (workspace and owner-only server login), athena new (slug, staged files, own database with athena_project UUIDv7, rename, git init on main; retry reuses the staged ID and edits) and athena run (project resolution with workspace boundary, identity check, per-user flock). athena serve takes the same lock. See ADR-0004.
+    - Verified: workspace creation and bad-password rejection, staging retry keeping ID and AGENTS.md edits, reserved and invalid slugs, lock refusal naming the running project, identity mismatch and missing-identity refusal, nested-directory resolution, project name in the desk. Database creation itself was not exercised because the local athena_app user cannot create databases.
+    - P0 baseline tests: add internal/testdb (throwaway test_athena_* MariaDB database per test), Go tests for RecordService and EntryService invariants, Vitest for web/src/fieldRules.ts, a shared internal/server/testdata/field_rules.json, and make test. The shared table found one client gap (2026-02-30 was accepted); fieldRules.ts now checks the calendar date. Reconcile AGENTS.md, README, ADR-0002/0003 and the decision log (duplicate D-011) with the implemented migrations.
+  validation: [make web-build, make build, go vet ./...]
+  next: Generated project files (records/<key>/record.json, *_gen.go, hooks.go scaffold) written by the Record publisher into the running project, then authentication and authorization.
+
+runtime:
+  deploy: One Go executable serves Vue 3 and TypeScript assets built by Vite and ConnectRPC handlers on the same origin.
+  startup: Read project configuration, resolve secrets, open a bounded MariaDB connection pool, ping the database and load published schema versions.
+  storage: MariaDB is the first database. Each project starts with a workspace database. Its optional live deployment has a separate database, credentials, uploads and active release pointer. Multiple users share a deployment.
+  database_access: Go owns parameterized queries, field-to-column mappings, deadlines, transactions and migrations. Keep credentials outside source control.
+  transport: Use stable Protobuf services for Records, entries, Modules, Rules and project administration. Browser and remote CLI use generated clients.
+  dynamic_values: Carry field identifiers and typed values. Use exact decimal strings for decimal or currency values, explicit nulls, date-only values and typed relation IDs.
+  deferred_adapters: [PostgreSQL, cloud identity, cloud object storage, external job queues]
+  availability: Distinguish HTTP liveness from database readiness. Show actionable failures on affected operations.
+
+authoring:
+  identity: Assign immutable Record and field keys. Display labels, plural labels and physical column identifiers are separate.
+  inputs: The dashboard and codebase importer call the same validator and publisher. Export the active revision in a deterministic portable format.
+  live_save:
+    trigger: Explicit Save applies a valid definition to the workspace and generates its project source. Preview can render draft edits before Save. The live environment advances through Publish Project.
+    sequence:
+      - Check project permissions and expected revision. Validate identifiers, collisions, field types, link targets and rules before modifying storage.
+      - Persist a publish operation and desired revision. Serialize competing schema changes for the project.
+      - Stage generated files in the configured project directory and record their content hashes. Keep handwritten Go hooks in a separate file.
+      - Plan and apply MariaDB changes. Reconcile each completed DDL step on retry because MariaDB DDL can commit independently.
+      - Promote staged source files, confirm the target schema and mark the revision active. Report success only after all required artifacts are present.
+      - Return the new revision to the browser. Refresh schema caches by revision so the next request and preview use it without restarting Go.
+    recovery: If SQL or filesystem writes fail, retain an incomplete operation with its last completed step. Resume by operation ID. Keep serving the previous compatible revision until activation.
+    destructive_changes: Adding a nullable field can publish immediately. A required field with existing rows needs a backfill. Removing or narrowing a column needs an explicit migration plan.
+    hosted_authoring: Configure a writable project artifact destination for Build. A developer can export the same revision into a checkout. Detect divergence against the last published version.
+    compiled_hooks: Saving produces Go source immediately. New trusted Go behavior runs after rebuilding and deploying the binary. Built-in entry operations and interpreted Starlark use the active revision immediately.
+  project_files:
+    "AGENTS.md": Generate the tracked project_repository.agents_template on first creation. Preserve user edits on upgrade and retry.
+    ".gitignore": Generate the commented project_repository.gitignore_template verbatim at project creation.
+    "README.md": Generated project setup, pnpm and Go commands, environment, backup and restore instructions, and link to AGENTS.md.
+    ".env.example": Tracked variable names and safe placeholder values with descriptions.
+    ".env.local": Ignored local database credentials and other private settings. Create with owner-only permissions when needed.
+    "web/package.json": Vue View scripts and dependencies with an exact pnpm version in packageManager and the supported Node version.
+    "web/pnpm-lock.yaml": Tracked dependency resolution for this project.
+    "web/src/": Project-owned Vue pages, components, styles and View entry point.
+    "web/vite.config.ts": Build configuration for the project View.
+    "athena.yaml": Project UUID, display name, stable slug, schema format version, compatible core version and a database credential reference.
+    "records/event/record.json": Single tracked definition of Event in this project. Stores immutable Record and field IDs, portable keys and display labels.
+    "records/event/event_gen.go": Generated Go types for Event. Replace only if the previous generated hash matches.
+    "records/event/hooks.go": Handwritten lifecycle logic. Scaffold once, then preserve.
+    "modules/events/queries/event_capacity.yaml": Portable typed query definition plus stable output keys, result grain and storage policy.
+    "modules/events/module.yaml": Portable Module key, version, dependencies, member Record keys, owned relationships and Rule references.
+    "rules/event_dates/rule.yaml": Stable rule key, owner Record or Module key, trigger and source revision.
+    "rules/event_dates/main.star": Executable rule source.
+    "pages/event_list/page.yaml": Optional project route, access policy and list layout referencing the Event key.
+    "go.mod": Project Go module and pinned Athena extension SDK for compiling custom hooks.
+    "athena.lock": Exact installed Module versions, package hashes and imported definition provenance.
+    "storage/uploads/": Private durable media, outside version control. Serve through an authorized handler.
+    ".athena/staging/": Ignored temporary publish output. MariaDB holds the durable operation journal.
+    ".athena/bin/": Ignored project-specific compiled executable when custom Go hooks are built.
+  platform_files:
+    "proto/athena/v1/entries.proto": Platform source defining the common entry service.
+    "web/src/pages/EntriesPage.vue": Platform source for the generic table page embedded in Core.
+
+project_repository:
+  unit: Each sibling project is an independent Git repository with its own history and optional remote. Athena Bare Metal is installed once outside those repositories.
+  creation: Write the default ignore file and safe environment example into the new scaffold, then initialize Git on main. Leave commit and remote selection to the project owner. On retry preserve an existing repository and all user-edited ignore rules.
+  environment: Store nonsecret project identity and settings in athena.yaml. Resolve secret references from project-local environment or deployment secrets. Validate required values and database project identity before serving. Keep server secrets outside the Vite client environment.
+  frontend: The shared Build desk ships in Bare Metal. Each project's View source and assets live under web/. The project build embeds the compiled View alongside the desk and API in the project executable.
+  toolchain: Pin the supported Node and exact pnpm versions in each scaffold. Use pnpm for dependency installation, script execution and CI across the shared desk and project Views. The shared desk pins pnpm 11.22.0.
+  build_steps:
+    directory: web/
+    commands: [pnpm install --frozen-lockfile, pnpm run typecheck, pnpm run build]
+  existing_checkout_migration: Complete. The shared desk uses pnpm 11.22.0, web/packageManager pins the version, web/pnpm-lock.yaml is tracked, and web/package-lock.json has been retired. make web-build installs with a frozen lockfile and checks the pnpm release-age policy before typecheck/build.
+  agents_template: |
+    # Working in this Athena project
+
+    Read athena.yaml for the project identity and supported Bare Metal version. Check the
+    project README for setup, environment variables and recovery commands. Keep those
+    instructions current when project behavior changes.
+
+    Author Record definitions under records/. Keep stable IDs across label changes.
+    Put trusted Go changes in hooks.go. The publisher owns *_gen.go. Reference shared
+    Records from Module manifests. Bind Starlark rules to declared events and field keys.
+
+    Use the pinned pnpm version from web/package.json with the committed lockfile.
+    Use shared theme and type tokens for Vue components. Build and View must apply
+    the same field definitions and permissions.
+
+    Use the project services for data access and the publisher for schema changes.
+    Keep credentials, entry data and uploads out of source and logs. Document changes
+    to schema, dependencies, permissions and migration behavior alongside the change.
+
+    Before handoff, identify the affected workflow and report the checks actually run.
+  gitignore_template: |
+    # Private environment files. Commit placeholder values in .env.example.
+    .env
+    .env.*
+    !.env.example
+
+    # Credentials supplied as files. Store them in this private project directory.
+    /secrets/
+
+    # Business data and recovery copies. Back these up separately from Git.
+    /storage/uploads/
+    /backups/
+
+    # Athena runtime state, publish staging, logs and compiled project binaries.
+    /.athena/
+    /logs/
+    /bin/
+
+    # Installed JS dependencies, local pnpm store and generated View output.
+    node_modules/
+    .pnpm-store/
+    /web/dist/
+    /web/.vite/
+    *.tsbuildinfo
+
+    # Local OS metadata.
+    .DS_Store
+    Thumbs.db
+
+    # Commit web/pnpm-lock.yaml, athena.lock, go.mod, go.sum, Record definitions,
+    # generated Record Go source, handwritten hooks, Modules, Rules and View source.
+  bootstrap_acceptance:
+    - Confirm the project README and AGENTS.md are tracked. Edit AGENTS.md, retry initialization, and confirm the edit survives.
+    - Create two projects under one workspace and confirm independent Git roots on main with commented ignore files.
+    - Check ignore rules with example secret, upload, backup, runtime and build paths. Confirm the environment example, generated Go source, View source and both project lockfiles are trackable.
+    - Clone into a fresh directory, supply local secrets and a fresh matching database binding, install with the frozen lockfile and build the View. Restore uploads and business data from backup when recovering an existing deployment.
+
+installation:
+  shared: Install the CLI and embedded desk once. A user-owned workspace contains sibling project directories and private runtime state. Upgrading Core checks each project's declared compatibility when opened.
+  first_use: The interactive installer invokes the same project creator used later. Prompt for workspace location, first project name and MariaDB connection. Display the created directory and run command.
+  subsequent_projects: From the workspace run athena new and enter a name. Create a sibling project using the existing Core installation.
+  selection: Inside a project resolve its manifest by walking upward to the workspace boundary. From the workspace require an explicit project selection. Bind the running process to that UUID, database and canonical root for its entire lifetime.
+  single_active: All local launch paths, including serve and compiled project builds, acquire the same user-installation OS lock before opening the project. Keep its handle until shutdown. A second launch reports the active project and exits. Creating a sibling is allowed while the first runs.
+  startup_checks: Check manifest compatibility, database project UUID and credentials, pending migrations, artifact permissions and port availability. Default to loopback on port 3000. An occupied port yields an error without terminating another service.
+  creation: Reserve a unique case-normalized slug, generate a project UUID, stage the scaffold beside its final destination and initialize an empty database with that UUID. Record progress for safe retry after interruption. Refuse to adopt populated directories or databases implicitly.
+  identity: Display name changes preserve IDs, table names and directory keys. Package references use stable portable keys. Resolve them to project-local IDs at install.
+  filesystem: Generate bounded paths from validated keys on the server. Reject traversal, symlink escapes, reserved names and case-folded collisions. Browser requests never select a filesystem root or database connection.
+  reuse: Module installation materializes each Record once under records/. Match an existing definition by recorded package identity and compatible version. Report a conflicting definition before writing. Removing a Module preserves shared definitions and entries.
+  scope: One active local project per user installation is the first release policy. Separate production deployments can serve different projects independently.
+  acceptance:
+    - Install once, create two sibling projects and run the first. A second run from another terminal reports the active project. After stopping the first, the second starts on port 3000.
+    - Create Event in each project. Compare distinct database identities and independent files. An accidental connection to the first database from the second project fails at startup.
+    - Add Event to two Modules. Confirm both manifests resolve the same Record and only one Event definition and table exist in the project.
+    - Interrupt project creation and Record publication at each durable step. Retry without duplicate tables, partial active revisions or overwritten handwritten hooks.
+    - Rename the project display label, then stop and restart. Verify that its existing entries and attachments remain accessible.
+
+external_api:
+  install: Offer full desk and View by default, plus an API-only profile. API-only uses the same Go services, project identity, MariaDB and permissions. Omit SPA routes and frontend build dependencies from its normal start.
+  access: Enable remote access explicitly with TLS and scoped, revocable service credentials. Separate entry access from schema publication. Configure HTTP/2 on the external listener or proxy for native gRPC.
+  distribution: Export the versioned platform .proto files or descriptor set, server URL, authorization instructions and examples. Clients generate SDKs from the contract. Authorized runtime schema discovery supplies per-project Record and Module output fields.
+  example:
+    proposed_method: athena.v1.EntryService/ListEntries
+    connect_request: 'POST /athena.v1.EntryService/ListEntries'
+    content_type: application/json
+    body: {recordKey: event, pageSize: 50}
+    native: The same method is callable through a generated gRPC client.
+  gate: From outside the desk, use an authorized integration to list the same rows using both transports, paginate, and read a Module output. Verify denial of restricted fields and schema changes. Keep unavailable methods out of release examples.
+  reference: https://connectrpc.com/docs/protocol/
+
+naming:
+  labels: Preserve the user's display spelling and acronyms. Generate machine keys as the label is typed. For First Name, first name and firstName, suggest first_name. Record label Event yields event and Go type Event.
+  normalized_keys: Convert word boundaries to underscores, collapse separators and lowercase ASCII. For an empty transliteration, reserved word, collision or leading digit, propose a valid prefixed or suffixed key and show it before save. Enforce uniqueness atomically and surface a concurrent conflict.
+  scopes: Require unique Record and Module keys in their respective project namespaces, unique field keys per Record and unique column aliases per query output. Check physical identifier lengths including prefixes and generated Go-name collisions.
+  consistency: Vue previews the proposed key. Go applies the canonical normalization at every creation endpoint. CLI and imports follow the same fixtures. Freeze keys at first publication so a later display-label edit preserves API and query references.
+  ids: Recommend server-generated RFC 9562 UUIDv7 for new project objects and entries, backed by unique constraints. Preserve previously issued IDs on upgrade. Use the standard UUID wire representation and carry portable package keys across installations.
+  reference: https://www.rfc-editor.org/rfc/rfc9562.html#name-uuid-version-7
+
+module_queries:
+  builder: Offer Link Records and Extend a Record with a query as Module authoring paths. The second starts from one source and lets the builder select fields, follow declared links, add expressions and preview the result.
+  semantics: Declare the result grain and stable output columns before publishing. A query output is read-only in the entries table and external API. Writes remain on the source Records.
+  expression_contract: The dashboard and codebase produce the same typed expression tree. Support field references, bound literals, comparison, boolean composition, declared joins, arithmetic, grouping, count and sum. Validate types, decimal precision, null semantics, aggregation grain and join cardinality before publishing.
+  compilation: Resolve fields against pinned schema revisions and translate approved expression nodes in Go to the database adapter's query builder. GORM is a candidate for execution. Client strings never supply SQL fragments, raw expressions or order clauses.
+  example:
+    grain: One row per Event including events with zero confirmed registrations.
+    sources: [Event, Registration]
+    join: Left join via registration.event_id with the confirmed-status predicate on the joined side.
+    columns: [event.id, event.title, event.capacity]
+    expressions:
+      confirmed_count: {count_non_null: registration.id}
+      places_remaining: {subtract: [{field: event.capacity}, {aggregate_ref: confirmed_count}]}
+    group_by: [event.id, event.title, event.capacity]
+  storage_modes:
+    live: Default. Persist the query definition. Execute its authorized query when the table or API is read.
+    materialized: Optional project-owned MariaDB result table. Define a unique output key, indexes, refresh trigger and freshness objective. Initially rebuild a consistent full generation, then atomically switch the active generation. Expose as-of time and retain the last successful generation on failure.
+  access: Apply row and field policies to every source before joins and aggregation. Materialize only when shared output visibility can be proven, or partition by an explicit authorization scope. Invalidate or block affected generations immediately on policy changes.
+  changes: Track source-field dependencies. Block incompatible schema publication until dependent queries are revised. Bound join depth, preview rows and execution time. A refresh must include deletions and retry safely.
+  gate: Read the same Event capacity result from the Vue table and an external client. Verify zero registrations, duplicate-producing joins, scoped users, changed capacity, deleted registrations and interrupted refresh. Rebuilding the materialized output must match its live query at the same source snapshot.
+
+core_behaviour:
+  entries: Authorize each read or write in Go. Validate required fields, types and references. Run validation rules and trusted invariants before commit. Store entry changes and audit history atomically.
+  concurrency: Track row revision and expected revision on updates. Return a conflict with a reload path when two people edit the same entry.
+  relationships: Store many-to-one links as foreign keys and many-to-many links in join tables with a unique pair. Declare ownership and deletion policy. Module membership alone creates no data relationship.
+  modules: Install definitions, relationships and Rules in dependency order. Record versions and local extensions. Preview upgrade conflicts and preserve customer entries on package removal by default.
+  rules: Bind rules to published field keys and declared events. Go exposes allowed values and actions, enforces step limits and checks permissions. Reject invalid rule revisions while keeping the previous one active.
+  side_effects: Persist after-commit work with the entry transaction. Retry external effects using idempotency keys.
+  media: Image and video fields store an attachment ID. Stream bytes to project-scoped storage, initially a persistent local directory. Authorize upload and download, validate type and size, and clean abandoned uploads.
+  access: Separate schema authoring, entry viewing, entry editing and Module installation. Enforce project, row and field access in Go for the desk, CLI, media and direct API calls.
+  operations: Track publish failures, migration progress, slow queries and connection-pool waits. Back up and restore database, project files and attachments as a recoverable set.
+
+desk:
+  shell: Minimal shadcn-vue desk with Build, View, current project and theme toggle. Show relevant actions according to role.
+  build: Start at Records. Select a Record to edit its fields and controls. Place Rules and relationship settings in context. Show Module composition when the user chooses Modules.
+  preview: Use the same Vue field renderer as the entry editor, including image and video previews. Preview drafts without creating business entries.
+  view: Open an authorized Record to its entries table. Offer New entry and open individual entries from rows. Persist useful filters in the page URL.
+  later_pages: Let projects compose landing, sign-in, list and detail pages from published Records. Enforce a protected route's policy again in its backing service.
+  typography:
+    page_headings: Satori Medium from satoritrial-medium.otf at 28px by default.
+    section_headings: Satori Regular from satoritrial-regular.otf at 18px by default.
+    other_text: Inter for data cells, labels and controls. Use the existing semantic typography and theme tokens.
+    distribution: Supplied folder includes a Personal Use Only notice. Track production web embedding rights before packaging those font binaries for distribution.
+
+entries_table:
+  priority: First usable workflow alongside entry creation.
+  browser: Virtualize visible rows with modest overscan, use stable row IDs and keyboard navigation, cancel stale requests and preserve focus when rows are recycled.
+  query: Request only visible authorized fields. Push filtering and sorting to MariaDB. Use a capped page size and keyset pagination with a unique ID tie-breaker.
+  cursor: Bind the cursor to project, Record, schema revision, filters and sort order. Respect sort direction and null ordering. Reset on incompatible query changes.
+  indexes: Support selected indexed filters and sorts first. Use composite indexes matching common filter and order keys. Inspect query plans for deep pages.
+  related_data: Batch link-label lookups and load media thumbnails on demand. Exclude media bytes and exact total counts from the normal page query.
+  interaction: Handle loading, empty, filtered-empty, error and retry states. On concurrent writes, offer refresh and keep the selected entry identifiable.
+  proposed_performance_gate:
+    status: Targets to measure, not benchmark results.
+    workload: Seed one million entries with realistic field lengths and link distributions. Exercise 25 concurrent readers with ongoing writes on documented MariaDB and app hardware.
+    api: Target p95 at or below 250 ms for a 100-row indexed page, including a deep cursor. Report unindexed queries separately.
+    browser: Target first usable rows within one second on a documented desktop and network profile. Keep DOM rows bounded by viewport plus overscan while scrolling.
+    evidence: Record query plans, latency percentiles, response size, DOM row count and browser frame timings before accepting the milestone.
+
+cli:
+    current: [athena init, athena new, athena run, athena run --project <slug>, athena serve, athena version]
+  proposed:
+    "athena doctor": Diagnose project storage, database access, migrations and generated-file consistency.
+    "athena record export": Export a published revision into a project checkout.
+    "athena module plan": Show dependencies and schema changes before installing or upgrading.
+    "athena module install": Install through the same publisher used by Build.
+    "athena migrate": Apply or resume an identified migration.
+    "athena build": Build Vue assets and compile developer Go hooks into the project executable.
+
+release_workflow:
+  status: Recommended for implementation.
+  workspace: Start using Build and View as soon as the project is created. Save one valid Record, Module or Rule at a time. Compute its change plan against the workspace revision, apply required changes and return the new revision. Incomplete edits may remain drafts.
+  change_examples:
+    label_or_layout: Save new metadata and refresh View. Preserve stable field keys and stored data.
+    stored_field_or_link: Generate a database migration for the column, index or foreign key change. Run it in the workspace on Save and journal its outcome.
+    rule_or_live_query: Validate dependencies and activate the definition revision. Replan a materialized output if its shape or refresh logic changes.
+    required_field: When rows already exist, expand with a nullable field, backfill using an explicit value policy, verify existing rows and only then enforce the constraint.
+  publish_project: Offer the action once a live target is configured. The first release may contain one usable workflow. Select the saved revisions for release and freeze their dependency closure, migration steps, source hashes and required executable version in an immutable manifest.
+  live_preflight: Show changes since the active live release. Validate dependencies, authorization, actual schema and live data. Stop before incompatible changes, missing backfill policies or missing compiled hooks. Workspace samples, uploads and credentials stay local.
+  activation: Serialize releases in the live database and journal each operation. Apply compatible migrations, complete required backfills, verify database and artifacts, then switch the active release as a unit for UI and API consumers. Use a maintenance window where old and new schemas cannot coexist.
+  recovery: Keep the previous compatible release serving until activation. Retry an interrupted release by ID. Reverting a release pointer can restore compatible behavior. Data loss or an incompatible schema change needs an explicit forward repair or verified restore.
+  repeated_changes: Continue editing the workspace during live use. Later releases carry just the selected changes and their dependencies. Only changes to compiled Go hooks or bundled frontend code require a new executable.
+  acceptance:
+    - Save Event, add an entry immediately in workspace View and verify its table and generated file. Confirm the live API still exposes its existing release.
+    - Publish Event, Venue and their relationship as a complete workflow. Confirm both the live desk and API switch together and workspace sample entries are absent.
+    - Add a required field while live entries exist. Confirm an invalid backfill blocks promotion, live entries survive and retry after correction activates one release.
+
+milestones:
+  - id: 1
+    deliver: Named project, project and row authorization on every endpoint, optimistic concurrency, local MariaDB setup, authenticated administrator, generic Record and entry RPCs, live publication, generated files, minimal Build and View, basic paged entries table, automatic naming and headless client access.
+    accept: From the dashboard create Event with a title and date. Confirm its table and source appear on save, enter a row immediately and reopen it after restart. Retry a publish interrupted between SQL and source promotion.
+  - id: 2
+    deliver: High-performance entries table, benchmarking with access filters enabled, and Satori heading treatment.
+    accept: Run the declared performance workload in both browser and database, inspect both themes and demonstrate a concurrent edit conflict.
+  - id: 3
+    deliver: Attachments, relationship editor, Module packaging, typed query outputs with live and materialized reads, and scoped Starlark rules.
+    accept: Link Event and Venue, attach an image and video, reject an invalid date range through both UI and API, then install the Module on a second project with independent data.
+  - id: 4
+    deliver: Project page composition, package upgrades, backup and restore, optional providers.
+    accept: Publish a protected entries page, upgrade a Module with local additions and restore the project including its attachments and source artifacts.
+open_decisions:
+  - Decide how hosted projects expose their generated source for developer collaboration.
+  - Confirm the initial site-to-company model and which queries deserve default indexes after measuring representative data.
+  - Select benchmark hardware and agree on the table latency budget before treating targets as release gates.
+
+architecture_review:
+  verdict: Ready to schedule the first implementation milestone. Hosted rollout depends on demonstrating the release gates below.
+  scope: Design and source review of the CLI, server, Record handler, project scaffold, UI and planned lifecycle. Performance, recovery and isolation targets still need execution evidence.
+  database_tooling:
+    recommendation: Evaluate GORM with its MySQL dialect over the existing MariaDB connection pool for fixed metadata models and common CRUD. Keep its types inside the persistence package. Pin a version after a MariaDB compatibility spike.
+    alternative: sqlc generates typed Go from developer-written SQL and suits fixed, query-heavy repositories. Its build-time inputs cannot describe a Record first published after deployment. Start with one persistence approach for fixed models.
+    dynamic_records: Use a small query builder behind the entry service. Resolve table, field, relationship and order identifiers through authorized published schema. Build operators from an enum and bind every value. Handlers and scripts receive domain operations only.
+    migration: Keep versioned migrations for platform tables and a separate explicit schema planner for user Records. Disable automatic ORM migrations at server startup. Use a migration identity for DDL and a restricted identity for ordinary requests.
+    acceptance: On the supported MariaDB release compare fixed CRUD and an indexed cursor query with the existing driver baseline. Check exact decimal round trips, cancellation, transaction rollback and query plans before adopting the ORM.
+  findings:
+    - priority: before_first_shared_use
+      evidence: The current Record handler is mounted directly, and the default CLI address listens on all interfaces. The temporary JSON route could bypass policies added only to RPC.
+      decision: Bind local development to loopback by default. Route every mutation through one authenticated application service. Retire the transitional route or enforce identical policies there. Establish browser session expiry, revocation and CSRF protection for cookie-authenticated writes.
+      gate: Two roles exercise both transports. An unauthorized user cannot publish or read restricted fields, including through filters, sort order, link lookups and media.
+    - priority: before_live_publication
+      evidence: The current ALTER path always adds nullable columns. Existing foreign keys are checked by constraint name alone. PUT can persist definition edits that were never applied to the physical schema.
+      decision: Diff actual types, nullability, indexes and FK targets against the desired schema. Reject unsupported changes before mutation. Bound physical identifiers after prefixing. For a new required field expand, backfill and verify, then enforce the constraint. Stage multi-Record links after target tables exist.
+      gate: Required-field backfill, changed link target, duplicate names under database collation and long generated names yield either the intended schema or an actionable unpublished revision.
+    - priority: before_second_writer
+      evidence: A local installation lock covers a single machine. CLI operations and another host can still reach the same database.
+      decision: Serialize publishers at the database boundary. Use a unique operation ID, expected revision and database compare-and-swap for activation. Journal reference hashes and observed DDL results. Readers use a compatible active revision during recovery.
+      gate: Concurrent CLI and desk publishes, a retried request and a crash between DDL and source promotion converge on one revision with no lost edit or duplicate effects.
+    - priority: before_module_execution
+      evidence: Installing definitions, evaluating Starlark and compiling Go have different privileges.
+      decision: Treat Go hooks as trusted executable code reviewed at build time. Expose explicit capabilities to Starlark, with bounded inputs, steps, cancellation and output. Verify Module provenance and locked content, portable identifier mappings and dependency ordering before installing. Handle shared Record ownership explicitly.
+      gate: Installing a metadata package cannot execute bundled Go. Failed or over-budget rules abort the entry transaction, and retried after-commit work has a stable idempotency key.
+    - priority: before_customer_data
+      evidence: Git restores project source. A usable ERP recovery also needs matching private data, schema revision, media and credentials.
+      decision: Give each deployment its own identity in addition to the portable project UUID. Bind writes to the intended database. Record the active revision, build digest, database backup and media inventory in a backup manifest. Take a consistent snapshot or briefly quiesce writes. Define retention and recovery objectives with the operator.
+      gate: Restore into an isolated environment, check entries and linked media, exercise login and measure restore time. Distinguish cloning a definition into an empty deployment from restoring an existing deployment.
+    - priority: before_hosted_rollout
+      evidence: The performance numbers are proposed targets and the scaffold reports database state captured at startup.
+      decision: Add live readiness checks with deadlines, pool limits, request IDs, structured redacted errors and publish status. Benchmark authorization-aware list reads during writes on named hardware. Verify keyboard navigation and focus after rows recycle.
+      gate: Database loss after startup changes readiness. Reconnection recovers service. Report latency percentiles, throughput, errors, deep-page plans and browser responsiveness.
+  go_toolchain:
+    routine: Use gofmt and go vet. Pin dependencies and tools, check go.sum, and run govulncheck against the shipped code in CI.
+    targeted: Run Go race checks on concurrent publishers and entry updates, fuzz the definition and filter parsers, and exercise MariaDB DDL with a real database. Version the Protobuf contract and check compatibility against the last release.
+  sources:
+    gorm_security: https://gorm.io/docs/security.html
+    gorm_migrations: https://gorm.io/docs/migration.html
+    sqlc: https://sqlc.dev/
+    go_vulnerability_management: https://go.dev/doc/security/vuln/
+    mariadb_ddl: https://mariadb.com/docs/server/reference/sql-statements/transactions/sql-statements-that-cause-an-implicit-commit

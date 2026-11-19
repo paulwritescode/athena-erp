@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file athena/v1/system.proto.
  */
 export const file_athena_v1_system: GenFile = /*@__PURE__*/
-  fileDesc("ChZhdGhlbmEvdjEvc3lzdGVtLnByb3RvEglhdGhlbmEudjEiFgoUR2V0U3lzdGVtSW5mb1JlcXVlc3QiPgoVR2V0U3lzdGVtSW5mb1Jlc3BvbnNlEhQKDHByb2R1Y3RfbmFtZRgBIAEoCRIPCgd2ZXJzaW9uGAIgASgJMmMKDVN5c3RlbVNlcnZpY2USUgoNR2V0U3lzdGVtSW5mbxIfLmF0aGVuYS52MS5HZXRTeXN0ZW1JbmZvUmVxdWVzdBogLmF0aGVuYS52MS5HZXRTeXN0ZW1JbmZvUmVzcG9uc2VCI1ohYXRoZW5hLWVycC9nZW4vYXRoZW5hL3YxO2F0aGVuYXYxYgZwcm90bzM");
+  fileDesc("ChZhdGhlbmEvdjEvc3lzdGVtLnByb3RvEglhdGhlbmEudjEiFgoUR2V0U3lzdGVtSW5mb1JlcXVlc3QihQEKFUdldFN5c3RlbUluZm9SZXNwb25zZRIUCgxwcm9kdWN0X25hbWUYASABKAkSDwoHdmVyc2lvbhgCIAEoCRIUCgxwcm9qZWN0X25hbWUYAyABKAkSFAoMcHJvamVjdF9zbHVnGAQgASgJEhkKEXRlbGVtZXRyeV9lbmFibGVkGAUgASgIMmMKDVN5c3RlbVNlcnZpY2USUgoNR2V0U3lzdGVtSW5mbxIfLmF0aGVuYS52MS5HZXRTeXN0ZW1JbmZvUmVxdWVzdBogLmF0aGVuYS52MS5HZXRTeXN0ZW1JbmZvUmVzcG9uc2VCI1ohYXRoZW5hLWVycC9nZW4vYXRoZW5hL3YxO2F0aGVuYXYxYgZwcm90bzM");
 
 /**
  * @generated from message athena.v1.GetSystemInfoRequest
@@ -38,6 +38,26 @@ export type GetSystemInfoResponse = Message<"athena.v1.GetSystemInfoResponse"> &
    * @generated from field: string version = 2;
    */
   version: string;
+
+  /**
+   * Empty when the server runs without a project (athena serve).
+   *
+   * @generated from field: string project_name = 3;
+   */
+  projectName: string;
+
+  /**
+   * @generated from field: string project_slug = 4;
+   */
+  projectSlug: string;
+
+  /**
+   * True when the server exports OpenTelemetry; the desk then sends its own
+   * traces to /otlp/v1/traces on the same origin.
+   *
+   * @generated from field: bool telemetry_enabled = 5;
+   */
+  telemetryEnabled: boolean;
 };
 
 /**
@@ -61,3 +81,4 @@ export const SystemService: GenService<{
   },
 }> = /*@__PURE__*/
   serviceDesc(file_athena_v1_system, 0);
+

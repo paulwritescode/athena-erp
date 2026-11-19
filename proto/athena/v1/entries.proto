@@ -1,0 +1,112 @@
+syntax = "proto3";
+package athena.v1;
+option go_package = "athena-erp/gen/athena/v1;athenav1";
+
+// EntryService reads and writes Record entries. Each entry is one row in the
+// table that belongs to its Record definition.
+service EntryService {
+  rpc ListEntries(ListEntriesRequest) returns (ListEntriesResponse);
+  rpc GetEntry(GetEntryRequest) returns (GetEntryResponse);
+  rpc CreateEntry(CreateEntryRequest) returns (CreateEntryResponse);
+  rpc UpdateEntry(UpdateEntryRequest) returns (UpdateEntryResponse);
+  rpc DeleteEntry(DeleteEntryRequest) returns (DeleteEntryResponse);
+  // ListEntryHistory returns an entry's changes, newest first.
+  rpc ListEntryHistory(ListEntryHistoryRequest) returns (ListEntryHistoryResponse);
+}
+
+// FieldValue carries one typed field value. Number and Currency use exact
+// decimal strings, Date uses YYYY-MM-DD and Link uses the target entry ID.
+message FieldValue {
+  oneof kind {
+    string string_value = 1;
+    bool bool_value = 2;
+    // Explicit null. Set to true to clear a field.
+    bool null_value = 3;
+  }
+}
+
+message Entry {
+  // UUIDv7 assigned by the server.
+  string id = 1;
+  // Incremented on each update. Send it back as expected_revision.
+  int64 revision = 2;
+  map<string, FieldValue> values = 3;
+  // RFC 3339 timestamps.
+  string created_at = 4;
+  string updated_at = 5;
+}
+
+message ListEntriesRequest {
+  string record_key = 1;
+  // Defaults to 50; capped at 200.
+  int32 page_size = 2;
+  // Opaque cursor from a previous response.
+  string page_token = 3;
+}
+
+message ListEntriesResponse {
+  repeated Entry entries = 1;
+  // Empty when there are no more entries.
+  string next_page_token = 2;
+}
+
+message GetEntryRequest {
+  string record_key = 1;
+  string id = 2;
+}
+
+message GetEntryResponse {
+  Entry entry = 1;
+}
+
+message CreateEntryRequest {
+  string record_key = 1;
+  map<string, FieldValue> values = 2;
+}
+
+message CreateEntryResponse {
+  Entry entry = 1;
+}
+
+// UpdateEntryRequest changes only the fields present in values.
+message UpdateEntryRequest {
+  string record_key = 1;
+  string id = 2;
+  int64 expected_revision = 3;
+  map<string, FieldValue> values = 4;
+}
+
+message UpdateEntryResponse {
+  Entry entry = 1;
+}
+
+message DeleteEntryRequest {
+  string record_key = 1;
+  string id = 2;
+  int64 expected_revision = 3;
+}
+
+message DeleteEntryResponse {}
+
+message ListEntryHistoryRequest {
+  string record_key = 1;
+  string id = 2;
+}
+
+// EntryEvent is one change to an entry.
+message EntryEvent {
+  // created, updated or deleted.
+  string action = 1;
+  // The entry revision after the change.
+  int64 revision = 2;
+  // Keys of the fields whose values changed.
+  repeated string changed_fields = 3;
+  // Who made the change. "Local administrator" until sign-in exists.
+  string actor = 4;
+  // RFC 3339 timestamp.
+  string at = 5;
+}
+
+message ListEntryHistoryResponse {
+  repeated EntryEvent events = 1;
+}

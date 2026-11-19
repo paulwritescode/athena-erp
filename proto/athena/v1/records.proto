@@ -1,0 +1,97 @@
+syntax = "proto3";
+package athena.v1;
+option go_package = "athena-erp/gen/athena/v1;athenav1";
+
+import "athena/v1/entries.proto";
+
+// RecordService reads and saves Record definitions. Saving applies the
+// definition's table changes and activates the new revision as one journaled
+// operation.
+service RecordService {
+  rpc ListRecords(ListRecordsRequest) returns (ListRecordsResponse);
+  // PlanRecordSave describes the table migration a save would run, without
+  // changing anything.
+  rpc PlanRecordSave(PlanRecordSaveRequest) returns (PlanRecordSaveResponse);
+  rpc SaveRecord(SaveRecordRequest) returns (SaveRecordResponse);
+  // DeleteRecord drops the Record's table with its entries and removes the
+  // definition. It is refused while other Records link to it.
+  rpc DeleteRecord(DeleteRecordRequest) returns (DeleteRecordResponse);
+}
+
+message RecordField {
+  // Lowercase snake_case column key. Fixed once saved.
+  string key = 1;
+  string label = 2;
+  // One of Text, Long text, Email, Phone, Number, Currency, Date, Select, Link, Checkbox.
+  string type = 3;
+  bool required = 4;
+  // Key of the linked Record, for Link fields only.
+  string target_record_key = 5;
+}
+
+message Record {
+  // Lowercase snake_case key that names the table. Fixed once saved.
+  string key = 1;
+  string label = 2;
+  string description = 3;
+  repeated RecordField fields = 4;
+  // Zero for a Record that has never been saved.
+  int64 revision = 5;
+}
+
+message ListRecordsRequest {}
+
+message ListRecordsResponse {
+  repeated Record records = 1;
+}
+
+message SaveRecordRequest {
+  Record record = 1;
+  // The revision the client edited. Zero creates a new Record.
+  int64 expected_revision = 2;
+  // Must be true when the plan removes stored values (dropped fields or
+  // values that cannot convert to a new type or link target).
+  bool confirm_data_loss = 3;
+  // Values written into empty entries for fields that become required,
+  // keyed by field key.
+  map<string, FieldValue> backfills = 4;
+}
+
+message PlanRecordSaveRequest {
+  Record record = 1;
+  int64 expected_revision = 2;
+}
+
+// MigrationStep is one change the save makes to the Record's table.
+message MigrationStep {
+  // add_field, remove_field, change_type, change_link, require_field.
+  string kind = 1;
+  string field_key = 2;
+  string description = 3;
+  // True when the step deletes stored values.
+  bool destructive = 4;
+  // Entries whose values this step deletes or must fill in.
+  int64 affected_entries = 5;
+  // True when the step needs a value in backfills.
+  bool needs_backfill = 6;
+}
+
+message PlanRecordSaveResponse {
+  repeated MigrationStep steps = 1;
+  // True when SaveRecord needs confirm_data_loss or backfills for this plan.
+  bool requires_confirmation = 2;
+}
+
+message SaveRecordResponse {
+  Record record = 1;
+}
+
+message DeleteRecordRequest {
+  string key = 1;
+  // The revision the client last saw.
+  int64 expected_revision = 2;
+  // Must be true when the Record has entries; they are deleted with it.
+  bool delete_entries = 3;
+}
+
+message DeleteRecordResponse {}

@@ -1,10 +1,14 @@
 /* Typography tokens from the supplied design specification. */
+/* Satori is a Personal Use Only trial font. It loads from the fonts installed on this machine
+   and is not bundled until web embedding rights are confirmed (see the implementation plan). */
+@font-face { font-family: "Satori"; font-weight: 500; font-display: swap; src: local("Satori TRIAL Medium"), local("SatoriTRIAL-Medium"); }
+@font-face { font-family: "Satori"; font-weight: 400; font-display: swap; src: local("Satori TRIAL Regular"), local("SatoriTRIAL-Regular"); }
 :root {
-  --font-display: "Cal Sans", Inter, sans-serif; --font-body: Inter, sans-serif; --font-code: "JetBrains Mono", ui-monospace, monospace;
+  --font-display: "Satori", Inter, sans-serif; --font-body: Inter, sans-serif; --font-code: "JetBrains Mono", ui-monospace, monospace;
   --type-display-xl-size:64px; --type-display-xl-weight:600; --type-display-xl-line:1.05; --type-display-xl-tracking:-2px;
   --type-display-lg-size:48px; --type-display-lg-weight:600; --type-display-lg-line:1.1; --type-display-lg-tracking:-1.5px;
   --type-display-md-size:36px; --type-display-md-weight:600; --type-display-md-line:1.15; --type-display-md-tracking:-1px;
-  --type-display-sm-size:28px; --type-display-sm-weight:600; --type-display-sm-line:1.2; --type-display-sm-tracking:-0.5px;
+  --type-display-sm-size:28px; --type-display-sm-weight:500; --type-display-sm-line:1.2; --type-display-sm-tracking:-0.5px;
   --type-title-lg-size:22px; --type-title-lg-weight:600; --type-title-lg-line:1.3; --type-title-lg-tracking:-0.3px;
   --type-title-md-size:18px; --type-title-md-weight:600; --type-title-md-line:1.4; --type-title-md-tracking:0;
   --type-title-sm-size:16px; --type-title-sm-weight:600; --type-title-sm-line:1.4; --type-title-sm-tracking:0;
@@ -17,7 +21,7 @@
 }
 body { font-family:var(--font-body); font-size:var(--type-body-sm-size); font-weight:var(--type-body-sm-weight); line-height:var(--type-body-sm-line); letter-spacing:var(--type-body-sm-tracking); }
 h1 { font-family:var(--font-display); font-size:var(--type-display-sm-size); font-weight:var(--type-display-sm-weight); line-height:var(--type-display-sm-line); letter-spacing:var(--type-display-sm-tracking); }
-h2 { font-family:var(--font-body); font-size:var(--type-title-md-size); font-weight:var(--type-title-md-weight); line-height:var(--type-title-md-line); letter-spacing:var(--type-title-md-tracking); }
+h2 { font-family:var(--font-display); font-size:var(--type-title-md-size); font-weight:400; line-height:var(--type-title-md-line); letter-spacing:var(--type-title-md-tracking); }
 h3 { font-family:var(--font-body); font-size:var(--type-title-sm-size); font-weight:var(--type-title-sm-weight); line-height:var(--type-title-sm-line); letter-spacing:var(--type-title-sm-tracking); }
 [data-slot="button"] { font-family:var(--font-body); font-size:var(--type-button-size); font-weight:var(--type-button-weight); line-height:var(--type-button-line); letter-spacing:var(--type-button-tracking); }
 .nav-item, .mode-switch button, .view-menu button { font-size:var(--type-nav-size); font-weight:var(--type-nav-weight); line-height:var(--type-nav-line); letter-spacing:var(--type-nav-tracking); }

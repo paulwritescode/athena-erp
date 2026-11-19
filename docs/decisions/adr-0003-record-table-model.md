@@ -18,10 +18,10 @@ The accepted product direction also requires dashboard-authored Records to produ
 ## Consequences
 
 - MariaDB is the current and only active relational target. PostgreSQL can be added later behind an explicit dialect and migration design.
-- Metadata and the per-Record table are separate: storing a JSON definition does not create Record entries. Record-entry CRUD is not yet implemented.
+- Metadata and the per-Record table are separate: storing a JSON definition does not create Record entries. Record-entry CRUD is implemented through `EntryService`.
 - Modules must materialize their relationships as foreign keys or join tables; merely listing Records in a Module is insufficient.
 - SQL identifiers come from validated stable names, never display labels or arbitrary source text.
-- The initial schema updater only adds columns. Rename/drop/type migrations, backfills, rollback, module upgrades, and safe database restoration need future design.
+- Each Record save is planned and applied by a per-save planner (`PlanRecordSave`, `internal/server/migrations.go`). It adds, removes and retypes columns and backfills required fields, with confirmation for data loss. It is not a versioned migration system: rename detection, rollback, module upgrades, and safe database restoration need future design (O-003).
 - Dashboard-generated Go code creates a rebuild/restart boundary. It cannot be dynamically compiled inside the running server.
 - Until authentication and authorization exist, database-backed authoring endpoints are for local development only.
 

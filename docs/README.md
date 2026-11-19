@@ -10,6 +10,7 @@ This directory describes the product and the system as it exists and as decision
 - [Decision log](decisions/decision-log.md) — accepted decisions, proposals, unresolved choices, and rejected assumptions.
 - [ADR-0002: MariaDB first](decisions/adr-0002-mariadb-first.md) — initial database selection and current persistence limits.
 - [ADR-0003: Record table model](decisions/adr-0003-record-table-model.md) — Record definitions map to MariaDB tables.
+- [ADR-0004: One database per project](decisions/adr-0004-project-per-database.md) — workspaces, project creation and the run lock.
 - [ADR template](decisions/adr-template.md) — format for recording a consequential architecture decision.
 - [Project README](../README.md) — setup, run, build, and repository layout.
 

@@ -17,11 +17,11 @@ The app can run without a database DSN so the core desk remains inspectable. It 
 
 ## Consequences
 
-- The default Go server address is `:3000` and UI/API share the same process.
+- The default Go server address is `127.0.0.1:3000` and UI/API share the same process. Loopback is required while database-backed authoring endpoints lack authentication.
 - Credentials are supplied through environment/configuration and never committed.
-- Record-entry CRUD, Module persistence/composition, authentication, Starlark execution, and production migrations remain incomplete.
+- Module persistence/composition, authentication, Starlark execution, and versioned migrations remain incomplete. Record-entry CRUD exists without authentication.
 - PostgreSQL is a later adapter and requires a deliberate dialect/migration plan.
-- The initial Record metadata endpoints use same-origin JSON/HTTP; ConnectRPC/Protobuf remains the intended API contract before the endpoint surface grows.
+- Record metadata, entries and system info use same-origin ConnectRPC with a Protobuf contract (D-003). The earlier JSON endpoint was removed.
 
 ## Revisit when
 

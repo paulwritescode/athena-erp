@@ -5,4 +5,7 @@ internal/webui/dist/*
 bin/
 .cache/
 .pnpm-store/
+.env
+.env.*
+!.env.example
 .DS_Store
