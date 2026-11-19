@@ -42,6 +42,8 @@ Dashboard-created Record Types are intended to generate Go source scaffolds in a
 
 Generated Go source cannot become active inside an already-running Go binary. The source workflow must make its stages explicit: save the definition and DDL, generate and review source in the codebase, then rebuild and restart/deploy the executable to activate Go hooks. Saving a Record Type alone only persists metadata and database schema. Starlark is the editable, runtime-configurable path for bounded conditions and actions that do not require recompilation. The source generator, build/reload workflow, overwrite policy, and file ownership are not implemented yet.
 
+Proposed answer (ADR-0015, not accepted): generated Go goes to `generated/<key>_gen.go` in the Workspace, owned by the publisher and marked as generated; hand-written hooks stay outside `generated/`; the publisher records the hash of what it wrote and reports a conflict instead of overwriting an edited file. The Files page and `athena files` already read and edit these files with a content-hash check and a version history, but the generator and the publisher's hash record are not built.
+
 ### MariaDB mapping
 
 - Each Record Type gets a stable lowercase key and a deterministic table name `p_<pack>__<key>`. A Record Type authored in the Workspace uses the reserved pack name `workspace`, so `customer_address` is stored in `p_workspace__customer_address`. Generated names are at most 63 bytes, with a deterministic hash suffix beyond that (ADR-0009, Proposed).

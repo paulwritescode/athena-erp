@@ -2,7 +2,7 @@
 
 Athena is a reusable ERP platform core built with Go, ConnectRPC, MariaDB, and a Vue 3 + TypeScript + Vite control desk. It is not preconfigured for a particular industry. Record Types and Packs will be installed or authored on top of the core.
 
-The admin desk has separate **Build** and **View** modes. Build contains Overview, Record Types, Packs, and Rules. A Record Type describes a database table; a Record is a row. A Pack bundles Record Types and their relationships into an installable capability. A Workspace is a database plus its installed Packs and data. Vocabulary follows [ADR-0008](docs/decisions/adr-0008-vocabulary.md) (Proposed).
+The admin desk has separate **Build** and **View** modes. Build contains Overview, Record Types, Packs, Rules, and Files. A Record Type describes a database table; a Record is a row. A Pack bundles Record Types and their relationships into an installable capability. A Workspace is a database plus its installed Packs and data. Vocabulary follows [ADR-0008](docs/decisions/adr-0008-vocabulary.md) (Proposed).
 
 ## Documentation
 
@@ -92,6 +92,8 @@ cd acme_trading && athena run                       # or from the home: athena r
 - `athena run` refuses a database whose recorded Workspace ID differs from `athena.yaml`.
 - Only one Athena process runs at a time per user (`athena run`, `athena serve` and `make run`). A second launch reports the running Workspace and exits.
 
+- `athena files list|get|put|mv|rm|history` manages the Workspace files (`record_types/`, `rules/`, `packs/`, `generated/`) with the same checks as the Files page (`--workspace slug`, `--json`; no `--addr`, because no server starts). Paths are relative and lowercase, files are UTF-8 text up to 1 MiB, and Record Type files are validated with line numbers. `put <path> --file local.yaml` replaces a file (`--new` refuses an existing one, `--expected-hash h` refuses a changed one), `get <path> [--revision N] [--out file]` reads it, `mv <from> <to>` renames, `rm <path> --yes` deletes it, and `history <path>` lists its versions. `list` shows which file backs which Record Type, Rule or Report. Every change keeps a version and an Audit Log row with path, hash and actor, never content. Over the API the `files:read` and `files:write` system permissions are required; give them to a Role with `"systemPermissions":["files:read","files:write"]`.
+
 ## Tests
 
 ```sh
@@ -106,7 +108,7 @@ MariaDB tests read `ATHENA_TEST_DATABASE_URL`, a DSN for a user who can create a
 
 - Records can be listed, created, edited and deleted through `athena.v1.RecordService` and the View page. Each Record has a UUIDv7 `id` and a `revision`; a stale `expected_revision` returns `aborted`. Each change is appended to the hash-chained Audit Log (`athena_audit_log`) and shown on the Record page with its old and new values; every call carries one `X-Request-Id` that is stored on the Record and its audit rows. Changes made in the desk are attributed to the signed-in user; changes made with the command line to "Local administrator".
 - Pack composition, relationship/join-table management, and Pack installation are not implemented.
-- Go source generation for dashboard-created Record Types and Starlark rule execution are accepted product directions but are not implemented.
+- Go source generation for dashboard-created Record Types and Starlark rule execution are accepted product directions but are not implemented. Where generated source goes is proposed in ADR-0015; the Files page edits `.star` and generated files but runs nothing.
 - Local sign-in, database sessions, Roles and Grants are implemented (ADR-0014, Proposed). OIDC, multi-factor sign-in, TLS and a desk page for users and Roles are not. Keep the server on loopback; do not expose it to an untrusted network.
 - PostgreSQL support is planned for later; MariaDB is the only current database target.
 
@@ -117,6 +119,7 @@ cmd/athena/             CLI entry point (`athena init`, `new`, `run`, `serve`, `
 internal/workspace/      homes, Workspace creation, Workspace resolution and the run lock
 internal/server/         Go HTTP/ConnectRPC server, the permission gate and MariaDB-backed Record Type schema
 internal/auth/           users, Argon2id passwords, sessions, Roles, Grants and the Access Log
+internal/files/          Workspace file paths, validation, atomic writes, versions and audit entries
 internal/store/          Dialect interface, the MariaDB implementation and the system migration runner; engine-specific SQL lives here
 internal/webui/          embedded frontend assets
 proto/athena/v1/         Protobuf API contract

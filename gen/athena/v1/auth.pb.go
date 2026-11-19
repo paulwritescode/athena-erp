@@ -286,7 +286,7 @@ type SessionInfo struct {
 	Username      string                 `protobuf:"bytes,2,opt,name=username,proto3" json:"username,omitempty"`
 	DisplayName   string                 `protobuf:"bytes,3,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
 	Owner         bool                   `protobuf:"varint,4,opt,name=owner,proto3" json:"owner,omitempty"`
-	// Any of build, access, audit.
+	// Any of build, access, audit, files:read, files:write.
 	SystemPermissions []string `protobuf:"bytes,5,rep,name=system_permissions,json=systemPermissions,proto3" json:"system_permissions,omitempty"`
 	// Send this in the X-CSRF-Token header on every call.
 	CsrfToken     string `protobuf:"bytes,6,opt,name=csrf_token,json=csrfToken,proto3" json:"csrf_token,omitempty"`
@@ -1083,7 +1083,7 @@ type Role struct {
 	state       protoimpl.MessageState `protogen:"open.v1"`
 	Name        string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	Description string                 `protobuf:"bytes,2,opt,name=description,proto3" json:"description,omitempty"`
-	// Any of build, access, audit.
+	// Any of build, access, audit, files:read, files:write.
 	SystemPermissions []string `protobuf:"bytes,3,rep,name=system_permissions,json=systemPermissions,proto3" json:"system_permissions,omitempty"`
 	Grants            []*Grant `protobuf:"bytes,4,rep,name=grants,proto3" json:"grants,omitempty"`
 	unknownFields     protoimpl.UnknownFields

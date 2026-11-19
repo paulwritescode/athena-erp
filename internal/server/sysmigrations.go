@@ -188,6 +188,40 @@ func SystemMigrations() []store.Migration {
 				KEY idx_access_log_event (event, id)
 			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 		)},
+		// Workspace files: one row per file lineage and one row per revision,
+		// with the content of every revision (ADR-0015). A row has no path
+		// after the file is deleted or moved away, and the UNIQUE key allows
+		// many NULLs, so a deleted path can be created again.
+		{Version: 10, Name: "workspace_files", Up: execAll(
+			`CREATE TABLE IF NOT EXISTS athena_files (
+				id CHAR(36) NOT NULL PRIMARY KEY,
+				path VARCHAR(240) CHARACTER SET ascii COLLATE ascii_bin NULL,
+				revision BIGINT NOT NULL,
+				hash CHAR(64) NOT NULL,
+				size BIGINT NOT NULL,
+				modified_by VARCHAR(255) NOT NULL,
+				created_at TIMESTAMP(3) NOT NULL,
+				modified_at TIMESTAMP(3) NOT NULL,
+				UNIQUE KEY uq_files_path (path)
+			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+			`CREATE TABLE IF NOT EXISTS athena_file_versions (
+				seq BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+				file_id CHAR(36) NOT NULL,
+				revision BIGINT NOT NULL,
+				path VARCHAR(240) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+				action VARCHAR(20) NOT NULL,
+				hash CHAR(64) NOT NULL,
+				size BIGINT NOT NULL,
+				content MEDIUMBLOB NULL,
+				actor VARCHAR(255) NOT NULL,
+				source VARCHAR(20) NOT NULL,
+				request_id CHAR(36) NULL,
+				created_at TIMESTAMP(3) NOT NULL,
+				UNIQUE KEY uq_file_versions_revision (file_id, revision),
+				KEY idx_file_versions_path (path, seq),
+				CONSTRAINT fk_file_versions_file FOREIGN KEY (file_id) REFERENCES athena_files (id)
+			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+		)},
 	}
 }
 

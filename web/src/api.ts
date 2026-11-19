@@ -2,6 +2,7 @@ import { createClient, type Interceptor } from '@connectrpc/connect'
 import { createConnectTransport } from '@connectrpc/connect-web'
 import { SystemService } from './gen/athena/v1/system_pb'
 import { AuthService } from './gen/athena/v1/auth_pb'
+import { FileService } from './gen/athena/v1/files_pb'
 import { RecordService, type FieldValue } from './gen/athena/v1/records_pb'
 import { RecordTypeService, RecordTypeSchema, type MigrationStep, type RecordType as RecordTypeMessage, type RecordTypeField as RecordTypeFieldMessage } from './gen/athena/v1/record_types_pb'
 import { create } from '@bufbuild/protobuf'
@@ -41,6 +42,7 @@ const transport = createConnectTransport({ baseUrl: window.location.origin, inte
 export const systemClient = createClient(SystemService, transport)
 export const authClient = createClient(AuthService, transport)
 export const recordClient = createClient(RecordService, transport)
+export const fileClient = createClient(FileService, transport)
 const recordTypeClient = createClient(RecordTypeService, transport)
 
 function fieldFromMessage(field: RecordTypeFieldMessage): Field {

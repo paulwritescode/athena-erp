@@ -60,6 +60,12 @@ var procedurePolicies = map[string]policy{
 	athenav1connect.AuthServiceDeleteRoleProcedure:     {kind: policySystem, permission: auth.PermissionAccess},
 	athenav1connect.AuthServiceListAccessLogProcedure:  {kind: policySystem, permission: auth.PermissionAudit},
 
+	athenav1connect.FileServiceListFilesProcedure:        {kind: policySystem, permission: auth.PermissionFilesRead},
+	athenav1connect.FileServiceGetFileProcedure:          {kind: policySystem, permission: auth.PermissionFilesRead},
+	athenav1connect.FileServiceListFileVersionsProcedure: {kind: policySystem, permission: auth.PermissionFilesRead},
+	athenav1connect.FileServicePutFileProcedure:          {kind: policySystem, permission: auth.PermissionFilesWrite},
+	athenav1connect.FileServiceMoveFileProcedure:         {kind: policySystem, permission: auth.PermissionFilesWrite},
+	athenav1connect.FileServiceDeleteFileProcedure:       {kind: policySystem, permission: auth.PermissionFilesWrite},
 	// The handler filters the list to the Record Types the user may read.
 	athenav1connect.RecordTypeServiceListRecordTypesProcedure:    {kind: policySession},
 	athenav1connect.RecordTypeServicePlanRecordTypeSaveProcedure: {kind: policySystem, permission: auth.PermissionBuild},

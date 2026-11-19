@@ -142,7 +142,7 @@ export type SessionInfo = Message<"athena.v1.SessionInfo"> & {
   owner: boolean;
 
   /**
-   * Any of build, access, audit.
+   * Any of build, access, audit, files:read, files:write.
    *
    * @generated from field: repeated string system_permissions = 5;
    */
@@ -505,7 +505,7 @@ export type Role = Message<"athena.v1.Role"> & {
   description: string;
 
   /**
-   * Any of build, access, audit.
+   * Any of build, access, audit, files:read, files:write.
    *
    * @generated from field: repeated string system_permissions = 3;
    */

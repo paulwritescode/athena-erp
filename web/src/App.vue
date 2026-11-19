@@ -16,6 +16,7 @@ import OverviewPage from './pages/OverviewPage.vue'
 import RecordTypesPage from './pages/RecordTypesPage.vue'
 import PacksPage from './pages/PacksPage.vue'
 import RulesPage from './pages/RulesPage.vue'
+import FilesPage from './pages/FilesPage.vue'
 import RecordsPage from './pages/RecordsPage.vue'
 
 const apiState = ref<'connecting' | 'connected' | 'error'>('connecting')
@@ -25,7 +26,7 @@ const page = ref<Page>('overview')
 const selectedRecordType = ref('')
 // The open Record in View: '' for the table, 'new' for the create form, or a Record ID.
 const recordRoute = ref('')
-const pages: Page[] = ['overview', 'record-types', 'packs', 'rules']
+const pages: Page[] = ['overview', 'record-types', 'packs', 'rules', 'files']
 
 // The address bar holds the current screen so a refresh or the back button
 // returns to it.
@@ -68,7 +69,22 @@ const changingPassword = ref(false)
 // Build needs the build permission. Everyone else works in View only. Without
 // a database there is no session, and the desk keeps both modes.
 const canBuild = computed(() => (user.value ? user.value.systemPermissions.includes('build') : databaseState.value !== 'Connected'))
-watch(canBuild, (value) => { if (!value) mode.value = 'view' })
+// Files has its own permissions, so the nav item follows files:read and the
+// page edits only with files:write. The server checks both on every call.
+const canFiles = computed(() => (user.value ? user.value.systemPermissions.includes('files:read') : false))
+const canWriteFiles = computed(() => (user.value ? user.value.systemPermissions.includes('files:write') : false))
+// Build opens for the build permission or for files:read, which sees only Files.
+const canBuildDesk = computed(() => canBuild.value || canFiles.value)
+const buildNav = computed<[Page, string][]>(() => {
+  const items: [Page, string][] = canBuild.value ? [['overview', 'Overview'], ['record-types', 'Record Types'], ['packs', 'Packs'], ['rules', 'Rules']] : []
+  if (canFiles.value) items.push(['files', 'Files'])
+  return items
+})
+watch(canBuildDesk, (value) => { if (!value) mode.value = 'view' })
+// A user who can only read files lands on Files, the one Build page they have.
+function landOnFiles() {
+  if (!canBuild.value && canFiles.value && page.value !== 'files') page.value = 'files'
+}
 
 function applySession(info: SessionInfo | undefined) {
   if (info?.authenticated) {
@@ -94,7 +110,8 @@ async function loadRecordTypes() {
 async function signedIn(info: SessionInfo) {
   applySession(info)
   toast.success(`Signed in as ${info.displayName || info.username}.`)
-  if (!canBuild.value) mode.value = 'view'
+  if (!canBuildDesk.value) mode.value = 'view'
+  landOnFiles()
   await loadRecordTypes()
 }
 
@@ -138,7 +155,8 @@ onMounted(async () => {
       const res = await authClient.getSession({})
       hasUsers.value = res.hasUsers
       applySession(res.session)
-      if (!canBuild.value) mode.value = 'view'
+      if (!canBuildDesk.value) mode.value = 'view'
+      landOnFiles()
       if (authState.value === 'signed-in') await loadRecordTypes()
     } catch {
       authState.value = 'signed-out'
@@ -254,7 +272,7 @@ function cancelPendingSave() {
     <aside class="sidebar">
       <a class="brand" href="#overview" @click.prevent="page = 'overview'; mode = 'build'">Athena<small v-if="workspaceName" class="brand-project">{{ workspaceName }}</small></a>
       <nav v-if="mode === 'build'" class="primary-nav" aria-label="Build">
-        <button v-for="item in ([['overview', 'Overview'], ['record-types', 'Record Types'], ['packs', 'Packs'], ['rules', 'Rules']] as [Page, string][])" :key="item[0]" class="nav-item" :class="{ active: page === item[0] }" @click="page = item[0]">{{ item[1] }}<span v-if="item[0] === 'record-types'" class="nav-count">{{ recordTypes.length }}</span></button>
+        <button v-for="item in buildNav" :key="item[0]" class="nav-item" :class="{ active: page === item[0] }" @click="page = item[0]">{{ item[1] }}<span v-if="item[0] === 'record-types'" class="nav-count">{{ recordTypes.length }}</span></button>
       </nav>
       <nav v-else class="primary-nav" aria-label="Record Types">
         <span class="nav-heading">Records</span>
@@ -263,11 +281,12 @@ function cancelPendingSave() {
       </nav>
     </aside>
     <main class="main-content">
-      <header class="topbar"><div class="topbar-actions"><div v-if="canBuild" class="mode-switch" aria-label="Desk mode"><button :class="{ selected: mode === 'build' }" @click="mode = 'build'">Build</button><button :class="{ selected: mode === 'view' }" @click="mode = 'view'">View</button></div><Button variant="ghost" size="icon-sm" class="theme-toggle" :aria-label="isDark ? 'Switch to light theme' : 'Switch to dark theme'" :title="isDark ? 'Switch to light theme' : 'Switch to dark theme'" @click="toggleTheme"><span aria-hidden="true">{{ isDark ? '☼' : '◐' }}</span></Button><DropdownMenu v-if="user"><DropdownMenuTrigger as-child><Button variant="ghost" size="sm" class="user-menu-trigger">{{ user.displayName || user.username }}</Button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuLabel class="user-menu-name">{{ user.displayName || user.username }}<small>{{ user.owner ? 'Instance owner' : user.username }}</small></DropdownMenuLabel><DropdownMenuSeparator /><DropdownMenuItem @select="changingPassword = true">Change password</DropdownMenuItem><DropdownMenuItem @select="signOut">Sign out</DropdownMenuItem></DropdownMenuContent></DropdownMenu></div></header>
+      <header class="topbar"><div class="topbar-actions"><div v-if="canBuildDesk" class="mode-switch" aria-label="Desk mode"><button :class="{ selected: mode === 'build' }" @click="mode = 'build'">Build</button><button :class="{ selected: mode === 'view' }" @click="mode = 'view'">View</button></div><Button variant="ghost" size="icon-sm" class="theme-toggle" :aria-label="isDark ? 'Switch to light theme' : 'Switch to dark theme'" :title="isDark ? 'Switch to light theme' : 'Switch to dark theme'" @click="toggleTheme"><span aria-hidden="true">{{ isDark ? '☼' : '◐' }}</span></Button><DropdownMenu v-if="user"><DropdownMenuTrigger as-child><Button variant="ghost" size="sm" class="user-menu-trigger">{{ user.displayName || user.username }}</Button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuLabel class="user-menu-name">{{ user.displayName || user.username }}<small>{{ user.owner ? 'Instance owner' : user.username }}</small></DropdownMenuLabel><DropdownMenuSeparator /><DropdownMenuItem @select="changingPassword = true">Change password</DropdownMenuItem><DropdownMenuItem @select="signOut">Sign out</DropdownMenuItem></DropdownMenuContent></DropdownMenu></div></header>
       <OverviewPage v-if="mode === 'build' && page === 'overview'" :record-types="recordTypes" :database-state="databaseState" :api-state="apiState" @navigate="page = $event" @create-record-type="page = 'record-types'; addRecordType()" />
       <RecordTypesPage v-else-if="mode === 'build' && page === 'record-types'" :record-types="recordTypes" :current-record-type="currentRecordType" :database-state="databaseState" @select="selectedRecordType = $event" @add-record-type="addRecordType" @add-field="addField" @rename="renameRecordType" @delete="removeRecordType" @save="saveCurrentRecordType" @preview="mode = 'view'" />
       <PacksPage v-else-if="mode === 'build' && page === 'packs'" @open-record-types="page = 'record-types'" />
       <RulesPage v-else-if="mode === 'build' && page === 'rules'" />
+      <FilesPage v-else-if="mode === 'build' && page === 'files'" :can-write="canWriteFiles" />
       <RecordsPage v-else v-model:record-id="recordRoute" :record-type="viewRecordType" :record-types="viewRecordTypes" @back="mode = 'build'" />
     </main>
     <MigrationDialog v-if="pendingSave" :record-type="pendingSave.recordType" :plan="pendingSave.plan" @confirm="confirmPendingSave" @cancel="cancelPendingSave" />

@@ -21,6 +21,7 @@ This directory describes the product and the system as it exists and as decision
 - [ADR-0012: Numbering and the audit chain](decisions/adr-0012-numbering-and-audit-chain.md) — proposed: naming series, gap-free counters, hash-chained Audit Log, request correlation and label lookups.
 - [ADR-0013: Expression language on cel-go](decisions/adr-0013-expression-language.md) — proposed: restricted CEL, exact decimal and money, formulas and rollups, field rules, SQL-translated filters
 - [ADR-0014: Local users, Argon2id, database sessions and Grants](decisions/adr-0014-authentication-and-grants.md) — proposed: sign-in, sessions, CSRF, Roles and Grants with permission levels and row conditions, the permission gate and the Access Log.
+- [ADR-0015: Workspace files, and where generated source goes](decisions/adr-0015-workspace-files-and-generated-source.md) — proposed: `FileService`, path and size rules, versions, audit entries, `files:read` and `files:write`, and the `generated/` destination with hash conflict detection (resolves O-002 and D-009 once accepted).
 - [ADR template](decisions/adr-template.md) — format for recording a consequential architecture decision.
 - [Project README](../README.md) — setup, run, build, and repository layout.
 

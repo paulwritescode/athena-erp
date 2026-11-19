@@ -31,10 +31,15 @@ const (
 	PermissionAccess = "access"
 	// PermissionAudit verifies the Audit Log chain and reads the Access Log.
 	PermissionAudit = "audit"
+	// PermissionFilesRead lists and reads the Workspace files and their versions.
+	PermissionFilesRead = "files:read"
+	// PermissionFilesWrite creates, replaces, moves and deletes Workspace
+	// files. It does not include reading them.
+	PermissionFilesWrite = "files:write"
 )
 
 // SystemPermissions lists every system permission.
-var SystemPermissions = []string{PermissionBuild, PermissionAccess, PermissionAudit}
+var SystemPermissions = []string{PermissionBuild, PermissionAccess, PermissionAudit, PermissionFilesRead, PermissionFilesWrite}
 
 // AllRecordTypes is the Grant target that covers every Record Type.
 const AllRecordTypes = "*"

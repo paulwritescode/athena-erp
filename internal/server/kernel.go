@@ -26,6 +26,9 @@ type Kernel struct {
 	// Users is the auth store, for what only the operator may do, such as
 	// creating an instance owner.
 	Users *auth.Service
+	// Files is the FileService handler over the Workspace directory. It
+	// refuses every call when the Kernel has no Workspace.
+	Files athenav1connect.FileServiceHandler
 	// Hooks takes Go hooks for the lifecycle events (spec 5.2).
 	Hooks *lifecycle.Registry
 	db    *sql.DB
@@ -47,10 +50,16 @@ func OpenKernel(ctx context.Context, cfg *mysql.Config, workspace *Workspace) (*
 		db.Close()
 		return nil, fmt.Errorf("resume interrupted Record Type saves: %w", err)
 	}
+	files := newFileService(workspace, db)
 	hooks := lifecycle.NewRegistry()
 	users := &auth.Service{DB: db}
-	return &Kernel{RecordTypes: recordTypeService{db: db}, Records: recordService{db: db, hooks: hooks}, System: systemService{db: db}, Auth: authService{auth: users}, Users: users, Hooks: hooks, db: db}, nil
+	return &Kernel{RecordTypes: recordTypeService{db: db}, Records: recordService{db: db, hooks: hooks}, System: systemService{db: db}, Auth: authService{auth: users}, Users: users, Files: files, Hooks: hooks, db: db}, nil
 }
 
 // Close releases the database connection.
-func (k *Kernel) Close() error { return k.db.Close() }
+func (k *Kernel) Close() error {
+	if f, ok := k.Files.(fileService); ok && f.files != nil {
+		_ = f.files.Close()
+	}
+	return k.db.Close()
+}

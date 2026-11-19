@@ -44,12 +44,19 @@ type accessFixture struct {
 
 func newAccessFixture(t *testing.T) *accessFixture {
 	t.Helper()
+	return newAccessFixtureAt(t, "")
+}
+
+// newAccessFixtureAt is newAccessFixture with a Workspace directory, which
+// FileService needs.
+func newAccessFixtureAt(t *testing.T, root string) *accessFixture {
+	t.Helper()
 	db := testdb.New(t)
 	if _, err := store.Up(context.Background(), db, dialect, SystemMigrations(), store.UpOptions{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	mux := http.NewServeMux()
-	mountRPC(mux, Config{}, db, false, []connect.ServerInterceptor{requestInterceptor()})
+	mountRPC(mux, Config{Workspace: &Workspace{Root: root}}, db, false, []connect.ServerInterceptor{requestInterceptor()})
 	srv := httptest.NewServer(securityHeaders(mux))
 	t.Cleanup(srv.Close)
 	return &accessFixture{db: db, url: srv.URL, users: &auth.Service{DB: db}, types: recordTypeService{db: db}, records: recordService{db: db}}
@@ -74,6 +81,7 @@ type session struct {
 	records athenav1connect.RecordServiceClient
 	types   athenav1connect.RecordTypeServiceClient
 	system  athenav1connect.SystemServiceClient
+	files   athenav1connect.FileServiceClient
 	jar     *cookiejar.Jar
 	csrf    *string
 	base    string
@@ -88,7 +96,7 @@ func (f *accessFixture) browser(t *testing.T) *session {
 	token := ""
 	client := connect.NewClient(connecthttp.NewTransport(&http.Client{Jar: jar, Transport: csrfTransport{token: &token}}, f.url))
 	return &session{auth: athenav1connect.NewAuthServiceClient(client), records: athenav1connect.NewRecordServiceClient(client), types: athenav1connect.NewRecordTypeServiceClient(client),
-		system: athenav1connect.NewSystemServiceClient(client), jar: jar, csrf: &token, base: f.url}
+		system: athenav1connect.NewSystemServiceClient(client), files: athenav1connect.NewFileServiceClient(client), jar: jar, csrf: &token, base: f.url}
 }
 
 func (s *session) login(t *testing.T, username string) {

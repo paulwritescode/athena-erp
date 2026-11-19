@@ -1,0 +1,135 @@
+syntax = "proto3";
+
+package athena.v1;
+
+option go_package = "athena-erp/gen/athena/v1;athenav1";
+
+// FileService manages the source files of the running Workspace: Record Type
+// definitions, Rule sources, Pack layout and generated source. Paths are
+// relative to the Workspace directory and limited to a fixed set of folders.
+// Every call needs the files:read or files:write system permission. A change
+// is recorded in the Audit Log with its path, hash and actor, never its
+// content, and every revision's content is kept as a file version.
+service FileService {
+  // ListFiles returns the tree of managed files with the Record Type, Rule or
+  // Report each one backs.
+  rpc ListFiles(ListFilesRequest) returns (ListFilesResponse);
+  // GetFile reads one file, or one earlier revision of it. It is also the
+  // download.
+  rpc GetFile(GetFileRequest) returns (GetFileResponse);
+  // PutFile creates or replaces a file (upload). The expected hash must match
+  // the file on disk; an empty hash means the file must not exist yet.
+  rpc PutFile(PutFileRequest) returns (PutFileResponse);
+  // MoveFile renames a file inside the allowed folders.
+  rpc MoveFile(MoveFileRequest) returns (MoveFileResponse);
+  // DeleteFile removes a file from disk. Its versions stay.
+  rpc DeleteFile(DeleteFileRequest) returns (DeleteFileResponse);
+  // ListFileVersions returns the history of a file, newest first, across
+  // renames.
+  rpc ListFileVersions(ListFileVersionsRequest) returns (ListFileVersionsResponse);
+}
+
+message FileBacking {
+  // record_type, rule, report or generated_source.
+  string kind = 1;
+  // The Record Type, Rule or Report key taken from the file name.
+  string key = 2;
+  // True when a saved Record Type with that key exists. Rules and Reports are
+  // not implemented yet, so they are never saved.
+  bool saved = 3;
+}
+
+message FileInfo {
+  string path = 1;
+  int64 size = 2;
+  // SHA-256 of the content on disk, lowercase hex.
+  string hash = 3;
+  // Revision of the last recorded change; 0 when no change has been recorded.
+  int64 revision = 4;
+  // RFC 3339 time of the file on disk.
+  string modified_at = 5;
+  string modified_by = 6;
+  // False when the file on disk differs from the last recorded revision, for
+  // example after an edit outside Athena. The next change keeps that content
+  // as a version.
+  bool recorded = 7;
+  FileBacking backing = 8;
+}
+
+message ListFilesRequest {}
+
+message ListFilesResponse {
+  repeated FileInfo files = 1;
+  // Saved Record Types with no file under record_types/.
+  repeated string record_types_without_file = 2;
+  int64 max_file_bytes = 3;
+  int64 max_files = 4;
+  repeated string folders = 5;
+  repeated string extensions = 6;
+}
+
+message GetFileRequest {
+  string path = 1;
+  // 0 reads the file on disk. Another number reads that recorded revision.
+  int64 revision = 2;
+}
+
+message GetFileResponse {
+  FileInfo info = 1;
+  bytes content = 2;
+}
+
+message PutFileRequest {
+  string path = 1;
+  bytes content = 2;
+  // Hash of the content the caller read. Empty creates a new file.
+  string expected_hash = 3;
+}
+
+message PutFileResponse {
+  FileInfo info = 1;
+}
+
+message MoveFileRequest {
+  string from = 1;
+  string to = 2;
+  string expected_hash = 3;
+}
+
+message MoveFileResponse {
+  FileInfo info = 1;
+}
+
+message DeleteFileRequest {
+  string path = 1;
+  string expected_hash = 2;
+}
+
+message DeleteFileResponse {}
+
+message ListFileVersionsRequest {
+  string path = 1;
+}
+
+message FileVersion {
+  int64 revision = 1;
+  // created, updated, moved, deleted, or external for content found changed
+  // outside Athena.
+  string action = 2;
+  // The path at that revision.
+  string path = 3;
+  string hash = 4;
+  int64 size = 5;
+  string actor = 6;
+  // api or cli.
+  string source = 7;
+  string request_id = 8;
+  // RFC 3339 timestamp.
+  string created_at = 9;
+  // False for a delete, which stores no content.
+  bool has_content = 10;
+}
+
+message ListFileVersionsResponse {
+  repeated FileVersion versions = 1;
+}

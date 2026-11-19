@@ -65,6 +65,8 @@ func run(args []string) error {
 		return roleCommand(args[1:], os.Stdout)
 	case "access-log":
 		return accessLogCommand(args[1:], os.Stdout)
+	case "files":
+		return filesCommand(args[1:], os.Stdin, os.Stdout)
 	case "version", "--version", "-v":
 		fmt.Println(version)
 		return nil
@@ -121,10 +123,18 @@ Usage:
       --disable, --enable, --unlock and --display-name.
   athena role list|show|save|delete [name] [--workspace slug] [--json]
       Manage Roles and their Grants. "save --file role.json" takes a JSON
-      Role: system permissions (build, access, audit) and Grants of actions
+      Role: system permissions (build, access, audit, files:read, files:write) and Grants of actions
       on a Record Type with a permission level and an optional row condition.
   athena access-log [--event name] [--limit N] [--workspace slug] [--json]
       Print sign-ins, failures, lockouts, denials and access changes.
+  athena files list|get|put|mv|rm|history [path] [--workspace slug] [--json]
+      List, read, write, rename and delete the files of a workspace (record_types/,
+      rules/, packs/, generated/) with the same checks as the desk: paths stay
+      inside the folders, files are UTF-8 text up to 1 MiB, Record Type files are
+      validated, and every change keeps a version and an Audit Log entry. "list"
+      shows which file backs which Record Type, Rule or Report. "put" reads
+      --file or standard input; --expected-hash, --new and "rm --yes" guard
+      against overwriting. "history" lists versions and "get --revision N" reads one.
   athena audit verify|anchor [--anchor seq:hash] [--workspace slug] [--json]
       verify checks the Audit Log hash chain from the first row to the last and
       prints the chain head. anchor verifies, then prints only "seq:hash" for a
@@ -252,7 +262,7 @@ func runCommand(args []string) error {
 	return server.Serve(ctx, server.Config{
 		Addr:      *addr,
 		Database:  cfg,
-		Workspace: &server.Workspace{ID: p.Manifest.ID, Name: p.Manifest.Name, Slug: p.Manifest.Slug},
+		Workspace: &server.Workspace{ID: p.Manifest.ID, Name: p.Manifest.Name, Slug: p.Manifest.Slug, Root: p.Root},
 		Version:   version,
 	})
 }

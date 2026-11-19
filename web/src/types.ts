@@ -1,4 +1,4 @@
-export type Page = 'overview' | 'record-types' | 'packs' | 'rules'
+export type Page = 'overview' | 'record-types' | 'packs' | 'rules' | 'files'
 export type EnumChoice = { value: string; label: string }
 // The optional attributes mirror RecordTypeField in proto/athena/v1/record_types.proto;
 // the server enforces them and fieldRules.ts mirrors the checks. An absent

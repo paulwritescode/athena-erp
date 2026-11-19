@@ -302,3 +302,24 @@ body,.app-shell,.main-content,.page-content{background:var(--background);color:v
 .sign-in-setup code{padding:8px 10px;border-radius:var(--radius-md);background:var(--secondary);color:var(--foreground);font-size:var(--type-caption-size)}
 .user-menu-name{display:grid;gap:2px}
 .user-menu-name small{font-size:var(--type-caption-size);color:var(--muted-foreground);font-weight:400}
+/* Files page: a file tree beside an editor, on semantic tokens only. */
+.files-tabs{display:grid;gap:16px}
+.files-layout{display:grid;grid-template-columns:260px minmax(0,1fr);gap:24px;align-items:start}
+.files-tree{display:grid;gap:1px;align-content:start;max-height:calc(100vh - 220px);overflow:auto;padding:8px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg)}
+.files-node{display:flex;align-items:center;gap:6px;width:100%;height:30px;padding-right:8px;border:0;border-radius:var(--radius-md);background:transparent;color:var(--muted-foreground);text-align:left;font-size:var(--type-body-sm-size)}
+.files-node:hover{color:var(--foreground);background:var(--accent)}
+.files-node.is-folder{color:var(--foreground);font-weight:500}
+.files-node.chosen{background:var(--accent);color:var(--foreground);font-weight:500}
+.files-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.files-flag{margin-left:auto;font-size:var(--type-caption-size);color:var(--muted-foreground)}
+.files-empty,.files-hint,.files-sub{font-size:var(--type-caption-size);color:var(--muted-foreground)}
+.files-empty{padding:12px 8px}
+.files-title{font-family:var(--font-code);font-size:var(--type-body-sm-size);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.files-editor-card{min-width:0}
+.app-shell .files-editor{min-height:calc(100vh - 380px);font-family:var(--font-code);font-size:var(--type-code-size);line-height:1.6;resize:vertical;tab-size:2;white-space:pre}
+.files-hint{display:flex;align-items:center;gap:8px;margin-top:8px}
+.files-table{width:100%}
+.files-map-row{cursor:pointer}
+.files-problem{color:var(--destructive);font-size:var(--type-caption-size)}
+.files-picker{display:none}
+@media(max-width:760px){.files-layout{grid-template-columns:1fr}.files-tree{max-height:240px}}

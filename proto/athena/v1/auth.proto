@@ -51,7 +51,7 @@ message SessionInfo {
   string username = 2;
   string display_name = 3;
   bool owner = 4;
-  // Any of build, access, audit.
+  // Any of build, access, audit, files:read, files:write.
   repeated string system_permissions = 5;
   // Send this in the X-CSRF-Token header on every call.
   string csrf_token = 6;
@@ -124,7 +124,7 @@ message Grant {
 message Role {
   string name = 1;
   string description = 2;
-  // Any of build, access, audit.
+  // Any of build, access, audit, files:read, files:write.
   repeated string system_permissions = 3;
   repeated Grant grants = 4;
 }

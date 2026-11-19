@@ -46,6 +46,9 @@ type Workspace struct {
 	ID   string
 	Name string
 	Slug string
+	// Root is the Workspace directory FileService manages. Empty when the
+	// caller has no directory, which leaves FileService unavailable.
+	Root string
 }
 
 // Serve starts the single HTTP server for the embedded UI and ConnectRPC API.
@@ -167,6 +170,7 @@ func mountRPC(mux *http.ServeMux, config Config, db *sql.DB, telemetry bool, int
 	athenav1connect.RegisterAuthServiceHandler(rpcServer, authService{auth: authSvc})
 	athenav1connect.RegisterRecordTypeServiceHandler(rpcServer, recordTypeService{db: db})
 	athenav1connect.RegisterRecordServiceHandler(rpcServer, recordService{db: db})
+	athenav1connect.RegisterFileServiceHandler(rpcServer, newFileService(config.Workspace, db))
 	connecthttp.Mount(mux, rpcServer)
 }
 

@@ -113,7 +113,7 @@ func migrateCommand(args []string, out io.Writer) error {
 func migrationTarget(slug string) (*mysql.Config, *server.Workspace, error) {
 	p, cfg, err := resolveWorkspace(slug)
 	if err == nil {
-		return cfg, &server.Workspace{ID: p.Manifest.ID, Name: p.Manifest.Name, Slug: p.Manifest.Slug}, nil
+		return cfg, &server.Workspace{ID: p.Manifest.ID, Name: p.Manifest.Name, Slug: p.Manifest.Slug, Root: p.Root}, nil
 	}
 	dsn := os.Getenv("ATHENA_DATABASE_URL")
 	if slug != "" || dsn == "" {
