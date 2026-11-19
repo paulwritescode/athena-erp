@@ -13,6 +13,7 @@ This directory describes the product and the system as it exists and as decision
 - [ADR-0004: One database per project](decisions/adr-0004-project-per-database.md) — workspaces, project creation and the run lock.
 - [ADR-0005: Database dialect layer](decisions/adr-0005-database-dialect-layer.md) — proposed: engine-specific SQL behind a `Dialect` interface, MariaDB only.
 - [ADR-0006: Versioned system migrations](decisions/adr-0006-versioned-system-migrations.md) — accepted: numbered idempotent platform migrations, `athena migrate`.
+- [ADR-0007: Exact numeric types](decisions/adr-0007-exact-types.md) — proposed: decimal, money in minor units, quantity, dates and allocation in `internal/types`.
 - [ADR template](decisions/adr-template.md) — format for recording a consequential architecture decision.
 - [Project README](../README.md) — setup, run, build, and repository layout.
 

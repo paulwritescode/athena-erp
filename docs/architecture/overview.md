@@ -90,6 +90,7 @@ See [Frontend theme and typography](frontend-theme-and-type.md) for the centrali
 | Starlark rules and safe execution | Product direction accepted; implementation pending |
 | Database dialect layer (`internal/store`) | Implemented for MariaDB only (proposed in ADR-0005): identifier quoting and hash shortening, type mapping, Record-table DDL, upsert, row lock, schema lock, catalogue lookups and error classification. Platform-table DDL now lives in versioned system migrations |
 | System migrations (`internal/store/migrate.go`, `server.SystemMigrations`) | Implemented (ADR-0006, accepted): numbered idempotent steps recorded in `athena_migrations`, applied at start-up and by `athena migrate status/up [--to N] [--dry-run]`; refuses a database newer than the build. Record-definition migrations, renames, rollback and Module upgrades are not implemented |
+| Exact types (`internal/types`) | Implemented as a standalone Go library (ADR-0007, proposed): `Decimal` on `math/big` with `half_up` and `half_even` rounding, `Money` as `int64` minor units plus currency with rounding differences returned, `Quantity` with a UoM key, date and UTC datetime parsing, and deterministic `Allocate`. Not yet used by Record fields, entries or the API (P4); no CLI command or UI, since it has no user-facing operation |
 | PostgreSQL adapter | Later; not implemented and untested. The dialect interface exists so one can be added |
 
 See the [decision log](../decisions/decision-log.md) and [Record and Module model](record-and-module-model.md) for details and remaining design work.
