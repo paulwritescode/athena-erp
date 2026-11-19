@@ -18,6 +18,7 @@ export type Field = {
   read_only?: boolean
   set_once?: boolean
   no_copy?: boolean
+  allow_on_submit?: boolean
   index?: boolean
   values?: EnumChoice[]
   currency?: string
@@ -26,5 +27,6 @@ export type Field = {
 }
 export type Kind = 'master' | 'document' | 'child' | 'setting'
 // revision is 0 until the Record Type is first saved. class applies to documents
-// and parent_record_type to child Record Types.
-export type RecordType = { name: string; label: string; description: string; kind: Kind; class?: string; parent_record_type?: string; fields: Field[]; revision: number }
+// and parent_record_type to child Record Types. submittable and amendable switch
+// on the document lifecycle (draft, submitted, cancelled, amended).
+export type RecordType = { name: string; label: string; description: string; kind: Kind; class?: string; parent_record_type?: string; submittable?: boolean; amendable?: boolean; fields: Field[]; revision: number }

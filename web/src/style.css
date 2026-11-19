@@ -286,3 +286,5 @@ body,.app-shell,.main-content,.page-content{background:var(--background);color:v
 .settings-flags label{display:flex;align-items:center;gap:8px;font-size:var(--type-body-sm-size);cursor:pointer}
 .settings-flags small{color:var(--muted-foreground);font-size:var(--type-caption-size)}
 @media(max-width:760px){.settings-grid{grid-template-columns:1fr}}
+
+.switch-line{display:flex;align-items:center;gap:8px}.record-kind .switch-label{align-content:start}.entry-status{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.lifecycle-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}

@@ -22,6 +22,20 @@ function isCalendarDate(value: string): boolean {
   return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day
 }
 
+/** Document states, as the kernel numbers them (internal/lifecycle). */
+export const docstates = { draft: 0, submitted: 1, cancelled: 2 } as const
+
+/**
+ * Mirrors the server's immutability rule (internal/server/records.go,
+ * UpdateRecord): a draft is editable, a submitted document changes only in
+ * fields marked allow_on_submit, and a cancelled document does not change.
+ * A Record Type that is not submittable is always editable.
+ */
+export function fieldEditable(field: Field, submittable: boolean, docstate: number): boolean {
+  if (!submittable || docstate === docstates.draft) return true
+  return docstate === docstates.submitted && field.allow_on_submit === true
+}
+
 /** Splits a decimal string into its sign, whole digits and fraction digits. */
 function parts(text: string): { negative: boolean; whole: string; fraction: string } {
   const negative = text.startsWith('-')

@@ -63,8 +63,8 @@ func systemColumns(kind string) []store.Column {
 
 // ensureSystemColumns adds any system column the table lacks. It is safe to
 // repeat, so create, resume and migration 6 all use it.
-func ensureSystemColumns(ctx context.Context, x store.Execer, table, kind string) error {
-	for _, column := range systemColumns(kind) {
+func ensureSystemColumns(ctx context.Context, x store.Execer, table string, columns []store.Column) error {
+	for _, column := range columns {
 		if _, err := x.ExecContext(ctx, dialect.AddColumn(table, column)); err != nil {
 			return err
 		}

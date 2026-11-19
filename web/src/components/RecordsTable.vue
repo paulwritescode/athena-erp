@@ -5,7 +5,7 @@ import type { Record as RecordMessage } from '../gen/athena/v1/records_pb'
 import type { Field } from '../types'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
-const props = defineProps<{ recordTypeKey: string; fields: Field[]; records: RecordMessage[] }>()
+const props = defineProps<{ recordTypeKey: string; fields: Field[]; records: RecordMessage[]; submittable?: boolean }>()
 const emit = defineEmits<{ open: [record: RecordMessage] }>()
 
 const features = tableFeatures({ columnSizingFeature, columnResizingFeature })
@@ -24,7 +24,9 @@ function display(record: RecordMessage, field: Field): string {
 
 // Fields only change when the Record Type is saved; the parent re-creates this
 // component per Record Type, so the column list is stable for a table's lifetime.
+const stateLabels = ['Draft', 'Submitted', 'Cancelled']
 const columns = computed<ColumnDef<typeof features, RecordMessage>[]>(() => [
+  ...(props.submittable ? [{ id: 'docstate', header: 'Status', accessorFn: (record: RecordMessage) => stateLabels[record.docstate] ?? '', size: 120, minSize: 80, maxSize: 300 } satisfies ColumnDef<typeof features, RecordMessage>] : []),
   ...props.fields.map((field): ColumnDef<typeof features, RecordMessage> => ({
     id: field.name,
     header: field.type === 'Money' && field.currency ? `${field.label} (${field.currency})` : field.type === 'Quantity' && field.uom ? `${field.label} (${field.uom})` : field.label,

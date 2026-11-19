@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import cases from '../../internal/server/testdata/field_rules.json'
-import { compareDecimal, validateField } from './fieldRules'
+import { compareDecimal, docstates, fieldEditable, validateField } from './fieldRules'
 import type { Field } from './types'
 
 // The server tests read the same table (internal/server/fieldrules_test.go),
@@ -48,5 +48,23 @@ describe('compareDecimal', () => {
     expect(compareDecimal('0.30000000000000004', '0.3')).toBe(1)
     expect(compareDecimal('-1', '-0.999999')).toBe(-1)
     expect(compareDecimal('-0.5', '0.5')).toBe(-1)
+  })
+})
+
+// The lifecycle rule has no shared table: the server tests in
+// internal/server/lifecycle_test.go cover the same three states.
+describe('fieldEditable', () => {
+  const plain: Field = { name: 'a', label: 'A', type: 'Text', required: false }
+  const late: Field = { ...plain, allow_on_submit: true }
+  it('lets a draft or a non-submittable Record Type change every field', () => {
+    expect(fieldEditable(plain, true, docstates.draft)).toBe(true)
+    expect(fieldEditable(plain, false, docstates.cancelled)).toBe(true)
+  })
+  it('lets a submitted document change only allow_on_submit fields', () => {
+    expect(fieldEditable(plain, true, docstates.submitted)).toBe(false)
+    expect(fieldEditable(late, true, docstates.submitted)).toBe(true)
+  })
+  it('keeps a cancelled document fixed', () => {
+    expect(fieldEditable(late, true, docstates.cancelled)).toBe(false)
   })
 })

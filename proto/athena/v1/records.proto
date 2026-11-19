@@ -14,6 +14,17 @@ service RecordService {
   rpc DeleteRecord(DeleteRecordRequest) returns (DeleteRecordResponse);
   // ListRecordHistory returns a Record's changes, newest first.
   rpc ListRecordHistory(ListRecordHistoryRequest) returns (ListRecordHistoryResponse);
+  // SubmitRecord moves a draft of a submittable document to submitted.
+  rpc SubmitRecord(SubmitRecordRequest) returns (SubmitRecordResponse);
+  // CancelRecord moves a submitted document to cancelled. It is refused while
+  // a submitted document still links to it.
+  rpc CancelRecord(CancelRecordRequest) returns (CancelRecordResponse);
+  // AmendRecord creates a draft successor of a cancelled amendable document.
+  rpc AmendRecord(AmendRecordRequest) returns (AmendRecordResponse);
+  // ListRecordVersions returns a document's snapshots, newest first.
+  rpc ListRecordVersions(ListRecordVersionsRequest) returns (ListRecordVersionsResponse);
+  // ListRecordActivity returns a document's timeline, newest first.
+  rpc ListRecordActivity(ListRecordActivityRequest) returns (ListRecordActivityResponse);
 }
 
 // FieldValue carries one typed field value. Number and Currency use exact
@@ -50,6 +61,14 @@ message Record {
   // siblings.
   string parent_id = 11;
   int64 idx = 12;
+  // Submittable documents only: 0 draft, 1 submitted, 2 cancelled. Only the
+  // kernel changes it.
+  int32 docstate = 13;
+  // Submittable documents only. Starts as the Record ID; an amended document
+  // gets the original's name with a -1, -2 suffix.
+  string name = 14;
+  // Amendable documents only: the cancelled document this one replaces.
+  string amended_from = 15;
 }
 
 message ListRecordsRequest {
@@ -129,4 +148,74 @@ message RecordEvent {
 
 message ListRecordHistoryResponse {
   repeated RecordEvent events = 1;
+}
+
+message SubmitRecordRequest {
+  string record_type_key = 1;
+  string id = 2;
+  int64 expected_revision = 3;
+}
+message SubmitRecordResponse {
+  Record record = 1;
+}
+message CancelRecordRequest {
+  string record_type_key = 1;
+  string id = 2;
+  int64 expected_revision = 3;
+}
+message CancelRecordResponse {
+  Record record = 1;
+}
+message AmendRecordRequest {
+  string record_type_key = 1;
+  string id = 2;
+  int64 expected_revision = 3;
+}
+// AmendRecordResponse carries the new draft.
+message AmendRecordResponse {
+  Record record = 1;
+}
+message ListRecordVersionsRequest {
+  string record_type_key = 1;
+  string id = 2;
+}
+// RecordVersion is a snapshot of a document taken at submit, cancel or amend.
+message RecordVersion {
+  // 1, 2, 3 ... within the document.
+  int64 version = 1;
+  // The Record revision the snapshot was taken at.
+  int64 revision = 2;
+  // submit, cancel or amend.
+  string event = 3;
+  int32 docstate = 4;
+  // JSON text: the document's values and its child Records.
+  string snapshot = 5;
+  // JSON text: what changed since the previous version, empty for the first.
+  string diff = 6;
+  string actor = 7;
+  string at = 8;
+}
+message ListRecordVersionsResponse {
+  repeated RecordVersion versions = 1;
+}
+message ListRecordActivityRequest {
+  string record_type_key = 1;
+  string id = 2;
+}
+// ActivityEvent is one step in a document's timeline.
+message ActivityEvent {
+  // submitted, cancelled, amended, amended_from or edited_after_submit.
+  string event = 1;
+  string actor = 2;
+  // Document states before and after, for state changes.
+  int32 from_state = 3;
+  int32 to_state = 4;
+  // Keys of the fields changed, for edited_after_submit.
+  repeated string changed_fields = 5;
+  // The successor (amended) or the original (amended_from).
+  string related_id = 6;
+  string at = 7;
+}
+message ListRecordActivityResponse {
+  repeated ActivityEvent events = 1;
 }

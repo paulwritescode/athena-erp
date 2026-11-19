@@ -25,10 +25,13 @@ type recordTypeDefinition struct {
 	Description string `json:"description"`
 	// Kind is empty in definitions saved before kinds existed; kind() reads
 	// that as master.
-	Kind             string            `json:"kind,omitempty"`
-	Class            string            `json:"class,omitempty"`
-	ParentRecordType string            `json:"parent_record_type,omitempty"`
-	Fields           []recordTypeField `json:"fields"`
+	Kind             string `json:"kind,omitempty"`
+	Class            string `json:"class,omitempty"`
+	ParentRecordType string `json:"parent_record_type,omitempty"`
+	// Submittable and Amendable switch on the document lifecycle (spec 2.2, 5).
+	Submittable bool              `json:"submittable,omitempty"`
+	Amendable   bool              `json:"amendable,omitempty"`
+	Fields      []recordTypeField `json:"fields"`
 	// Revision is the active revision. It is read from the revision column,
 	// never stored in the definition.
 	Revision int64 `json:"-"`
@@ -41,20 +44,22 @@ type recordTypeField struct {
 	Required         bool   `json:"required"`
 	TargetRecordType string `json:"target_record_type,omitempty"`
 	// Attributes enforced on every write (spec 3.2). Zero values mean unset.
-	Unique    bool        `json:"unique,omitempty"`
-	Default   string      `json:"default,omitempty"`
-	Min       string      `json:"min,omitempty"`
-	Max       string      `json:"max,omitempty"`
-	Pattern   string      `json:"pattern,omitempty"`
-	MaxLength int         `json:"max_length,omitempty"`
-	ReadOnly  bool        `json:"read_only,omitempty"`
-	SetOnce   bool        `json:"set_once,omitempty"`
-	NoCopy    bool        `json:"no_copy,omitempty"`
-	Index     bool        `json:"index,omitempty"`
-	Values    []enumValue `json:"values,omitempty"`
-	Currency  string      `json:"currency,omitempty"`
-	UoM       string      `json:"uom,omitempty"`
-	Scale     *int        `json:"scale,omitempty"`
+	Unique    bool   `json:"unique,omitempty"`
+	Default   string `json:"default,omitempty"`
+	Min       string `json:"min,omitempty"`
+	Max       string `json:"max,omitempty"`
+	Pattern   string `json:"pattern,omitempty"`
+	MaxLength int    `json:"max_length,omitempty"`
+	ReadOnly  bool   `json:"read_only,omitempty"`
+	SetOnce   bool   `json:"set_once,omitempty"`
+	NoCopy    bool   `json:"no_copy,omitempty"`
+	// AllowOnSubmit lets the field change after its document is submitted.
+	AllowOnSubmit bool        `json:"allow_on_submit,omitempty"`
+	Index         bool        `json:"index,omitempty"`
+	Values        []enumValue `json:"values,omitempty"`
+	Currency      string      `json:"currency,omitempty"`
+	UoM           string      `json:"uom,omitempty"`
+	Scale         *int        `json:"scale,omitempty"`
 }
 
 // enumValue is one permanent choice of an Enum field.
@@ -74,7 +79,7 @@ var (
 // reservedColumns are the system columns the kernel adds to Record Type tables
 // (see systemColumns), reserved for every kind so a field never collides with
 // one. revision is the spec's version field.
-var reservedColumns = map[string]bool{"id": true, "revision": true, "created_at": true, "updated_at": true, "created_by": true, "modified_by": true, "owner": true, "deleted_at": true, "def_version": true, "request_id": true, "parent_id": true, "idx": true}
+var reservedColumns = map[string]bool{"id": true, "revision": true, "created_at": true, "updated_at": true, "created_by": true, "modified_by": true, "owner": true, "deleted_at": true, "def_version": true, "request_id": true, "parent_id": true, "idx": true, "docstate": true, "amended_from": true}
 
 // Operation actions and states in athena_record_type_operations.
 const (
@@ -368,6 +373,9 @@ func validateRecordType(ctx context.Context, conn sqlConn, recordType recordType
 	if err := validateKind(ctx, conn, recordType, previous); err != nil {
 		return err
 	}
+	if err := validateLifecycle(ctx, conn, recordType, previous); err != nil {
+		return err
+	}
 	if len(recordType.Fields) == 0 {
 		return invalid("add at least one field")
 	}
@@ -573,7 +581,7 @@ func pendingOperations(ctx context.Context, conn sqlConn) ([]pendingOperation, e
 // Field columns are nullable; Go enforces required fields.
 func applySchema(ctx context.Context, conn sqlConn, recordType recordTypeDefinition, previous *recordTypeDefinition, opts saveOptions) error {
 	table := recordTypeTableName(recordType.Name)
-	columns := systemColumns(recordType.kind())
+	columns := recordType.systemColumns()
 	for _, field := range recordType.Fields {
 		columnType, err := dialect.ColumnType(field.Type)
 		if err != nil {
@@ -587,7 +595,10 @@ func applySchema(ctx context.Context, conn sqlConn, recordType recordTypeDefinit
 			return err
 		}
 	}
-	if err := ensureSystemColumns(ctx, conn, table, recordType.kind()); err != nil {
+	if err := ensureSystemColumns(ctx, conn, table, recordType.systemColumns()); err != nil {
+		return err
+	}
+	if err := ensureLifecycle(ctx, conn, recordType); err != nil {
 		return err
 	}
 	if recordType.kind() == kindChild {
@@ -625,11 +636,11 @@ func recordTypeForeignKeyName(recordTypeName, fieldName string) string {
 
 func recordTypeFromProto(recordType *athenav1.RecordType) recordTypeDefinition {
 	definition := recordTypeDefinition{Name: recordType.GetKey(), Label: strings.TrimSpace(recordType.GetLabel()), Description: strings.TrimSpace(recordType.GetDescription()),
-		Kind: normalizeKind(recordType.GetKind()), Class: recordType.GetClass(), ParentRecordType: recordType.GetParentRecordTypeKey()}
+		Kind: normalizeKind(recordType.GetKind()), Class: recordType.GetClass(), ParentRecordType: recordType.GetParentRecordTypeKey(), Submittable: recordType.GetSubmittable(), Amendable: recordType.GetAmendable()}
 	for _, field := range recordType.GetFields() {
 		out := recordTypeField{Name: field.GetKey(), Label: strings.TrimSpace(field.GetLabel()), Type: field.GetType(), Required: field.GetRequired(), TargetRecordType: field.GetTargetRecordTypeKey(),
 			Unique: field.GetUnique(), Default: field.GetDefaultValue(), Min: strings.TrimSpace(field.GetMin()), Max: strings.TrimSpace(field.GetMax()), Pattern: field.GetPattern(), MaxLength: int(field.GetMaxLength()),
-			ReadOnly: field.GetReadOnly(), SetOnce: field.GetSetOnce(), NoCopy: field.GetNoCopy(), Index: field.GetIndex(), Currency: field.GetCurrency(), UoM: field.GetUom()}
+			ReadOnly: field.GetReadOnly(), SetOnce: field.GetSetOnce(), NoCopy: field.GetNoCopy(), AllowOnSubmit: field.GetAllowOnSubmit(), Index: field.GetIndex(), Currency: field.GetCurrency(), UoM: field.GetUom()}
 		if field.Scale != nil {
 			scale := int(field.GetScale())
 			out.Scale = &scale
@@ -643,11 +654,11 @@ func recordTypeFromProto(recordType *athenav1.RecordType) recordTypeDefinition {
 }
 func recordTypeToProto(recordType recordTypeDefinition, revision int64) *athenav1.RecordType {
 	result := &athenav1.RecordType{Key: recordType.Name, Label: recordType.Label, Description: recordType.Description, Revision: revision,
-		Kind: recordType.kind(), Class: recordType.Class, ParentRecordTypeKey: recordType.ParentRecordType}
+		Kind: recordType.kind(), Class: recordType.Class, ParentRecordTypeKey: recordType.ParentRecordType, Submittable: recordType.Submittable, Amendable: recordType.Amendable}
 	for _, field := range recordType.Fields {
 		out := &athenav1.RecordTypeField{Key: field.Name, Label: field.Label, Type: field.Type, Required: field.Required, TargetRecordTypeKey: field.TargetRecordType,
 			Unique: field.Unique, DefaultValue: field.Default, Min: field.Min, Max: field.Max, Pattern: field.Pattern, MaxLength: int32(field.MaxLength),
-			ReadOnly: field.ReadOnly, SetOnce: field.SetOnce, NoCopy: field.NoCopy, Index: field.Index, Currency: field.Currency, Uom: field.UoM}
+			ReadOnly: field.ReadOnly, SetOnce: field.SetOnce, NoCopy: field.NoCopy, AllowOnSubmit: field.AllowOnSubmit, Index: field.Index, Currency: field.Currency, Uom: field.UoM}
 		if field.Scale != nil {
 			scale := int32(*field.Scale)
 			out.Scale = &scale

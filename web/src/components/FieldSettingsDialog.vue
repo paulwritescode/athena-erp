@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label'
 // Edits the attributes of one field in place; the Record Types page owns the
 // field and saves it. The server enforces every attribute and rejects bad
 // combinations on save.
-const props = defineProps<{ field: Field | null }>()
+const props = defineProps<{ field: Field | null; lifecycle: boolean }>()
 const emit = defineEmits<{ close: [] }>()
 
 const type = computed(() => props.field?.type ?? '')
@@ -51,7 +51,7 @@ function setNumber(name: 'max_length' | 'scale', value: string | number) {
   else props.field[name] = Number(text)
 }
 
-function setFlag(name: 'unique' | 'index' | 'read_only' | 'set_once' | 'no_copy', value: boolean | 'indeterminate') {
+function setFlag(name: 'unique' | 'index' | 'read_only' | 'set_once' | 'no_copy' | 'allow_on_submit', value: boolean | 'indeterminate') {
   if (!props.field) return
   if (value === true) props.field[name] = true
   else delete props.field[name]
@@ -97,7 +97,8 @@ function onOpenChange(open: boolean) {
         <label v-if="indexable"><Checkbox :model-value="field.index ?? false" @update:model-value="setFlag('index', $event)" />Indexed <small>Faster lookups.</small></label>
         <label><Checkbox :model-value="field.read_only ?? false" @update:model-value="setFlag('read_only', $event)" />Read only <small>Only the default sets it.</small></label>
         <label><Checkbox :model-value="field.set_once ?? false" @update:model-value="setFlag('set_once', $event)" />Set once <small>Cannot change after it has a value.</small></label>
-        <label><Checkbox :model-value="field.no_copy ?? false" @update:model-value="setFlag('no_copy', $event)" />Do not copy <small>Skipped when a record is duplicated or amended (not available yet).</small></label>
+        <label><Checkbox :model-value="field.no_copy ?? false" @update:model-value="setFlag('no_copy', $event)" />Do not copy <small>Left empty when a document is amended.</small></label>
+        <label v-if="lifecycle"><Checkbox :model-value="field.allow_on_submit ?? false" @update:model-value="setFlag('allow_on_submit', $event)" />Allow on submit <small>Still editable after the document is submitted. Every change is audited.</small></label>
       </div>
       <DialogFooter><Button @click="emit('close')">Done</Button></DialogFooter>
     </DialogContent>

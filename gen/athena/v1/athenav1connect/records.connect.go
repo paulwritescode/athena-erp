@@ -37,6 +37,18 @@ const (
 	// RecordServiceListRecordHistoryProcedure is the procedure name of the RecordService's
 	// ListRecordHistory RPC.
 	RecordServiceListRecordHistoryProcedure = "/athena.v1.RecordService/ListRecordHistory"
+	// RecordServiceSubmitRecordProcedure is the procedure name of the RecordService's SubmitRecord RPC.
+	RecordServiceSubmitRecordProcedure = "/athena.v1.RecordService/SubmitRecord"
+	// RecordServiceCancelRecordProcedure is the procedure name of the RecordService's CancelRecord RPC.
+	RecordServiceCancelRecordProcedure = "/athena.v1.RecordService/CancelRecord"
+	// RecordServiceAmendRecordProcedure is the procedure name of the RecordService's AmendRecord RPC.
+	RecordServiceAmendRecordProcedure = "/athena.v1.RecordService/AmendRecord"
+	// RecordServiceListRecordVersionsProcedure is the procedure name of the RecordService's
+	// ListRecordVersions RPC.
+	RecordServiceListRecordVersionsProcedure = "/athena.v1.RecordService/ListRecordVersions"
+	// RecordServiceListRecordActivityProcedure is the procedure name of the RecordService's
+	// ListRecordActivity RPC.
+	RecordServiceListRecordActivityProcedure = "/athena.v1.RecordService/ListRecordActivity"
 )
 
 var (
@@ -82,6 +94,41 @@ var (
 			Procedure:  RecordServiceListRecordHistoryProcedure,
 		}
 	})
+	recordServiceSubmitRecordSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_athena_v1_records_proto.Services().ByName("RecordService").Methods().ByName("SubmitRecord"),
+			Procedure:  RecordServiceSubmitRecordProcedure,
+		}
+	})
+	recordServiceCancelRecordSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_athena_v1_records_proto.Services().ByName("RecordService").Methods().ByName("CancelRecord"),
+			Procedure:  RecordServiceCancelRecordProcedure,
+		}
+	})
+	recordServiceAmendRecordSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_athena_v1_records_proto.Services().ByName("RecordService").Methods().ByName("AmendRecord"),
+			Procedure:  RecordServiceAmendRecordProcedure,
+		}
+	})
+	recordServiceListRecordVersionsSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_athena_v1_records_proto.Services().ByName("RecordService").Methods().ByName("ListRecordVersions"),
+			Procedure:  RecordServiceListRecordVersionsProcedure,
+		}
+	})
+	recordServiceListRecordActivitySpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_athena_v1_records_proto.Services().ByName("RecordService").Methods().ByName("ListRecordActivity"),
+			Procedure:  RecordServiceListRecordActivityProcedure,
+		}
+	})
 )
 
 // RecordServiceClient is a client for the athena.v1.RecordService service.
@@ -95,6 +142,17 @@ type RecordServiceClient interface {
 	DeleteRecord(context.Context, *v1.DeleteRecordRequest) (*v1.DeleteRecordResponse, error)
 	// ListRecordHistory returns a Record's changes, newest first.
 	ListRecordHistory(context.Context, *v1.ListRecordHistoryRequest) (*v1.ListRecordHistoryResponse, error)
+	// SubmitRecord moves a draft of a submittable document to submitted.
+	SubmitRecord(context.Context, *v1.SubmitRecordRequest) (*v1.SubmitRecordResponse, error)
+	// CancelRecord moves a submitted document to cancelled. It is refused while
+	// a submitted document still links to it.
+	CancelRecord(context.Context, *v1.CancelRecordRequest) (*v1.CancelRecordResponse, error)
+	// AmendRecord creates a draft successor of a cancelled amendable document.
+	AmendRecord(context.Context, *v1.AmendRecordRequest) (*v1.AmendRecordResponse, error)
+	// ListRecordVersions returns a document's snapshots, newest first.
+	ListRecordVersions(context.Context, *v1.ListRecordVersionsRequest) (*v1.ListRecordVersionsResponse, error)
+	// ListRecordActivity returns a document's timeline, newest first.
+	ListRecordActivity(context.Context, *v1.ListRecordActivityRequest) (*v1.ListRecordActivityResponse, error)
 }
 
 // NewRecordServiceClient constructs a client for the athena.v1.RecordService service. Multiple
@@ -114,6 +172,17 @@ type RecordServiceHandler interface {
 	DeleteRecord(context.Context, *v1.DeleteRecordRequest) (*v1.DeleteRecordResponse, error)
 	// ListRecordHistory returns a Record's changes, newest first.
 	ListRecordHistory(context.Context, *v1.ListRecordHistoryRequest) (*v1.ListRecordHistoryResponse, error)
+	// SubmitRecord moves a draft of a submittable document to submitted.
+	SubmitRecord(context.Context, *v1.SubmitRecordRequest) (*v1.SubmitRecordResponse, error)
+	// CancelRecord moves a submitted document to cancelled. It is refused while
+	// a submitted document still links to it.
+	CancelRecord(context.Context, *v1.CancelRecordRequest) (*v1.CancelRecordResponse, error)
+	// AmendRecord creates a draft successor of a cancelled amendable document.
+	AmendRecord(context.Context, *v1.AmendRecordRequest) (*v1.AmendRecordResponse, error)
+	// ListRecordVersions returns a document's snapshots, newest first.
+	ListRecordVersions(context.Context, *v1.ListRecordVersionsRequest) (*v1.ListRecordVersionsResponse, error)
+	// ListRecordActivity returns a document's timeline, newest first.
+	ListRecordActivity(context.Context, *v1.ListRecordActivityRequest) (*v1.ListRecordActivityResponse, error)
 }
 
 // RegisterRecordServiceHandler registers svc as the athena.v1.RecordService implementation on
@@ -127,6 +196,11 @@ func RegisterRecordServiceHandler(server *connect.Server, svc RecordServiceHandl
 		connect.Method{Spec: recordServiceUpdateRecordSpec(), Handler: adapter.updateRecord},
 		connect.Method{Spec: recordServiceDeleteRecordSpec(), Handler: adapter.deleteRecord},
 		connect.Method{Spec: recordServiceListRecordHistorySpec(), Handler: adapter.listRecordHistory},
+		connect.Method{Spec: recordServiceSubmitRecordSpec(), Handler: adapter.submitRecord},
+		connect.Method{Spec: recordServiceCancelRecordSpec(), Handler: adapter.cancelRecord},
+		connect.Method{Spec: recordServiceAmendRecordSpec(), Handler: adapter.amendRecord},
+		connect.Method{Spec: recordServiceListRecordVersionsSpec(), Handler: adapter.listRecordVersions},
+		connect.Method{Spec: recordServiceListRecordActivitySpec(), Handler: adapter.listRecordActivity},
 	)
 }
 
@@ -155,6 +229,26 @@ func (UnimplementedRecordServiceHandler) DeleteRecord(context.Context, *v1.Delet
 
 func (UnimplementedRecordServiceHandler) ListRecordHistory(context.Context, *v1.ListRecordHistoryRequest) (*v1.ListRecordHistoryResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, "athena.v1.RecordService.ListRecordHistory is not implemented")
+}
+
+func (UnimplementedRecordServiceHandler) SubmitRecord(context.Context, *v1.SubmitRecordRequest) (*v1.SubmitRecordResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "athena.v1.RecordService.SubmitRecord is not implemented")
+}
+
+func (UnimplementedRecordServiceHandler) CancelRecord(context.Context, *v1.CancelRecordRequest) (*v1.CancelRecordResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "athena.v1.RecordService.CancelRecord is not implemented")
+}
+
+func (UnimplementedRecordServiceHandler) AmendRecord(context.Context, *v1.AmendRecordRequest) (*v1.AmendRecordResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "athena.v1.RecordService.AmendRecord is not implemented")
+}
+
+func (UnimplementedRecordServiceHandler) ListRecordVersions(context.Context, *v1.ListRecordVersionsRequest) (*v1.ListRecordVersionsResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "athena.v1.RecordService.ListRecordVersions is not implemented")
+}
+
+func (UnimplementedRecordServiceHandler) ListRecordActivity(context.Context, *v1.ListRecordActivityRequest) (*v1.ListRecordActivityResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "athena.v1.RecordService.ListRecordActivity is not implemented")
 }
 
 type recordServiceClient struct {
@@ -204,6 +298,46 @@ func (c *recordServiceClient) DeleteRecord(ctx context.Context, req *v1.DeleteRe
 func (c *recordServiceClient) ListRecordHistory(ctx context.Context, req *v1.ListRecordHistoryRequest) (*v1.ListRecordHistoryResponse, error) {
 	var res v1.ListRecordHistoryResponse
 	if err := c.client.CallUnary(ctx, recordServiceListRecordHistorySpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *recordServiceClient) SubmitRecord(ctx context.Context, req *v1.SubmitRecordRequest) (*v1.SubmitRecordResponse, error) {
+	var res v1.SubmitRecordResponse
+	if err := c.client.CallUnary(ctx, recordServiceSubmitRecordSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *recordServiceClient) CancelRecord(ctx context.Context, req *v1.CancelRecordRequest) (*v1.CancelRecordResponse, error) {
+	var res v1.CancelRecordResponse
+	if err := c.client.CallUnary(ctx, recordServiceCancelRecordSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *recordServiceClient) AmendRecord(ctx context.Context, req *v1.AmendRecordRequest) (*v1.AmendRecordResponse, error) {
+	var res v1.AmendRecordResponse
+	if err := c.client.CallUnary(ctx, recordServiceAmendRecordSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *recordServiceClient) ListRecordVersions(ctx context.Context, req *v1.ListRecordVersionsRequest) (*v1.ListRecordVersionsResponse, error) {
+	var res v1.ListRecordVersionsResponse
+	if err := c.client.CallUnary(ctx, recordServiceListRecordVersionsSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *recordServiceClient) ListRecordActivity(ctx context.Context, req *v1.ListRecordActivityRequest) (*v1.ListRecordActivityResponse, error) {
+	var res v1.ListRecordActivityResponse
+	if err := c.client.CallUnary(ctx, recordServiceListRecordActivitySpec(), req, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -277,6 +411,66 @@ func (h recordServiceHandler) listRecordHistory(ctx context.Context, _ connect.S
 		return err
 	}
 	res, err := h.svc.ListRecordHistory(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h recordServiceHandler) submitRecord(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.SubmitRecordRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.SubmitRecord(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h recordServiceHandler) cancelRecord(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.CancelRecordRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.CancelRecord(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h recordServiceHandler) amendRecord(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.AmendRecordRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.AmendRecord(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h recordServiceHandler) listRecordVersions(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.ListRecordVersionsRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.ListRecordVersions(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h recordServiceHandler) listRecordActivity(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.ListRecordActivityRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.ListRecordActivity(ctx, &req)
 	if err != nil {
 		return err
 	}

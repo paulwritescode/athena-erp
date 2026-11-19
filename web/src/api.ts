@@ -30,6 +30,7 @@ function fieldFromMessage(field: RecordTypeFieldMessage): Field {
     ...(field.readOnly ? { read_only: true } : {}),
     ...(field.setOnce ? { set_once: true } : {}),
     ...(field.noCopy ? { no_copy: true } : {}),
+    ...(field.allowOnSubmit ? { allow_on_submit: true } : {}),
     ...(field.index ? { index: true } : {}),
     ...(field.enumValues.length > 0 ? { values: field.enumValues.map((choice) => ({ value: choice.value, label: choice.label })) } : {}),
     ...(field.currency ? { currency: field.currency } : {}),
@@ -47,6 +48,8 @@ function fromMessage(recordType: RecordTypeMessage): RecordType {
     kind: (recordType.kind || 'master') as Kind,
     ...(recordType.class ? { class: recordType.class } : {}),
     ...(recordType.parentRecordTypeKey ? { parent_record_type: recordType.parentRecordTypeKey } : {}),
+    ...(recordType.submittable ? { submittable: true } : {}),
+    ...(recordType.amendable ? { amendable: true } : {}),
     fields: recordType.fields.map(fieldFromMessage),
   }
 }
@@ -65,6 +68,8 @@ function toMessage(recordType: RecordType): RecordTypeMessage {
     kind: recordType.kind,
     class: recordType.kind === 'document' ? recordType.class ?? '' : '',
     parentRecordTypeKey: recordType.kind === 'child' ? recordType.parent_record_type ?? '' : '',
+    submittable: recordType.kind === 'document' && (recordType.submittable ?? false),
+    amendable: recordType.kind === 'document' && (recordType.submittable ?? false) && (recordType.amendable ?? false),
     fields: recordType.fields.map((field) => ({
       key: field.name,
       label: field.label,
@@ -80,6 +85,7 @@ function toMessage(recordType: RecordType): RecordTypeMessage {
       readOnly: field.read_only ?? false,
       setOnce: field.set_once ?? false,
       noCopy: field.no_copy ?? false,
+      allowOnSubmit: field.allow_on_submit ?? false,
       index: field.index ?? false,
       enumValues: field.type === 'Enum' ? field.values ?? [] : [],
       currency: field.type === 'Money' ? field.currency ?? '' : '',

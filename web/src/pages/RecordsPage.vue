@@ -3,9 +3,10 @@ import { computed, nextTick, reactive, ref, watch } from 'vue'
 import { create } from '@bufbuild/protobuf'
 import { Code, ConnectError } from '@connectrpc/connect'
 import { recordClient } from '../api'
-import { validateField } from '../fieldRules'
-import { FieldValueSchema, type Record as RecordMessage, type RecordEvent, type FieldValue } from '../gen/athena/v1/records_pb'
+import { docstates, fieldEditable, validateField } from '../fieldRules'
+import { FieldValueSchema, type ActivityEvent, type Record as RecordMessage, type RecordEvent, type RecordVersion, type FieldValue } from '../gen/athena/v1/records_pb'
 import type { Field, RecordType } from '../types'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
 import RecordsTable from '../components/RecordsTable.vue'
@@ -31,6 +32,8 @@ const busy = ref(false)
 // The owning record of a new child record.
 const parentId = ref('')
 const history = ref<RecordEvent[]>([])
+const versions = ref<RecordVersion[]>([])
+const activity = ref<ActivityEvent[]>([])
 const when = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' })
 const formRef = ref<HTMLFormElement | null>(null)
 // Each list request gets a number so a slow response for a previous Record Type is ignored.
@@ -94,6 +97,12 @@ async function loadHistory(record: RecordMessage) {
   try {
     const res = await recordClient.listRecordHistory({ recordTypeKey: recordType.name, id: record.id })
     if (editing.value !== 'new' && editing.value?.id === record.id) history.value = res.events
+    if (!recordType.submittable) return
+    const [versionRes, activityRes] = await Promise.all([
+      recordClient.listRecordVersions({ recordTypeKey: recordType.name, id: record.id }),
+      recordClient.listRecordActivity({ recordTypeKey: recordType.name, id: record.id }),
+    ])
+    if (editing.value !== 'new' && editing.value?.id === record.id) { versions.value = versionRes.versions; activity.value = activityRes.events }
   } catch (err) {
     toast.error(`Could not load history: ${message(err)}`)
   }
@@ -115,6 +124,8 @@ function open(record: RecordMessage | 'new') {
   if (!props.recordType) return
   editing.value = record
   history.value = []
+  versions.value = []
+  activity.value = []
   clear(texts); clear(checks); clear(errors); touched.clear()
   parentId.value = record === 'new' ? '' : record.parentId
   for (const field of props.recordType.fields) {
@@ -130,11 +141,25 @@ function open(record: RecordMessage | 'new') {
 // after it has a value. The server enforces both.
 function locked(field: Field): boolean {
   if (field.read_only) return true
+  if (!fieldEditable(field, submittable.value, docstate.value)) return true
   if (!field.set_once || editing.value === null || editing.value === 'new') return false
   const kind = editing.value.values[field.name]?.kind
   return kind?.case === 'stringValue' || kind?.case === 'boolValue'
 }
 
+// Document lifecycle: only the kernel moves a document between these states.
+const submittable = computed(() => props.recordType?.submittable === true)
+const docstate = computed(() => editing.value === null || editing.value === 'new' ? docstates.draft : editing.value.docstate)
+const stateLabels = ['Draft', 'Submitted', 'Cancelled']
+const stateLabel = computed(() => stateLabels[docstate.value] ?? '')
+const editable = computed(() => !submittable.value || docstate.value !== docstates.cancelled)
+const isExisting = computed(() => editing.value !== null && editing.value !== 'new')
+const activityLabels: Record<string, string> = { submitted: 'Submitted', cancelled: 'Cancelled', amended: 'Amended', amended_from: 'Created by amending', edited_after_submit: 'Edited after submit' }
+function describeActivity(event: ActivityEvent) {
+  const fields = event.changedFields.map((key) => labels.value.get(key) ?? key)
+  const label = activityLabels[event.event] ?? event.event
+  return fields.length > 0 ? `${label}: ${fields.join(', ')}` : label
+}
 const isChild = computed(() => props.recordType?.kind === 'child')
 const isSetting = computed(() => props.recordType?.kind === 'setting')
 const parentLabel = computed(() => props.recordType?.parent_record_type ?? 'owning')
@@ -225,6 +250,37 @@ async function submit() {
   }
 }
 
+type Transition = 'submit' | 'cancel' | 'amend'
+const transitionText: Record<Transition, string> = { submit: 'Document submitted.', cancel: 'Document cancelled.', amend: 'Amended draft created.' }
+async function runTransition(action: Transition) {
+  const recordType = props.recordType
+  if (!editing.value || editing.value === 'new' || !recordType) return
+  const current = editing.value
+  const request = { recordTypeKey: recordType.name, id: current.id, expectedRevision: current.revision }
+  busy.value = true
+  try {
+    const record = action === 'submit' ? (await recordClient.submitRecord(request)).record
+      : action === 'cancel' ? (await recordClient.cancelRecord(request)).record
+      : (await recordClient.amendRecord(request)).record
+    if (record) {
+      const fresh = record
+      // An amend returns the new draft; the other two return the changed document.
+      if (action === 'amend') {
+        const original = await recordClient.getRecord({ recordTypeKey: recordType.name, id: current.id })
+        records.value = [...records.value.map((item) => item.id === current.id && original.record ? original.record : item), fresh]
+        emit('update:recordId', fresh.id)
+      } else {
+        records.value = records.value.map((item) => item.id === fresh.id ? fresh : item)
+        open(fresh)
+      }
+    }
+    toast.success(transitionText[action])
+  } catch (err) {
+    reportWriteError(err)
+  } finally {
+    busy.value = false
+  }
+}
 async function reloadRecord() {
   const recordType = props.recordType
   if (!editing.value || editing.value === 'new' || !recordType) return
@@ -273,7 +329,30 @@ function inputType(field: Field) {
 
     <template v-else-if="editing">
       <button type="button" class="back-link" @click="close">← {{ recordType.label }}</button>
-      <div class="page-title-row"><h1>{{ editing === 'new' ? 'New record' : 'Edit record' }}</h1></div>
+      <div class="page-title-row">
+        <div class="entry-status">
+          <h1>{{ editing === 'new' ? 'New record' : 'Edit record' }}</h1>
+          <Badge v-if="submittable && isExisting" :variant="docstate === 2 ? 'destructive' : docstate === 1 ? 'default' : 'secondary'">{{ stateLabel }}</Badge>
+          <small v-if="submittable && isExisting && editing !== 'new' && editing.name !== editing.id" class="muted-label">{{ editing.name }}</small>
+        </div>
+        <div v-if="submittable && editing !== 'new'" class="lifecycle-actions">
+          <AlertDialog v-if="docstate === 0">
+            <AlertDialogTrigger as-child><Button type="button" :disabled="busy">Submit</Button></AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader><AlertDialogTitle>Submit this document?</AlertDialogTitle><AlertDialogDescription>After it is submitted only fields set to allow editing can change. Save any edits first.</AlertDialogDescription></AlertDialogHeader>
+              <AlertDialogFooter><AlertDialogCancel>Not yet</AlertDialogCancel><AlertDialogAction @click="runTransition('submit')">Submit document</AlertDialogAction></AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+          <AlertDialog v-if="docstate === 1">
+            <AlertDialogTrigger as-child><Button type="button" variant="outline" :disabled="busy">Cancel document</Button></AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader><AlertDialogTitle>Cancel this document?</AlertDialogTitle><AlertDialogDescription>It stays visible as cancelled and cannot be edited. A document that a submitted document links to cannot be cancelled.</AlertDialogDescription></AlertDialogHeader>
+              <AlertDialogFooter><AlertDialogCancel>Keep it</AlertDialogCancel><AlertDialogAction variant="destructive" @click="runTransition('cancel')">Cancel document</AlertDialogAction></AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+          <Button v-if="docstate === 2 && recordType.amendable" type="button" :disabled="busy" @click="runTransition('amend')">Amend</Button>
+        </div>
+      </div>
       <form ref="formRef" class="entry-form" novalidate @submit.prevent="submit">
         <div class="entry-form-grid">
           <div v-if="isChild" class="form-field" :class="{ 'is-invalid': errors.parent_id }">
@@ -291,7 +370,7 @@ function inputType(field: Field) {
           </div>
         </div>
         <div class="entry-form-footer">
-          <AlertDialog v-if="editing !== 'new' && !isSetting">
+          <AlertDialog v-if="editing !== 'new' && !isSetting && (!submittable || docstate === 0)">
             <AlertDialogTrigger as-child><Button type="button" variant="ghost" :disabled="busy">Delete</Button></AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
@@ -304,7 +383,7 @@ function inputType(field: Field) {
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
-          <div class="toolbar-actions"><Button type="button" variant="outline" @click="close">Cancel</Button><Button type="submit" :disabled="busy">{{ editing === 'new' ? 'Create record' : 'Save' }}</Button></div>
+          <div class="toolbar-actions"><Button type="button" variant="outline" @click="close">Cancel</Button><Button v-if="editable" type="submit" :disabled="busy">{{ editing === 'new' ? 'Create record' : 'Save' }}</Button></div>
         </div>
       </form>
       <section v-if="editing !== 'new'" class="entry-meta" aria-labelledby="entry-details-heading">
@@ -318,6 +397,20 @@ function inputType(field: Field) {
           <Marker variant="border"><MarkerIcon><LayersIcon /></MarkerIcon><MarkerContent><span class="marker-label">Record Type revision</span>{{ editing.defVersion }}</MarkerContent></Marker>
           <Marker variant="border"><MarkerIcon><FingerprintIcon /></MarkerIcon><MarkerContent><span class="marker-label">Record ID</span><span class="is-mono">{{ editing.id }}</span></MarkerContent></Marker>
         </div>
+        <template v-if="submittable">
+          <h2>Activity</h2>
+          <ol class="entry-markers">
+            <li v-for="event in activity" :key="`${event.event}:${event.at}:${event.relatedId}`">
+              <Marker variant="border"><MarkerIcon><ClockIcon /></MarkerIcon><MarkerContent><span class="marker-label">{{ describeActivity(event) }}</span>{{ event.actor }} · {{ when.format(new Date(event.at)) }}</MarkerContent></Marker>
+            </li>
+          </ol>
+          <h2>Versions</h2>
+          <ol class="entry-markers">
+            <li v-for="version in versions" :key="String(version.version)">
+              <Marker variant="border"><MarkerIcon><LayersIcon /></MarkerIcon><MarkerContent><span class="marker-label">Version {{ version.version }}: {{ version.event }}</span>{{ version.actor }} · {{ when.format(new Date(version.at)) }} · revision {{ version.revision }}</MarkerContent></Marker>
+            </li>
+          </ol>
+        </template>
         <h2>History</h2>
         <ol class="entry-markers">
           <li v-for="event in history" :key="`${event.revision}:${event.action}:${event.at}`">
@@ -333,7 +426,7 @@ function inputType(field: Field) {
     <template v-else>
       <div class="view-head"><div><h1>{{ recordType.label }}</h1><p v-if="recordType.description" class="lead">{{ recordType.description }}</p></div><Button v-if="canCreate" @click="openRecord('new')">New record</Button></div>
       <div class="entries-panel">
-        <RecordsTable v-if="records.length > 0" :key="recordType.name" :record-type-key="recordType.name" :fields="recordType.fields" :records="records" @open="openRecord" />
+        <RecordsTable v-if="records.length > 0" :key="recordType.name" :record-type-key="recordType.name" :fields="recordType.fields" :records="records" :submittable="submittable" @open="openRecord" />
         <p v-else-if="loading" class="empty-state">Loading…</p>
         <p v-else-if="loadError" class="empty-state">Records could not be loaded. <Button size="sm" variant="outline" @click="load()">Retry</Button></p>
         <div v-else class="entries-empty"><p>No records yet.</p><Button v-if="canCreate" variant="outline" size="sm" @click="openRecord('new')">Create the first record</Button></div>

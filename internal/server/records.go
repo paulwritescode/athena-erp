@@ -15,6 +15,7 @@ import (
 	"unicode/utf8"
 
 	athenav1 "athena-erp/gen/athena/v1"
+	"athena-erp/internal/lifecycle"
 	"athena-erp/internal/store"
 	"athena-erp/internal/types"
 	"connectrpc.com/connect/v2"
@@ -36,7 +37,8 @@ var emailDomainDot = regexp.MustCompile(`^[^\s@]+@[^\s@]+\.[^\s@]+$`)
 // recordService implements athena.v1.RecordService over the Record Type tables.
 // It has no authentication yet, so the server must stay bound to loopback.
 type recordService struct {
-	db *sql.DB
+	db    *sql.DB
+	hooks *lifecycle.Registry
 }
 
 func (s recordService) ListRecords(ctx context.Context, req *athenav1.ListRecordsRequest) (*athenav1.ListRecordsResponse, error) {
@@ -125,12 +127,7 @@ func (s recordService) CreateRecord(ctx context.Context, req *athenav1.CreateRec
 	if err != nil {
 		return nil, internalError("generate record ID", err)
 	}
-	var changed []string
-	for i, column := range columns {
-		if args[i] != nil {
-			changed = append(changed, strings.Trim(column, "`"))
-		}
-	}
+	changed := changedKeys(columns, args)
 	if recordType.kind() != kindChild && req.GetParentId() != "" {
 		return nil, invalid("only child Record Types have a parent")
 	}
@@ -139,7 +136,7 @@ func (s recordService) CreateRecord(ctx context.Context, req *athenav1.CreateRec
 		return nil, internalError("create record", err)
 	}
 	defer func() { _ = tx.Rollback() }()
-	system := map[string]any{"created_by": localActor, "modified_by": localActor, "def_version": recordType.Revision, "request_id": requestID, "owner": localActor}
+	system := map[string]any{"created_by": localActor, "modified_by": localActor, "def_version": recordType.Revision, "request_id": requestID, "owner": localActor, "docstate": int32(lifecycle.Draft), "name": id.String()}
 	switch recordType.kind() {
 	case kindSetting:
 		if err := requireNoRecord(ctx, tx, recordType); err != nil {
@@ -150,22 +147,22 @@ func (s recordService) CreateRecord(ctx context.Context, req *athenav1.CreateRec
 		if err != nil {
 			return nil, err
 		}
+		if err := checkParentEditable(ctx, tx, recordType, req.GetParentId(), "create", nil); err != nil {
+			return nil, err
+		}
 		system["parent_id"], system["idx"] = req.GetParentId(), idx
+	}
+	event := lifecycle.Event{RecordType: recordType.Name, RecordID: id.String(), RequestID: requestID, To: lifecycle.Draft, Tx: tx}
+	if recordType.kind() == kindDocument {
+		if err := s.fireSteps(ctx, lifecycle.Sequence(lifecycle.SaveNew), event, 0, 4); err != nil {
+			return nil, err
+		}
 	}
 	if err := checkUnique(ctx, tx, recordType, columns, args, ""); err != nil {
 		return nil, err
 	}
-	insertColumns, insertArgs := []string{dialect.QuoteIdent("id")}, []any{id.String()}
-	for _, column := range systemColumns(recordType.kind()) {
-		insertColumns = append(insertColumns, dialect.QuoteIdent(column.Name))
-		insertArgs = append(insertArgs, system[column.Name])
-	}
-	columns = append(insertColumns, columns...)
-	args = append(insertArgs, args...)
-	placeholders := strings.TrimSuffix(strings.Repeat("?,", len(columns)), ",")
-	statement := fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)", dialect.QuoteIdent(recordTypeTableName(recordType.Name)), strings.Join(columns, ","), placeholders)
-	if _, err := tx.ExecContext(ctx, statement, args...); err != nil {
-		return nil, writeError("create record", err)
+	if err := insertRow(ctx, tx, recordType, id.String(), system, columns, args); err != nil {
+		return nil, err
 	}
 	if err := writeHistory(ctx, tx, recordType.Name, id.String(), 1, "created", changed); err != nil {
 		return nil, internalError("record type history", err)
@@ -178,6 +175,24 @@ func (s recordService) CreateRecord(ctx context.Context, req *athenav1.CreateRec
 		return nil, err
 	}
 	return &athenav1.CreateRecordResponse{Record: record}, nil
+}
+
+// insertRow inserts one Record with its system columns. system supplies the
+// kernel's values by column name; columns and args come from bindValues.
+func insertRow(ctx context.Context, tx *sql.Tx, recordType recordTypeDefinition, id string, system map[string]any, columns []string, args []any) error {
+	insertColumns, insertArgs := []string{dialect.QuoteIdent("id")}, []any{id}
+	for _, column := range recordType.systemColumns() {
+		insertColumns = append(insertColumns, dialect.QuoteIdent(column.Name))
+		insertArgs = append(insertArgs, system[column.Name])
+	}
+	columns = append(insertColumns, columns...)
+	args = append(insertArgs, args...)
+	placeholders := strings.TrimSuffix(strings.Repeat("?,", len(columns)), ",")
+	statement := fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)", dialect.QuoteIdent(recordTypeTableName(recordType.Name)), strings.Join(columns, ","), placeholders)
+	if _, err := tx.ExecContext(ctx, statement, args...); err != nil {
+		return writeError("create record", err)
+	}
+	return nil
 }
 
 // requireNoRecord keeps a Setting to one Record. Locking the Record Type's
@@ -287,6 +302,10 @@ func (s recordService) UpdateRecord(ctx context.Context, req *athenav1.UpdateRec
 	// Only fields whose stored value differs count as changed; an unchanged save
 	// keeps the revision and writes no history.
 	fields := fieldsByKey(recordType)
+	state := lifecycle.State(current.GetDocstate())
+	if recordType.Submittable && state == lifecycle.Cancelled {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, "a cancelled document cannot be changed")
+	}
 	var changedColumns, changed []string
 	var changedArgs []any
 	for i, column := range columns {
@@ -294,6 +313,9 @@ func (s recordService) UpdateRecord(ctx context.Context, req *athenav1.UpdateRec
 		field := fields[key]
 		if sameValue(field, current.GetValues()[key], args[i]) {
 			continue
+		}
+		if recordType.Submittable && state == lifecycle.Submitted && !field.AllowOnSubmit {
+			return nil, connect.NewError(connect.CodeFailedPrecondition, fmt.Sprintf("%s cannot be changed after the document is submitted", field.Label))
 		}
 		if field.ReadOnly {
 			return nil, invalid(fmt.Sprintf("%s is read only", field.Label))
@@ -307,6 +329,17 @@ func (s recordService) UpdateRecord(ctx context.Context, req *athenav1.UpdateRec
 	}
 	if len(changed) == 0 {
 		return &athenav1.UpdateRecordResponse{Record: current}, nil
+	}
+	if recordType.kind() == kindChild {
+		if err := checkParentEditable(ctx, tx, recordType, current.GetParentId(), "update", changed); err != nil {
+			return nil, err
+		}
+	}
+	event := lifecycle.Event{RecordType: recordType.Name, RecordID: req.GetId(), RequestID: requestID, From: state, To: state, Tx: tx}
+	if recordType.kind() == kindDocument {
+		if err := s.fireSteps(ctx, lifecycle.Sequence(lifecycle.SaveEdit), event, 0, 3); err != nil {
+			return nil, err
+		}
 	}
 	if err := checkUnique(ctx, tx, recordType, changedColumns, changedArgs, req.GetId()); err != nil {
 		return nil, err
@@ -329,6 +362,11 @@ func (s recordService) UpdateRecord(ctx context.Context, req *athenav1.UpdateRec
 	}
 	if err := writeHistory(ctx, tx, recordType.Name, req.GetId(), current.GetRevision()+1, "updated", changed); err != nil {
 		return nil, internalError("record type history", err)
+	}
+	if recordType.Submittable && state == lifecycle.Submitted {
+		if err := writeActivity(ctx, tx, activityRow{recordType: recordType.Name, recordID: req.GetId(), event: "edited_after_submit", requestID: requestID, changed: changed}); err != nil {
+			return nil, err
+		}
 	}
 	if err := tx.Commit(); err != nil {
 		return nil, internalError("update record", err)
@@ -372,6 +410,27 @@ func (s recordService) DeleteRecord(ctx context.Context, req *athenav1.DeleteRec
 	}
 	defer func() { _ = tx.Rollback() }()
 	table := dialect.QuoteIdent(recordTypeTableName(recordType.Name))
+	switch recordType.kind() {
+	case kindChild:
+		var parentID string
+		if err := tx.QueryRowContext(ctx, "SELECT `parent_id` FROM "+table+" WHERE `id` = ?", req.GetId()).Scan(&parentID); err == nil {
+			if err := checkParentEditable(ctx, tx, recordType, parentID, "delete", nil); err != nil {
+				return nil, err
+			}
+		}
+	case kindDocument:
+		current, err := loadRecord(ctx, tx, recordType, req.GetId(), dialect.ForUpdate())
+		if err != nil {
+			return nil, err
+		}
+		if recordType.Submittable && lifecycle.State(current.GetDocstate()) != lifecycle.Draft {
+			return nil, connect.NewError(connect.CodeFailedPrecondition, "only a draft can be deleted; a submitted document is cancelled instead")
+		}
+		event := lifecycle.Event{RecordType: recordType.Name, RecordID: req.GetId(), RequestID: requestID, From: lifecycle.Draft, To: lifecycle.Draft, Tx: tx}
+		if err := s.fireSteps(ctx, lifecycle.Sequence(lifecycle.Trash), event, 0, 1); err != nil {
+			return nil, err
+		}
+	}
 	// A soft delete leaves the row in place, so the foreign key on a child's
 	// parent_id never fires. Check for children here, in the same transaction.
 	if err := ensureNoChildRecords(ctx, tx, recordType.Name, req.GetId()); err != nil {
@@ -403,40 +462,23 @@ func (s recordService) DeleteRecord(ctx context.Context, req *athenav1.DeleteRec
 	if err := tx.Commit(); err != nil {
 		return nil, internalError("delete record", err)
 	}
+	if recordType.kind() == kindDocument {
+		event := lifecycle.Event{RecordType: recordType.Name, RecordID: req.GetId(), RequestID: requestID}
+		s.fireAfter(ctx, lifecycle.Sequence(lifecycle.Trash), event)
+	}
 	return &athenav1.DeleteRecordResponse{}, nil
 }
 
 // ensureNoChildRecords returns FailedPrecondition when any child Record Type
 // of parentKey has a Record whose parent_id is id.
 func ensureNoChildRecords(ctx context.Context, conn *sql.Tx, parentKey, id string) error {
-	rows, err := conn.QueryContext(ctx, `SELECT definition FROM athena_record_types WHERE name <> ?`, parentKey)
+	children, err := childRecordTypes(ctx, conn, parentKey)
 	if err != nil {
-		return internalError("check child records", err)
-	}
-	var children []string
-	for rows.Next() {
-		var payload []byte
-		var other recordTypeDefinition
-		if err := rows.Scan(&payload); err != nil {
-			_ = rows.Close()
-			return internalError("check child records", err)
-		}
-		if err := json.Unmarshal(payload, &other); err != nil {
-			_ = rows.Close()
-			return internalError("check child records", err)
-		}
-		if other.ParentRecordType == parentKey {
-			children = append(children, other.Name)
-		}
-	}
-	err = rows.Err()
-	_ = rows.Close()
-	if err != nil {
-		return internalError("check child records", err)
+		return err
 	}
 	for _, child := range children {
 		var found int
-		query := "SELECT 1 FROM " + dialect.QuoteIdent(recordTypeTableName(child)) + " WHERE `parent_id` = ? LIMIT 1"
+		query := "SELECT 1 FROM " + dialect.QuoteIdent(recordTypeTableName(child.Name)) + " WHERE `parent_id` = ? LIMIT 1"
 		switch err := conn.QueryRowContext(ctx, query, id).Scan(&found); {
 		case err == nil:
 			return connect.NewError(connect.CodeFailedPrecondition, "other records belong to this record")
@@ -446,7 +488,6 @@ func ensureNoChildRecords(ctx context.Context, conn *sql.Tx, parentKey, id strin
 	}
 	return nil
 }
-
 func (s recordService) ListRecordHistory(ctx context.Context, req *athenav1.ListRecordHistoryRequest) (*athenav1.ListRecordHistoryResponse, error) {
 	recordType, err := s.recordType(ctx, req.GetRecordTypeKey())
 	if err != nil {
@@ -606,7 +647,7 @@ func (s recordService) checkChanged(ctx context.Context, recordType recordTypeDe
 
 func selectColumns(recordType recordTypeDefinition) string {
 	columns := []string{dialect.QuoteIdent("id"), dialect.QuoteIdent("revision"), dialect.QuoteIdent("created_at"), dialect.QuoteIdent("updated_at")}
-	for _, column := range systemColumns(recordType.kind()) {
+	for _, column := range recordType.systemColumns() {
 		columns = append(columns, dialect.QuoteIdent(column.Name))
 	}
 	for _, field := range recordType.Fields {
@@ -621,10 +662,11 @@ func scanRecord(rows *sql.Rows, recordType recordTypeDefinition) (*athenav1.Reco
 	targets := []any{&record.Id, &record.Revision, &created, &updated}
 	// Rows written before system fields existed hold NULL in them.
 	var createdBy, modifiedBy, requestID, owner, parentID sql.NullString
-	var defVersion, idx sql.NullInt64
+	var defVersion, idx, docstate sql.NullInt64
+	var name, amendedFrom sql.NullString
 	var deletedAt sql.NullTime
-	system := map[string]any{"created_by": &createdBy, "modified_by": &modifiedBy, "request_id": &requestID, "owner": &owner, "parent_id": &parentID, "def_version": &defVersion, "idx": &idx, "deleted_at": &deletedAt}
-	for _, column := range systemColumns(recordType.kind()) {
+	system := map[string]any{"created_by": &createdBy, "modified_by": &modifiedBy, "request_id": &requestID, "owner": &owner, "parent_id": &parentID, "def_version": &defVersion, "idx": &idx, "deleted_at": &deletedAt, "docstate": &docstate, "name": &name, "amended_from": &amendedFrom}
+	for _, column := range recordType.systemColumns() {
 		targets = append(targets, system[column.Name])
 	}
 	values := make([]any, len(recordType.Fields))
@@ -648,6 +690,7 @@ func scanRecord(rows *sql.Rows, recordType recordTypeDefinition) (*athenav1.Reco
 	record.UpdatedAt = updated.UTC().Format(time.RFC3339)
 	record.CreatedBy, record.ModifiedBy, record.Owner, record.RequestId, record.ParentId = createdBy.String, modifiedBy.String, owner.String, requestID.String, parentID.String
 	record.DefVersion, record.Idx = defVersion.Int64, idx.Int64
+	record.Docstate, record.Name, record.AmendedFrom = int32(docstate.Int64), name.String, amendedFrom.String
 	record.Values = make(map[string]*athenav1.FieldValue, len(recordType.Fields))
 	for i, field := range recordType.Fields {
 		value := &athenav1.FieldValue{}

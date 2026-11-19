@@ -53,7 +53,7 @@ func addKindsAndSystemFields(ctx context.Context, x store.Execer) error {
 			return err
 		}
 		if exists {
-			if err := ensureSystemColumns(ctx, x, table, kindMaster); err != nil {
+			if err := ensureSystemColumns(ctx, x, table, systemColumns(kindMaster)); err != nil {
 				return err
 			}
 			if _, err := x.ExecContext(ctx, fmt.Sprintf("UPDATE %s SET `created_by` = ?, `modified_by` = ?, `owner` = ?, `def_version` = ? WHERE `created_by` IS NULL", dialect.QuoteIdent(table)), localActor, localActor, localActor, item.revision); err != nil {

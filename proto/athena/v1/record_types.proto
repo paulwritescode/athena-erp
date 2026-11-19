@@ -67,6 +67,9 @@ message RecordTypeField {
   // Money: minor-unit digits (2 for USD, 0 for JPY). Quantity: fraction
   // digits, at most 6, 6 when unset.
   optional int32 scale = 19;
+  // Submittable documents and their child Records: the field may still change
+  // after the document is submitted. Every change is audited.
+  bool allow_on_submit = 20;
 }
 
 message RecordType {
@@ -86,6 +89,11 @@ message RecordType {
   // For child Record Types: the key of the Master or Document that owns the
   // Records. Fixed once saved.
   string parent_record_type_key = 8;
+  // Documents other than work documents only. A submittable document moves
+  // draft, submitted, cancelled under kernel control (spec 5.1).
+  bool submittable = 9;
+  // Requires submittable. A cancelled document can be amended into a new draft.
+  bool amendable = 10;
 }
 
 message ListRecordTypesRequest {}

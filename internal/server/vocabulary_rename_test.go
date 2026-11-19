@@ -134,7 +134,7 @@ func TestRenameKeepsDataAndRewritesNames(t *testing.T) {
 		t.Fatalf("identity on a pre-rename database: %v", err)
 	}
 	applied, err := store.Up(ctx, db, dialect, SystemMigrations(), store.UpOptions{})
-	if err != nil || len(applied) != 2 || applied[0].Name != "vocabulary_rename" || applied[1].Name != "record_kinds_and_system_fields" {
+	if err != nil || len(applied) != 3 || applied[0].Name != "vocabulary_rename" || applied[1].Name != "record_kinds_and_system_fields" || applied[2].Name != "document_lifecycle" {
 		t.Fatalf("up = %v, %v", applied, err)
 	}
 	for _, old := range []string{"athena_records", "athena_modules", "athena_record_operations", "athena_entry_history", "athena_project", "athena_record_customer", "athena_record_invoice"} {

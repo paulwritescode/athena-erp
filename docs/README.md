@@ -17,6 +17,7 @@ This directory describes the product and the system as it exists and as decision
 - [ADR-0008: Vocabulary](decisions/adr-0008-vocabulary.md) — proposed: Record Type, Record, Pack, Workspace, home, Grant; supersedes D-005.
 - [ADR-0009: Storage shapes](decisions/adr-0009-storage-shapes.md) — proposed: integer minor-unit money, UUIDv7 ids, table naming and the 63-byte identifier rule.
 - [ADR-0010: Record kinds and system fields](decisions/adr-0010-record-kinds-and-system-fields.md) — proposed: kinds, system columns, soft delete, field attributes and the money, quantity and enum types.
+- [ADR-0011: Document lifecycle](decisions/adr-0011-document-lifecycle.md) — proposed: draft, submitted, cancelled, amend, events, versions and the activity timeline.
 - [ADR template](decisions/adr-template.md) — format for recording a consequential architecture decision.
 - [Project README](../README.md) — setup, run, build, and repository layout.
 

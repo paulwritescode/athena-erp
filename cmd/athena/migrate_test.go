@@ -46,7 +46,7 @@ func TestMigrateCommand(t *testing.T) {
 	if err := json.Unmarshal([]byte(run("status", "--json")), &lines); err != nil {
 		t.Fatal(err)
 	}
-	if len(lines) != 6 || !lines[5].Applied || lines[5].AppliedAt == nil {
+	if len(lines) != 7 || !lines[6].Applied || lines[6].AppliedAt == nil {
 		t.Fatalf("json status = %+v", lines)
 	}
 	if strings.Contains(run("status", "--json"), cfg.Passwd) && cfg.Passwd != "" {
@@ -56,7 +56,7 @@ func TestMigrateCommand(t *testing.T) {
 	if err := migrateCommand([]string{"sideways"}, &bytes.Buffer{}); err == nil {
 		t.Fatal("unknown subcommand accepted")
 	}
-	if err := migrateCommand([]string{"up", "--to", "9"}, &bytes.Buffer{}); err == nil {
+	if err := migrateCommand([]string{"up", "--to", "99"}, &bytes.Buffer{}); err == nil {
 		t.Fatal("out-of-range --to accepted")
 	}
 }

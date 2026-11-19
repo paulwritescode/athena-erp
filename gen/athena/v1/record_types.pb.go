@@ -117,7 +117,10 @@ type RecordTypeField struct {
 	Uom string `protobuf:"bytes,18,opt,name=uom,proto3" json:"uom,omitempty"`
 	// Money: minor-unit digits (2 for USD, 0 for JPY). Quantity: fraction
 	// digits, at most 6, 6 when unset.
-	Scale         *int32 `protobuf:"varint,19,opt,name=scale,proto3,oneof" json:"scale,omitempty"`
+	Scale *int32 `protobuf:"varint,19,opt,name=scale,proto3,oneof" json:"scale,omitempty"`
+	// Submittable documents and their child Records: the field may still change
+	// after the document is submitted. Every change is audited.
+	AllowOnSubmit bool `protobuf:"varint,20,opt,name=allow_on_submit,json=allowOnSubmit,proto3" json:"allow_on_submit,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -285,6 +288,13 @@ func (x *RecordTypeField) GetScale() int32 {
 	return 0
 }
 
+func (x *RecordTypeField) GetAllowOnSubmit() bool {
+	if x != nil {
+		return x.AllowOnSubmit
+	}
+	return false
+}
+
 type RecordType struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Lowercase snake_case key that names the table. Fixed once saved.
@@ -303,8 +313,13 @@ type RecordType struct {
 	// For child Record Types: the key of the Master or Document that owns the
 	// Records. Fixed once saved.
 	ParentRecordTypeKey string `protobuf:"bytes,8,opt,name=parent_record_type_key,json=parentRecordTypeKey,proto3" json:"parent_record_type_key,omitempty"`
-	unknownFields       protoimpl.UnknownFields
-	sizeCache           protoimpl.SizeCache
+	// Documents other than work documents only. A submittable document moves
+	// draft, submitted, cancelled under kernel control (spec 5.1).
+	Submittable bool `protobuf:"varint,9,opt,name=submittable,proto3" json:"submittable,omitempty"`
+	// Requires submittable. A cancelled document can be amended into a new draft.
+	Amendable     bool `protobuf:"varint,10,opt,name=amendable,proto3" json:"amendable,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *RecordType) Reset() {
@@ -391,6 +406,20 @@ func (x *RecordType) GetParentRecordTypeKey() string {
 		return x.ParentRecordTypeKey
 	}
 	return ""
+}
+
+func (x *RecordType) GetSubmittable() bool {
+	if x != nil {
+		return x.Submittable
+	}
+	return false
+}
+
+func (x *RecordType) GetAmendable() bool {
+	if x != nil {
+		return x.Amendable
+	}
+	return false
 }
 
 type ListRecordTypesRequest struct {
@@ -890,7 +919,7 @@ const file_athena_v1_record_types_proto_rawDesc = "" +
 	"\x1cathena/v1/record_types.proto\x12\tathena.v1\x1a\x17athena/v1/records.proto\"7\n" +
 	"\tEnumValue\x12\x14\n" +
 	"\x05value\x18\x01 \x01(\tR\x05value\x12\x14\n" +
-	"\x05label\x18\x02 \x01(\tR\x05label\"\xa9\x04\n" +
+	"\x05label\x18\x02 \x01(\tR\x05label\"\xd1\x04\n" +
 	"\x0fRecordTypeField\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05label\x18\x02 \x01(\tR\x05label\x12\x12\n" +
@@ -913,8 +942,9 @@ const file_athena_v1_record_types_proto_rawDesc = "" +
 	"enumValues\x12\x1a\n" +
 	"\bcurrency\x18\x11 \x01(\tR\bcurrency\x12\x10\n" +
 	"\x03uom\x18\x12 \x01(\tR\x03uom\x12\x19\n" +
-	"\x05scale\x18\x13 \x01(\x05H\x00R\x05scale\x88\x01\x01B\b\n" +
-	"\x06_scale\"\x85\x02\n" +
+	"\x05scale\x18\x13 \x01(\x05H\x00R\x05scale\x88\x01\x01\x12&\n" +
+	"\x0fallow_on_submit\x18\x14 \x01(\bR\rallowOnSubmitB\b\n" +
+	"\x06_scale\"\xc5\x02\n" +
 	"\n" +
 	"RecordType\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
@@ -924,7 +954,10 @@ const file_athena_v1_record_types_proto_rawDesc = "" +
 	"\brevision\x18\x05 \x01(\x03R\brevision\x12\x12\n" +
 	"\x04kind\x18\x06 \x01(\tR\x04kind\x12\x14\n" +
 	"\x05class\x18\a \x01(\tR\x05class\x123\n" +
-	"\x16parent_record_type_key\x18\b \x01(\tR\x13parentRecordTypeKey\"\x18\n" +
+	"\x16parent_record_type_key\x18\b \x01(\tR\x13parentRecordTypeKey\x12 \n" +
+	"\vsubmittable\x18\t \x01(\bR\vsubmittable\x12\x1c\n" +
+	"\tamendable\x18\n" +
+	" \x01(\bR\tamendable\"\x18\n" +
 	"\x16ListRecordTypesRequest\"S\n" +
 	"\x17ListRecordTypesResponse\x128\n" +
 	"\frecord_types\x18\x01 \x03(\v2\x15.athena.v1.RecordTypeR\vrecordTypes\"\xcc\x02\n" +

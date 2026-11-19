@@ -82,6 +82,39 @@ func SystemMigrations() []store.Migration {
 		// Gives every existing Record Type the master kind and its system
 		// columns (ADR-0010).
 		{Version: 6, Name: "record_kinds_and_system_fields", Up: addKindsAndSystemFields},
+		// Document Versions and the Activity Timeline of submittable
+		// documents (ADR-0011). Rows are written by the kernel only.
+		{Version: 7, Name: "document_lifecycle", Up: execAll(
+			`CREATE TABLE IF NOT EXISTS athena_document_versions (
+				id CHAR(36) NOT NULL PRIMARY KEY,
+				record_type_name VARCHAR(140) NOT NULL,
+				record_id CHAR(36) NOT NULL,
+				version BIGINT NOT NULL,
+				revision BIGINT NOT NULL,
+				event VARCHAR(20) NOT NULL,
+				docstate BIGINT NOT NULL,
+				snapshot JSON NOT NULL,
+				diff JSON NOT NULL,
+				actor VARCHAR(255) NOT NULL,
+				request_id CHAR(36) NULL,
+				created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+				UNIQUE KEY uq_document_versions (record_type_name, record_id, version)
+			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+			`CREATE TABLE IF NOT EXISTS athena_activity (
+				id CHAR(36) NOT NULL PRIMARY KEY,
+				record_type_name VARCHAR(140) NOT NULL,
+				record_id CHAR(36) NOT NULL,
+				event VARCHAR(40) NOT NULL,
+				actor VARCHAR(255) NOT NULL,
+				from_state BIGINT NULL,
+				to_state BIGINT NULL,
+				changed_fields JSON NOT NULL,
+				related_id CHAR(36) NULL,
+				request_id CHAR(36) NULL,
+				created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+				KEY idx_activity_record (record_type_name, record_id, created_at)
+			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+		)},
 	}
 }
 

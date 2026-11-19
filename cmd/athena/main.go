@@ -92,9 +92,11 @@ Usage:
       kind, class, parent and field attributes. "save --file" takes a JSON
       RecordType; --dry-run prints the plan, --confirm-data-loss allows
       steps that delete stored values. "delete <key> --yes" drops the table.
-  athena records list|create|delete <record-type> [--workspace slug] [--json]
+  athena records list|create|delete|submit|cancel|amend|versions|activity <record-type> [--workspace slug] [--json]
       List, create and delete Records. create takes --values '{"field":"text"}'
       and, for child Record Types, --parent id; delete takes <id> --revision N.
+      submit, cancel and amend run the document lifecycle (<id> --revision N);
+      versions and activity print a document's snapshots and timeline.
       Both commands apply pending migrations first, as the server does.
   athena version
 `, version, defaultAddr, defaultAddr)

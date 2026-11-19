@@ -15,6 +15,7 @@ import (
 	"time"
 
 	athenav1 "athena-erp/gen/athena/v1"
+	"athena-erp/internal/lifecycle"
 	"athena-erp/internal/server"
 
 	"connectrpc.com/connect/v2"
@@ -30,12 +31,17 @@ const recordTypesUsage = `usage: athena record-types list|show|save|delete [--wo
                                 [--confirm-data-loss] allows steps that delete stored values
   delete <key> --yes            delete a Record Type, its table and its Records`
 
-const recordsUsage = `usage: athena records list|create|delete <record-type> [--workspace slug] [--json]
+const recordsUsage = `usage: athena records list|create|delete|submit|cancel|amend|versions|activity <record-type> [--workspace slug] [--json]
   list <record-type>            list Records; child Record Types take [--parent id]
   create <record-type>          create a Record from --values '{"field":"value"}' (text, true, false or null);
                                 child Record Types also take --parent id
   delete <record-type> <id> --revision N
-                                soft-delete a master Record, or remove one of another kind`
+                                soft-delete a master Record, or remove one of another kind
+  submit|cancel|amend <record-type> <id> --revision N
+                                move a submittable document from draft to submitted, from submitted
+                                to cancelled, or create a draft successor of a cancelled amendable one
+  versions <record-type> <id>   list the document's snapshots (submit, cancel, amend)
+  activity <record-type> <id>   list the document's timeline`
 
 // openKernel resolves the Workspace like the migrate command and opens the
 // kernel services the ConnectRPC handlers use.
@@ -200,10 +206,10 @@ func recordsCommand(args []string, out io.Writer) error {
 		return nil
 	}
 	sub, args := args[0], args[1:]
-	want := map[string]int{"list": 1, "create": 1, "delete": 2}
+	want := map[string]int{"list": 1, "create": 1, "delete": 2, "submit": 2, "cancel": 2, "amend": 2, "versions": 2, "activity": 2}
 	n, ok := want[sub]
 	if !ok {
-		return fmt.Errorf("unknown records command %q; use list, create or delete", sub)
+		return fmt.Errorf("unknown records command %q; use list, create, delete, submit, cancel, amend, versions or activity", sub)
 	}
 	positional, args, err := leadingArgs(args, n)
 	if err != nil {
@@ -214,7 +220,7 @@ func recordsCommand(args []string, out io.Writer) error {
 	asJSON := flags.Bool("json", false, "print JSON")
 	parent := flags.String("parent", "", "parent Record ID (child Record Types)")
 	values := flags.String("values", "", "field values as a JSON object (create)")
-	revision := flags.Int64("revision", 0, "revision of the Record being deleted (delete)")
+	revision := flags.Int64("revision", 0, "revision of the Record you last saw (delete, submit, cancel, amend)")
 	if ok, err := parse(flags, args); !ok {
 		return err
 	}
@@ -227,8 +233,8 @@ func recordsCommand(args []string, out io.Writer) error {
 			return err
 		}
 	}
-	if sub == "delete" && *revision <= 0 {
-		return errors.New("records delete needs --revision, the revision you last saw")
+	if (sub == "delete" || sub == "submit" || sub == "cancel" || sub == "amend") && *revision <= 0 {
+		return fmt.Errorf("records %s needs --revision, the revision you last saw", sub)
 	}
 	kernel, ctx, closeKernel, err := openKernel(*slug)
 	if err != nil {
@@ -260,6 +266,55 @@ func recordsCommand(args []string, out io.Writer) error {
 			return writeProto(out, res.GetRecord())
 		}
 		fmt.Fprintf(out, "Created %s.\n", res.GetRecord().GetId())
+		return nil
+	case "submit", "cancel", "amend":
+		var record *athenav1.Record
+		var err error
+		switch sub {
+		case "submit":
+			var res *athenav1.SubmitRecordResponse
+			res, err = kernel.Records.SubmitRecord(ctx, &athenav1.SubmitRecordRequest{RecordTypeKey: positional[0], Id: positional[1], ExpectedRevision: *revision})
+			record = res.GetRecord()
+		case "cancel":
+			var res *athenav1.CancelRecordResponse
+			res, err = kernel.Records.CancelRecord(ctx, &athenav1.CancelRecordRequest{RecordTypeKey: positional[0], Id: positional[1], ExpectedRevision: *revision})
+			record = res.GetRecord()
+		default:
+			var res *athenav1.AmendRecordResponse
+			res, err = kernel.Records.AmendRecord(ctx, &athenav1.AmendRecordRequest{RecordTypeKey: positional[0], Id: positional[1], ExpectedRevision: *revision})
+			record = res.GetRecord()
+		}
+		if err != nil {
+			return rpcError(err)
+		}
+		if *asJSON {
+			return writeProto(out, record)
+		}
+		fmt.Fprintf(out, "%s: %s is now %s (revision %d).\n", sub, record.GetName(), lifecycle.State(record.GetDocstate()), record.GetRevision())
+		return nil
+	case "versions":
+		res, err := kernel.Records.ListRecordVersions(ctx, &athenav1.ListRecordVersionsRequest{RecordTypeKey: positional[0], Id: positional[1]})
+		if err != nil {
+			return rpcError(err)
+		}
+		if *asJSON {
+			return writeProto(out, res)
+		}
+		for _, item := range res.GetVersions() {
+			fmt.Fprintf(out, "version %d\t%s\t%s\t%s\n", item.GetVersion(), item.GetEvent(), lifecycle.State(item.GetDocstate()), item.GetAt())
+		}
+		return nil
+	case "activity":
+		res, err := kernel.Records.ListRecordActivity(ctx, &athenav1.ListRecordActivityRequest{RecordTypeKey: positional[0], Id: positional[1]})
+		if err != nil {
+			return rpcError(err)
+		}
+		if *asJSON {
+			return writeProto(out, res)
+		}
+		for _, item := range res.GetEvents() {
+			fmt.Fprintf(out, "%s\t%s\t%s\n", item.GetAt(), item.GetEvent(), item.GetActor())
+		}
 		return nil
 	}
 	if _, err := kernel.Records.DeleteRecord(ctx, &athenav1.DeleteRecordRequest{RecordTypeKey: positional[0], Id: positional[1], ExpectedRevision: *revision}); err != nil {

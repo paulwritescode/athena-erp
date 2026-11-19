@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"athena-erp/gen/athena/v1/athenav1connect"
+	"athena-erp/internal/lifecycle"
 	"athena-erp/internal/store"
 
 	"github.com/go-sql-driver/mysql"
@@ -17,7 +18,9 @@ import (
 type Kernel struct {
 	RecordTypes athenav1connect.RecordTypeServiceHandler
 	Records     athenav1connect.RecordServiceHandler
-	db          *sql.DB
+	// Hooks takes Go hooks for the lifecycle events (spec 5.2).
+	Hooks *lifecycle.Registry
+	db    *sql.DB
 }
 
 // OpenKernel connects to the Workspace database and applies pending system
@@ -36,7 +39,8 @@ func OpenKernel(ctx context.Context, cfg *mysql.Config, workspace *Workspace) (*
 		db.Close()
 		return nil, fmt.Errorf("resume interrupted Record Type saves: %w", err)
 	}
-	return &Kernel{RecordTypes: recordTypeService{db: db}, Records: recordService{db: db}, db: db}, nil
+	hooks := lifecycle.NewRegistry()
+	return &Kernel{RecordTypes: recordTypeService{db: db}, Records: recordService{db: db, hooks: hooks}, Hooks: hooks, db: db}, nil
 }
 
 // Close releases the database connection.
