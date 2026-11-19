@@ -3,12 +3,13 @@ import { computed, nextTick, reactive, ref, watch } from 'vue'
 import { create } from '@bufbuild/protobuf'
 import { Code, ConnectError } from '@connectrpc/connect'
 import { recordClient } from '../api'
-import { docstates, fieldEditable, validateField, validateManualName } from '../fieldRules'
+import { docstates, fieldEditable, isCalculated, validateField, validateManualName } from '../fieldRules'
 import { forgetLabels } from '../lookup'
-import { FieldValueSchema, type ActivityEvent, type FieldChange, type Record as RecordMessage, type RecordEvent, type RecordVersion, type FieldValue } from '../gen/athena/v1/records_pb'
+import { FieldValueSchema, type ActivityEvent, type FieldChange, type FieldState, type Record as RecordMessage, type RecordEvent, type RecordVersion, type FieldValue } from '../gen/athena/v1/records_pb'
 import type { Field, RecordType } from '../types'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
 import RecordsTable from '../components/RecordsTable.vue'
 import RecordPicker from '../components/RecordPicker.vue'
@@ -38,6 +39,14 @@ const manualName = ref('')
 const history = ref<RecordEvent[]>([])
 const versions = ref<RecordVersion[]>([])
 const activity = ref<ActivityEvent[]>([])
+// What the server's expression rules say about each field for the values
+// entered so far (PreviewRecord). The server calculates and checks again on save.
+const states = reactive<Record<string, FieldState>>({})
+const filterText = ref('')
+const appliedFilter = ref('')
+let previewTimer: ReturnType<typeof setTimeout> | undefined
+let previewRequest = 0
+let lastPreview = ''
 const when = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' })
 const formRef = ref<HTMLFormElement | null>(null)
 // Each list request gets a number so a slow response for a previous Record Type is ignored.
@@ -54,7 +63,7 @@ async function load(more = false) {
   loading.value = true
   loadError.value = ''
   try {
-    const res = await recordClient.listRecords({ recordTypeKey: recordType.name, pageSize: 50, pageToken: more ? nextPageToken.value : '' })
+    const res = await recordClient.listRecords({ recordTypeKey: recordType.name, pageSize: 50, pageToken: more ? nextPageToken.value : '', filter: appliedFilter.value })
     if (request !== listRequest) return
     records.value = more ? [...records.value, ...res.records] : res.records
     nextPageToken.value = res.nextPageToken
@@ -67,7 +76,12 @@ async function load(more = false) {
   }
 }
 
-watch(() => props.recordType?.name, () => { void load() }, { immediate: true })
+watch(() => props.recordType?.name, () => { filterText.value = ''; appliedFilter.value = ''; void load() }, { immediate: true })
+function applyFilter(text: string) {
+  filterText.value = text
+  appliedFilter.value = text.trim()
+  void load()
+}
 
 // Opening an record changes the URL; the watcher below fills the form, so a
 // page refresh lands on the same record.
@@ -139,7 +153,8 @@ function open(record: RecordMessage | 'new') {
   history.value = []
   versions.value = []
   activity.value = []
-  clear(texts); clear(checks); clear(errors); touched.clear()
+  clear(texts); clear(checks); clear(errors); clear(states); touched.clear()
+  lastPreview = ''
   parentId.value = record === 'new' ? '' : record.parentId
   manualName.value = ''
   for (const field of props.recordType.fields) {
@@ -149,12 +164,13 @@ function open(record: RecordMessage | 'new') {
     else texts[field.name] = kind?.case === 'stringValue' ? kind.value : record === 'new' ? field.default ?? '' : ''
   }
   if (record !== 'new') void loadHistory(record)
+  schedulePreview(0)
 }
 
 // Read-only fields take only their default, and a set-once field is fixed
 // after it has a value. The server enforces both.
 function locked(field: Field): boolean {
-  if (field.read_only) return true
+  if (field.read_only || isCalculated(field) || states[field.name]?.readOnly) return true
   if (!fieldEditable(field, submittable.value, docstate.value)) return true
   if (!field.set_once || editing.value === null || editing.value === 'new') return false
   const kind = editing.value.values[field.name]?.kind
@@ -192,8 +208,40 @@ function fieldLabel(field: Field): string {
   return field.label
 }
 
+// A field may be required by its required_if rule as well as by its own flag.
+function effective(field: Field): Field {
+  return states[field.name]?.required && !field.required ? { ...field, required: true } : field
+}
+const shownFields = computed(() => (props.recordType?.fields ?? []).filter((field) => !states[field.name]?.hidden))
+const hasExpressions = computed(() => props.recordType?.fields.some((field) => field.formula || field.required_if || field.read_only_if || field.validate || field.depends_on) ?? false)
+function schedulePreview(delay = 250) {
+  clearTimeout(previewTimer)
+  if (!hasExpressions.value || !editing.value) return
+  previewTimer = setTimeout(() => { void preview() }, delay)
+}
+async function preview() {
+  const recordType = props.recordType
+  const current = editing.value
+  if (!recordType || !current) return
+  const values = Object.fromEntries(recordType.fields.filter((field) => !isCalculated(field)).map((field) => [field.name, toValue(field)]))
+  const id = current === 'new' ? '' : current.id
+  const payload = JSON.stringify([id, Object.entries(values).map(([key, value]) => [key, value.kind.value])])
+  if (payload === lastPreview) return
+  lastPreview = payload
+  const request = ++previewRequest
+  try {
+    const res = await recordClient.previewRecord({ recordTypeKey: recordType.name, id, values })
+    if (request !== previewRequest || editing.value !== current) return
+    for (const [key, value] of Object.entries(res.computed)) texts[key] = value.kind.case === 'stringValue' ? value.kind.value : ''
+    clear(states)
+    for (const state of res.states) states[state.key] = state
+  } catch {
+    // The preview is a hint; the server still checks every save.
+  }
+}
+watch([texts, checks], () => schedulePreview(), { deep: true })
 function check(field: Field) {
-  const problem = validateField(field, texts[field.name] ?? '')
+  const problem = validateField(effective(field), texts[field.name] ?? '')
   if (problem) errors[field.name] = problem
   else delete errors[field.name]
 }
@@ -247,7 +295,7 @@ function toValue(field: Field): FieldValue {
 async function submit() {
   const recordType = props.recordType
   if (!editing.value || !recordType) return
-  for (const field of recordType.fields) { touched.add(field.name); if (!locked(field)) check(field) }
+  for (const field of recordType.fields) { touched.add(field.name); if (!locked(field) && !states[field.name]?.hidden) check(field) }
   if (editing.value === 'new' && isChild.value && !parentId.value.trim()) errors.parent_id = `Choose the ${parentLabel.value} this belongs to.`
   if (editing.value === 'new' && allowsManualName.value) {
     const problem = validateManualName(manualName.value)
@@ -255,7 +303,7 @@ async function submit() {
   }
   if (Object.keys(errors).length > 0) { await focusFirstError(); return }
   busy.value = true
-  const values = Object.fromEntries(recordType.fields.filter((field) => !locked(field)).map((field) => [field.name, toValue(field)]))
+  const values = Object.fromEntries(recordType.fields.filter((field) => !locked(field) && !states[field.name]?.hidden).map((field) => [field.name, toValue(field)]))
   try {
     if (editing.value === 'new') {
       const res = await recordClient.createRecord({ recordTypeKey: recordType.name, values, parentId: isChild.value ? parentId.value.trim() : '', name: allowsManualName.value ? manualName.value.trim() : '' })
@@ -398,14 +446,15 @@ function inputType(field: Field) {
             <input id="entry-manual-name" v-model="manualName" type="text" autocomplete="off" placeholder="Leave empty to number it when submitted" :aria-invalid="errors.manual_name ? 'true' : undefined" aria-describedby="entry-manual-name-error" @input="delete errors.manual_name" />
             <p v-if="errors.manual_name" id="entry-manual-name-error" class="field-error">{{ errors.manual_name }}</p>
           </div>
-          <div v-for="field in recordType.fields" :key="field.name" class="form-field" :class="{ 'is-wide': field.type === 'Long text', 'is-invalid': errors[field.name] }">
-            <label :for="`entry-${field.name}`" class="form-label">{{ fieldLabel(field) }}<span v-if="field.required" class="required-mark" aria-hidden="true">*</span></label>
+          <div v-for="field in shownFields" :key="field.name" class="form-field" :class="{ 'is-wide': field.type === 'Long text', 'is-invalid': errors[field.name] }">
+            <label :for="`entry-${field.name}`" class="form-label">{{ fieldLabel(field) }}<span v-if="effective(field).required" class="required-mark" aria-hidden="true">*</span></label>
             <RecordPicker v-if="field.type === 'Link' && field.target_record_type" :id="`entry-${field.name}`" v-model="texts[field.name]" :record-type-key="field.target_record_type" :target-label="targetLabel(field)" :required="field.required" :disabled="locked(field)" :invalid="Boolean(errors[field.name])" :describedby="errors[field.name] ? `entry-${field.name}-error` : undefined" @update:model-value="onInput(field)" @blur="onBlur(field)" />
             <label v-else-if="field.type === 'Checkbox'" class="checkbox-row"><input :id="`entry-${field.name}`" v-model="checks[field.name]" type="checkbox" :disabled="locked(field)" /><span>{{ checks[field.name] ? 'Yes' : 'No' }}</span></label>
             <select v-else-if="field.type === 'Enum'" :id="`entry-${field.name}`" v-model="texts[field.name]" :disabled="locked(field)" :aria-invalid="errors[field.name] ? 'true' : undefined" :aria-required="field.required || undefined" :aria-describedby="errors[field.name] ? `entry-${field.name}-error` : undefined" @blur="onBlur(field)" @change="onInput(field)"><option value="">Choose…</option><option v-for="choice in field.values" :key="choice.value" :value="choice.value">{{ choice.label }}</option></select>
             <textarea v-else-if="field.type === 'Long text'" :id="`entry-${field.name}`" v-model="texts[field.name]" rows="4" :disabled="locked(field)" :aria-invalid="errors[field.name] ? 'true' : undefined" :aria-required="field.required || undefined" :aria-describedby="errors[field.name] ? `entry-${field.name}-error` : undefined" @blur="onBlur(field)" @input="onInput(field)" />
             <input v-else :id="`entry-${field.name}`" v-model="texts[field.name]" :type="inputType(field)" :disabled="locked(field)" :inputmode="['Number', 'Currency', 'Money', 'Quantity'].includes(field.type) ? 'decimal' : undefined" :aria-invalid="errors[field.name] ? 'true' : undefined" :aria-required="field.required || undefined" :aria-describedby="errors[field.name] ? `entry-${field.name}-error` : undefined" @blur="onBlur(field)" @input="onInput(field)" />
             <p v-if="errors[field.name]" :id="`entry-${field.name}-error`" class="field-error">{{ errors[field.name] }}</p>
+            <p v-else-if="states[field.name]?.error && isCalculated(field)" class="field-error">{{ states[field.name]?.error }}</p>
           </div>
         </div>
         <div class="entry-form-footer">
@@ -466,11 +515,16 @@ function inputType(field: Field) {
 
     <template v-else>
       <div class="view-head"><div><h1>{{ recordType.label }}</h1><p v-if="recordType.description" class="lead">{{ recordType.description }}</p></div><Button v-if="canCreate" @click="openRecord('new')">New record</Button></div>
+      <form class="entries-filter" role="search" @submit.prevent="applyFilter(filterText)">
+        <Input :model-value="filterText" aria-label="Filter records with an expression" placeholder='Filter, for example doc.total > dec("100")' @update:model-value="filterText = String($event)" />
+        <Button type="submit" variant="outline" size="sm">Filter</Button>
+        <Button v-if="appliedFilter" type="button" variant="ghost" size="sm" @click="applyFilter('')">Clear</Button>
+      </form>
       <div class="entries-panel">
         <RecordsTable v-if="records.length > 0" :key="recordType.name" :record-type-key="recordType.name" :fields="recordType.fields" :records="records" :submittable="submittable" @open="openRecord" />
         <p v-else-if="loading" class="empty-state">Loading…</p>
         <p v-else-if="loadError" class="empty-state">Records could not be loaded. <Button size="sm" variant="outline" @click="load()">Retry</Button></p>
-        <div v-else class="entries-empty"><p>No records yet.</p><Button v-if="canCreate" variant="outline" size="sm" @click="openRecord('new')">Create the first record</Button></div>
+        <div v-else class="entries-empty"><p>{{ appliedFilter ? 'No records match the filter.' : 'No records yet.' }}</p><Button v-if="canCreate && !appliedFilter" variant="outline" size="sm" @click="openRecord('new')">Create the first record</Button></div>
         <div v-if="nextPageToken && !loading" class="entries-more"><Button variant="outline" size="sm" @click="load(true)">Load more</Button></div>
       </div>
     </template>

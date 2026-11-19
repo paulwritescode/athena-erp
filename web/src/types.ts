@@ -24,6 +24,13 @@ export type Field = {
   currency?: string
   uom?: string
   scale?: number
+  // Expressions in the Athena expression language (ADR-0013). The server
+  // type-checks them on save; formula is stored by the kernel on every write.
+  formula?: string
+  required_if?: string
+  read_only_if?: string
+  validate?: string
+  depends_on?: string
 }
 export type Kind = 'master' | 'document' | 'child' | 'setting'
 // revision is 0 until the Record Type is first saved. class applies to documents

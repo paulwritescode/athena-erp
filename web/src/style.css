@@ -291,3 +291,5 @@ body,.app-shell,.main-content,.page-content{background:var(--background);color:v
 .picker-trigger{width:100%;justify-content:space-between;font-weight:400;text-align:left}.picker-trigger>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.picker-icon{width:16px;height:16px;flex:none;color:var(--muted-foreground)}
 .picker-content{width:var(--reka-popover-trigger-width);min-width:240px;padding:4px}.picker-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.picker-check{margin-left:auto;width:16px;height:16px}.picker-note{padding:12px;text-align:center;font-size:var(--type-body-sm-size);color:var(--muted-foreground)}
 .audit-changes{margin:4px 0 0;padding-left:16px;list-style:disc;font-size:var(--type-body-sm-size);color:var(--muted-foreground)}
+
+.entries-filter{display:flex;align-items:center;gap:8px;margin-bottom:12px}.entries-filter>input{max-width:420px}

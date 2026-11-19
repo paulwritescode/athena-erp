@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import cases from '../../internal/server/testdata/field_rules.json'
-import { compareDecimal, docstates, fieldEditable, validateField, validateManualName, validateNamingSeries } from './fieldRules'
+import { compareDecimal, docstates, fieldEditable, isCalculated, maxExpressionLength, validateExpressionText, validateField, validateManualName, validateNamingSeries } from './fieldRules'
 import type { Field } from './types'
 
 // The server tests read the same table (internal/server/fieldrules_test.go),
@@ -82,5 +82,22 @@ describe('naming rules', () => {
     expect(validateManualName('')).toBe('')
     expect(validateManualName('0190a1b2-c3d4-7e5f-8a6b-7c8d9e0f1a2b')).not.toBe('')
     expect(validateManualName('x'.repeat(141))).not.toBe('')
+  })
+})
+
+// These match internal/server/expressions.go: a formula field is stored by the
+// kernel, so it is never edited or required of a person, and an expression is
+// at most 1000 characters.
+describe('calculated fields', () => {
+  const total: Field = { name: 'total', label: 'Total', type: 'Number', required: true, formula: 'doc.qty * doc.rate' }
+  it('is not editable in any state and never asks for a value', () => {
+    expect(isCalculated(total)).toBe(true)
+    for (const state of [docstates.draft, docstates.submitted, docstates.cancelled]) expect(fieldEditable({ ...total, allow_on_submit: true }, true, state)).toBe(false)
+    expect(validateField(total, '')).toBe('')
+  })
+  it('limits expression length', () => {
+    expect(validateExpressionText('doc.a > 1')).toBe('')
+    expect(validateExpressionText('x'.repeat(maxExpressionLength))).toBe('')
+    expect(validateExpressionText('x'.repeat(maxExpressionLength + 1))).not.toBe('')
   })
 })

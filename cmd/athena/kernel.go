@@ -31,13 +31,17 @@ const recordTypesUsage = `usage: athena record-types list|show|save|delete [--wo
                                 [--confirm-data-loss] allows steps that delete stored values
   delete <key> --yes            delete a Record Type, its table and its Records`
 
-const auditUsage = `usage: athena audit verify [--anchor seq:hash] [--workspace slug] [--json]
+const auditUsage = `usage: athena audit verify|anchor [--anchor seq:hash] [--workspace slug] [--json]
   verify                        walk the Audit Log hash chain from the first row to the last and
                                 report the first break. Prints the chain head as "seq:hash"; keep it
                                 somewhere else and pass it later as --anchor to prove nothing before
-                                it was changed. Exits with an error when the chain is broken`
+                                it was changed. Exits with an error when the chain is broken
+  anchor                        verify the chain, then print only the head as "seq:hash" so a daily
+                                job can append it to a file kept outside the database. Prints
+                                nothing and exits with an error when the chain is broken`
 const recordsUsage = `usage: athena records list|lookup|create|delete|submit|cancel|amend|versions|activity|history <record-type> [--workspace slug] [--json]
-  list <record-type>            list Records; child Record Types take [--parent id]
+  list <record-type>            list Records; child Record Types take [--parent id]; [--filter expr]
+                                keeps the Records for which the expression is true
   lookup <record-type> [text]   find Records by display label, as the desk pickers do; [--limit N]
                                 [--ids id,id] prints those Records whatever their state
   create <record-type>          create a Record from --values '{"field":"value"}' (text, true, false or null);
@@ -238,6 +242,7 @@ func recordsCommand(args []string, out io.Writer) error {
 	name := flags.String("name", "", "manual document name (create)")
 	limit := flags.Int("limit", 20, "most items to print (lookup)")
 	ids := flags.String("ids", "", "comma-separated Record IDs to resolve (lookup)")
+	filter := flags.String("filter", "", "expression a Record must satisfy, such as 'doc.total > dec(\"100\")' (list)")
 	if ok, err := parse(flags, args); !ok {
 		return err
 	}
@@ -298,7 +303,7 @@ func recordsCommand(args []string, out io.Writer) error {
 		}
 		return nil
 	case "list":
-		res, err := kernel.Records.ListRecords(ctx, &athenav1.ListRecordsRequest{RecordTypeKey: positional[0], ParentId: *parent, PageSize: 200})
+		res, err := kernel.Records.ListRecords(ctx, &athenav1.ListRecordsRequest{RecordTypeKey: positional[0], ParentId: *parent, PageSize: 200, Filter: *filter})
 		if err != nil {
 			return rpcError(err)
 		}
@@ -392,10 +397,11 @@ func auditCommand(args []string, out io.Writer) error {
 		fmt.Fprintln(out, auditUsage)
 		return nil
 	}
-	if args[0] != "verify" {
-		return fmt.Errorf("unknown audit command %q; use verify", args[0])
+	if args[0] != "verify" && args[0] != "anchor" {
+		return fmt.Errorf("unknown audit command %q; use verify or anchor", args[0])
 	}
-	flags := flag.NewFlagSet("audit verify", flag.ContinueOnError)
+	printAnchor := args[0] == "anchor"
+	flags := flag.NewFlagSet("audit "+args[0], flag.ContinueOnError)
 	slug := flags.String("workspace", "", "workspace slug, when running from the home directory")
 	asJSON := flags.Bool("json", false, "print JSON")
 	anchor := flags.String("anchor", "", "chain position exported earlier, as seq:hash")
@@ -404,6 +410,9 @@ func auditCommand(args []string, out io.Writer) error {
 	}
 	if flags.NArg() > 0 {
 		return fmt.Errorf("unexpected argument %q", flags.Arg(0))
+	}
+	if printAnchor && *anchor != "" {
+		return errors.New("audit anchor prints the current head; --anchor belongs to audit verify")
 	}
 	kernel, ctx, closeKernel, err := openKernel(*slug)
 	if err != nil {
@@ -414,7 +423,9 @@ func auditCommand(args []string, out io.Writer) error {
 	if err != nil {
 		return rpcError(err)
 	}
-	if *asJSON {
+	if printAnchor && res.GetOk() && !*asJSON {
+		fmt.Fprintf(out, "%d:%s\n", res.GetHeadSeq(), res.GetHeadHash())
+	} else if *asJSON {
 		if err := writeProto(out, res); err != nil {
 			return err
 		}

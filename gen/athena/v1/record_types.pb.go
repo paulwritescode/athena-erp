@@ -121,6 +121,25 @@ type RecordTypeField struct {
 	// Submittable documents and their child Records: the field may still change
 	// after the document is submitted. Every change is audited.
 	AllowOnSubmit bool `protobuf:"varint,20,opt,name=allow_on_submit,json=allowOnSubmit,proto3" json:"allow_on_submit,omitempty"`
+	// Expressions in the Athena expression language (spec 23.6, ADR-0013). The
+	// fields are doc.<key> (or doc.<child record type>.<key> for the list of a
+	// child Record Type's values in sum, min, max and count). Every expression
+	// is type-checked when the Record Type is saved.
+	//
+	// formula calculates the field from the others. The kernel stores the
+	// result on every write, in dependency order, so clients never set it. It
+	// may not use today() and may not form a cycle.
+	Formula string `protobuf:"bytes,21,opt,name=formula,proto3" json:"formula,omitempty"`
+	// required_if makes the field required while it is true.
+	RequiredIf string `protobuf:"bytes,22,opt,name=required_if,json=requiredIf,proto3" json:"required_if,omitempty"`
+	// read_only_if blocks changes to the field while it is true for the stored
+	// Record.
+	ReadOnlyIf string `protobuf:"bytes,23,opt,name=read_only_if,json=readOnlyIf,proto3" json:"read_only_if,omitempty"`
+	// validate must be true whenever the field has a value.
+	Validate string `protobuf:"bytes,24,opt,name=validate,proto3" json:"validate,omitempty"`
+	// depends_on is a display hint: the desk hides the field while it is false.
+	// The server does not enforce it.
+	DependsOn     string `protobuf:"bytes,25,opt,name=depends_on,json=dependsOn,proto3" json:"depends_on,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -293,6 +312,41 @@ func (x *RecordTypeField) GetAllowOnSubmit() bool {
 		return x.AllowOnSubmit
 	}
 	return false
+}
+
+func (x *RecordTypeField) GetFormula() string {
+	if x != nil {
+		return x.Formula
+	}
+	return ""
+}
+
+func (x *RecordTypeField) GetRequiredIf() string {
+	if x != nil {
+		return x.RequiredIf
+	}
+	return ""
+}
+
+func (x *RecordTypeField) GetReadOnlyIf() string {
+	if x != nil {
+		return x.ReadOnlyIf
+	}
+	return ""
+}
+
+func (x *RecordTypeField) GetValidate() string {
+	if x != nil {
+		return x.Validate
+	}
+	return ""
+}
+
+func (x *RecordTypeField) GetDependsOn() string {
+	if x != nil {
+		return x.DependsOn
+	}
+	return ""
 }
 
 type RecordType struct {
@@ -960,7 +1014,7 @@ const file_athena_v1_record_types_proto_rawDesc = "" +
 	"\x1cathena/v1/record_types.proto\x12\tathena.v1\x1a\x17athena/v1/records.proto\"7\n" +
 	"\tEnumValue\x12\x14\n" +
 	"\x05value\x18\x01 \x01(\tR\x05value\x12\x14\n" +
-	"\x05label\x18\x02 \x01(\tR\x05label\"\xd1\x04\n" +
+	"\x05label\x18\x02 \x01(\tR\x05label\"\xe9\x05\n" +
 	"\x0fRecordTypeField\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05label\x18\x02 \x01(\tR\x05label\x12\x12\n" +
@@ -984,7 +1038,15 @@ const file_athena_v1_record_types_proto_rawDesc = "" +
 	"\bcurrency\x18\x11 \x01(\tR\bcurrency\x12\x10\n" +
 	"\x03uom\x18\x12 \x01(\tR\x03uom\x12\x19\n" +
 	"\x05scale\x18\x13 \x01(\x05H\x00R\x05scale\x88\x01\x01\x12&\n" +
-	"\x0fallow_on_submit\x18\x14 \x01(\bR\rallowOnSubmitB\b\n" +
+	"\x0fallow_on_submit\x18\x14 \x01(\bR\rallowOnSubmit\x12\x18\n" +
+	"\aformula\x18\x15 \x01(\tR\aformula\x12\x1f\n" +
+	"\vrequired_if\x18\x16 \x01(\tR\n" +
+	"requiredIf\x12 \n" +
+	"\fread_only_if\x18\x17 \x01(\tR\n" +
+	"readOnlyIf\x12\x1a\n" +
+	"\bvalidate\x18\x18 \x01(\tR\bvalidate\x12\x1d\n" +
+	"\n" +
+	"depends_on\x18\x19 \x01(\tR\tdependsOnB\b\n" +
 	"\x06_scale\"\xd2\x03\n" +
 	"\n" +
 	"RecordType\x12\x10\n" +

@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file athena/v1/records.proto.
  */
 export const file_athena_v1_records: GenFile = /*@__PURE__*/
-  fileDesc("ChdhdGhlbmEvdjEvcmVjb3Jkcy5wcm90bxIJYXRoZW5hLnYxIlgKCkZpZWxkVmFsdWUSFgoMc3RyaW5nX3ZhbHVlGAEgASgJSAASFAoKYm9vbF92YWx1ZRgCIAEoCEgAEhQKCm51bGxfdmFsdWUYAyABKAhIAEIGCgRraW5kIvoCCgZSZWNvcmQSCgoCaWQYASABKAkSEAoIcmV2aXNpb24YAiABKAMSLQoGdmFsdWVzGAMgAygLMh0uYXRoZW5hLnYxLlJlY29yZC5WYWx1ZXNFbnRyeRISCgpjcmVhdGVkX2F0GAQgASgJEhIKCnVwZGF0ZWRfYXQYBSABKAkSEgoKY3JlYXRlZF9ieRgGIAEoCRITCgttb2RpZmllZF9ieRgHIAEoCRINCgVvd25lchgIIAEoCRITCgtkZWZfdmVyc2lvbhgJIAEoAxISCgpyZXF1ZXN0X2lkGAogASgJEhEKCXBhcmVudF9pZBgLIAEoCRILCgNpZHgYDCABKAMSEAoIZG9jc3RhdGUYDSABKAUSDAoEbmFtZRgOIAEoCRIUCgxhbWVuZGVkX2Zyb20YDyABKAkaRAoLVmFsdWVzRW50cnkSCwoDa2V5GAEgASgJEiQKBXZhbHVlGAIgASgLMhUuYXRoZW5hLnYxLkZpZWxkVmFsdWU6AjgBImcKEkxpc3RSZWNvcmRzUmVxdWVzdBIXCg9yZWNvcmRfdHlwZV9rZXkYASABKAkSEQoJcGFnZV9zaXplGAIgASgFEhIKCnBhZ2VfdG9rZW4YAyABKAkSEQoJcGFyZW50X2lkGAQgASgJIlIKE0xpc3RSZWNvcmRzUmVzcG9uc2USIgoHcmVjb3JkcxgBIAMoCzIRLmF0aGVuYS52MS5SZWNvcmQSFwoPbmV4dF9wYWdlX3Rva2VuGAIgASgJIjcKEEdldFJlY29yZFJlcXVlc3QSFwoPcmVjb3JkX3R5cGVfa2V5GAEgASgJEgoKAmlkGAIgASgJIjYKEUdldFJlY29yZFJlc3BvbnNlEiEKBnJlY29yZBgBIAEoCzIRLmF0aGVuYS52MS5SZWNvcmQi0QEKE0NyZWF0ZVJlY29yZFJlcXVlc3QSFwoPcmVjb3JkX3R5cGVfa2V5GAEgASgJEjoKBnZhbHVlcxgCIAMoCzIqLmF0aGVuYS52MS5DcmVhdGVSZWNvcmRSZXF1ZXN0LlZhbHVlc0VudHJ5EhEKCXBhcmVudF9pZBgDIAEoCRIMCgRuYW1lGAQgASgJGkQKC1ZhbHVlc0VudHJ5EgsKA2tleRgBIAEoCRIkCgV2YWx1ZRgCIAEoCzIVLmF0aGVuYS52MS5GaWVsZFZhbHVlOgI4ASI5ChRDcmVhdGVSZWNvcmRSZXNwb25zZRIhCgZyZWNvcmQYASABKAsyES5hdGhlbmEudjEuUmVjb3JkItcBChNVcGRhdGVSZWNvcmRSZXF1ZXN0EhcKD3JlY29yZF90eXBlX2tleRgBIAEoCRIKCgJpZBgCIAEoCRIZChFleHBlY3RlZF9yZXZpc2lvbhgDIAEoAxI6CgZ2YWx1ZXMYBCADKAsyKi5hdGhlbmEudjEuVXBkYXRlUmVjb3JkUmVxdWVzdC5WYWx1ZXNFbnRyeRpECgtWYWx1ZXNFbnRyeRILCgNrZXkYASABKAkSJAoFdmFsdWUYAiABKAsyFS5hdGhlbmEudjEuRmllbGRWYWx1ZToCOAEiOQoUVXBkYXRlUmVjb3JkUmVzcG9uc2USIQoGcmVjb3JkGAEgASgLMhEuYXRoZW5hLnYxLlJlY29yZCJVChNEZWxldGVSZWNvcmRSZXF1ZXN0EhcKD3JlY29yZF90eXBlX2tleRgBIAEoCRIKCgJpZBgCIAEoCRIZChFleHBlY3RlZF9yZXZpc2lvbhgDIAEoAyIWChREZWxldGVSZWNvcmRSZXNwb25zZSI/ChhMaXN0UmVjb3JkSGlzdG9yeVJlcXVlc3QSFwoPcmVjb3JkX3R5cGVfa2V5GAEgASgJEgoKAmlkGAIgASgJImgKC0ZpZWxkQ2hhbmdlEg0KBWZpZWxkGAEgASgJEhYKCW9sZF92YWx1ZRgCIAEoCUgAiAEBEhYKCW5ld192YWx1ZRgDIAEoCUgBiAEBQgwKCl9vbGRfdmFsdWVCDAoKX25ld192YWx1ZSLKAQoLUmVjb3JkRXZlbnQSDgoGYWN0aW9uGAEgASgJEhAKCHJldmlzaW9uGAIgASgDEhYKDmNoYW5nZWRfZmllbGRzGAMgAygJEg0KBWFjdG9yGAQgASgJEgoKAmF0GAUgASgJEicKB2NoYW5nZXMYBiADKAsyFi5hdGhlbmEudjEuRmllbGRDaGFuZ2USEgoKcmVxdWVzdF9pZBgHIAEoCRIOCgZzb3VyY2UYCCABKAkSCwoDc2VxGAkgASgDEgwKBGhhc2gYCiABKAkiQwoZTGlzdFJlY29yZEhpc3RvcnlSZXNwb25zZRImCgZldmVudHMYASADKAsyFi5hdGhlbmEudjEuUmVjb3JkRXZlbnQiVQoTU3VibWl0UmVjb3JkUmVxdWVzdBIXCg9yZWNvcmRfdHlwZV9rZXkYASABKAkSCgoCaWQYAiABKAkSGQoRZXhwZWN0ZWRfcmV2aXNpb24YAyABKAMiOQoUU3VibWl0UmVjb3JkUmVzcG9uc2USIQoGcmVjb3JkGAEgASgLMhEuYXRoZW5hLnYxLlJlY29yZCJVChNDYW5jZWxSZWNvcmRSZXF1ZXN0EhcKD3JlY29yZF90eXBlX2tleRgBIAEoCRIKCgJpZBgCIAEoCRIZChFleHBlY3RlZF9yZXZpc2lvbhgDIAEoAyI5ChRDYW5jZWxSZWNvcmRSZXNwb25zZRIhCgZyZWNvcmQYASABKAsyES5hdGhlbmEudjEuUmVjb3JkIlQKEkFtZW5kUmVjb3JkUmVxdWVzdBIXCg9yZWNvcmRfdHlwZV9rZXkYASABKAkSCgoCaWQYAiABKAkSGQoRZXhwZWN0ZWRfcmV2aXNpb24YAyABKAMiOAoTQW1lbmRSZWNvcmRSZXNwb25zZRIhCgZyZWNvcmQYASABKAsyES5hdGhlbmEudjEuUmVjb3JkIkAKGUxpc3RSZWNvcmRWZXJzaW9uc1JlcXVlc3QSFwoPcmVjb3JkX3R5cGVfa2V5GAEgASgJEgoKAmlkGAIgASgJIo4BCg1SZWNvcmRWZXJzaW9uEg8KB3ZlcnNpb24YASABKAMSEAoIcmV2aXNpb24YAiABKAMSDQoFZXZlbnQYAyABKAkSEAoIZG9jc3RhdGUYBCABKAUSEAoIc25hcHNob3QYBSABKAkSDAoEZGlmZhgGIAEoCRINCgVhY3RvchgHIAEoCRIKCgJhdBgIIAEoCSJIChpMaXN0UmVjb3JkVmVyc2lvbnNSZXNwb25zZRIqCgh2ZXJzaW9ucxgBIAMoCzIYLmF0aGVuYS52MS5SZWNvcmRWZXJzaW9uIkAKGUxpc3RSZWNvcmRBY3Rpdml0eVJlcXVlc3QSFwoPcmVjb3JkX3R5cGVfa2V5GAEgASgJEgoKAmlkGAIgASgJIosBCg1BY3Rpdml0eUV2ZW50Eg0KBWV2ZW50GAEgASgJEg0KBWFjdG9yGAIgASgJEhIKCmZyb21fc3RhdGUYAyABKAUSEAoIdG9fc3RhdGUYBCABKAUSFgoOY2hhbmdlZF9maWVsZHMYBSADKAkSEgoKcmVsYXRlZF9pZBgGIAEoCRIKCgJhdBgHIAEoCSJGChpMaXN0UmVjb3JkQWN0aXZpdHlSZXNwb25zZRIoCgZldmVudHMYASADKAsyGC5hdGhlbmEudjEuQWN0aXZpdHlFdmVudCJyChRMb29rdXBSZWNvcmRzUmVxdWVzdBIXCg9yZWNvcmRfdHlwZV9rZXkYASABKAkSDQoFcXVlcnkYAiABKAkSEQoJcGFnZV9zaXplGAMgASgFEhIKCnBhZ2VfdG9rZW4YBCABKAkSCwoDaWRzGAUgAygJIjYKCkxvb2t1cEl0ZW0SCgoCaWQYASABKAkSDQoFbGFiZWwYAiABKAkSDQoFc3RhdGUYAyABKAkiVgoVTG9va3VwUmVjb3Jkc1Jlc3BvbnNlEiQKBWl0ZW1zGAEgAygLMhUuYXRoZW5hLnYxLkxvb2t1cEl0ZW0SFwoPbmV4dF9wYWdlX3Rva2VuGAIgASgJMoIICg1SZWNvcmRTZXJ2aWNlEkwKC0xpc3RSZWNvcmRzEh0uYXRoZW5hLnYxLkxpc3RSZWNvcmRzUmVxdWVzdBoeLmF0aGVuYS52MS5MaXN0UmVjb3Jkc1Jlc3BvbnNlEkYKCUdldFJlY29yZBIbLmF0aGVuYS52MS5HZXRSZWNvcmRSZXF1ZXN0GhwuYXRoZW5hLnYxLkdldFJlY29yZFJlc3BvbnNlEk8KDENyZWF0ZVJlY29yZBIeLmF0aGVuYS52MS5DcmVhdGVSZWNvcmRSZXF1ZXN0Gh8uYXRoZW5hLnYxLkNyZWF0ZVJlY29yZFJlc3BvbnNlEk8KDFVwZGF0ZVJlY29yZBIeLmF0aGVuYS52MS5VcGRhdGVSZWNvcmRSZXF1ZXN0Gh8uYXRoZW5hLnYxLlVwZGF0ZVJlY29yZFJlc3BvbnNlEk8KDERlbGV0ZVJlY29yZBIeLmF0aGVuYS52MS5EZWxldGVSZWNvcmRSZXF1ZXN0Gh8uYXRoZW5hLnYxLkRlbGV0ZVJlY29yZFJlc3BvbnNlElIKDUxvb2t1cFJlY29yZHMSHy5hdGhlbmEudjEuTG9va3VwUmVjb3Jkc1JlcXVlc3QaIC5hdGhlbmEudjEuTG9va3VwUmVjb3Jkc1Jlc3BvbnNlEl4KEUxpc3RSZWNvcmRIaXN0b3J5EiMuYXRoZW5hLnYxLkxpc3RSZWNvcmRIaXN0b3J5UmVxdWVzdBokLmF0aGVuYS52MS5MaXN0UmVjb3JkSGlzdG9yeVJlc3BvbnNlEk8KDFN1Ym1pdFJlY29yZBIeLmF0aGVuYS52MS5TdWJtaXRSZWNvcmRSZXF1ZXN0Gh8uYXRoZW5hLnYxLlN1Ym1pdFJlY29yZFJlc3BvbnNlEk8KDENhbmNlbFJlY29yZBIeLmF0aGVuYS52MS5DYW5jZWxSZWNvcmRSZXF1ZXN0Gh8uYXRoZW5hLnYxLkNhbmNlbFJlY29yZFJlc3BvbnNlEkwKC0FtZW5kUmVjb3JkEh0uYXRoZW5hLnYxLkFtZW5kUmVjb3JkUmVxdWVzdBoeLmF0aGVuYS52MS5BbWVuZFJlY29yZFJlc3BvbnNlEmEKEkxpc3RSZWNvcmRWZXJzaW9ucxIkLmF0aGVuYS52MS5MaXN0UmVjb3JkVmVyc2lvbnNSZXF1ZXN0GiUuYXRoZW5hLnYxLkxpc3RSZWNvcmRWZXJzaW9uc1Jlc3BvbnNlEmEKEkxpc3RSZWNvcmRBY3Rpdml0eRIkLmF0aGVuYS52MS5MaXN0UmVjb3JkQWN0aXZpdHlSZXF1ZXN0GiUuYXRoZW5hLnYxLkxpc3RSZWNvcmRBY3Rpdml0eVJlc3BvbnNlQiNaIWF0aGVuYS1lcnAvZ2VuL2F0aGVuYS92MTthdGhlbmF2MWIGcHJvdG8z");
+  fileDesc("ChdhdGhlbmEvdjEvcmVjb3Jkcy5wcm90bxIJYXRoZW5hLnYxIlgKCkZpZWxkVmFsdWUSFgoMc3RyaW5nX3ZhbHVlGAEgASgJSAASFAoKYm9vbF92YWx1ZRgCIAEoCEgAEhQKCm51bGxfdmFsdWUYAyABKAhIAEIGCgRraW5kIvoCCgZSZWNvcmQSCgoCaWQYASABKAkSEAoIcmV2aXNpb24YAiABKAMSLQoGdmFsdWVzGAMgAygLMh0uYXRoZW5hLnYxLlJlY29yZC5WYWx1ZXNFbnRyeRISCgpjcmVhdGVkX2F0GAQgASgJEhIKCnVwZGF0ZWRfYXQYBSABKAkSEgoKY3JlYXRlZF9ieRgGIAEoCRITCgttb2RpZmllZF9ieRgHIAEoCRINCgVvd25lchgIIAEoCRITCgtkZWZfdmVyc2lvbhgJIAEoAxISCgpyZXF1ZXN0X2lkGAogASgJEhEKCXBhcmVudF9pZBgLIAEoCRILCgNpZHgYDCABKAMSEAoIZG9jc3RhdGUYDSABKAUSDAoEbmFtZRgOIAEoCRIUCgxhbWVuZGVkX2Zyb20YDyABKAkaRAoLVmFsdWVzRW50cnkSCwoDa2V5GAEgASgJEiQKBXZhbHVlGAIgASgLMhUuYXRoZW5hLnYxLkZpZWxkVmFsdWU6AjgBIncKEkxpc3RSZWNvcmRzUmVxdWVzdBIXCg9yZWNvcmRfdHlwZV9rZXkYASABKAkSEQoJcGFnZV9zaXplGAIgASgFEhIKCnBhZ2VfdG9rZW4YAyABKAkSEQoJcGFyZW50X2lkGAQgASgJEg4KBmZpbHRlchgFIAEoCSJSChNMaXN0UmVjb3Jkc1Jlc3BvbnNlEiIKB3JlY29yZHMYASADKAsyES5hdGhlbmEudjEuUmVjb3JkEhcKD25leHRfcGFnZV90b2tlbhgCIAEoCSI3ChBHZXRSZWNvcmRSZXF1ZXN0EhcKD3JlY29yZF90eXBlX2tleRgBIAEoCRIKCgJpZBgCIAEoCSI2ChFHZXRSZWNvcmRSZXNwb25zZRIhCgZyZWNvcmQYASABKAsyES5hdGhlbmEudjEuUmVjb3JkItEBChNDcmVhdGVSZWNvcmRSZXF1ZXN0EhcKD3JlY29yZF90eXBlX2tleRgBIAEoCRI6CgZ2YWx1ZXMYAiADKAsyKi5hdGhlbmEudjEuQ3JlYXRlUmVjb3JkUmVxdWVzdC5WYWx1ZXNFbnRyeRIRCglwYXJlbnRfaWQYAyABKAkSDAoEbmFtZRgEIAEoCRpECgtWYWx1ZXNFbnRyeRILCgNrZXkYASABKAkSJAoFdmFsdWUYAiABKAsyFS5hdGhlbmEudjEuRmllbGRWYWx1ZToCOAEiOQoUQ3JlYXRlUmVjb3JkUmVzcG9uc2USIQoGcmVjb3JkGAEgASgLMhEuYXRoZW5hLnYxLlJlY29yZCLXAQoTVXBkYXRlUmVjb3JkUmVxdWVzdBIXCg9yZWNvcmRfdHlwZV9rZXkYASABKAkSCgoCaWQYAiABKAkSGQoRZXhwZWN0ZWRfcmV2aXNpb24YAyABKAMSOgoGdmFsdWVzGAQgAygLMiouYXRoZW5hLnYxLlVwZGF0ZVJlY29yZFJlcXVlc3QuVmFsdWVzRW50cnkaRAoLVmFsdWVzRW50cnkSCwoDa2V5GAEgASgJEiQKBXZhbHVlGAIgASgLMhUuYXRoZW5hLnYxLkZpZWxkVmFsdWU6AjgBIjkKFFVwZGF0ZVJlY29yZFJlc3BvbnNlEiEKBnJlY29yZBgBIAEoCzIRLmF0aGVuYS52MS5SZWNvcmQiVQoTRGVsZXRlUmVjb3JkUmVxdWVzdBIXCg9yZWNvcmRfdHlwZV9rZXkYASABKAkSCgoCaWQYAiABKAkSGQoRZXhwZWN0ZWRfcmV2aXNpb24YAyABKAMiFgoURGVsZXRlUmVjb3JkUmVzcG9uc2UiPwoYTGlzdFJlY29yZEhpc3RvcnlSZXF1ZXN0EhcKD3JlY29yZF90eXBlX2tleRgBIAEoCRIKCgJpZBgCIAEoCSJoCgtGaWVsZENoYW5nZRINCgVmaWVsZBgBIAEoCRIWCglvbGRfdmFsdWUYAiABKAlIAIgBARIWCgluZXdfdmFsdWUYAyABKAlIAYgBAUIMCgpfb2xkX3ZhbHVlQgwKCl9uZXdfdmFsdWUiygEKC1JlY29yZEV2ZW50Eg4KBmFjdGlvbhgBIAEoCRIQCghyZXZpc2lvbhgCIAEoAxIWCg5jaGFuZ2VkX2ZpZWxkcxgDIAMoCRINCgVhY3RvchgEIAEoCRIKCgJhdBgFIAEoCRInCgdjaGFuZ2VzGAYgAygLMhYuYXRoZW5hLnYxLkZpZWxkQ2hhbmdlEhIKCnJlcXVlc3RfaWQYByABKAkSDgoGc291cmNlGAggASgJEgsKA3NlcRgJIAEoAxIMCgRoYXNoGAogASgJIkMKGUxpc3RSZWNvcmRIaXN0b3J5UmVzcG9uc2USJgoGZXZlbnRzGAEgAygLMhYuYXRoZW5hLnYxLlJlY29yZEV2ZW50IlUKE1N1Ym1pdFJlY29yZFJlcXVlc3QSFwoPcmVjb3JkX3R5cGVfa2V5GAEgASgJEgoKAmlkGAIgASgJEhkKEWV4cGVjdGVkX3JldmlzaW9uGAMgASgDIjkKFFN1Ym1pdFJlY29yZFJlc3BvbnNlEiEKBnJlY29yZBgBIAEoCzIRLmF0aGVuYS52MS5SZWNvcmQiVQoTQ2FuY2VsUmVjb3JkUmVxdWVzdBIXCg9yZWNvcmRfdHlwZV9rZXkYASABKAkSCgoCaWQYAiABKAkSGQoRZXhwZWN0ZWRfcmV2aXNpb24YAyABKAMiOQoUQ2FuY2VsUmVjb3JkUmVzcG9uc2USIQoGcmVjb3JkGAEgASgLMhEuYXRoZW5hLnYxLlJlY29yZCJUChJBbWVuZFJlY29yZFJlcXVlc3QSFwoPcmVjb3JkX3R5cGVfa2V5GAEgASgJEgoKAmlkGAIgASgJEhkKEWV4cGVjdGVkX3JldmlzaW9uGAMgASgDIjgKE0FtZW5kUmVjb3JkUmVzcG9uc2USIQoGcmVjb3JkGAEgASgLMhEuYXRoZW5hLnYxLlJlY29yZCJAChlMaXN0UmVjb3JkVmVyc2lvbnNSZXF1ZXN0EhcKD3JlY29yZF90eXBlX2tleRgBIAEoCRIKCgJpZBgCIAEoCSKOAQoNUmVjb3JkVmVyc2lvbhIPCgd2ZXJzaW9uGAEgASgDEhAKCHJldmlzaW9uGAIgASgDEg0KBWV2ZW50GAMgASgJEhAKCGRvY3N0YXRlGAQgASgFEhAKCHNuYXBzaG90GAUgASgJEgwKBGRpZmYYBiABKAkSDQoFYWN0b3IYByABKAkSCgoCYXQYCCABKAkiSAoaTGlzdFJlY29yZFZlcnNpb25zUmVzcG9uc2USKgoIdmVyc2lvbnMYASADKAsyGC5hdGhlbmEudjEuUmVjb3JkVmVyc2lvbiJAChlMaXN0UmVjb3JkQWN0aXZpdHlSZXF1ZXN0EhcKD3JlY29yZF90eXBlX2tleRgBIAEoCRIKCgJpZBgCIAEoCSKLAQoNQWN0aXZpdHlFdmVudBINCgVldmVudBgBIAEoCRINCgVhY3RvchgCIAEoCRISCgpmcm9tX3N0YXRlGAMgASgFEhAKCHRvX3N0YXRlGAQgASgFEhYKDmNoYW5nZWRfZmllbGRzGAUgAygJEhIKCnJlbGF0ZWRfaWQYBiABKAkSCgoCYXQYByABKAkiRgoaTGlzdFJlY29yZEFjdGl2aXR5UmVzcG9uc2USKAoGZXZlbnRzGAEgAygLMhguYXRoZW5hLnYxLkFjdGl2aXR5RXZlbnQicgoUTG9va3VwUmVjb3Jkc1JlcXVlc3QSFwoPcmVjb3JkX3R5cGVfa2V5GAEgASgJEg0KBXF1ZXJ5GAIgASgJEhEKCXBhZ2Vfc2l6ZRgDIAEoBRISCgpwYWdlX3Rva2VuGAQgASgJEgsKA2lkcxgFIAMoCSI2CgpMb29rdXBJdGVtEgoKAmlkGAEgASgJEg0KBWxhYmVsGAIgASgJEg0KBXN0YXRlGAMgASgJIlYKFUxvb2t1cFJlY29yZHNSZXNwb25zZRIkCgVpdGVtcxgBIAMoCzIVLmF0aGVuYS52MS5Mb29rdXBJdGVtEhcKD25leHRfcGFnZV90b2tlbhgCIAEoCSK+AQoUUHJldmlld1JlY29yZFJlcXVlc3QSFwoPcmVjb3JkX3R5cGVfa2V5GAEgASgJEgoKAmlkGAIgASgJEjsKBnZhbHVlcxgDIAMoCzIrLmF0aGVuYS52MS5QcmV2aWV3UmVjb3JkUmVxdWVzdC5WYWx1ZXNFbnRyeRpECgtWYWx1ZXNFbnRyeRILCgNrZXkYASABKAkSJAoFdmFsdWUYAiABKAsyFS5hdGhlbmEudjEuRmllbGRWYWx1ZToCOAEiXQoKRmllbGRTdGF0ZRILCgNrZXkYASABKAkSEAoIcmVxdWlyZWQYAiABKAgSEQoJcmVhZF9vbmx5GAMgASgIEg4KBmhpZGRlbhgEIAEoCBINCgVlcnJvchgFIAEoCSLIAQoVUHJldmlld1JlY29yZFJlc3BvbnNlEkAKCGNvbXB1dGVkGAEgAygLMi4uYXRoZW5hLnYxLlByZXZpZXdSZWNvcmRSZXNwb25zZS5Db21wdXRlZEVudHJ5EiUKBnN0YXRlcxgCIAMoCzIVLmF0aGVuYS52MS5GaWVsZFN0YXRlGkYKDUNvbXB1dGVkRW50cnkSCwoDa2V5GAEgASgJEiQKBXZhbHVlGAIgASgLMhUuYXRoZW5hLnYxLkZpZWxkVmFsdWU6AjgBIlQKGUV2YWx1YXRlRXhwcmVzc2lvblJlcXVlc3QSFwoPcmVjb3JkX3R5cGVfa2V5GAEgASgJEhIKCmV4cHJlc3Npb24YAiABKAkSCgoCaWQYAyABKAkivAEKGkV2YWx1YXRlRXhwcmVzc2lvblJlc3BvbnNlEhMKC3Jlc3VsdF90eXBlGAEgASgJEhQKDGRlcGVuZGVuY2llcxgCIAMoCRISCgp1c2VzX3RvZGF5GAMgASgIEhEKCWV2YWx1YXRlZBgEIAEoCBIPCgdpc19udWxsGAUgASgIEg0KBXZhbHVlGAYgASgJEhgKEHNxbF90cmFuc2xhdGFibGUYByABKAgSEgoKc3FsX3JlYXNvbhgIIAEoCTK5CQoNUmVjb3JkU2VydmljZRJMCgtMaXN0UmVjb3JkcxIdLmF0aGVuYS52MS5MaXN0UmVjb3Jkc1JlcXVlc3QaHi5hdGhlbmEudjEuTGlzdFJlY29yZHNSZXNwb25zZRJGCglHZXRSZWNvcmQSGy5hdGhlbmEudjEuR2V0UmVjb3JkUmVxdWVzdBocLmF0aGVuYS52MS5HZXRSZWNvcmRSZXNwb25zZRJPCgxDcmVhdGVSZWNvcmQSHi5hdGhlbmEudjEuQ3JlYXRlUmVjb3JkUmVxdWVzdBofLmF0aGVuYS52MS5DcmVhdGVSZWNvcmRSZXNwb25zZRJPCgxVcGRhdGVSZWNvcmQSHi5hdGhlbmEudjEuVXBkYXRlUmVjb3JkUmVxdWVzdBofLmF0aGVuYS52MS5VcGRhdGVSZWNvcmRSZXNwb25zZRJPCgxEZWxldGVSZWNvcmQSHi5hdGhlbmEudjEuRGVsZXRlUmVjb3JkUmVxdWVzdBofLmF0aGVuYS52MS5EZWxldGVSZWNvcmRSZXNwb25zZRJSCg1Mb29rdXBSZWNvcmRzEh8uYXRoZW5hLnYxLkxvb2t1cFJlY29yZHNSZXF1ZXN0GiAuYXRoZW5hLnYxLkxvb2t1cFJlY29yZHNSZXNwb25zZRJeChFMaXN0UmVjb3JkSGlzdG9yeRIjLmF0aGVuYS52MS5MaXN0UmVjb3JkSGlzdG9yeVJlcXVlc3QaJC5hdGhlbmEudjEuTGlzdFJlY29yZEhpc3RvcnlSZXNwb25zZRJPCgxTdWJtaXRSZWNvcmQSHi5hdGhlbmEudjEuU3VibWl0UmVjb3JkUmVxdWVzdBofLmF0aGVuYS52MS5TdWJtaXRSZWNvcmRSZXNwb25zZRJPCgxDYW5jZWxSZWNvcmQSHi5hdGhlbmEudjEuQ2FuY2VsUmVjb3JkUmVxdWVzdBofLmF0aGVuYS52MS5DYW5jZWxSZWNvcmRSZXNwb25zZRJMCgtBbWVuZFJlY29yZBIdLmF0aGVuYS52MS5BbWVuZFJlY29yZFJlcXVlc3QaHi5hdGhlbmEudjEuQW1lbmRSZWNvcmRSZXNwb25zZRJhChJMaXN0UmVjb3JkVmVyc2lvbnMSJC5hdGhlbmEudjEuTGlzdFJlY29yZFZlcnNpb25zUmVxdWVzdBolLmF0aGVuYS52MS5MaXN0UmVjb3JkVmVyc2lvbnNSZXNwb25zZRJhChJMaXN0UmVjb3JkQWN0aXZpdHkSJC5hdGhlbmEudjEuTGlzdFJlY29yZEFjdGl2aXR5UmVxdWVzdBolLmF0aGVuYS52MS5MaXN0UmVjb3JkQWN0aXZpdHlSZXNwb25zZRJSCg1QcmV2aWV3UmVjb3JkEh8uYXRoZW5hLnYxLlByZXZpZXdSZWNvcmRSZXF1ZXN0GiAuYXRoZW5hLnYxLlByZXZpZXdSZWNvcmRSZXNwb25zZRJhChJFdmFsdWF0ZUV4cHJlc3Npb24SJC5hdGhlbmEudjEuRXZhbHVhdGVFeHByZXNzaW9uUmVxdWVzdBolLmF0aGVuYS52MS5FdmFsdWF0ZUV4cHJlc3Npb25SZXNwb25zZUIjWiFhdGhlbmEtZXJwL2dlbi9hdGhlbmEvdjE7YXRoZW5hdjFiBnByb3RvMw");
 
 /**
  * FieldValue carries one typed field value. Number and Currency use exact
@@ -194,6 +194,15 @@ export type ListRecordsRequest = Message<"athena.v1.ListRecordsRequest"> & {
    * @generated from field: string parent_id = 4;
    */
   parentId: string;
+
+  /**
+   * Optional expression (spec 23.6) that must be true for a Record to be
+   * listed, for example doc.total > dec("100"). It runs in the database, so
+   * it may use only the parts of the language that translate to SQL.
+   *
+   * @generated from field: string filter = 5;
+   */
+  filter: string;
 };
 
 /**
@@ -1001,6 +1010,202 @@ export const LookupRecordsResponseSchema: GenMessage<LookupRecordsResponse> = /*
   messageDesc(file_athena_v1_records, 30);
 
 /**
+ * @generated from message athena.v1.PreviewRecordRequest
+ */
+export type PreviewRecordRequest = Message<"athena.v1.PreviewRecordRequest"> & {
+  /**
+   * @generated from field: string record_type_key = 1;
+   */
+  recordTypeKey: string;
+
+  /**
+   * Set to start from a saved Record; values then replace its values.
+   *
+   * @generated from field: string id = 2;
+   */
+  id: string;
+
+  /**
+   * The values entered so far. Computed fields are ignored.
+   *
+   * @generated from field: map<string, athena.v1.FieldValue> values = 3;
+   */
+  values: { [key: string]: FieldValue };
+};
+
+/**
+ * Describes the message athena.v1.PreviewRecordRequest.
+ * Use `create(PreviewRecordRequestSchema)` to create a new message.
+ */
+export const PreviewRecordRequestSchema: GenMessage<PreviewRecordRequest> = /*@__PURE__*/
+  messageDesc(file_athena_v1_records, 31);
+
+/**
+ * FieldState is what the rules say about one field for the previewed values.
+ *
+ * @generated from message athena.v1.FieldState
+ */
+export type FieldState = Message<"athena.v1.FieldState"> & {
+  /**
+   * @generated from field: string key = 1;
+   */
+  key: string;
+
+  /**
+   * The field is required now (required, or required_if is true).
+   *
+   * @generated from field: bool required = 2;
+   */
+  required: boolean;
+
+  /**
+   * The field cannot be edited now (read_only, formula, or read_only_if is
+   * true).
+   *
+   * @generated from field: bool read_only = 3;
+   */
+  readOnly: boolean;
+
+  /**
+   * depends_on is false.
+   *
+   * @generated from field: bool hidden = 4;
+   */
+  hidden: boolean;
+
+  /**
+   * Why a formula or rule could not be evaluated, without values. Empty when
+   * it ran.
+   *
+   * @generated from field: string error = 5;
+   */
+  error: string;
+};
+
+/**
+ * Describes the message athena.v1.FieldState.
+ * Use `create(FieldStateSchema)` to create a new message.
+ */
+export const FieldStateSchema: GenMessage<FieldState> = /*@__PURE__*/
+  messageDesc(file_athena_v1_records, 32);
+
+/**
+ * @generated from message athena.v1.PreviewRecordResponse
+ */
+export type PreviewRecordResponse = Message<"athena.v1.PreviewRecordResponse"> & {
+  /**
+   * Calculated values of formula fields by key.
+   *
+   * @generated from field: map<string, athena.v1.FieldValue> computed = 1;
+   */
+  computed: { [key: string]: FieldValue };
+
+  /**
+   * @generated from field: repeated athena.v1.FieldState states = 2;
+   */
+  states: FieldState[];
+};
+
+/**
+ * Describes the message athena.v1.PreviewRecordResponse.
+ * Use `create(PreviewRecordResponseSchema)` to create a new message.
+ */
+export const PreviewRecordResponseSchema: GenMessage<PreviewRecordResponse> = /*@__PURE__*/
+  messageDesc(file_athena_v1_records, 33);
+
+/**
+ * @generated from message athena.v1.EvaluateExpressionRequest
+ */
+export type EvaluateExpressionRequest = Message<"athena.v1.EvaluateExpressionRequest"> & {
+  /**
+   * @generated from field: string record_type_key = 1;
+   */
+  recordTypeKey: string;
+
+  /**
+   * @generated from field: string expression = 2;
+   */
+  expression: string;
+
+  /**
+   * Optional. Evaluates the expression for this Record.
+   *
+   * @generated from field: string id = 3;
+   */
+  id: string;
+};
+
+/**
+ * Describes the message athena.v1.EvaluateExpressionRequest.
+ * Use `create(EvaluateExpressionRequestSchema)` to create a new message.
+ */
+export const EvaluateExpressionRequestSchema: GenMessage<EvaluateExpressionRequest> = /*@__PURE__*/
+  messageDesc(file_athena_v1_records, 34);
+
+/**
+ * @generated from message athena.v1.EvaluateExpressionResponse
+ */
+export type EvaluateExpressionResponse = Message<"athena.v1.EvaluateExpressionResponse"> & {
+  /**
+   * bool, int, string, decimal, money or date.
+   *
+   * @generated from field: string result_type = 1;
+   */
+  resultType: string;
+
+  /**
+   * The names the expression reads, such as doc.qty.
+   *
+   * @generated from field: repeated string dependencies = 2;
+   */
+  dependencies: string[];
+
+  /**
+   * @generated from field: bool uses_today = 3;
+   */
+  usesToday: boolean;
+
+  /**
+   * True when an id was given and the expression ran.
+   *
+   * @generated from field: bool evaluated = 4;
+   */
+  evaluated: boolean;
+
+  /**
+   * @generated from field: bool is_null = 5;
+   */
+  isNull: boolean;
+
+  /**
+   * The result as text: decimals as exact strings, money with its currency,
+   * dates as YYYY-MM-DD.
+   *
+   * @generated from field: string value = 6;
+   */
+  value: string;
+
+  /**
+   * True when the expression can run in the database (a ListRecords filter).
+   *
+   * @generated from field: bool sql_translatable = 7;
+   */
+  sqlTranslatable: boolean;
+
+  /**
+   * @generated from field: string sql_reason = 8;
+   */
+  sqlReason: string;
+};
+
+/**
+ * Describes the message athena.v1.EvaluateExpressionResponse.
+ * Use `create(EvaluateExpressionResponseSchema)` to create a new message.
+ */
+export const EvaluateExpressionResponseSchema: GenMessage<EvaluateExpressionResponse> = /*@__PURE__*/
+  messageDesc(file_athena_v1_records, 35);
+
+/**
  * RecordService reads and writes Records. Each Record is one row in the table
  * that belongs to its Record Type.
  *
@@ -1123,6 +1328,29 @@ export const RecordService: GenService<{
     methodKind: "unary";
     input: typeof ListRecordActivityRequestSchema;
     output: typeof ListRecordActivityResponseSchema;
+  },
+  /**
+   * PreviewRecord calculates the formulas and field states for values that
+   * are not saved yet, so a form can show them. It writes nothing; the server
+   * calculates again on save.
+   *
+   * @generated from rpc athena.v1.RecordService.PreviewRecord
+   */
+  previewRecord: {
+    methodKind: "unary";
+    input: typeof PreviewRecordRequestSchema;
+    output: typeof PreviewRecordResponseSchema;
+  },
+  /**
+   * EvaluateExpression type-checks an expression against a Record Type and,
+   * when a Record ID is given, evaluates it for that Record.
+   *
+   * @generated from rpc athena.v1.RecordService.EvaluateExpression
+   */
+  evaluateExpression: {
+    methodKind: "unary";
+    input: typeof EvaluateExpressionRequestSchema;
+    output: typeof EvaluateExpressionResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_athena_v1_records, 0);

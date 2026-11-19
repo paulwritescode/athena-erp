@@ -223,6 +223,11 @@ func (s recordService) transition(ctx context.Context, requestID string, action 
 		return nil, connect.NewError(connect.CodeFailedPrecondition, err.Error())
 	}
 	trace.SpanFromContext(ctx).SetAttributes(attribute.String("athena.state_from", from.String()), attribute.String("athena.state_to", to.String()))
+	if action == lifecycle.Submit {
+		if err := requireFilled(recordType, current); err != nil {
+			return nil, err
+		}
+	}
 	if action == lifecycle.Cancel {
 		if label, err := liveDownstream(ctx, tx, recordType, id); err != nil {
 			return nil, err
@@ -309,9 +314,9 @@ func (s recordService) AmendRecord(ctx context.Context, req *athenav1.AmendRecor
 	if amended {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, "this document was already amended")
 	}
-	columns, args, err := bindValues(recordType, copiedValues(recordType, original), true)
+	columns, args, err := bindValues(forAmend(recordType), copiedValues(recordType, original), true)
 	if err != nil {
-		return nil, connect.NewError(connect.CodeFailedPrecondition, "cannot amend: "+connectMessage(err)+" (fields that are unique, read only or marked do not copy are left empty)")
+		return nil, connect.NewError(connect.CodeFailedPrecondition, "cannot amend: "+connectMessage(err))
 	}
 	newName, err := amendedName(ctx, tx, recordType, original)
 	if err != nil {
@@ -377,6 +382,36 @@ func copiedValues(recordType recordTypeDefinition, record *athenav1.Record) map[
 	return values
 }
 
+// forAmend returns the definition an amended draft is bound against. A field
+// that copiedValues leaves empty (unique, read only or no_copy) is not required
+// yet: the draft is a working copy and the person fills it in. Submit refuses
+// the document while a required field is still empty (requireFilled).
+func forAmend(def recordTypeDefinition) recordTypeDefinition {
+	fields := make([]recordTypeField, len(def.Fields))
+	copy(fields, def.Fields)
+	for i, field := range fields {
+		if field.NoCopy || field.Unique || field.ReadOnly {
+			fields[i].Required = false
+		}
+	}
+	def.Fields = fields
+	return def
+}
+
+// requireFilled refuses a submit while a required field is empty. Formula
+// fields are checked when they are calculated.
+func requireFilled(def recordTypeDefinition, record *athenav1.Record) error {
+	for _, field := range def.Fields {
+		if !field.Required || field.Formula != "" {
+			continue
+		}
+		if value := record.GetValues()[field.Name]; value == nil || value.GetNullValue() || value.GetKind() == nil {
+			return connect.NewError(connect.CodeFailedPrecondition, fmt.Sprintf("cannot submit: %s is required", field.Label))
+		}
+	}
+	return nil
+}
+
 // amendedName returns the root document's name with the next suffix, so the
 // chain reads X, X-1, X-2. It walks amended_from to the root.
 func amendedName(ctx context.Context, tx *sql.Tx, recordType recordTypeDefinition, original *athenav1.Record) (string, error) {
@@ -409,7 +444,7 @@ func copyChildRecords(ctx context.Context, tx *sql.Tx, parent recordTypeDefiniti
 			return err
 		}
 		for _, row := range rows {
-			columns, args, err := bindValues(child, copiedValues(child, row), true)
+			columns, args, err := bindValues(forAmend(child), copiedValues(child, row), true)
 			if err != nil {
 				return connect.NewError(connect.CodeFailedPrecondition, "cannot amend: "+connectMessage(err))
 			}

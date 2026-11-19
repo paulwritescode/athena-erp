@@ -191,6 +191,12 @@ func TestNumberingLookupAndAuditCommands(t *testing.T) {
 	if out, err := run(auditCommand, "verify", "--anchor", head[1], "--json"); err != nil || !regexp.MustCompile(`"ok":\s+true`).MatchString(out) {
 		t.Fatalf("anchored verify = %q, %v", out, err)
 	}
+	if out, err := run(auditCommand, "anchor"); err != nil || strings.TrimSpace(out) != head[1] {
+		t.Fatalf("anchor = %q, want %q, %v", out, head[1], err)
+	}
+	if _, err := run(auditCommand, "anchor", "--anchor", head[1]); err == nil {
+		t.Fatal("audit anchor accepted --anchor")
+	}
 	if _, err := run(auditCommand, "verify", "--anchor", "nonsense"); err == nil {
 		t.Fatal("a malformed anchor was accepted")
 	}
@@ -201,7 +207,60 @@ func TestNumberingLookupAndAuditCommands(t *testing.T) {
 	if _, err := run(auditCommand, "verify"); err == nil || !strings.Contains(err.Error(), "Audit Log is broken") {
 		t.Fatalf("a tampered log must fail verification: %v", err)
 	}
+	if out, err := run(auditCommand, "anchor"); err == nil || strings.TrimSpace(out) != "" {
+		t.Fatalf("a tampered log must not print an anchor: %q, %v", out, err)
+	}
 	if out, err := run(auditCommand, "help"); err != nil || !strings.Contains(out, "audit verify") {
+		t.Fatalf("help = %q, %v", out, err)
+	}
+}
+
+func TestExpressionsCommand(t *testing.T) {
+	_, cfg := testdb.NewWithConfig(t)
+	t.Setenv("ATHENA_DATABASE_URL", cfg.FormatDSN())
+	t.Chdir(t.TempDir())
+	run := func(command func([]string, io.Writer) error, args ...string) (string, error) {
+		var out bytes.Buffer
+		err := command(args, &out)
+		return out.String(), err
+	}
+	definition := filepath.Join(t.TempDir(), "calc.json")
+	if err := os.WriteFile(definition, []byte(`{"key":"calc","label":"Calc","fields":[
+		{"key":"qty","label":"Qty","type":"Number"},
+		{"key":"double","label":"Double","type":"Number","formula":"doc.qty * 2"},
+		{"key":"why","label":"Why","type":"Text","requiredIf":"doc.qty > 10"}]}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if out, err := run(recordTypesCommand, "save", "--file", definition); err != nil {
+		t.Fatalf("save = %q, %v", out, err)
+	}
+	if _, err := run(recordsCommand, "create", "calc", "--values", `{"qty":"11"}`); err == nil || !strings.Contains(err.Error(), "Why is required") {
+		t.Fatalf("required_if must be enforced: %v", err)
+	}
+	created, err := run(recordsCommand, "create", "calc", "--values", `{"qty":"4"}`, "--json")
+	if err != nil || !regexp.MustCompile(`"double":\s*\{\s*"stringValue":\s*"8"`).MatchString(created) {
+		t.Fatalf("create = %q, %v", created, err)
+	}
+	id := regexp.MustCompile(`"id":\s+"([0-9a-f-]{36})"`).FindStringSubmatch(created)[1]
+	if out, err := run(expressionsCommand, "check", "calc", "doc.qty > dec(1)"); err != nil || !strings.Contains(out, "type: bool") || !strings.Contains(out, "runs in the database") {
+		t.Fatalf("check = %q, %v", out, err)
+	}
+	if _, err := run(expressionsCommand, "check", "calc", "doc.qty > 1.5"); err == nil {
+		t.Fatal("a float literal must be refused")
+	}
+	if out, err := run(expressionsCommand, "eval", "calc", "doc.double + doc.qty", "--record", id); err != nil || strings.TrimSpace(out) != "12" {
+		t.Fatalf("eval = %q, %v", out, err)
+	}
+	if out, err := run(expressionsCommand, "preview", "calc", "--values", `{"qty":"2.5"}`); err != nil || !strings.Contains(out, "double = 5") {
+		t.Fatalf("preview = %q, %v", out, err)
+	}
+	if out, err := run(recordsCommand, "list", "calc", "--filter", "doc.double > dec(100)"); err != nil || strings.Contains(out, id) {
+		t.Fatalf("filtered list = %q, %v", out, err)
+	}
+	if out, err := run(recordsCommand, "list", "calc", "--filter", "doc.double == dec(8)"); err != nil || !strings.Contains(out, id) {
+		t.Fatalf("filtered list = %q, %v", out, err)
+	}
+	if out, err := run(expressionsCommand, "--help"); err != nil || !strings.Contains(out, "check|eval|preview") {
 		t.Fatalf("help = %q, %v", out, err)
 	}
 }

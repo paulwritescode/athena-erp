@@ -70,6 +70,25 @@ message RecordTypeField {
   // Submittable documents and their child Records: the field may still change
   // after the document is submitted. Every change is audited.
   bool allow_on_submit = 20;
+  // Expressions in the Athena expression language (spec 23.6, ADR-0013). The
+  // fields are doc.<key> (or doc.<child record type>.<key> for the list of a
+  // child Record Type's values in sum, min, max and count). Every expression
+  // is type-checked when the Record Type is saved.
+  //
+  // formula calculates the field from the others. The kernel stores the
+  // result on every write, in dependency order, so clients never set it. It
+  // may not use today() and may not form a cycle.
+  string formula = 21;
+  // required_if makes the field required while it is true.
+  string required_if = 22;
+  // read_only_if blocks changes to the field while it is true for the stored
+  // Record.
+  string read_only_if = 23;
+  // validate must be true whenever the field has a value.
+  string validate = 24;
+  // depends_on is a display hint: the desk hides the field while it is false.
+  // The server does not enforce it.
+  string depends_on = 25;
 }
 
 message RecordType {

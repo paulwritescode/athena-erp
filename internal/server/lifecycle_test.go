@@ -421,3 +421,44 @@ func TestTransitionSpansCarryStatesAndNoValues(t *testing.T) {
 		t.Fatalf("transition spans = %v", found)
 	}
 }
+
+// A required field that is also unique, read only or no_copy is left empty on
+// the amended draft, so the amend must still work; the draft cannot be
+// submitted until the person fills the field in.
+func TestAmendLeavesRequiredUniqueFieldsEmptyUntilSubmit(t *testing.T) {
+	ctx := context.Background()
+	recordTypes, records := newServices(t)
+	mustSave(t, recordTypes, &athenav1.RecordType{Key: "contract", Label: "Contract", Kind: "document", Class: "non_posting", Submittable: true, Amendable: true, Fields: []*athenav1.RecordTypeField{
+		{Key: "title", Label: "Title", Type: "Text", Required: true},
+		{Key: "code", Label: "Code", Type: "Text", Required: true, Unique: true},
+		{Key: "token", Label: "Token", Type: "Text", Required: true, NoCopy: true},
+	}})
+	original, err := create(t, records, "contract", map[string]*athenav1.FieldValue{"title": text("C"), "code": text("K-1"), "token": text("t")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cancelled, err := cancel(records, "contract", submit(t, records, "contract", original))
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := records.AmendRecord(ctx, &athenav1.AmendRecordRequest{RecordTypeKey: "contract", Id: cancelled.GetId(), ExpectedRevision: cancelled.GetRevision()})
+	if err != nil {
+		t.Fatalf("amend with required unique and no_copy fields: %v", err)
+	}
+	draft := res.GetRecord()
+	if draft.GetValues()["title"].GetStringValue() != "C" || !draft.GetValues()["code"].GetNullValue() || !draft.GetValues()["token"].GetNullValue() {
+		t.Fatalf("copied values = %v", draft.GetValues())
+	}
+	_, err = records.SubmitRecord(ctx, &athenav1.SubmitRecordRequest{RecordTypeKey: "contract", Id: draft.GetId(), ExpectedRevision: draft.GetRevision()})
+	requireCode(t, err, connect.CodeFailedPrecondition)
+	if !strings.Contains(err.Error(), "Code is required") {
+		t.Fatalf("submit error = %v", err)
+	}
+	updated, err := records.UpdateRecord(ctx, &athenav1.UpdateRecordRequest{RecordTypeKey: "contract", Id: draft.GetId(), ExpectedRevision: draft.GetRevision(), Values: map[string]*athenav1.FieldValue{"code": text("K-2"), "token": text("u")}})
+	if err != nil {
+		t.Fatalf("fill the draft: %v", err)
+	}
+	if _, err := records.SubmitRecord(ctx, &athenav1.SubmitRecordRequest{RecordTypeKey: "contract", Id: draft.GetId(), ExpectedRevision: updated.GetRecord().GetRevision()}); err != nil {
+		t.Fatalf("submit the filled draft: %v", err)
+	}
+}

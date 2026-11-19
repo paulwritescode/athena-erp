@@ -67,6 +67,13 @@ type recordTypeField struct {
 	Currency      string      `json:"currency,omitempty"`
 	UoM           string      `json:"uom,omitempty"`
 	Scale         *int        `json:"scale,omitempty"`
+	// Expressions of the expression language (ADR-0013). Formula is stored
+	// by the kernel on every write; the others are checked or hinted.
+	Formula    string `json:"formula,omitempty"`
+	RequiredIf string `json:"required_if,omitempty"`
+	ReadOnlyIf string `json:"read_only_if,omitempty"`
+	Validate   string `json:"validate,omitempty"`
+	DependsOn  string `json:"depends_on,omitempty"`
 }
 
 // enumValue is one permanent choice of an Enum field.
@@ -422,7 +429,7 @@ func validateRecordType(ctx context.Context, conn sqlConn, recordType recordType
 			return invalid(fmt.Sprintf("%s is not a Link field and cannot have a link target", field.Label))
 		}
 	}
-	return nil
+	return validateExpressions(ctx, conn, recordType)
 }
 
 // startOperation journals the operation and its definition before touching the schema.
@@ -648,7 +655,9 @@ func recordTypeFromProto(recordType *athenav1.RecordType) recordTypeDefinition {
 	for _, field := range recordType.GetFields() {
 		out := recordTypeField{Name: field.GetKey(), Label: strings.TrimSpace(field.GetLabel()), Type: field.GetType(), Required: field.GetRequired(), TargetRecordType: field.GetTargetRecordTypeKey(),
 			Unique: field.GetUnique(), Default: field.GetDefaultValue(), Min: strings.TrimSpace(field.GetMin()), Max: strings.TrimSpace(field.GetMax()), Pattern: field.GetPattern(), MaxLength: int(field.GetMaxLength()),
-			ReadOnly: field.GetReadOnly(), SetOnce: field.GetSetOnce(), NoCopy: field.GetNoCopy(), AllowOnSubmit: field.GetAllowOnSubmit(), Index: field.GetIndex(), Currency: field.GetCurrency(), UoM: field.GetUom()}
+			ReadOnly: field.GetReadOnly(), SetOnce: field.GetSetOnce(), NoCopy: field.GetNoCopy(), AllowOnSubmit: field.GetAllowOnSubmit(), Index: field.GetIndex(), Currency: field.GetCurrency(), UoM: field.GetUom(),
+			Formula: strings.TrimSpace(field.GetFormula()), RequiredIf: strings.TrimSpace(field.GetRequiredIf()), ReadOnlyIf: strings.TrimSpace(field.GetReadOnlyIf()),
+			Validate: strings.TrimSpace(field.GetValidate()), DependsOn: strings.TrimSpace(field.GetDependsOn())}
 		if field.Scale != nil {
 			scale := int(field.GetScale())
 			out.Scale = &scale
@@ -667,7 +676,8 @@ func recordTypeToProto(recordType recordTypeDefinition, revision int64) *athenav
 	for _, field := range recordType.Fields {
 		out := &athenav1.RecordTypeField{Key: field.Name, Label: field.Label, Type: field.Type, Required: field.Required, TargetRecordTypeKey: field.TargetRecordType,
 			Unique: field.Unique, DefaultValue: field.Default, Min: field.Min, Max: field.Max, Pattern: field.Pattern, MaxLength: int32(field.MaxLength),
-			ReadOnly: field.ReadOnly, SetOnce: field.SetOnce, NoCopy: field.NoCopy, AllowOnSubmit: field.AllowOnSubmit, Index: field.Index, Currency: field.Currency, Uom: field.UoM}
+			ReadOnly: field.ReadOnly, SetOnce: field.SetOnce, NoCopy: field.NoCopy, AllowOnSubmit: field.AllowOnSubmit, Index: field.Index, Currency: field.Currency, Uom: field.UoM,
+			Formula: field.Formula, RequiredIf: field.RequiredIf, ReadOnlyIf: field.ReadOnlyIf, Validate: field.Validate, DependsOn: field.DependsOn}
 		if field.Scale != nil {
 			scale := int32(*field.Scale)
 			out.Scale = &scale

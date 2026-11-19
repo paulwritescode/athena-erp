@@ -301,7 +301,11 @@ type ListRecordsRequest struct {
 	// Opaque cursor from a previous response.
 	PageToken string `protobuf:"bytes,3,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
 	// Child Record Types only: list the Records of this parent.
-	ParentId      string `protobuf:"bytes,4,opt,name=parent_id,json=parentId,proto3" json:"parent_id,omitempty"`
+	ParentId string `protobuf:"bytes,4,opt,name=parent_id,json=parentId,proto3" json:"parent_id,omitempty"`
+	// Optional expression (spec 23.6) that must be true for a Record to be
+	// listed, for example doc.total > dec("100"). It runs in the database, so
+	// it may use only the parts of the language that translate to SQL.
+	Filter        string `protobuf:"bytes,5,opt,name=filter,proto3" json:"filter,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -360,6 +364,13 @@ func (x *ListRecordsRequest) GetPageToken() string {
 func (x *ListRecordsRequest) GetParentId() string {
 	if x != nil {
 		return x.ParentId
+	}
+	return ""
+}
+
+func (x *ListRecordsRequest) GetFilter() string {
+	if x != nil {
+		return x.Filter
 	}
 	return ""
 }
@@ -2029,6 +2040,371 @@ func (x *LookupRecordsResponse) GetNextPageToken() string {
 	return ""
 }
 
+type PreviewRecordRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RecordTypeKey string                 `protobuf:"bytes,1,opt,name=record_type_key,json=recordTypeKey,proto3" json:"record_type_key,omitempty"`
+	// Set to start from a saved Record; values then replace its values.
+	Id string `protobuf:"bytes,2,opt,name=id,proto3" json:"id,omitempty"`
+	// The values entered so far. Computed fields are ignored.
+	Values        map[string]*FieldValue `protobuf:"bytes,3,rep,name=values,proto3" json:"values,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PreviewRecordRequest) Reset() {
+	*x = PreviewRecordRequest{}
+	mi := &file_athena_v1_records_proto_msgTypes[31]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PreviewRecordRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PreviewRecordRequest) ProtoMessage() {}
+
+func (x *PreviewRecordRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_records_proto_msgTypes[31]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PreviewRecordRequest.ProtoReflect.Descriptor instead.
+func (*PreviewRecordRequest) Descriptor() ([]byte, []int) {
+	return file_athena_v1_records_proto_rawDescGZIP(), []int{31}
+}
+
+func (x *PreviewRecordRequest) GetRecordTypeKey() string {
+	if x != nil {
+		return x.RecordTypeKey
+	}
+	return ""
+}
+
+func (x *PreviewRecordRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *PreviewRecordRequest) GetValues() map[string]*FieldValue {
+	if x != nil {
+		return x.Values
+	}
+	return nil
+}
+
+// FieldState is what the rules say about one field for the previewed values.
+type FieldState struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Key   string                 `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
+	// The field is required now (required, or required_if is true).
+	Required bool `protobuf:"varint,2,opt,name=required,proto3" json:"required,omitempty"`
+	// The field cannot be edited now (read_only, formula, or read_only_if is
+	// true).
+	ReadOnly bool `protobuf:"varint,3,opt,name=read_only,json=readOnly,proto3" json:"read_only,omitempty"`
+	// depends_on is false.
+	Hidden bool `protobuf:"varint,4,opt,name=hidden,proto3" json:"hidden,omitempty"`
+	// Why a formula or rule could not be evaluated, without values. Empty when
+	// it ran.
+	Error         string `protobuf:"bytes,5,opt,name=error,proto3" json:"error,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FieldState) Reset() {
+	*x = FieldState{}
+	mi := &file_athena_v1_records_proto_msgTypes[32]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FieldState) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FieldState) ProtoMessage() {}
+
+func (x *FieldState) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_records_proto_msgTypes[32]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FieldState.ProtoReflect.Descriptor instead.
+func (*FieldState) Descriptor() ([]byte, []int) {
+	return file_athena_v1_records_proto_rawDescGZIP(), []int{32}
+}
+
+func (x *FieldState) GetKey() string {
+	if x != nil {
+		return x.Key
+	}
+	return ""
+}
+
+func (x *FieldState) GetRequired() bool {
+	if x != nil {
+		return x.Required
+	}
+	return false
+}
+
+func (x *FieldState) GetReadOnly() bool {
+	if x != nil {
+		return x.ReadOnly
+	}
+	return false
+}
+
+func (x *FieldState) GetHidden() bool {
+	if x != nil {
+		return x.Hidden
+	}
+	return false
+}
+
+func (x *FieldState) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+type PreviewRecordResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Calculated values of formula fields by key.
+	Computed      map[string]*FieldValue `protobuf:"bytes,1,rep,name=computed,proto3" json:"computed,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	States        []*FieldState          `protobuf:"bytes,2,rep,name=states,proto3" json:"states,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PreviewRecordResponse) Reset() {
+	*x = PreviewRecordResponse{}
+	mi := &file_athena_v1_records_proto_msgTypes[33]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PreviewRecordResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PreviewRecordResponse) ProtoMessage() {}
+
+func (x *PreviewRecordResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_records_proto_msgTypes[33]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PreviewRecordResponse.ProtoReflect.Descriptor instead.
+func (*PreviewRecordResponse) Descriptor() ([]byte, []int) {
+	return file_athena_v1_records_proto_rawDescGZIP(), []int{33}
+}
+
+func (x *PreviewRecordResponse) GetComputed() map[string]*FieldValue {
+	if x != nil {
+		return x.Computed
+	}
+	return nil
+}
+
+func (x *PreviewRecordResponse) GetStates() []*FieldState {
+	if x != nil {
+		return x.States
+	}
+	return nil
+}
+
+type EvaluateExpressionRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RecordTypeKey string                 `protobuf:"bytes,1,opt,name=record_type_key,json=recordTypeKey,proto3" json:"record_type_key,omitempty"`
+	Expression    string                 `protobuf:"bytes,2,opt,name=expression,proto3" json:"expression,omitempty"`
+	// Optional. Evaluates the expression for this Record.
+	Id            string `protobuf:"bytes,3,opt,name=id,proto3" json:"id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EvaluateExpressionRequest) Reset() {
+	*x = EvaluateExpressionRequest{}
+	mi := &file_athena_v1_records_proto_msgTypes[34]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EvaluateExpressionRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EvaluateExpressionRequest) ProtoMessage() {}
+
+func (x *EvaluateExpressionRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_records_proto_msgTypes[34]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EvaluateExpressionRequest.ProtoReflect.Descriptor instead.
+func (*EvaluateExpressionRequest) Descriptor() ([]byte, []int) {
+	return file_athena_v1_records_proto_rawDescGZIP(), []int{34}
+}
+
+func (x *EvaluateExpressionRequest) GetRecordTypeKey() string {
+	if x != nil {
+		return x.RecordTypeKey
+	}
+	return ""
+}
+
+func (x *EvaluateExpressionRequest) GetExpression() string {
+	if x != nil {
+		return x.Expression
+	}
+	return ""
+}
+
+func (x *EvaluateExpressionRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+type EvaluateExpressionResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// bool, int, string, decimal, money or date.
+	ResultType string `protobuf:"bytes,1,opt,name=result_type,json=resultType,proto3" json:"result_type,omitempty"`
+	// The names the expression reads, such as doc.qty.
+	Dependencies []string `protobuf:"bytes,2,rep,name=dependencies,proto3" json:"dependencies,omitempty"`
+	UsesToday    bool     `protobuf:"varint,3,opt,name=uses_today,json=usesToday,proto3" json:"uses_today,omitempty"`
+	// True when an id was given and the expression ran.
+	Evaluated bool `protobuf:"varint,4,opt,name=evaluated,proto3" json:"evaluated,omitempty"`
+	IsNull    bool `protobuf:"varint,5,opt,name=is_null,json=isNull,proto3" json:"is_null,omitempty"`
+	// The result as text: decimals as exact strings, money with its currency,
+	// dates as YYYY-MM-DD.
+	Value string `protobuf:"bytes,6,opt,name=value,proto3" json:"value,omitempty"`
+	// True when the expression can run in the database (a ListRecords filter).
+	SqlTranslatable bool   `protobuf:"varint,7,opt,name=sql_translatable,json=sqlTranslatable,proto3" json:"sql_translatable,omitempty"`
+	SqlReason       string `protobuf:"bytes,8,opt,name=sql_reason,json=sqlReason,proto3" json:"sql_reason,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *EvaluateExpressionResponse) Reset() {
+	*x = EvaluateExpressionResponse{}
+	mi := &file_athena_v1_records_proto_msgTypes[35]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EvaluateExpressionResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EvaluateExpressionResponse) ProtoMessage() {}
+
+func (x *EvaluateExpressionResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_records_proto_msgTypes[35]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EvaluateExpressionResponse.ProtoReflect.Descriptor instead.
+func (*EvaluateExpressionResponse) Descriptor() ([]byte, []int) {
+	return file_athena_v1_records_proto_rawDescGZIP(), []int{35}
+}
+
+func (x *EvaluateExpressionResponse) GetResultType() string {
+	if x != nil {
+		return x.ResultType
+	}
+	return ""
+}
+
+func (x *EvaluateExpressionResponse) GetDependencies() []string {
+	if x != nil {
+		return x.Dependencies
+	}
+	return nil
+}
+
+func (x *EvaluateExpressionResponse) GetUsesToday() bool {
+	if x != nil {
+		return x.UsesToday
+	}
+	return false
+}
+
+func (x *EvaluateExpressionResponse) GetEvaluated() bool {
+	if x != nil {
+		return x.Evaluated
+	}
+	return false
+}
+
+func (x *EvaluateExpressionResponse) GetIsNull() bool {
+	if x != nil {
+		return x.IsNull
+	}
+	return false
+}
+
+func (x *EvaluateExpressionResponse) GetValue() string {
+	if x != nil {
+		return x.Value
+	}
+	return ""
+}
+
+func (x *EvaluateExpressionResponse) GetSqlTranslatable() bool {
+	if x != nil {
+		return x.SqlTranslatable
+	}
+	return false
+}
+
+func (x *EvaluateExpressionResponse) GetSqlReason() string {
+	if x != nil {
+		return x.SqlReason
+	}
+	return ""
+}
+
 var File_athena_v1_records_proto protoreflect.FileDescriptor
 
 const file_athena_v1_records_proto_rawDesc = "" +
@@ -2067,13 +2443,14 @@ const file_athena_v1_records_proto_rawDesc = "" +
 	"\famended_from\x18\x0f \x01(\tR\vamendedFrom\x1aP\n" +
 	"\vValuesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12+\n" +
-	"\x05value\x18\x02 \x01(\v2\x15.athena.v1.FieldValueR\x05value:\x028\x01\"\x95\x01\n" +
+	"\x05value\x18\x02 \x01(\v2\x15.athena.v1.FieldValueR\x05value:\x028\x01\"\xad\x01\n" +
 	"\x12ListRecordsRequest\x12&\n" +
 	"\x0frecord_type_key\x18\x01 \x01(\tR\rrecordTypeKey\x12\x1b\n" +
 	"\tpage_size\x18\x02 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
 	"page_token\x18\x03 \x01(\tR\tpageToken\x12\x1b\n" +
-	"\tparent_id\x18\x04 \x01(\tR\bparentId\"j\n" +
+	"\tparent_id\x18\x04 \x01(\tR\bparentId\x12\x16\n" +
+	"\x06filter\x18\x05 \x01(\tR\x06filter\"j\n" +
 	"\x13ListRecordsResponse\x12+\n" +
 	"\arecords\x18\x01 \x03(\v2\x11.athena.v1.RecordR\arecords\x12&\n" +
 	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"J\n" +
@@ -2194,7 +2571,45 @@ const file_athena_v1_records_proto_rawDesc = "" +
 	"\x05state\x18\x03 \x01(\tR\x05state\"l\n" +
 	"\x15LookupRecordsResponse\x12+\n" +
 	"\x05items\x18\x01 \x03(\v2\x15.athena.v1.LookupItemR\x05items\x12&\n" +
-	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken2\x82\b\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\xe5\x01\n" +
+	"\x14PreviewRecordRequest\x12&\n" +
+	"\x0frecord_type_key\x18\x01 \x01(\tR\rrecordTypeKey\x12\x0e\n" +
+	"\x02id\x18\x02 \x01(\tR\x02id\x12C\n" +
+	"\x06values\x18\x03 \x03(\v2+.athena.v1.PreviewRecordRequest.ValuesEntryR\x06values\x1aP\n" +
+	"\vValuesEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12+\n" +
+	"\x05value\x18\x02 \x01(\v2\x15.athena.v1.FieldValueR\x05value:\x028\x01\"\x85\x01\n" +
+	"\n" +
+	"FieldState\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x1a\n" +
+	"\brequired\x18\x02 \x01(\bR\brequired\x12\x1b\n" +
+	"\tread_only\x18\x03 \x01(\bR\breadOnly\x12\x16\n" +
+	"\x06hidden\x18\x04 \x01(\bR\x06hidden\x12\x14\n" +
+	"\x05error\x18\x05 \x01(\tR\x05error\"\xe6\x01\n" +
+	"\x15PreviewRecordResponse\x12J\n" +
+	"\bcomputed\x18\x01 \x03(\v2..athena.v1.PreviewRecordResponse.ComputedEntryR\bcomputed\x12-\n" +
+	"\x06states\x18\x02 \x03(\v2\x15.athena.v1.FieldStateR\x06states\x1aR\n" +
+	"\rComputedEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12+\n" +
+	"\x05value\x18\x02 \x01(\v2\x15.athena.v1.FieldValueR\x05value:\x028\x01\"s\n" +
+	"\x19EvaluateExpressionRequest\x12&\n" +
+	"\x0frecord_type_key\x18\x01 \x01(\tR\rrecordTypeKey\x12\x1e\n" +
+	"\n" +
+	"expression\x18\x02 \x01(\tR\n" +
+	"expression\x12\x0e\n" +
+	"\x02id\x18\x03 \x01(\tR\x02id\"\x97\x02\n" +
+	"\x1aEvaluateExpressionResponse\x12\x1f\n" +
+	"\vresult_type\x18\x01 \x01(\tR\n" +
+	"resultType\x12\"\n" +
+	"\fdependencies\x18\x02 \x03(\tR\fdependencies\x12\x1d\n" +
+	"\n" +
+	"uses_today\x18\x03 \x01(\bR\tusesToday\x12\x1c\n" +
+	"\tevaluated\x18\x04 \x01(\bR\tevaluated\x12\x17\n" +
+	"\ais_null\x18\x05 \x01(\bR\x06isNull\x12\x14\n" +
+	"\x05value\x18\x06 \x01(\tR\x05value\x12)\n" +
+	"\x10sql_translatable\x18\a \x01(\bR\x0fsqlTranslatable\x12\x1d\n" +
+	"\n" +
+	"sql_reason\x18\b \x01(\tR\tsqlReason2\xb9\t\n" +
 	"\rRecordService\x12L\n" +
 	"\vListRecords\x12\x1d.athena.v1.ListRecordsRequest\x1a\x1e.athena.v1.ListRecordsResponse\x12F\n" +
 	"\tGetRecord\x12\x1b.athena.v1.GetRecordRequest\x1a\x1c.athena.v1.GetRecordResponse\x12O\n" +
@@ -2207,7 +2622,9 @@ const file_athena_v1_records_proto_rawDesc = "" +
 	"\fCancelRecord\x12\x1e.athena.v1.CancelRecordRequest\x1a\x1f.athena.v1.CancelRecordResponse\x12L\n" +
 	"\vAmendRecord\x12\x1d.athena.v1.AmendRecordRequest\x1a\x1e.athena.v1.AmendRecordResponse\x12a\n" +
 	"\x12ListRecordVersions\x12$.athena.v1.ListRecordVersionsRequest\x1a%.athena.v1.ListRecordVersionsResponse\x12a\n" +
-	"\x12ListRecordActivity\x12$.athena.v1.ListRecordActivityRequest\x1a%.athena.v1.ListRecordActivityResponseB#Z!athena-erp/gen/athena/v1;athenav1b\x06proto3"
+	"\x12ListRecordActivity\x12$.athena.v1.ListRecordActivityRequest\x1a%.athena.v1.ListRecordActivityResponse\x12R\n" +
+	"\rPreviewRecord\x12\x1f.athena.v1.PreviewRecordRequest\x1a .athena.v1.PreviewRecordResponse\x12a\n" +
+	"\x12EvaluateExpression\x12$.athena.v1.EvaluateExpressionRequest\x1a%.athena.v1.EvaluateExpressionResponseB#Z!athena-erp/gen/athena/v1;athenav1b\x06proto3"
 
 var (
 	file_athena_v1_records_proto_rawDescOnce sync.Once
@@ -2221,7 +2638,7 @@ func file_athena_v1_records_proto_rawDescGZIP() []byte {
 	return file_athena_v1_records_proto_rawDescData
 }
 
-var file_athena_v1_records_proto_msgTypes = make([]protoimpl.MessageInfo, 34)
+var file_athena_v1_records_proto_msgTypes = make([]protoimpl.MessageInfo, 41)
 var file_athena_v1_records_proto_goTypes = []any{
 	(*FieldValue)(nil),                 // 0: athena.v1.FieldValue
 	(*Record)(nil),                     // 1: athena.v1.Record
@@ -2254,17 +2671,24 @@ var file_athena_v1_records_proto_goTypes = []any{
 	(*LookupRecordsRequest)(nil),       // 28: athena.v1.LookupRecordsRequest
 	(*LookupItem)(nil),                 // 29: athena.v1.LookupItem
 	(*LookupRecordsResponse)(nil),      // 30: athena.v1.LookupRecordsResponse
-	nil,                                // 31: athena.v1.Record.ValuesEntry
-	nil,                                // 32: athena.v1.CreateRecordRequest.ValuesEntry
-	nil,                                // 33: athena.v1.UpdateRecordRequest.ValuesEntry
+	(*PreviewRecordRequest)(nil),       // 31: athena.v1.PreviewRecordRequest
+	(*FieldState)(nil),                 // 32: athena.v1.FieldState
+	(*PreviewRecordResponse)(nil),      // 33: athena.v1.PreviewRecordResponse
+	(*EvaluateExpressionRequest)(nil),  // 34: athena.v1.EvaluateExpressionRequest
+	(*EvaluateExpressionResponse)(nil), // 35: athena.v1.EvaluateExpressionResponse
+	nil,                                // 36: athena.v1.Record.ValuesEntry
+	nil,                                // 37: athena.v1.CreateRecordRequest.ValuesEntry
+	nil,                                // 38: athena.v1.UpdateRecordRequest.ValuesEntry
+	nil,                                // 39: athena.v1.PreviewRecordRequest.ValuesEntry
+	nil,                                // 40: athena.v1.PreviewRecordResponse.ComputedEntry
 }
 var file_athena_v1_records_proto_depIdxs = []int32{
-	31, // 0: athena.v1.Record.values:type_name -> athena.v1.Record.ValuesEntry
+	36, // 0: athena.v1.Record.values:type_name -> athena.v1.Record.ValuesEntry
 	1,  // 1: athena.v1.ListRecordsResponse.records:type_name -> athena.v1.Record
 	1,  // 2: athena.v1.GetRecordResponse.record:type_name -> athena.v1.Record
-	32, // 3: athena.v1.CreateRecordRequest.values:type_name -> athena.v1.CreateRecordRequest.ValuesEntry
+	37, // 3: athena.v1.CreateRecordRequest.values:type_name -> athena.v1.CreateRecordRequest.ValuesEntry
 	1,  // 4: athena.v1.CreateRecordResponse.record:type_name -> athena.v1.Record
-	33, // 5: athena.v1.UpdateRecordRequest.values:type_name -> athena.v1.UpdateRecordRequest.ValuesEntry
+	38, // 5: athena.v1.UpdateRecordRequest.values:type_name -> athena.v1.UpdateRecordRequest.ValuesEntry
 	1,  // 6: athena.v1.UpdateRecordResponse.record:type_name -> athena.v1.Record
 	13, // 7: athena.v1.RecordEvent.changes:type_name -> athena.v1.FieldChange
 	14, // 8: athena.v1.ListRecordHistoryResponse.events:type_name -> athena.v1.RecordEvent
@@ -2274,38 +2698,47 @@ var file_athena_v1_records_proto_depIdxs = []int32{
 	23, // 12: athena.v1.ListRecordVersionsResponse.versions:type_name -> athena.v1.RecordVersion
 	26, // 13: athena.v1.ListRecordActivityResponse.events:type_name -> athena.v1.ActivityEvent
 	29, // 14: athena.v1.LookupRecordsResponse.items:type_name -> athena.v1.LookupItem
-	0,  // 15: athena.v1.Record.ValuesEntry.value:type_name -> athena.v1.FieldValue
-	0,  // 16: athena.v1.CreateRecordRequest.ValuesEntry.value:type_name -> athena.v1.FieldValue
-	0,  // 17: athena.v1.UpdateRecordRequest.ValuesEntry.value:type_name -> athena.v1.FieldValue
-	2,  // 18: athena.v1.RecordService.ListRecords:input_type -> athena.v1.ListRecordsRequest
-	4,  // 19: athena.v1.RecordService.GetRecord:input_type -> athena.v1.GetRecordRequest
-	6,  // 20: athena.v1.RecordService.CreateRecord:input_type -> athena.v1.CreateRecordRequest
-	8,  // 21: athena.v1.RecordService.UpdateRecord:input_type -> athena.v1.UpdateRecordRequest
-	10, // 22: athena.v1.RecordService.DeleteRecord:input_type -> athena.v1.DeleteRecordRequest
-	28, // 23: athena.v1.RecordService.LookupRecords:input_type -> athena.v1.LookupRecordsRequest
-	12, // 24: athena.v1.RecordService.ListRecordHistory:input_type -> athena.v1.ListRecordHistoryRequest
-	16, // 25: athena.v1.RecordService.SubmitRecord:input_type -> athena.v1.SubmitRecordRequest
-	18, // 26: athena.v1.RecordService.CancelRecord:input_type -> athena.v1.CancelRecordRequest
-	20, // 27: athena.v1.RecordService.AmendRecord:input_type -> athena.v1.AmendRecordRequest
-	22, // 28: athena.v1.RecordService.ListRecordVersions:input_type -> athena.v1.ListRecordVersionsRequest
-	25, // 29: athena.v1.RecordService.ListRecordActivity:input_type -> athena.v1.ListRecordActivityRequest
-	3,  // 30: athena.v1.RecordService.ListRecords:output_type -> athena.v1.ListRecordsResponse
-	5,  // 31: athena.v1.RecordService.GetRecord:output_type -> athena.v1.GetRecordResponse
-	7,  // 32: athena.v1.RecordService.CreateRecord:output_type -> athena.v1.CreateRecordResponse
-	9,  // 33: athena.v1.RecordService.UpdateRecord:output_type -> athena.v1.UpdateRecordResponse
-	11, // 34: athena.v1.RecordService.DeleteRecord:output_type -> athena.v1.DeleteRecordResponse
-	30, // 35: athena.v1.RecordService.LookupRecords:output_type -> athena.v1.LookupRecordsResponse
-	15, // 36: athena.v1.RecordService.ListRecordHistory:output_type -> athena.v1.ListRecordHistoryResponse
-	17, // 37: athena.v1.RecordService.SubmitRecord:output_type -> athena.v1.SubmitRecordResponse
-	19, // 38: athena.v1.RecordService.CancelRecord:output_type -> athena.v1.CancelRecordResponse
-	21, // 39: athena.v1.RecordService.AmendRecord:output_type -> athena.v1.AmendRecordResponse
-	24, // 40: athena.v1.RecordService.ListRecordVersions:output_type -> athena.v1.ListRecordVersionsResponse
-	27, // 41: athena.v1.RecordService.ListRecordActivity:output_type -> athena.v1.ListRecordActivityResponse
-	30, // [30:42] is the sub-list for method output_type
-	18, // [18:30] is the sub-list for method input_type
-	18, // [18:18] is the sub-list for extension type_name
-	18, // [18:18] is the sub-list for extension extendee
-	0,  // [0:18] is the sub-list for field type_name
+	39, // 15: athena.v1.PreviewRecordRequest.values:type_name -> athena.v1.PreviewRecordRequest.ValuesEntry
+	40, // 16: athena.v1.PreviewRecordResponse.computed:type_name -> athena.v1.PreviewRecordResponse.ComputedEntry
+	32, // 17: athena.v1.PreviewRecordResponse.states:type_name -> athena.v1.FieldState
+	0,  // 18: athena.v1.Record.ValuesEntry.value:type_name -> athena.v1.FieldValue
+	0,  // 19: athena.v1.CreateRecordRequest.ValuesEntry.value:type_name -> athena.v1.FieldValue
+	0,  // 20: athena.v1.UpdateRecordRequest.ValuesEntry.value:type_name -> athena.v1.FieldValue
+	0,  // 21: athena.v1.PreviewRecordRequest.ValuesEntry.value:type_name -> athena.v1.FieldValue
+	0,  // 22: athena.v1.PreviewRecordResponse.ComputedEntry.value:type_name -> athena.v1.FieldValue
+	2,  // 23: athena.v1.RecordService.ListRecords:input_type -> athena.v1.ListRecordsRequest
+	4,  // 24: athena.v1.RecordService.GetRecord:input_type -> athena.v1.GetRecordRequest
+	6,  // 25: athena.v1.RecordService.CreateRecord:input_type -> athena.v1.CreateRecordRequest
+	8,  // 26: athena.v1.RecordService.UpdateRecord:input_type -> athena.v1.UpdateRecordRequest
+	10, // 27: athena.v1.RecordService.DeleteRecord:input_type -> athena.v1.DeleteRecordRequest
+	28, // 28: athena.v1.RecordService.LookupRecords:input_type -> athena.v1.LookupRecordsRequest
+	12, // 29: athena.v1.RecordService.ListRecordHistory:input_type -> athena.v1.ListRecordHistoryRequest
+	16, // 30: athena.v1.RecordService.SubmitRecord:input_type -> athena.v1.SubmitRecordRequest
+	18, // 31: athena.v1.RecordService.CancelRecord:input_type -> athena.v1.CancelRecordRequest
+	20, // 32: athena.v1.RecordService.AmendRecord:input_type -> athena.v1.AmendRecordRequest
+	22, // 33: athena.v1.RecordService.ListRecordVersions:input_type -> athena.v1.ListRecordVersionsRequest
+	25, // 34: athena.v1.RecordService.ListRecordActivity:input_type -> athena.v1.ListRecordActivityRequest
+	31, // 35: athena.v1.RecordService.PreviewRecord:input_type -> athena.v1.PreviewRecordRequest
+	34, // 36: athena.v1.RecordService.EvaluateExpression:input_type -> athena.v1.EvaluateExpressionRequest
+	3,  // 37: athena.v1.RecordService.ListRecords:output_type -> athena.v1.ListRecordsResponse
+	5,  // 38: athena.v1.RecordService.GetRecord:output_type -> athena.v1.GetRecordResponse
+	7,  // 39: athena.v1.RecordService.CreateRecord:output_type -> athena.v1.CreateRecordResponse
+	9,  // 40: athena.v1.RecordService.UpdateRecord:output_type -> athena.v1.UpdateRecordResponse
+	11, // 41: athena.v1.RecordService.DeleteRecord:output_type -> athena.v1.DeleteRecordResponse
+	30, // 42: athena.v1.RecordService.LookupRecords:output_type -> athena.v1.LookupRecordsResponse
+	15, // 43: athena.v1.RecordService.ListRecordHistory:output_type -> athena.v1.ListRecordHistoryResponse
+	17, // 44: athena.v1.RecordService.SubmitRecord:output_type -> athena.v1.SubmitRecordResponse
+	19, // 45: athena.v1.RecordService.CancelRecord:output_type -> athena.v1.CancelRecordResponse
+	21, // 46: athena.v1.RecordService.AmendRecord:output_type -> athena.v1.AmendRecordResponse
+	24, // 47: athena.v1.RecordService.ListRecordVersions:output_type -> athena.v1.ListRecordVersionsResponse
+	27, // 48: athena.v1.RecordService.ListRecordActivity:output_type -> athena.v1.ListRecordActivityResponse
+	33, // 49: athena.v1.RecordService.PreviewRecord:output_type -> athena.v1.PreviewRecordResponse
+	35, // 50: athena.v1.RecordService.EvaluateExpression:output_type -> athena.v1.EvaluateExpressionResponse
+	37, // [37:51] is the sub-list for method output_type
+	23, // [23:37] is the sub-list for method input_type
+	23, // [23:23] is the sub-list for extension type_name
+	23, // [23:23] is the sub-list for extension extendee
+	0,  // [0:23] is the sub-list for field type_name
 }
 
 func init() { file_athena_v1_records_proto_init() }
@@ -2325,7 +2758,7 @@ func file_athena_v1_records_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_athena_v1_records_proto_rawDesc), len(file_athena_v1_records_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   34,
+			NumMessages:   41,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

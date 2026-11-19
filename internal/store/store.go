@@ -101,6 +101,12 @@ type Dialect interface {
 	Upsert(table string, columns []string, keyColumn string, updateColumns []string) string
 	// ForUpdate is the row-lock clause appended to a SELECT inside a transaction.
 	ForUpdate() string
+	// NullSafeEqual, BinaryString, DecimalParam and DateParam are the pieces
+	// the expression translator needs (see internal/expr.Dialect).
+	NullSafeEqual(a, b string) string
+	BinaryString(expr string) string
+	DecimalParam() string
+	DateParam() string
 
 	// IncompatibleValues returns a condition that is true for stored values
 	// in column that cannot be kept when the column becomes fieldType. For a

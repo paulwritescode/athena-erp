@@ -72,6 +72,14 @@ func (s recordService) ListRecords(ctx context.Context, req *athenav1.ListRecord
 	if live := liveClause(recordType); live != "" {
 		where += " AND " + live
 	}
+	if req.GetFilter() != "" {
+		predicate, err := filterPredicate(ctx, s.db, recordType, req.GetFilter())
+		if err != nil {
+			return nil, err
+		}
+		where += " AND (" + predicate.Where + ")"
+		args = append(args, predicate.Args...)
+	}
 	query := fmt.Sprintf("SELECT %s FROM %s WHERE %s ORDER BY %s LIMIT ?", selectColumns(recordType), dialect.QuoteIdent(recordTypeTableName(recordType.Name)), where, dialect.QuoteIdent("id"))
 	rows, err := s.db.QueryContext(ctx, query, append(args, pageSize+1)...)
 	if err != nil {
@@ -128,7 +136,6 @@ func (s recordService) CreateRecord(ctx context.Context, req *athenav1.CreateRec
 	if err != nil {
 		return nil, internalError("generate record ID", err)
 	}
-	changed := changedKeys(columns, args)
 	if recordType.kind() != kindChild && req.GetParentId() != "" {
 		return nil, invalid("only child Record Types have a parent")
 	}
@@ -166,6 +173,10 @@ func (s recordService) CreateRecord(ctx context.Context, req *athenav1.CreateRec
 			return nil, err
 		}
 	}
+	if columns, args, _, err = applyExpressions(ctx, tx, recordType, nil, id.String(), columns, args); err != nil {
+		return nil, err
+	}
+	changed := changedKeys(columns, args)
 	if err := checkUnique(ctx, tx, recordType, columns, args, ""); err != nil {
 		return nil, err
 	}
@@ -174,6 +185,11 @@ func (s recordService) CreateRecord(ctx context.Context, req *athenav1.CreateRec
 	}
 	if err := insertRow(ctx, tx, recordType, id.String(), system, columns, args); err != nil {
 		return nil, err
+	}
+	if recordType.kind() == kindChild {
+		if err := refreshParent(ctx, tx, recordType, req.GetParentId()); err != nil {
+			return nil, err
+		}
 	}
 	if err := auditCreated(ctx, tx, recordType, id.String(), changed); err != nil {
 		return nil, err
@@ -357,6 +373,11 @@ func (s recordService) UpdateRecord(ctx context.Context, req *athenav1.UpdateRec
 			return nil, err
 		}
 	}
+	computedColumns, computedArgs, computedKeys, err := applyExpressions(ctx, tx, recordType, current, req.GetId(), changedColumns, changedArgs)
+	if err != nil {
+		return nil, err
+	}
+	changedColumns, changedArgs, changed = computedColumns, computedArgs, append(changed, computedKeys...)
 	if err := checkUnique(ctx, tx, recordType, changedColumns, changedArgs, req.GetId()); err != nil {
 		return nil, err
 	}
@@ -378,6 +399,11 @@ func (s recordService) UpdateRecord(ctx context.Context, req *athenav1.UpdateRec
 	statement := fmt.Sprintf("UPDATE %s SET %s WHERE `id` = ? AND `revision` = ?", dialect.QuoteIdent(recordTypeTableName(recordType.Name)), strings.Join(assignments, ", "))
 	if _, err := tx.ExecContext(ctx, statement, changedArgs...); err != nil {
 		return nil, writeError("update record", err)
+	}
+	if recordType.kind() == kindChild {
+		if err := refreshParent(ctx, tx, recordType, current.GetParentId()); err != nil {
+			return nil, err
+		}
 	}
 	updated, err := loadRecord(ctx, tx, recordType, req.GetId(), "")
 	if err != nil {
@@ -433,9 +459,9 @@ func (s recordService) DeleteRecord(ctx context.Context, req *athenav1.DeleteRec
 	}
 	defer func() { _ = tx.Rollback() }()
 	table := dialect.QuoteIdent(recordTypeTableName(recordType.Name))
+	var parentID string
 	switch recordType.kind() {
 	case kindChild:
-		var parentID string
 		if err := tx.QueryRowContext(ctx, "SELECT `parent_id` FROM "+table+" WHERE `id` = ?", req.GetId()).Scan(&parentID); err == nil {
 			if err := checkParentEditable(ctx, tx, recordType, parentID, "delete", nil); err != nil {
 				return nil, err
@@ -474,6 +500,11 @@ func (s recordService) DeleteRecord(ctx context.Context, req *athenav1.DeleteRec
 	if affected, err := result.RowsAffected(); err != nil || affected == 0 {
 		_ = tx.Rollback()
 		return nil, s.checkChanged(ctx, recordType, req.GetId(), result)
+	}
+	if recordType.kind() == kindChild && parentID != "" {
+		if err := refreshParent(ctx, tx, recordType, parentID); err != nil {
+			return nil, err
+		}
 	}
 	revision := req.GetExpectedRevision()
 	if recordType.kind() == kindMaster {
@@ -745,6 +776,13 @@ func bindValues(recordType recordTypeDefinition, values map[string]*athenav1.Fie
 	var args []any
 	for _, field := range recordType.Fields {
 		value, present := values[field.Name]
+		if field.Formula != "" {
+			// The kernel stores the result; a client may only echo an empty value.
+			if arg, err := fieldArgument(field, value); present && (err != nil || arg != nil) {
+				return nil, nil, invalid(fmt.Sprintf("%s is calculated and cannot be set", field.Label))
+			}
+			continue
+		}
 		var arg any
 		if present {
 			var err error

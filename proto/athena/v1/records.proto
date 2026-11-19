@@ -30,6 +30,13 @@ service RecordService {
   rpc ListRecordVersions(ListRecordVersionsRequest) returns (ListRecordVersionsResponse);
   // ListRecordActivity returns a document's timeline, newest first.
   rpc ListRecordActivity(ListRecordActivityRequest) returns (ListRecordActivityResponse);
+  // PreviewRecord calculates the formulas and field states for values that
+  // are not saved yet, so a form can show them. It writes nothing; the server
+  // calculates again on save.
+  rpc PreviewRecord(PreviewRecordRequest) returns (PreviewRecordResponse);
+  // EvaluateExpression type-checks an expression against a Record Type and,
+  // when a Record ID is given, evaluates it for that Record.
+  rpc EvaluateExpression(EvaluateExpressionRequest) returns (EvaluateExpressionResponse);
 }
 
 // FieldValue carries one typed field value. Number and Currency use exact
@@ -84,6 +91,10 @@ message ListRecordsRequest {
   string page_token = 3;
   // Child Record Types only: list the Records of this parent.
   string parent_id = 4;
+  // Optional expression (spec 23.6) that must be true for a Record to be
+  // listed, for example doc.total > dec("100"). It runs in the database, so
+  // it may use only the parts of the language that translate to SQL.
+  string filter = 5;
 }
 
 message ListRecordsResponse {
@@ -269,4 +280,57 @@ message LookupRecordsResponse {
   repeated LookupItem items = 1;
   // Empty when there are no more items.
   string next_page_token = 2;
+}
+
+message PreviewRecordRequest {
+  string record_type_key = 1;
+  // Set to start from a saved Record; values then replace its values.
+  string id = 2;
+  // The values entered so far. Computed fields are ignored.
+  map<string, FieldValue> values = 3;
+}
+
+// FieldState is what the rules say about one field for the previewed values.
+message FieldState {
+  string key = 1;
+  // The field is required now (required, or required_if is true).
+  bool required = 2;
+  // The field cannot be edited now (read_only, formula, or read_only_if is
+  // true).
+  bool read_only = 3;
+  // depends_on is false.
+  bool hidden = 4;
+  // Why a formula or rule could not be evaluated, without values. Empty when
+  // it ran.
+  string error = 5;
+}
+
+message PreviewRecordResponse {
+  // Calculated values of formula fields by key.
+  map<string, FieldValue> computed = 1;
+  repeated FieldState states = 2;
+}
+
+message EvaluateExpressionRequest {
+  string record_type_key = 1;
+  string expression = 2;
+  // Optional. Evaluates the expression for this Record.
+  string id = 3;
+}
+
+message EvaluateExpressionResponse {
+  // bool, int, string, decimal, money or date.
+  string result_type = 1;
+  // The names the expression reads, such as doc.qty.
+  repeated string dependencies = 2;
+  bool uses_today = 3;
+  // True when an id was given and the expression ran.
+  bool evaluated = 4;
+  bool is_null = 5;
+  // The result as text: decimals as exact strings, money with its currency,
+  // dates as YYYY-MM-DD.
+  string value = 6;
+  // True when the expression can run in the database (a ListRecords filter).
+  bool sql_translatable = 7;
+  string sql_reason = 8;
 }

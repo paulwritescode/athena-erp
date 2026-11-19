@@ -168,6 +168,21 @@ func (d MariaDB) Upsert(table string, columns []string, keyColumn string, update
 
 func (MariaDB) ForUpdate() string { return "FOR UPDATE" }
 
+// NullSafeEqual is MariaDB's null-safe equality operator.
+func (MariaDB) NullSafeEqual(a, b string) string { return "(" + a + " <=> " + b + ")" }
+
+// BinaryString uses the code-point collation without space padding, so
+// comparisons match Go string comparison. Column collation is
+// utf8mb4_unicode_ci, which would ignore case and accents.
+func (MariaDB) BinaryString(expr string) string { return expr + " COLLATE utf8mb4_nopad_bin" }
+
+// DecimalParam binds a text argument as DECIMAL(65,30); a bare string would
+// compare with a DECIMAL column as a floating point number.
+func (MariaDB) DecimalParam() string { return "CAST(? AS DECIMAL(65,30))" }
+
+// DateParam binds a YYYY-MM-DD text argument as a DATE.
+func (MariaDB) DateParam() string { return "CAST(? AS DATE)" }
+
 func (d MariaDB) IncompatibleValues(column, fieldType, linkTable string) (string, error) {
 	text := "CAST(" + column + " AS CHAR)"
 	switch fieldType {

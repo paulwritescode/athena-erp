@@ -57,6 +57,8 @@ func run(args []string) error {
 		return recordTypesCommand(args[1:], os.Stdout)
 	case "records":
 		return recordsCommand(args[1:], os.Stdout)
+	case "expressions":
+		return expressionsCommand(args[1:], os.Stdout)
 	case "version", "--version", "-v":
 		fmt.Println(version)
 		return nil
@@ -101,9 +103,15 @@ Usage:
       submit, cancel and amend run the document lifecycle (<id> --revision N);
       versions, activity and history print a document's snapshots, timeline and
       Audit Log rows.
-  athena audit verify [--anchor seq:hash] [--workspace slug] [--json]
-      Check the Audit Log hash chain from the first row to the last. Prints the
-      chain head to keep as an anchor. Exits with an error when it is broken.
+  athena expressions check|eval|preview <record-type> [expression] [--workspace slug] [--json]
+      Type-check an expression against a Record Type, evaluate it for one
+      Record (--record id), or calculate formulas and field states for values
+      that are not saved (--values). records list also takes --filter.
+  athena audit verify|anchor [--anchor seq:hash] [--workspace slug] [--json]
+      verify checks the Audit Log hash chain from the first row to the last and
+      prints the chain head. anchor verifies, then prints only "seq:hash" for a
+      daily job to store outside the database. Both exit with an error when the
+      chain is broken.
       These commands apply pending migrations first, as the server does.
   athena version
 `, version, defaultAddr, defaultAddr)

@@ -6,6 +6,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { validateExpressionText } from '../fieldRules'
 
 // Edits the attributes of one field in place; the Record Types page owns the
 // field and saves it. The server enforces every attribute and rejects bad
@@ -44,6 +45,18 @@ function setText(name: 'default' | 'min' | 'max' | 'pattern' | 'currency' | 'uom
   else props.field[name] = name === 'currency' ? text.toUpperCase() : text
 }
 
+const expressionNames = ['formula', 'required_if', 'read_only_if', 'validate', 'depends_on'] as const
+type ExpressionName = (typeof expressionNames)[number]
+// An expression is stored as written; the server parses and type-checks it when the Record Type is saved.
+function setExpression(name: ExpressionName, value: string | number) {
+  if (!props.field) return
+  const text = String(value)
+  if (text.trim() === '') delete props.field[name]
+  else props.field[name] = text
+}
+function expressionProblem(name: ExpressionName): string {
+  return validateExpressionText(props.field?.[name] ?? '')
+}
 function setNumber(name: 'max_length' | 'scale', value: string | number) {
   if (!props.field) return
   const text = String(value).trim()
@@ -91,6 +104,15 @@ function onOpenChange(open: boolean) {
         </template>
         <div v-if="lengthLimited" class="settings-field"><Label for="fs-length">Maximum length</Label><Input id="fs-length" type="number" min="1" :model-value="field.max_length ?? ''" @update:model-value="setNumber('max_length', $event)" /></div>
         <div v-if="patterned" class="settings-field"><Label for="fs-pattern">Pattern (regular expression)</Label><Input id="fs-pattern" :model-value="field.pattern ?? ''" placeholder="[A-Z]{3}-[0-9]+" @update:model-value="setText('pattern', $event)" /></div>
+      </div>
+      <div class="settings-grid">
+        <p class="settings-note is-wide">Expressions read fields as <code>doc.field_key</code> and a child Record Type's lines as <code>doc.line.field_key</code> in <code>sum</code>, <code>min</code>, <code>max</code> and <code>count</code>. Write decimals as <code>dec("1.5")</code>.</p>
+        <div v-if="type !== 'Link'" class="settings-field is-wide"><Label for="fs-formula">Formula</Label><Input id="fs-formula" :model-value="field.formula ?? ''" placeholder="doc.qty * doc.rate" :aria-invalid="expressionProblem('formula') ? 'true' : undefined" @update:model-value="setExpression('formula', $event)" /><p v-if="expressionProblem('formula')" class="field-error">{{ expressionProblem('formula') }}</p></div>
+        <div class="settings-field is-wide"><Label for="fs-required-if">Required when</Label><Input id="fs-required-if" :model-value="field.required_if ?? ''" placeholder="doc.is_credit" :aria-invalid="expressionProblem('required_if') ? 'true' : undefined" @update:model-value="setExpression('required_if', $event)" /><p v-if="expressionProblem('required_if')" class="field-error">{{ expressionProblem('required_if') }}</p></div>
+        <div class="settings-field is-wide"><Label for="fs-read-only-if">Read only when</Label><Input id="fs-read-only-if" :model-value="field.read_only_if ?? ''" placeholder="doc.paid" :aria-invalid="expressionProblem('read_only_if') ? 'true' : undefined" @update:model-value="setExpression('read_only_if', $event)" /><p v-if="expressionProblem('read_only_if')" class="field-error">{{ expressionProblem('read_only_if') }}</p></div>
+        <div class="settings-field is-wide"><Label for="fs-validate">Must be true</Label><Input id="fs-validate" :model-value="field.validate ?? ''" placeholder="doc.rate >= dec(0)" :aria-invalid="expressionProblem('validate') ? 'true' : undefined" @update:model-value="setExpression('validate', $event)" /><p v-if="expressionProblem('validate')" class="field-error">{{ expressionProblem('validate') }}</p></div>
+        <div class="settings-field is-wide"><Label for="fs-depends-on">Show when</Label><Input id="fs-depends-on" :model-value="field.depends_on ?? ''" placeholder="doc.is_stock_item" :aria-invalid="expressionProblem('depends_on') ? 'true' : undefined" @update:model-value="setExpression('depends_on', $event)" /><p v-if="expressionProblem('depends_on')" class="field-error">{{ expressionProblem('depends_on') }}</p></div>
+        <p class="settings-note is-wide">A formula is calculated by the server on every save, so people cannot edit it. It cannot use <code>today()</code>. Show when only hides the field in the desk.</p>
       </div>
       <div class="settings-flags">
         <label v-if="indexable"><Checkbox :model-value="field.unique ?? false" @update:model-value="setFlag('unique', $event)" />Unique <small>No two records share a value; a deleted master keeps its value.</small></label>

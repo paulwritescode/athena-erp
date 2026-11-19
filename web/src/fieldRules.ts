@@ -32,8 +32,29 @@ export const docstates = { draft: 0, submitted: 1, cancelled: 2 } as const
  * A Record Type that is not submittable is always editable.
  */
 export function fieldEditable(field: Field, submittable: boolean, docstate: number): boolean {
+  if (isCalculated(field)) return false
   if (!submittable || docstate === docstates.draft) return true
   return docstate === docstates.submitted && field.allow_on_submit === true
+}
+
+/** The longest expression the server accepts (internal/server/expressions.go). */
+export const maxExpressionLength = 1000
+
+/**
+ * Mirrors the server's check on an expression attribute that can be seen
+ * without parsing it: it may not be longer than the limit. The server parses
+ * and type-checks the expression when the Record Type is saved.
+ */
+export function validateExpressionText(text: string): string {
+  return [...text.trim()].length > maxExpressionLength ? `Use at most ${maxExpressionLength} characters.` : ''
+}
+
+/**
+ * A calculated field holds whatever its formula gives; people cannot edit it
+ * and the server refuses a value sent for it (bindValues).
+ */
+export function isCalculated(field: Field): boolean {
+  return Boolean(field.formula)
 }
 
 /** Splits a decimal string into its sign, whole digits and fraction digits. */
@@ -73,7 +94,7 @@ function checkRange(field: Field, value: string): string {
 
 /** Returns an error message for one field value, or an empty string when it is valid. */
 export function validateField(field: Field, text: string): string {
-  if (field.type === 'Checkbox') return ''
+  if (field.type === 'Checkbox' || isCalculated(field)) return ''
   const value = text.trim()
   if (!value) return field.required ? `${field.label} is required.` : ''
   const typeLimit = maxLength[field.type]

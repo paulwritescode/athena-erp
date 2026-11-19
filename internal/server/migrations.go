@@ -23,6 +23,7 @@ const (
 	stepDropUnique   = "drop_unique"
 	stepAddIndex     = "add_index"
 	stepDropIndex    = "drop_index"
+	stepRecalculate  = "recalculate"
 )
 
 // saveOptions are the client's answers to a migration plan. They are stored
@@ -183,6 +184,10 @@ func planMigration(ctx context.Context, conn sqlConn, recordType recordTypeDefin
 		}
 		steps = append(steps, migrationStep{Kind: stepRemoveField, Field: old, Destructive: values > 0, Affected: values,
 			Description: fmt.Sprintf("Remove %s and delete its %s", old.Label, plural(values, "stored value", "stored values"))})
+	}
+	if formulasChanged(recordType, previous) && records > 0 {
+		steps = append(steps, migrationStep{Kind: stepRecalculate, Affected: records,
+			Description: fmt.Sprintf("Recalculate the formulas of %s", plural(records, "record", "records"))})
 	}
 	return steps, nil
 }
@@ -365,7 +370,7 @@ func migrateFields(ctx context.Context, conn sqlConn, recordType recordTypeDefin
 			}
 		}
 	}
-	return nil
+	return recalculateAfterSave(ctx, conn, recordType, previous)
 }
 
 // describeSteps joins step descriptions for log lines.

@@ -52,6 +52,12 @@ const (
 	// RecordServiceListRecordActivityProcedure is the procedure name of the RecordService's
 	// ListRecordActivity RPC.
 	RecordServiceListRecordActivityProcedure = "/athena.v1.RecordService/ListRecordActivity"
+	// RecordServicePreviewRecordProcedure is the procedure name of the RecordService's PreviewRecord
+	// RPC.
+	RecordServicePreviewRecordProcedure = "/athena.v1.RecordService/PreviewRecord"
+	// RecordServiceEvaluateExpressionProcedure is the procedure name of the RecordService's
+	// EvaluateExpression RPC.
+	RecordServiceEvaluateExpressionProcedure = "/athena.v1.RecordService/EvaluateExpression"
 )
 
 var (
@@ -139,6 +145,20 @@ var (
 			Procedure:  RecordServiceListRecordActivityProcedure,
 		}
 	})
+	recordServicePreviewRecordSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_athena_v1_records_proto.Services().ByName("RecordService").Methods().ByName("PreviewRecord"),
+			Procedure:  RecordServicePreviewRecordProcedure,
+		}
+	})
+	recordServiceEvaluateExpressionSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_athena_v1_records_proto.Services().ByName("RecordService").Methods().ByName("EvaluateExpression"),
+			Procedure:  RecordServiceEvaluateExpressionProcedure,
+		}
+	})
 )
 
 // RecordServiceClient is a client for the athena.v1.RecordService service.
@@ -168,6 +188,13 @@ type RecordServiceClient interface {
 	ListRecordVersions(context.Context, *v1.ListRecordVersionsRequest) (*v1.ListRecordVersionsResponse, error)
 	// ListRecordActivity returns a document's timeline, newest first.
 	ListRecordActivity(context.Context, *v1.ListRecordActivityRequest) (*v1.ListRecordActivityResponse, error)
+	// PreviewRecord calculates the formulas and field states for values that
+	// are not saved yet, so a form can show them. It writes nothing; the server
+	// calculates again on save.
+	PreviewRecord(context.Context, *v1.PreviewRecordRequest) (*v1.PreviewRecordResponse, error)
+	// EvaluateExpression type-checks an expression against a Record Type and,
+	// when a Record ID is given, evaluates it for that Record.
+	EvaluateExpression(context.Context, *v1.EvaluateExpressionRequest) (*v1.EvaluateExpressionResponse, error)
 }
 
 // NewRecordServiceClient constructs a client for the athena.v1.RecordService service. Multiple
@@ -203,6 +230,13 @@ type RecordServiceHandler interface {
 	ListRecordVersions(context.Context, *v1.ListRecordVersionsRequest) (*v1.ListRecordVersionsResponse, error)
 	// ListRecordActivity returns a document's timeline, newest first.
 	ListRecordActivity(context.Context, *v1.ListRecordActivityRequest) (*v1.ListRecordActivityResponse, error)
+	// PreviewRecord calculates the formulas and field states for values that
+	// are not saved yet, so a form can show them. It writes nothing; the server
+	// calculates again on save.
+	PreviewRecord(context.Context, *v1.PreviewRecordRequest) (*v1.PreviewRecordResponse, error)
+	// EvaluateExpression type-checks an expression against a Record Type and,
+	// when a Record ID is given, evaluates it for that Record.
+	EvaluateExpression(context.Context, *v1.EvaluateExpressionRequest) (*v1.EvaluateExpressionResponse, error)
 }
 
 // RegisterRecordServiceHandler registers svc as the athena.v1.RecordService implementation on
@@ -222,6 +256,8 @@ func RegisterRecordServiceHandler(server *connect.Server, svc RecordServiceHandl
 		connect.Method{Spec: recordServiceAmendRecordSpec(), Handler: adapter.amendRecord},
 		connect.Method{Spec: recordServiceListRecordVersionsSpec(), Handler: adapter.listRecordVersions},
 		connect.Method{Spec: recordServiceListRecordActivitySpec(), Handler: adapter.listRecordActivity},
+		connect.Method{Spec: recordServicePreviewRecordSpec(), Handler: adapter.previewRecord},
+		connect.Method{Spec: recordServiceEvaluateExpressionSpec(), Handler: adapter.evaluateExpression},
 	)
 }
 
@@ -274,6 +310,14 @@ func (UnimplementedRecordServiceHandler) ListRecordVersions(context.Context, *v1
 
 func (UnimplementedRecordServiceHandler) ListRecordActivity(context.Context, *v1.ListRecordActivityRequest) (*v1.ListRecordActivityResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, "athena.v1.RecordService.ListRecordActivity is not implemented")
+}
+
+func (UnimplementedRecordServiceHandler) PreviewRecord(context.Context, *v1.PreviewRecordRequest) (*v1.PreviewRecordResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "athena.v1.RecordService.PreviewRecord is not implemented")
+}
+
+func (UnimplementedRecordServiceHandler) EvaluateExpression(context.Context, *v1.EvaluateExpressionRequest) (*v1.EvaluateExpressionResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "athena.v1.RecordService.EvaluateExpression is not implemented")
 }
 
 type recordServiceClient struct {
@@ -371,6 +415,22 @@ func (c *recordServiceClient) ListRecordVersions(ctx context.Context, req *v1.Li
 func (c *recordServiceClient) ListRecordActivity(ctx context.Context, req *v1.ListRecordActivityRequest) (*v1.ListRecordActivityResponse, error) {
 	var res v1.ListRecordActivityResponse
 	if err := c.client.CallUnary(ctx, recordServiceListRecordActivitySpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *recordServiceClient) PreviewRecord(ctx context.Context, req *v1.PreviewRecordRequest) (*v1.PreviewRecordResponse, error) {
+	var res v1.PreviewRecordResponse
+	if err := c.client.CallUnary(ctx, recordServicePreviewRecordSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *recordServiceClient) EvaluateExpression(ctx context.Context, req *v1.EvaluateExpressionRequest) (*v1.EvaluateExpressionResponse, error) {
+	var res v1.EvaluateExpressionResponse
+	if err := c.client.CallUnary(ctx, recordServiceEvaluateExpressionSpec(), req, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -516,6 +576,30 @@ func (h recordServiceHandler) listRecordActivity(ctx context.Context, _ connect.
 		return err
 	}
 	res, err := h.svc.ListRecordActivity(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h recordServiceHandler) previewRecord(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.PreviewRecordRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.PreviewRecord(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h recordServiceHandler) evaluateExpression(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.EvaluateExpressionRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.EvaluateExpression(ctx, &req)
 	if err != nil {
 		return err
 	}

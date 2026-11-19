@@ -36,6 +36,11 @@ function fieldFromMessage(field: RecordTypeFieldMessage): Field {
     ...(field.currency ? { currency: field.currency } : {}),
     ...(field.uom ? { uom: field.uom } : {}),
     ...(field.scale !== undefined ? { scale: field.scale } : {}),
+    ...(field.formula ? { formula: field.formula } : {}),
+    ...(field.requiredIf ? { required_if: field.requiredIf } : {}),
+    ...(field.readOnlyIf ? { read_only_if: field.readOnlyIf } : {}),
+    ...(field.validate ? { validate: field.validate } : {}),
+    ...(field.dependsOn ? { depends_on: field.dependsOn } : {}),
   }
 }
 
@@ -99,6 +104,11 @@ function toMessage(recordType: RecordType): RecordTypeMessage {
       currency: field.type === 'Money' ? field.currency ?? '' : '',
       uom: field.type === 'Quantity' ? field.uom ?? '' : '',
       ...(field.type === 'Money' || field.type === 'Quantity' ? { scale: field.scale } : {}),
+      formula: field.formula ?? '',
+      requiredIf: field.required_if ?? '',
+      readOnlyIf: field.read_only_if ?? '',
+      validate: field.validate ?? '',
+      dependsOn: field.depends_on ?? '',
     })),
   })
 }
