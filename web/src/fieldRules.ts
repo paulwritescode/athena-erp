@@ -109,8 +109,44 @@ export function validateField(field: Field, text: string): string {
     case 'Enum':
       return field.values?.some((choice) => choice.value === value) ? '' : 'Choose one of the listed values.'
     case 'Link':
-      return uuid.test(value) ? '' : `Enter the ID of a ${field.target_record_type ?? 'linked'} record.`
+      return uuid.test(value) ? '' : `Choose a ${field.target_record_type ?? 'linked'} record.`
     default:
       return ''
   }
+}
+
+// Naming (internal/numbering and internal/server/naming.go). A manual document
+// name has at most 140 characters and cannot look like a Record ID; the
+// server also refuses a name another document already holds.
+export function validateManualName(text: string): string {
+  const value = text.trim()
+  if (!value) return ''
+  if ([...value].length > 140) return 'Use at most 140 characters.'
+  if (uuid.test(value)) return 'A name cannot look like a Record ID.'
+  return ''
+}
+
+/**
+ * Checks a naming series such as SINV-{yyyy}-{#####}: literal text, the
+ * tokens {yyyy}, {yy} and {mm}, and exactly one counter token of 1 to 9 "#".
+ * Returns an error message, or an empty string when the pattern is valid.
+ */
+export function validateNamingSeries(pattern: string): string {
+  const value = pattern.trim()
+  if (!value) return ''
+  if (value.length > 100) return 'Use at most 100 characters.'
+  let counters = 0
+  let rest = value
+  while (rest) {
+    const at = rest.search(/[{}]/)
+    if (at < 0) break
+    if (rest[at] === '}') return 'The pattern has an unmatched "}".'
+    const end = rest.indexOf('}', at)
+    if (end < 0) return 'The pattern has an unmatched "{".'
+    const token = rest.slice(at + 1, end)
+    if (/^#{1,9}$/.test(token)) counters++
+    else if (!['yyyy', 'yy', 'mm'].includes(token)) return `{${token}} is not a series token; use {yyyy}, {yy}, {mm} or {#####}.`
+    rest = rest.slice(end + 1)
+  }
+  return counters === 1 ? '' : 'The pattern needs exactly one counter token such as {#####}.'
 }

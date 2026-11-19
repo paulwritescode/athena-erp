@@ -518,7 +518,10 @@ type CreateRecordRequest struct {
 	RecordTypeKey string                 `protobuf:"bytes,1,opt,name=record_type_key,json=recordTypeKey,proto3" json:"record_type_key,omitempty"`
 	Values        map[string]*FieldValue `protobuf:"bytes,2,rep,name=values,proto3" json:"values,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	// Required for a child Record Type: the Record that owns the new Record.
-	ParentId      string `protobuf:"bytes,3,opt,name=parent_id,json=parentId,proto3" json:"parent_id,omitempty"`
+	ParentId string `protobuf:"bytes,3,opt,name=parent_id,json=parentId,proto3" json:"parent_id,omitempty"`
+	// Submittable documents whose Record Type allows manual names only: the
+	// name to use instead of a series number. It must be unused. Logged.
+	Name          string `protobuf:"bytes,4,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -570,6 +573,13 @@ func (x *CreateRecordRequest) GetValues() map[string]*FieldValue {
 func (x *CreateRecordRequest) GetParentId() string {
 	if x != nil {
 		return x.ParentId
+	}
+	return ""
+}
+
+func (x *CreateRecordRequest) GetName() string {
+	if x != nil {
+		return x.Name
 	}
 	return ""
 }
@@ -879,10 +889,72 @@ func (x *ListRecordHistoryRequest) GetId() string {
 	return ""
 }
 
-// RecordEvent is one change to a Record.
+// FieldChange is one field of an Audit Log row. Rows imported from the history
+// that predates the Audit Log name the field only.
+type FieldChange struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Field         string                 `protobuf:"bytes,1,opt,name=field,proto3" json:"field,omitempty"`
+	OldValue      *string                `protobuf:"bytes,2,opt,name=old_value,json=oldValue,proto3,oneof" json:"old_value,omitempty"`
+	NewValue      *string                `protobuf:"bytes,3,opt,name=new_value,json=newValue,proto3,oneof" json:"new_value,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FieldChange) Reset() {
+	*x = FieldChange{}
+	mi := &file_athena_v1_records_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FieldChange) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FieldChange) ProtoMessage() {}
+
+func (x *FieldChange) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_records_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FieldChange.ProtoReflect.Descriptor instead.
+func (*FieldChange) Descriptor() ([]byte, []int) {
+	return file_athena_v1_records_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *FieldChange) GetField() string {
+	if x != nil {
+		return x.Field
+	}
+	return ""
+}
+
+func (x *FieldChange) GetOldValue() string {
+	if x != nil && x.OldValue != nil {
+		return *x.OldValue
+	}
+	return ""
+}
+
+func (x *FieldChange) GetNewValue() string {
+	if x != nil && x.NewValue != nil {
+		return *x.NewValue
+	}
+	return ""
+}
+
+// RecordEvent is one Audit Log row of a Record.
 type RecordEvent struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// created, updated or deleted.
+	// created, updated, deleted, submitted, cancelled or name_override.
 	Action string `protobuf:"bytes,1,opt,name=action,proto3" json:"action,omitempty"`
 	// The Record revision after the change.
 	Revision int64 `protobuf:"varint,2,opt,name=revision,proto3" json:"revision,omitempty"`
@@ -891,14 +963,24 @@ type RecordEvent struct {
 	// Who made the change. "Local administrator" until sign-in exists.
 	Actor string `protobuf:"bytes,4,opt,name=actor,proto3" json:"actor,omitempty"`
 	// RFC 3339 timestamp.
-	At            string `protobuf:"bytes,5,opt,name=at,proto3" json:"at,omitempty"`
+	At string `protobuf:"bytes,5,opt,name=at,proto3" json:"at,omitempty"`
+	// Field-level changes with old and new values.
+	Changes []*FieldChange `protobuf:"bytes,6,rep,name=changes,proto3" json:"changes,omitempty"`
+	// Correlates this row with the request that wrote it and the Records,
+	// versions and activity of the same request.
+	RequestId string `protobuf:"bytes,7,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
+	// api, cli, rule, import or job.
+	Source string `protobuf:"bytes,8,opt,name=source,proto3" json:"source,omitempty"`
+	// Position in the Audit Log chain, and the row's hash.
+	Seq           int64  `protobuf:"varint,9,opt,name=seq,proto3" json:"seq,omitempty"`
+	Hash          string `protobuf:"bytes,10,opt,name=hash,proto3" json:"hash,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *RecordEvent) Reset() {
 	*x = RecordEvent{}
-	mi := &file_athena_v1_records_proto_msgTypes[13]
+	mi := &file_athena_v1_records_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -910,7 +992,7 @@ func (x *RecordEvent) String() string {
 func (*RecordEvent) ProtoMessage() {}
 
 func (x *RecordEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_records_proto_msgTypes[13]
+	mi := &file_athena_v1_records_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -923,7 +1005,7 @@ func (x *RecordEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RecordEvent.ProtoReflect.Descriptor instead.
 func (*RecordEvent) Descriptor() ([]byte, []int) {
-	return file_athena_v1_records_proto_rawDescGZIP(), []int{13}
+	return file_athena_v1_records_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *RecordEvent) GetAction() string {
@@ -961,6 +1043,41 @@ func (x *RecordEvent) GetAt() string {
 	return ""
 }
 
+func (x *RecordEvent) GetChanges() []*FieldChange {
+	if x != nil {
+		return x.Changes
+	}
+	return nil
+}
+
+func (x *RecordEvent) GetRequestId() string {
+	if x != nil {
+		return x.RequestId
+	}
+	return ""
+}
+
+func (x *RecordEvent) GetSource() string {
+	if x != nil {
+		return x.Source
+	}
+	return ""
+}
+
+func (x *RecordEvent) GetSeq() int64 {
+	if x != nil {
+		return x.Seq
+	}
+	return 0
+}
+
+func (x *RecordEvent) GetHash() string {
+	if x != nil {
+		return x.Hash
+	}
+	return ""
+}
+
 type ListRecordHistoryResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Events        []*RecordEvent         `protobuf:"bytes,1,rep,name=events,proto3" json:"events,omitempty"`
@@ -970,7 +1087,7 @@ type ListRecordHistoryResponse struct {
 
 func (x *ListRecordHistoryResponse) Reset() {
 	*x = ListRecordHistoryResponse{}
-	mi := &file_athena_v1_records_proto_msgTypes[14]
+	mi := &file_athena_v1_records_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -982,7 +1099,7 @@ func (x *ListRecordHistoryResponse) String() string {
 func (*ListRecordHistoryResponse) ProtoMessage() {}
 
 func (x *ListRecordHistoryResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_records_proto_msgTypes[14]
+	mi := &file_athena_v1_records_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -995,7 +1112,7 @@ func (x *ListRecordHistoryResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListRecordHistoryResponse.ProtoReflect.Descriptor instead.
 func (*ListRecordHistoryResponse) Descriptor() ([]byte, []int) {
-	return file_athena_v1_records_proto_rawDescGZIP(), []int{14}
+	return file_athena_v1_records_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *ListRecordHistoryResponse) GetEvents() []*RecordEvent {
@@ -1016,7 +1133,7 @@ type SubmitRecordRequest struct {
 
 func (x *SubmitRecordRequest) Reset() {
 	*x = SubmitRecordRequest{}
-	mi := &file_athena_v1_records_proto_msgTypes[15]
+	mi := &file_athena_v1_records_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1028,7 +1145,7 @@ func (x *SubmitRecordRequest) String() string {
 func (*SubmitRecordRequest) ProtoMessage() {}
 
 func (x *SubmitRecordRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_records_proto_msgTypes[15]
+	mi := &file_athena_v1_records_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1041,7 +1158,7 @@ func (x *SubmitRecordRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SubmitRecordRequest.ProtoReflect.Descriptor instead.
 func (*SubmitRecordRequest) Descriptor() ([]byte, []int) {
-	return file_athena_v1_records_proto_rawDescGZIP(), []int{15}
+	return file_athena_v1_records_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *SubmitRecordRequest) GetRecordTypeKey() string {
@@ -1074,7 +1191,7 @@ type SubmitRecordResponse struct {
 
 func (x *SubmitRecordResponse) Reset() {
 	*x = SubmitRecordResponse{}
-	mi := &file_athena_v1_records_proto_msgTypes[16]
+	mi := &file_athena_v1_records_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1086,7 +1203,7 @@ func (x *SubmitRecordResponse) String() string {
 func (*SubmitRecordResponse) ProtoMessage() {}
 
 func (x *SubmitRecordResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_records_proto_msgTypes[16]
+	mi := &file_athena_v1_records_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1099,7 +1216,7 @@ func (x *SubmitRecordResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SubmitRecordResponse.ProtoReflect.Descriptor instead.
 func (*SubmitRecordResponse) Descriptor() ([]byte, []int) {
-	return file_athena_v1_records_proto_rawDescGZIP(), []int{16}
+	return file_athena_v1_records_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *SubmitRecordResponse) GetRecord() *Record {
@@ -1120,7 +1237,7 @@ type CancelRecordRequest struct {
 
 func (x *CancelRecordRequest) Reset() {
 	*x = CancelRecordRequest{}
-	mi := &file_athena_v1_records_proto_msgTypes[17]
+	mi := &file_athena_v1_records_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1132,7 +1249,7 @@ func (x *CancelRecordRequest) String() string {
 func (*CancelRecordRequest) ProtoMessage() {}
 
 func (x *CancelRecordRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_records_proto_msgTypes[17]
+	mi := &file_athena_v1_records_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1145,7 +1262,7 @@ func (x *CancelRecordRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CancelRecordRequest.ProtoReflect.Descriptor instead.
 func (*CancelRecordRequest) Descriptor() ([]byte, []int) {
-	return file_athena_v1_records_proto_rawDescGZIP(), []int{17}
+	return file_athena_v1_records_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *CancelRecordRequest) GetRecordTypeKey() string {
@@ -1178,7 +1295,7 @@ type CancelRecordResponse struct {
 
 func (x *CancelRecordResponse) Reset() {
 	*x = CancelRecordResponse{}
-	mi := &file_athena_v1_records_proto_msgTypes[18]
+	mi := &file_athena_v1_records_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1190,7 +1307,7 @@ func (x *CancelRecordResponse) String() string {
 func (*CancelRecordResponse) ProtoMessage() {}
 
 func (x *CancelRecordResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_records_proto_msgTypes[18]
+	mi := &file_athena_v1_records_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1203,7 +1320,7 @@ func (x *CancelRecordResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CancelRecordResponse.ProtoReflect.Descriptor instead.
 func (*CancelRecordResponse) Descriptor() ([]byte, []int) {
-	return file_athena_v1_records_proto_rawDescGZIP(), []int{18}
+	return file_athena_v1_records_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *CancelRecordResponse) GetRecord() *Record {
@@ -1224,7 +1341,7 @@ type AmendRecordRequest struct {
 
 func (x *AmendRecordRequest) Reset() {
 	*x = AmendRecordRequest{}
-	mi := &file_athena_v1_records_proto_msgTypes[19]
+	mi := &file_athena_v1_records_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1236,7 +1353,7 @@ func (x *AmendRecordRequest) String() string {
 func (*AmendRecordRequest) ProtoMessage() {}
 
 func (x *AmendRecordRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_records_proto_msgTypes[19]
+	mi := &file_athena_v1_records_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1249,7 +1366,7 @@ func (x *AmendRecordRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AmendRecordRequest.ProtoReflect.Descriptor instead.
 func (*AmendRecordRequest) Descriptor() ([]byte, []int) {
-	return file_athena_v1_records_proto_rawDescGZIP(), []int{19}
+	return file_athena_v1_records_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *AmendRecordRequest) GetRecordTypeKey() string {
@@ -1283,7 +1400,7 @@ type AmendRecordResponse struct {
 
 func (x *AmendRecordResponse) Reset() {
 	*x = AmendRecordResponse{}
-	mi := &file_athena_v1_records_proto_msgTypes[20]
+	mi := &file_athena_v1_records_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1295,7 +1412,7 @@ func (x *AmendRecordResponse) String() string {
 func (*AmendRecordResponse) ProtoMessage() {}
 
 func (x *AmendRecordResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_records_proto_msgTypes[20]
+	mi := &file_athena_v1_records_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1308,7 +1425,7 @@ func (x *AmendRecordResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AmendRecordResponse.ProtoReflect.Descriptor instead.
 func (*AmendRecordResponse) Descriptor() ([]byte, []int) {
-	return file_athena_v1_records_proto_rawDescGZIP(), []int{20}
+	return file_athena_v1_records_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *AmendRecordResponse) GetRecord() *Record {
@@ -1328,7 +1445,7 @@ type ListRecordVersionsRequest struct {
 
 func (x *ListRecordVersionsRequest) Reset() {
 	*x = ListRecordVersionsRequest{}
-	mi := &file_athena_v1_records_proto_msgTypes[21]
+	mi := &file_athena_v1_records_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1340,7 +1457,7 @@ func (x *ListRecordVersionsRequest) String() string {
 func (*ListRecordVersionsRequest) ProtoMessage() {}
 
 func (x *ListRecordVersionsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_records_proto_msgTypes[21]
+	mi := &file_athena_v1_records_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1353,7 +1470,7 @@ func (x *ListRecordVersionsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListRecordVersionsRequest.ProtoReflect.Descriptor instead.
 func (*ListRecordVersionsRequest) Descriptor() ([]byte, []int) {
-	return file_athena_v1_records_proto_rawDescGZIP(), []int{21}
+	return file_athena_v1_records_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *ListRecordVersionsRequest) GetRecordTypeKey() string {
@@ -1392,7 +1509,7 @@ type RecordVersion struct {
 
 func (x *RecordVersion) Reset() {
 	*x = RecordVersion{}
-	mi := &file_athena_v1_records_proto_msgTypes[22]
+	mi := &file_athena_v1_records_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1404,7 +1521,7 @@ func (x *RecordVersion) String() string {
 func (*RecordVersion) ProtoMessage() {}
 
 func (x *RecordVersion) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_records_proto_msgTypes[22]
+	mi := &file_athena_v1_records_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1417,7 +1534,7 @@ func (x *RecordVersion) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RecordVersion.ProtoReflect.Descriptor instead.
 func (*RecordVersion) Descriptor() ([]byte, []int) {
-	return file_athena_v1_records_proto_rawDescGZIP(), []int{22}
+	return file_athena_v1_records_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *RecordVersion) GetVersion() int64 {
@@ -1485,7 +1602,7 @@ type ListRecordVersionsResponse struct {
 
 func (x *ListRecordVersionsResponse) Reset() {
 	*x = ListRecordVersionsResponse{}
-	mi := &file_athena_v1_records_proto_msgTypes[23]
+	mi := &file_athena_v1_records_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1497,7 +1614,7 @@ func (x *ListRecordVersionsResponse) String() string {
 func (*ListRecordVersionsResponse) ProtoMessage() {}
 
 func (x *ListRecordVersionsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_records_proto_msgTypes[23]
+	mi := &file_athena_v1_records_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1510,7 +1627,7 @@ func (x *ListRecordVersionsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListRecordVersionsResponse.ProtoReflect.Descriptor instead.
 func (*ListRecordVersionsResponse) Descriptor() ([]byte, []int) {
-	return file_athena_v1_records_proto_rawDescGZIP(), []int{23}
+	return file_athena_v1_records_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *ListRecordVersionsResponse) GetVersions() []*RecordVersion {
@@ -1530,7 +1647,7 @@ type ListRecordActivityRequest struct {
 
 func (x *ListRecordActivityRequest) Reset() {
 	*x = ListRecordActivityRequest{}
-	mi := &file_athena_v1_records_proto_msgTypes[24]
+	mi := &file_athena_v1_records_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1542,7 +1659,7 @@ func (x *ListRecordActivityRequest) String() string {
 func (*ListRecordActivityRequest) ProtoMessage() {}
 
 func (x *ListRecordActivityRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_records_proto_msgTypes[24]
+	mi := &file_athena_v1_records_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1555,7 +1672,7 @@ func (x *ListRecordActivityRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListRecordActivityRequest.ProtoReflect.Descriptor instead.
 func (*ListRecordActivityRequest) Descriptor() ([]byte, []int) {
-	return file_athena_v1_records_proto_rawDescGZIP(), []int{24}
+	return file_athena_v1_records_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *ListRecordActivityRequest) GetRecordTypeKey() string {
@@ -1592,7 +1709,7 @@ type ActivityEvent struct {
 
 func (x *ActivityEvent) Reset() {
 	*x = ActivityEvent{}
-	mi := &file_athena_v1_records_proto_msgTypes[25]
+	mi := &file_athena_v1_records_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1604,7 +1721,7 @@ func (x *ActivityEvent) String() string {
 func (*ActivityEvent) ProtoMessage() {}
 
 func (x *ActivityEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_records_proto_msgTypes[25]
+	mi := &file_athena_v1_records_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1617,7 +1734,7 @@ func (x *ActivityEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ActivityEvent.ProtoReflect.Descriptor instead.
 func (*ActivityEvent) Descriptor() ([]byte, []int) {
-	return file_athena_v1_records_proto_rawDescGZIP(), []int{25}
+	return file_athena_v1_records_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *ActivityEvent) GetEvent() string {
@@ -1678,7 +1795,7 @@ type ListRecordActivityResponse struct {
 
 func (x *ListRecordActivityResponse) Reset() {
 	*x = ListRecordActivityResponse{}
-	mi := &file_athena_v1_records_proto_msgTypes[26]
+	mi := &file_athena_v1_records_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1690,7 +1807,7 @@ func (x *ListRecordActivityResponse) String() string {
 func (*ListRecordActivityResponse) ProtoMessage() {}
 
 func (x *ListRecordActivityResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_records_proto_msgTypes[26]
+	mi := &file_athena_v1_records_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1703,7 +1820,7 @@ func (x *ListRecordActivityResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListRecordActivityResponse.ProtoReflect.Descriptor instead.
 func (*ListRecordActivityResponse) Descriptor() ([]byte, []int) {
-	return file_athena_v1_records_proto_rawDescGZIP(), []int{26}
+	return file_athena_v1_records_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *ListRecordActivityResponse) GetEvents() []*ActivityEvent {
@@ -1711,6 +1828,205 @@ func (x *ListRecordActivityResponse) GetEvents() []*ActivityEvent {
 		return x.Events
 	}
 	return nil
+}
+
+type LookupRecordsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RecordTypeKey string                 `protobuf:"bytes,1,opt,name=record_type_key,json=recordTypeKey,proto3" json:"record_type_key,omitempty"`
+	// Case-insensitive text the label must contain. Empty lists everything.
+	Query string `protobuf:"bytes,2,opt,name=query,proto3" json:"query,omitempty"`
+	// Defaults to 20; capped at 50.
+	PageSize int32 `protobuf:"varint,3,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	// Opaque cursor from a previous response.
+	PageToken string `protobuf:"bytes,4,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
+	// When set, query and paging are ignored and these Records (at most 50)
+	// are returned whatever their state. A picker uses it to label the value a
+	// Record already holds.
+	Ids           []string `protobuf:"bytes,5,rep,name=ids,proto3" json:"ids,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *LookupRecordsRequest) Reset() {
+	*x = LookupRecordsRequest{}
+	mi := &file_athena_v1_records_proto_msgTypes[28]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *LookupRecordsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*LookupRecordsRequest) ProtoMessage() {}
+
+func (x *LookupRecordsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_records_proto_msgTypes[28]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use LookupRecordsRequest.ProtoReflect.Descriptor instead.
+func (*LookupRecordsRequest) Descriptor() ([]byte, []int) {
+	return file_athena_v1_records_proto_rawDescGZIP(), []int{28}
+}
+
+func (x *LookupRecordsRequest) GetRecordTypeKey() string {
+	if x != nil {
+		return x.RecordTypeKey
+	}
+	return ""
+}
+
+func (x *LookupRecordsRequest) GetQuery() string {
+	if x != nil {
+		return x.Query
+	}
+	return ""
+}
+
+func (x *LookupRecordsRequest) GetPageSize() int32 {
+	if x != nil {
+		return x.PageSize
+	}
+	return 0
+}
+
+func (x *LookupRecordsRequest) GetPageToken() string {
+	if x != nil {
+		return x.PageToken
+	}
+	return ""
+}
+
+func (x *LookupRecordsRequest) GetIds() []string {
+	if x != nil {
+		return x.Ids
+	}
+	return nil
+}
+
+// LookupItem is one Record as a picker shows it. The ID is the stored value;
+// people see the label.
+type LookupItem struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Id    string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Label string                 `protobuf:"bytes,2,opt,name=label,proto3" json:"label,omitempty"`
+	// Empty for a Record that can be chosen. cancelled or deleted for one that
+	// can only be shown (ids lookups).
+	State         string `protobuf:"bytes,3,opt,name=state,proto3" json:"state,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *LookupItem) Reset() {
+	*x = LookupItem{}
+	mi := &file_athena_v1_records_proto_msgTypes[29]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *LookupItem) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*LookupItem) ProtoMessage() {}
+
+func (x *LookupItem) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_records_proto_msgTypes[29]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use LookupItem.ProtoReflect.Descriptor instead.
+func (*LookupItem) Descriptor() ([]byte, []int) {
+	return file_athena_v1_records_proto_rawDescGZIP(), []int{29}
+}
+
+func (x *LookupItem) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *LookupItem) GetLabel() string {
+	if x != nil {
+		return x.Label
+	}
+	return ""
+}
+
+func (x *LookupItem) GetState() string {
+	if x != nil {
+		return x.State
+	}
+	return ""
+}
+
+type LookupRecordsResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Items []*LookupItem          `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
+	// Empty when there are no more items.
+	NextPageToken string `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *LookupRecordsResponse) Reset() {
+	*x = LookupRecordsResponse{}
+	mi := &file_athena_v1_records_proto_msgTypes[30]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *LookupRecordsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*LookupRecordsResponse) ProtoMessage() {}
+
+func (x *LookupRecordsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_records_proto_msgTypes[30]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use LookupRecordsResponse.ProtoReflect.Descriptor instead.
+func (*LookupRecordsResponse) Descriptor() ([]byte, []int) {
+	return file_athena_v1_records_proto_rawDescGZIP(), []int{30}
+}
+
+func (x *LookupRecordsResponse) GetItems() []*LookupItem {
+	if x != nil {
+		return x.Items
+	}
+	return nil
+}
+
+func (x *LookupRecordsResponse) GetNextPageToken() string {
+	if x != nil {
+		return x.NextPageToken
+	}
+	return ""
 }
 
 var File_athena_v1_records_proto protoreflect.FileDescriptor
@@ -1765,11 +2081,12 @@ const file_athena_v1_records_proto_rawDesc = "" +
 	"\x0frecord_type_key\x18\x01 \x01(\tR\rrecordTypeKey\x12\x0e\n" +
 	"\x02id\x18\x02 \x01(\tR\x02id\">\n" +
 	"\x11GetRecordResponse\x12)\n" +
-	"\x06record\x18\x01 \x01(\v2\x11.athena.v1.RecordR\x06record\"\xf0\x01\n" +
+	"\x06record\x18\x01 \x01(\v2\x11.athena.v1.RecordR\x06record\"\x84\x02\n" +
 	"\x13CreateRecordRequest\x12&\n" +
 	"\x0frecord_type_key\x18\x01 \x01(\tR\rrecordTypeKey\x12B\n" +
 	"\x06values\x18\x02 \x03(\v2*.athena.v1.CreateRecordRequest.ValuesEntryR\x06values\x12\x1b\n" +
-	"\tparent_id\x18\x03 \x01(\tR\bparentId\x1aP\n" +
+	"\tparent_id\x18\x03 \x01(\tR\bparentId\x12\x12\n" +
+	"\x04name\x18\x04 \x01(\tR\x04name\x1aP\n" +
 	"\vValuesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12+\n" +
 	"\x05value\x18\x02 \x01(\v2\x15.athena.v1.FieldValueR\x05value:\x028\x01\"A\n" +
@@ -1792,13 +2109,28 @@ const file_athena_v1_records_proto_rawDesc = "" +
 	"\x14DeleteRecordResponse\"R\n" +
 	"\x18ListRecordHistoryRequest\x12&\n" +
 	"\x0frecord_type_key\x18\x01 \x01(\tR\rrecordTypeKey\x12\x0e\n" +
-	"\x02id\x18\x02 \x01(\tR\x02id\"\x8e\x01\n" +
+	"\x02id\x18\x02 \x01(\tR\x02id\"\x83\x01\n" +
+	"\vFieldChange\x12\x14\n" +
+	"\x05field\x18\x01 \x01(\tR\x05field\x12 \n" +
+	"\told_value\x18\x02 \x01(\tH\x00R\boldValue\x88\x01\x01\x12 \n" +
+	"\tnew_value\x18\x03 \x01(\tH\x01R\bnewValue\x88\x01\x01B\f\n" +
+	"\n" +
+	"_old_valueB\f\n" +
+	"\n" +
+	"_new_value\"\x9d\x02\n" +
 	"\vRecordEvent\x12\x16\n" +
 	"\x06action\x18\x01 \x01(\tR\x06action\x12\x1a\n" +
 	"\brevision\x18\x02 \x01(\x03R\brevision\x12%\n" +
 	"\x0echanged_fields\x18\x03 \x03(\tR\rchangedFields\x12\x14\n" +
 	"\x05actor\x18\x04 \x01(\tR\x05actor\x12\x0e\n" +
-	"\x02at\x18\x05 \x01(\tR\x02at\"K\n" +
+	"\x02at\x18\x05 \x01(\tR\x02at\x120\n" +
+	"\achanges\x18\x06 \x03(\v2\x16.athena.v1.FieldChangeR\achanges\x12\x1d\n" +
+	"\n" +
+	"request_id\x18\a \x01(\tR\trequestId\x12\x16\n" +
+	"\x06source\x18\b \x01(\tR\x06source\x12\x10\n" +
+	"\x03seq\x18\t \x01(\x03R\x03seq\x12\x12\n" +
+	"\x04hash\x18\n" +
+	" \x01(\tR\x04hash\"K\n" +
 	"\x19ListRecordHistoryResponse\x12.\n" +
 	"\x06events\x18\x01 \x03(\v2\x16.athena.v1.RecordEventR\x06events\"z\n" +
 	"\x13SubmitRecordRequest\x12&\n" +
@@ -1847,13 +2179,29 @@ const file_athena_v1_records_proto_rawDesc = "" +
 	"related_id\x18\x06 \x01(\tR\trelatedId\x12\x0e\n" +
 	"\x02at\x18\a \x01(\tR\x02at\"N\n" +
 	"\x1aListRecordActivityResponse\x120\n" +
-	"\x06events\x18\x01 \x03(\v2\x18.athena.v1.ActivityEventR\x06events2\xae\a\n" +
+	"\x06events\x18\x01 \x03(\v2\x18.athena.v1.ActivityEventR\x06events\"\xa2\x01\n" +
+	"\x14LookupRecordsRequest\x12&\n" +
+	"\x0frecord_type_key\x18\x01 \x01(\tR\rrecordTypeKey\x12\x14\n" +
+	"\x05query\x18\x02 \x01(\tR\x05query\x12\x1b\n" +
+	"\tpage_size\x18\x03 \x01(\x05R\bpageSize\x12\x1d\n" +
+	"\n" +
+	"page_token\x18\x04 \x01(\tR\tpageToken\x12\x10\n" +
+	"\x03ids\x18\x05 \x03(\tR\x03ids\"H\n" +
+	"\n" +
+	"LookupItem\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
+	"\x05label\x18\x02 \x01(\tR\x05label\x12\x14\n" +
+	"\x05state\x18\x03 \x01(\tR\x05state\"l\n" +
+	"\x15LookupRecordsResponse\x12+\n" +
+	"\x05items\x18\x01 \x03(\v2\x15.athena.v1.LookupItemR\x05items\x12&\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken2\x82\b\n" +
 	"\rRecordService\x12L\n" +
 	"\vListRecords\x12\x1d.athena.v1.ListRecordsRequest\x1a\x1e.athena.v1.ListRecordsResponse\x12F\n" +
 	"\tGetRecord\x12\x1b.athena.v1.GetRecordRequest\x1a\x1c.athena.v1.GetRecordResponse\x12O\n" +
 	"\fCreateRecord\x12\x1e.athena.v1.CreateRecordRequest\x1a\x1f.athena.v1.CreateRecordResponse\x12O\n" +
 	"\fUpdateRecord\x12\x1e.athena.v1.UpdateRecordRequest\x1a\x1f.athena.v1.UpdateRecordResponse\x12O\n" +
-	"\fDeleteRecord\x12\x1e.athena.v1.DeleteRecordRequest\x1a\x1f.athena.v1.DeleteRecordResponse\x12^\n" +
+	"\fDeleteRecord\x12\x1e.athena.v1.DeleteRecordRequest\x1a\x1f.athena.v1.DeleteRecordResponse\x12R\n" +
+	"\rLookupRecords\x12\x1f.athena.v1.LookupRecordsRequest\x1a .athena.v1.LookupRecordsResponse\x12^\n" +
 	"\x11ListRecordHistory\x12#.athena.v1.ListRecordHistoryRequest\x1a$.athena.v1.ListRecordHistoryResponse\x12O\n" +
 	"\fSubmitRecord\x12\x1e.athena.v1.SubmitRecordRequest\x1a\x1f.athena.v1.SubmitRecordResponse\x12O\n" +
 	"\fCancelRecord\x12\x1e.athena.v1.CancelRecordRequest\x1a\x1f.athena.v1.CancelRecordResponse\x12L\n" +
@@ -1873,7 +2221,7 @@ func file_athena_v1_records_proto_rawDescGZIP() []byte {
 	return file_athena_v1_records_proto_rawDescData
 }
 
-var file_athena_v1_records_proto_msgTypes = make([]protoimpl.MessageInfo, 30)
+var file_athena_v1_records_proto_msgTypes = make([]protoimpl.MessageInfo, 34)
 var file_athena_v1_records_proto_goTypes = []any{
 	(*FieldValue)(nil),                 // 0: athena.v1.FieldValue
 	(*Record)(nil),                     // 1: athena.v1.Record
@@ -1888,68 +2236,76 @@ var file_athena_v1_records_proto_goTypes = []any{
 	(*DeleteRecordRequest)(nil),        // 10: athena.v1.DeleteRecordRequest
 	(*DeleteRecordResponse)(nil),       // 11: athena.v1.DeleteRecordResponse
 	(*ListRecordHistoryRequest)(nil),   // 12: athena.v1.ListRecordHistoryRequest
-	(*RecordEvent)(nil),                // 13: athena.v1.RecordEvent
-	(*ListRecordHistoryResponse)(nil),  // 14: athena.v1.ListRecordHistoryResponse
-	(*SubmitRecordRequest)(nil),        // 15: athena.v1.SubmitRecordRequest
-	(*SubmitRecordResponse)(nil),       // 16: athena.v1.SubmitRecordResponse
-	(*CancelRecordRequest)(nil),        // 17: athena.v1.CancelRecordRequest
-	(*CancelRecordResponse)(nil),       // 18: athena.v1.CancelRecordResponse
-	(*AmendRecordRequest)(nil),         // 19: athena.v1.AmendRecordRequest
-	(*AmendRecordResponse)(nil),        // 20: athena.v1.AmendRecordResponse
-	(*ListRecordVersionsRequest)(nil),  // 21: athena.v1.ListRecordVersionsRequest
-	(*RecordVersion)(nil),              // 22: athena.v1.RecordVersion
-	(*ListRecordVersionsResponse)(nil), // 23: athena.v1.ListRecordVersionsResponse
-	(*ListRecordActivityRequest)(nil),  // 24: athena.v1.ListRecordActivityRequest
-	(*ActivityEvent)(nil),              // 25: athena.v1.ActivityEvent
-	(*ListRecordActivityResponse)(nil), // 26: athena.v1.ListRecordActivityResponse
-	nil,                                // 27: athena.v1.Record.ValuesEntry
-	nil,                                // 28: athena.v1.CreateRecordRequest.ValuesEntry
-	nil,                                // 29: athena.v1.UpdateRecordRequest.ValuesEntry
+	(*FieldChange)(nil),                // 13: athena.v1.FieldChange
+	(*RecordEvent)(nil),                // 14: athena.v1.RecordEvent
+	(*ListRecordHistoryResponse)(nil),  // 15: athena.v1.ListRecordHistoryResponse
+	(*SubmitRecordRequest)(nil),        // 16: athena.v1.SubmitRecordRequest
+	(*SubmitRecordResponse)(nil),       // 17: athena.v1.SubmitRecordResponse
+	(*CancelRecordRequest)(nil),        // 18: athena.v1.CancelRecordRequest
+	(*CancelRecordResponse)(nil),       // 19: athena.v1.CancelRecordResponse
+	(*AmendRecordRequest)(nil),         // 20: athena.v1.AmendRecordRequest
+	(*AmendRecordResponse)(nil),        // 21: athena.v1.AmendRecordResponse
+	(*ListRecordVersionsRequest)(nil),  // 22: athena.v1.ListRecordVersionsRequest
+	(*RecordVersion)(nil),              // 23: athena.v1.RecordVersion
+	(*ListRecordVersionsResponse)(nil), // 24: athena.v1.ListRecordVersionsResponse
+	(*ListRecordActivityRequest)(nil),  // 25: athena.v1.ListRecordActivityRequest
+	(*ActivityEvent)(nil),              // 26: athena.v1.ActivityEvent
+	(*ListRecordActivityResponse)(nil), // 27: athena.v1.ListRecordActivityResponse
+	(*LookupRecordsRequest)(nil),       // 28: athena.v1.LookupRecordsRequest
+	(*LookupItem)(nil),                 // 29: athena.v1.LookupItem
+	(*LookupRecordsResponse)(nil),      // 30: athena.v1.LookupRecordsResponse
+	nil,                                // 31: athena.v1.Record.ValuesEntry
+	nil,                                // 32: athena.v1.CreateRecordRequest.ValuesEntry
+	nil,                                // 33: athena.v1.UpdateRecordRequest.ValuesEntry
 }
 var file_athena_v1_records_proto_depIdxs = []int32{
-	27, // 0: athena.v1.Record.values:type_name -> athena.v1.Record.ValuesEntry
+	31, // 0: athena.v1.Record.values:type_name -> athena.v1.Record.ValuesEntry
 	1,  // 1: athena.v1.ListRecordsResponse.records:type_name -> athena.v1.Record
 	1,  // 2: athena.v1.GetRecordResponse.record:type_name -> athena.v1.Record
-	28, // 3: athena.v1.CreateRecordRequest.values:type_name -> athena.v1.CreateRecordRequest.ValuesEntry
+	32, // 3: athena.v1.CreateRecordRequest.values:type_name -> athena.v1.CreateRecordRequest.ValuesEntry
 	1,  // 4: athena.v1.CreateRecordResponse.record:type_name -> athena.v1.Record
-	29, // 5: athena.v1.UpdateRecordRequest.values:type_name -> athena.v1.UpdateRecordRequest.ValuesEntry
+	33, // 5: athena.v1.UpdateRecordRequest.values:type_name -> athena.v1.UpdateRecordRequest.ValuesEntry
 	1,  // 6: athena.v1.UpdateRecordResponse.record:type_name -> athena.v1.Record
-	13, // 7: athena.v1.ListRecordHistoryResponse.events:type_name -> athena.v1.RecordEvent
-	1,  // 8: athena.v1.SubmitRecordResponse.record:type_name -> athena.v1.Record
-	1,  // 9: athena.v1.CancelRecordResponse.record:type_name -> athena.v1.Record
-	1,  // 10: athena.v1.AmendRecordResponse.record:type_name -> athena.v1.Record
-	22, // 11: athena.v1.ListRecordVersionsResponse.versions:type_name -> athena.v1.RecordVersion
-	25, // 12: athena.v1.ListRecordActivityResponse.events:type_name -> athena.v1.ActivityEvent
-	0,  // 13: athena.v1.Record.ValuesEntry.value:type_name -> athena.v1.FieldValue
-	0,  // 14: athena.v1.CreateRecordRequest.ValuesEntry.value:type_name -> athena.v1.FieldValue
-	0,  // 15: athena.v1.UpdateRecordRequest.ValuesEntry.value:type_name -> athena.v1.FieldValue
-	2,  // 16: athena.v1.RecordService.ListRecords:input_type -> athena.v1.ListRecordsRequest
-	4,  // 17: athena.v1.RecordService.GetRecord:input_type -> athena.v1.GetRecordRequest
-	6,  // 18: athena.v1.RecordService.CreateRecord:input_type -> athena.v1.CreateRecordRequest
-	8,  // 19: athena.v1.RecordService.UpdateRecord:input_type -> athena.v1.UpdateRecordRequest
-	10, // 20: athena.v1.RecordService.DeleteRecord:input_type -> athena.v1.DeleteRecordRequest
-	12, // 21: athena.v1.RecordService.ListRecordHistory:input_type -> athena.v1.ListRecordHistoryRequest
-	15, // 22: athena.v1.RecordService.SubmitRecord:input_type -> athena.v1.SubmitRecordRequest
-	17, // 23: athena.v1.RecordService.CancelRecord:input_type -> athena.v1.CancelRecordRequest
-	19, // 24: athena.v1.RecordService.AmendRecord:input_type -> athena.v1.AmendRecordRequest
-	21, // 25: athena.v1.RecordService.ListRecordVersions:input_type -> athena.v1.ListRecordVersionsRequest
-	24, // 26: athena.v1.RecordService.ListRecordActivity:input_type -> athena.v1.ListRecordActivityRequest
-	3,  // 27: athena.v1.RecordService.ListRecords:output_type -> athena.v1.ListRecordsResponse
-	5,  // 28: athena.v1.RecordService.GetRecord:output_type -> athena.v1.GetRecordResponse
-	7,  // 29: athena.v1.RecordService.CreateRecord:output_type -> athena.v1.CreateRecordResponse
-	9,  // 30: athena.v1.RecordService.UpdateRecord:output_type -> athena.v1.UpdateRecordResponse
-	11, // 31: athena.v1.RecordService.DeleteRecord:output_type -> athena.v1.DeleteRecordResponse
-	14, // 32: athena.v1.RecordService.ListRecordHistory:output_type -> athena.v1.ListRecordHistoryResponse
-	16, // 33: athena.v1.RecordService.SubmitRecord:output_type -> athena.v1.SubmitRecordResponse
-	18, // 34: athena.v1.RecordService.CancelRecord:output_type -> athena.v1.CancelRecordResponse
-	20, // 35: athena.v1.RecordService.AmendRecord:output_type -> athena.v1.AmendRecordResponse
-	23, // 36: athena.v1.RecordService.ListRecordVersions:output_type -> athena.v1.ListRecordVersionsResponse
-	26, // 37: athena.v1.RecordService.ListRecordActivity:output_type -> athena.v1.ListRecordActivityResponse
-	27, // [27:38] is the sub-list for method output_type
-	16, // [16:27] is the sub-list for method input_type
-	16, // [16:16] is the sub-list for extension type_name
-	16, // [16:16] is the sub-list for extension extendee
-	0,  // [0:16] is the sub-list for field type_name
+	13, // 7: athena.v1.RecordEvent.changes:type_name -> athena.v1.FieldChange
+	14, // 8: athena.v1.ListRecordHistoryResponse.events:type_name -> athena.v1.RecordEvent
+	1,  // 9: athena.v1.SubmitRecordResponse.record:type_name -> athena.v1.Record
+	1,  // 10: athena.v1.CancelRecordResponse.record:type_name -> athena.v1.Record
+	1,  // 11: athena.v1.AmendRecordResponse.record:type_name -> athena.v1.Record
+	23, // 12: athena.v1.ListRecordVersionsResponse.versions:type_name -> athena.v1.RecordVersion
+	26, // 13: athena.v1.ListRecordActivityResponse.events:type_name -> athena.v1.ActivityEvent
+	29, // 14: athena.v1.LookupRecordsResponse.items:type_name -> athena.v1.LookupItem
+	0,  // 15: athena.v1.Record.ValuesEntry.value:type_name -> athena.v1.FieldValue
+	0,  // 16: athena.v1.CreateRecordRequest.ValuesEntry.value:type_name -> athena.v1.FieldValue
+	0,  // 17: athena.v1.UpdateRecordRequest.ValuesEntry.value:type_name -> athena.v1.FieldValue
+	2,  // 18: athena.v1.RecordService.ListRecords:input_type -> athena.v1.ListRecordsRequest
+	4,  // 19: athena.v1.RecordService.GetRecord:input_type -> athena.v1.GetRecordRequest
+	6,  // 20: athena.v1.RecordService.CreateRecord:input_type -> athena.v1.CreateRecordRequest
+	8,  // 21: athena.v1.RecordService.UpdateRecord:input_type -> athena.v1.UpdateRecordRequest
+	10, // 22: athena.v1.RecordService.DeleteRecord:input_type -> athena.v1.DeleteRecordRequest
+	28, // 23: athena.v1.RecordService.LookupRecords:input_type -> athena.v1.LookupRecordsRequest
+	12, // 24: athena.v1.RecordService.ListRecordHistory:input_type -> athena.v1.ListRecordHistoryRequest
+	16, // 25: athena.v1.RecordService.SubmitRecord:input_type -> athena.v1.SubmitRecordRequest
+	18, // 26: athena.v1.RecordService.CancelRecord:input_type -> athena.v1.CancelRecordRequest
+	20, // 27: athena.v1.RecordService.AmendRecord:input_type -> athena.v1.AmendRecordRequest
+	22, // 28: athena.v1.RecordService.ListRecordVersions:input_type -> athena.v1.ListRecordVersionsRequest
+	25, // 29: athena.v1.RecordService.ListRecordActivity:input_type -> athena.v1.ListRecordActivityRequest
+	3,  // 30: athena.v1.RecordService.ListRecords:output_type -> athena.v1.ListRecordsResponse
+	5,  // 31: athena.v1.RecordService.GetRecord:output_type -> athena.v1.GetRecordResponse
+	7,  // 32: athena.v1.RecordService.CreateRecord:output_type -> athena.v1.CreateRecordResponse
+	9,  // 33: athena.v1.RecordService.UpdateRecord:output_type -> athena.v1.UpdateRecordResponse
+	11, // 34: athena.v1.RecordService.DeleteRecord:output_type -> athena.v1.DeleteRecordResponse
+	30, // 35: athena.v1.RecordService.LookupRecords:output_type -> athena.v1.LookupRecordsResponse
+	15, // 36: athena.v1.RecordService.ListRecordHistory:output_type -> athena.v1.ListRecordHistoryResponse
+	17, // 37: athena.v1.RecordService.SubmitRecord:output_type -> athena.v1.SubmitRecordResponse
+	19, // 38: athena.v1.RecordService.CancelRecord:output_type -> athena.v1.CancelRecordResponse
+	21, // 39: athena.v1.RecordService.AmendRecord:output_type -> athena.v1.AmendRecordResponse
+	24, // 40: athena.v1.RecordService.ListRecordVersions:output_type -> athena.v1.ListRecordVersionsResponse
+	27, // 41: athena.v1.RecordService.ListRecordActivity:output_type -> athena.v1.ListRecordActivityResponse
+	30, // [30:42] is the sub-list for method output_type
+	18, // [18:30] is the sub-list for method input_type
+	18, // [18:18] is the sub-list for extension type_name
+	18, // [18:18] is the sub-list for extension extendee
+	0,  // [0:18] is the sub-list for field type_name
 }
 
 func init() { file_athena_v1_records_proto_init() }
@@ -1962,13 +2318,14 @@ func file_athena_v1_records_proto_init() {
 		(*FieldValue_BoolValue)(nil),
 		(*FieldValue_NullValue)(nil),
 	}
+	file_athena_v1_records_proto_msgTypes[13].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_athena_v1_records_proto_rawDesc), len(file_athena_v1_records_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   30,
+			NumMessages:   34,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

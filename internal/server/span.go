@@ -13,12 +13,12 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-// startKernelSpan opens a span for one kernel write and returns a new request
-// ID for it. The span carries only the operation, the Record Type key, the
+// startKernelSpan opens a span for one kernel write and returns the request
+// ID of the call (a new one when the call has none yet). The span carries only the operation, the Record Type key, the
 // request ID and the outcome code, never a Record value. With no OTLP
 // endpoint the global tracer is a no-op.
 func startKernelSpan(ctx context.Context, operation, recordTypeKey string) (context.Context, string, func(err error)) {
-	requestID := newRequestID()
+	ctx, requestID := withRequest(ctx)
 	ctx, span := otel.Tracer("athena/kernel").Start(ctx, "athena."+operation, trace.WithAttributes(
 		attribute.String("athena.operation", operation),
 		attribute.String("athena.record_type", recordTypeKey),

@@ -11,6 +11,7 @@ import (
 
 	athenav1 "athena-erp/gen/athena/v1"
 	"athena-erp/gen/athena/v1/athenav1connect"
+	"athena-erp/internal/audit"
 	"athena-erp/internal/store"
 	"athena-erp/internal/telemetry"
 	"athena-erp/internal/webui"
@@ -102,7 +103,7 @@ func Serve(ctx context.Context, config Config) error {
 
 	mux := http.NewServeMux()
 
-	var interceptors []connect.ServerInterceptor
+	interceptors := []connect.ServerInterceptor{requestInterceptor()}
 	if tel.Enabled() {
 		// Trust the browser's traceparent so a desk click and its server work
 		// share one trace. Safe while the server is loopback-only and
@@ -114,7 +115,7 @@ func Serve(ctx context.Context, config Config) error {
 		interceptors = append(interceptors, interceptor)
 	}
 	rpcServer := connect.NewServer(interceptors...)
-	athenav1connect.RegisterSystemServiceHandler(rpcServer, systemService{config: config, telemetry: tel.Enabled()})
+	athenav1connect.RegisterSystemServiceHandler(rpcServer, systemService{config: config, telemetry: tel.Enabled(), db: db})
 	athenav1connect.RegisterRecordTypeServiceHandler(rpcServer, recordTypeService{db: db})
 	athenav1connect.RegisterRecordServiceHandler(rpcServer, recordService{db: db})
 	connecthttp.Mount(mux, rpcServer)
@@ -172,6 +173,30 @@ func utcConfig(base *mysql.Config) *mysql.Config {
 type systemService struct {
 	config    Config
 	telemetry bool
+	db        *sql.DB
+}
+
+func (s systemService) VerifyAuditLog(ctx context.Context, req *athenav1.VerifyAuditLogRequest) (*athenav1.VerifyAuditLogResponse, error) {
+	if s.db == nil {
+		return nil, connect.NewError(connect.CodeUnavailable, "the database is not configured")
+	}
+	var anchor *audit.Anchor
+	if req.GetAnchor() != "" {
+		var err error
+		if anchor, err = audit.ParseAnchor(req.GetAnchor()); err != nil {
+			return nil, invalid(err.Error())
+		}
+	}
+	ctx, _, end := startKernelSpan(ctx, "verify_audit_log", "")
+	result, err := audit.Verify(ctx, s.db, anchor)
+	if err != nil {
+		err = internalError("verify audit log", err)
+	}
+	end(err)
+	if err != nil {
+		return nil, err
+	}
+	return &athenav1.VerifyAuditLogResponse{Ok: result.OK, RowsChecked: result.Rows, HeadSeq: result.HeadSeq, HeadHash: result.HeadHash, BrokenSeq: result.BrokenSeq, Reason: result.Reason}, nil
 }
 
 func (s systemService) GetSystemInfo(context.Context, *athenav1.GetSystemInfoRequest) (*athenav1.GetSystemInfoResponse, error) {

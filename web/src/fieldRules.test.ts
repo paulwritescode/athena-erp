@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import cases from '../../internal/server/testdata/field_rules.json'
-import { compareDecimal, docstates, fieldEditable, validateField } from './fieldRules'
+import { compareDecimal, docstates, fieldEditable, validateField, validateManualName, validateNamingSeries } from './fieldRules'
 import type { Field } from './types'
 
 // The server tests read the same table (internal/server/fieldrules_test.go),
@@ -66,5 +66,21 @@ describe('fieldEditable', () => {
   })
   it('keeps a cancelled document fixed', () => {
     expect(fieldEditable(late, true, docstates.cancelled)).toBe(false)
+  })
+})
+
+// These lists match internal/numbering/numbering_test.go and internal/server/naming.go.
+describe('naming rules', () => {
+  it('accepts series patterns with one counter', () => {
+    for (const pattern of ['SINV-{yyyy}-{mm}-{#####}', 'INV{yy}/{###}', '{#}', '']) expect(validateNamingSeries(pattern)).toBe('')
+  })
+  it('rejects series patterns the server refuses', () => {
+    for (const pattern of ['NOCOUNTER', 'A-{#}-{##}', 'A-{foo}-{#}', 'A-{#', 'A}-{#}', 'A-{##########}', 'A-{}', 'A'.repeat(101) + '{#}']) expect(validateNamingSeries(pattern)).not.toBe('')
+  })
+  it('checks manual names', () => {
+    expect(validateManualName('LEGACY-0001')).toBe('')
+    expect(validateManualName('')).toBe('')
+    expect(validateManualName('0190a1b2-c3d4-7e5f-8a6b-7c8d9e0f1a2b')).not.toBe('')
+    expect(validateManualName('x'.repeat(141))).not.toBe('')
   })
 })

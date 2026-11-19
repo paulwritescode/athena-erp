@@ -27,6 +27,9 @@ const (
 	// SystemServiceGetSystemInfoProcedure is the procedure name of the SystemService's GetSystemInfo
 	// RPC.
 	SystemServiceGetSystemInfoProcedure = "/athena.v1.SystemService/GetSystemInfo"
+	// SystemServiceVerifyAuditLogProcedure is the procedure name of the SystemService's VerifyAuditLog
+	// RPC.
+	SystemServiceVerifyAuditLogProcedure = "/athena.v1.SystemService/VerifyAuditLog"
 )
 
 var (
@@ -37,11 +40,21 @@ var (
 			Procedure:  SystemServiceGetSystemInfoProcedure,
 		}
 	})
+	systemServiceVerifyAuditLogSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_athena_v1_system_proto.Services().ByName("SystemService").Methods().ByName("VerifyAuditLog"),
+			Procedure:  SystemServiceVerifyAuditLogProcedure,
+		}
+	})
 )
 
 // SystemServiceClient is a client for the athena.v1.SystemService service.
 type SystemServiceClient interface {
 	GetSystemInfo(context.Context, *v1.GetSystemInfoRequest) (*v1.GetSystemInfoResponse, error)
+	// VerifyAuditLog walks the Audit Log hash chain from the first row to the
+	// last and reports the first break.
+	VerifyAuditLog(context.Context, *v1.VerifyAuditLogRequest) (*v1.VerifyAuditLogResponse, error)
 }
 
 // NewSystemServiceClient constructs a client for the athena.v1.SystemService service. Multiple
@@ -53,6 +66,9 @@ func NewSystemServiceClient(client *connect.Client) SystemServiceClient {
 // SystemServiceHandler is an implementation of the athena.v1.SystemService service.
 type SystemServiceHandler interface {
 	GetSystemInfo(context.Context, *v1.GetSystemInfoRequest) (*v1.GetSystemInfoResponse, error)
+	// VerifyAuditLog walks the Audit Log hash chain from the first row to the
+	// last and reports the first break.
+	VerifyAuditLog(context.Context, *v1.VerifyAuditLogRequest) (*v1.VerifyAuditLogResponse, error)
 }
 
 // RegisterSystemServiceHandler registers svc as the athena.v1.SystemService implementation on
@@ -61,6 +77,7 @@ func RegisterSystemServiceHandler(server *connect.Server, svc SystemServiceHandl
 	adapter := systemServiceHandler{svc: svc}
 	server.Register(
 		connect.Method{Spec: systemServiceGetSystemInfoSpec(), Handler: adapter.getSystemInfo},
+		connect.Method{Spec: systemServiceVerifyAuditLogSpec(), Handler: adapter.verifyAuditLog},
 	)
 }
 
@@ -69,6 +86,10 @@ type UnimplementedSystemServiceHandler struct{}
 
 func (UnimplementedSystemServiceHandler) GetSystemInfo(context.Context, *v1.GetSystemInfoRequest) (*v1.GetSystemInfoResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, "athena.v1.SystemService.GetSystemInfo is not implemented")
+}
+
+func (UnimplementedSystemServiceHandler) VerifyAuditLog(context.Context, *v1.VerifyAuditLogRequest) (*v1.VerifyAuditLogResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "athena.v1.SystemService.VerifyAuditLog is not implemented")
 }
 
 type systemServiceClient struct {
@@ -83,6 +104,14 @@ func (c *systemServiceClient) GetSystemInfo(ctx context.Context, req *v1.GetSyst
 	return &res, nil
 }
 
+func (c *systemServiceClient) VerifyAuditLog(ctx context.Context, req *v1.VerifyAuditLogRequest) (*v1.VerifyAuditLogResponse, error) {
+	var res v1.VerifyAuditLogResponse
+	if err := c.client.CallUnary(ctx, systemServiceVerifyAuditLogSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
 type systemServiceHandler struct{ svc SystemServiceHandler }
 
 func (h systemServiceHandler) getSystemInfo(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
@@ -91,6 +120,18 @@ func (h systemServiceHandler) getSystemInfo(ctx context.Context, _ connect.Spec,
 		return err
 	}
 	res, err := h.svc.GetSystemInfo(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h systemServiceHandler) verifyAuditLog(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.VerifyAuditLogRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.VerifyAuditLog(ctx, &req)
 	if err != nil {
 		return err
 	}

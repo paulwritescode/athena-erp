@@ -51,6 +51,8 @@ func run(args []string) error {
 		return serveCommand(args[1:])
 	case "migrate":
 		return migrateCommand(args[1:], os.Stdout)
+	case "audit":
+		return auditCommand(args[1:], os.Stdout)
 	case "record-types":
 		return recordTypesCommand(args[1:], os.Stdout)
 	case "records":
@@ -92,12 +94,17 @@ Usage:
       kind, class, parent and field attributes. "save --file" takes a JSON
       RecordType; --dry-run prints the plan, --confirm-data-loss allows
       steps that delete stored values. "delete <key> --yes" drops the table.
-  athena records list|create|delete|submit|cancel|amend|versions|activity <record-type> [--workspace slug] [--json]
-      List, create and delete Records. create takes --values '{"field":"text"}'
-      and, for child Record Types, --parent id; delete takes <id> --revision N.
+  athena records list|lookup|create|delete|submit|cancel|amend|versions|activity|history <record-type> [--workspace slug] [--json]
+      List, create and delete Records. create takes --values '{"field":"text"}',
+      for child Record Types --parent id, and --name for a manual document name;
+      delete takes <id> --revision N. lookup finds Records by display label.
       submit, cancel and amend run the document lifecycle (<id> --revision N);
-      versions and activity print a document's snapshots and timeline.
-      Both commands apply pending migrations first, as the server does.
+      versions, activity and history print a document's snapshots, timeline and
+      Audit Log rows.
+  athena audit verify [--anchor seq:hash] [--workspace slug] [--json]
+      Check the Audit Log hash chain from the first row to the last. Prints the
+      chain head to keep as an anchor. Exits with an error when it is broken.
+      These commands apply pending migrations first, as the server does.
   athena version
 `, version, defaultAddr, defaultAddr)
 }

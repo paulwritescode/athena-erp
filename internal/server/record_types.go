@@ -29,9 +29,16 @@ type recordTypeDefinition struct {
 	Class            string `json:"class,omitempty"`
 	ParentRecordType string `json:"parent_record_type,omitempty"`
 	// Submittable and Amendable switch on the document lifecycle (spec 2.2, 5).
-	Submittable bool              `json:"submittable,omitempty"`
-	Amendable   bool              `json:"amendable,omitempty"`
-	Fields      []recordTypeField `json:"fields"`
+	Submittable bool `json:"submittable,omitempty"`
+	Amendable   bool `json:"amendable,omitempty"`
+	// NamingSeries, GapFree and AllowManualName configure document names
+	// (spec 10.4, 24.3; ADR-0012). LabelField names the field that labels a
+	// Record in pickers.
+	NamingSeries    string            `json:"naming_series,omitempty"`
+	GapFree         bool              `json:"gap_free,omitempty"`
+	AllowManualName bool              `json:"allow_manual_name,omitempty"`
+	LabelField      string            `json:"label_field,omitempty"`
+	Fields          []recordTypeField `json:"fields"`
 	// Revision is the active revision. It is read from the revision column,
 	// never stored in the definition.
 	Revision int64 `json:"-"`
@@ -636,7 +643,8 @@ func recordTypeForeignKeyName(recordTypeName, fieldName string) string {
 
 func recordTypeFromProto(recordType *athenav1.RecordType) recordTypeDefinition {
 	definition := recordTypeDefinition{Name: recordType.GetKey(), Label: strings.TrimSpace(recordType.GetLabel()), Description: strings.TrimSpace(recordType.GetDescription()),
-		Kind: normalizeKind(recordType.GetKind()), Class: recordType.GetClass(), ParentRecordType: recordType.GetParentRecordTypeKey(), Submittable: recordType.GetSubmittable(), Amendable: recordType.GetAmendable()}
+		Kind: normalizeKind(recordType.GetKind()), Class: recordType.GetClass(), ParentRecordType: recordType.GetParentRecordTypeKey(), Submittable: recordType.GetSubmittable(), Amendable: recordType.GetAmendable(),
+		NamingSeries: strings.TrimSpace(recordType.GetNamingSeries()), GapFree: recordType.GetGapFree(), AllowManualName: recordType.GetAllowManualName(), LabelField: recordType.GetLabelField()}
 	for _, field := range recordType.GetFields() {
 		out := recordTypeField{Name: field.GetKey(), Label: strings.TrimSpace(field.GetLabel()), Type: field.GetType(), Required: field.GetRequired(), TargetRecordType: field.GetTargetRecordTypeKey(),
 			Unique: field.GetUnique(), Default: field.GetDefaultValue(), Min: strings.TrimSpace(field.GetMin()), Max: strings.TrimSpace(field.GetMax()), Pattern: field.GetPattern(), MaxLength: int(field.GetMaxLength()),
@@ -654,7 +662,8 @@ func recordTypeFromProto(recordType *athenav1.RecordType) recordTypeDefinition {
 }
 func recordTypeToProto(recordType recordTypeDefinition, revision int64) *athenav1.RecordType {
 	result := &athenav1.RecordType{Key: recordType.Name, Label: recordType.Label, Description: recordType.Description, Revision: revision,
-		Kind: recordType.kind(), Class: recordType.Class, ParentRecordTypeKey: recordType.ParentRecordType, Submittable: recordType.Submittable, Amendable: recordType.Amendable}
+		Kind: recordType.kind(), Class: recordType.Class, ParentRecordTypeKey: recordType.ParentRecordType, Submittable: recordType.Submittable, Amendable: recordType.Amendable,
+		NamingSeries: recordType.NamingSeries, GapFree: recordType.GapFree, AllowManualName: recordType.AllowManualName, LabelField: recordType.LabelField}
 	for _, field := range recordType.Fields {
 		out := &athenav1.RecordTypeField{Key: field.Name, Label: field.Label, Type: field.Type, Required: field.Required, TargetRecordTypeKey: field.TargetRecordType,
 			Unique: field.Unique, DefaultValue: field.Default, Min: field.Min, Max: field.Max, Pattern: field.Pattern, MaxLength: int32(field.MaxLength),

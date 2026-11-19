@@ -18,6 +18,7 @@ This directory describes the product and the system as it exists and as decision
 - [ADR-0009: Storage shapes](decisions/adr-0009-storage-shapes.md) — proposed: integer minor-unit money, UUIDv7 ids, table naming and the 63-byte identifier rule.
 - [ADR-0010: Record kinds and system fields](decisions/adr-0010-record-kinds-and-system-fields.md) — proposed: kinds, system columns, soft delete, field attributes and the money, quantity and enum types.
 - [ADR-0011: Document lifecycle](decisions/adr-0011-document-lifecycle.md) — proposed: draft, submitted, cancelled, amend, events, versions and the activity timeline.
+- [ADR-0012: Numbering and the audit chain](decisions/adr-0012-numbering-and-audit-chain.md) — proposed: naming series, gap-free counters, hash-chained Audit Log, request correlation and label lookups.
 - [ADR template](decisions/adr-template.md) — format for recording a consequential architecture decision.
 - [Project README](../README.md) — setup, run, build, and repository layout.
 

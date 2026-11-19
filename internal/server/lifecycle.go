@@ -12,6 +12,7 @@ import (
 	"time"
 
 	athenav1 "athena-erp/gen/athena/v1"
+	"athena-erp/internal/audit"
 	"athena-erp/internal/lifecycle"
 	"athena-erp/internal/store"
 
@@ -82,6 +83,9 @@ func validateLifecycle(ctx context.Context, conn sqlConn, d recordTypeDefinition
 	}
 	if d.Amendable && !d.Submittable {
 		return invalid("a document must be submittable to be amendable")
+	}
+	if err := validateNaming(d); err != nil {
+		return err
 	}
 	for _, field := range d.Fields {
 		if d.Submittable && field.Name == "name" {
@@ -235,9 +239,19 @@ func (s recordService) transition(ctx context.Context, requestID string, action 
 	if _, err := tx.ExecContext(ctx, statement, int32(to), localActor, recordType.Revision, requestID, id, expected); err != nil {
 		return nil, writeError(string(action)+" record", err)
 	}
+	changes := []audit.Change{{Field: "docstate", Old: ptr(fmt.Sprint(int32(from))), New: ptr(fmt.Sprint(int32(to)))}}
+	if action == lifecycle.Submit {
+		name, err := s.assignSeriesName(ctx, tx, recordType, current)
+		if err != nil {
+			return nil, err
+		}
+		if name != "" {
+			changes = append(changes, audit.Change{Field: "name", Old: ptr(current.GetName()), New: &name})
+		}
+	}
 	pastEvent := map[lifecycle.Action]string{lifecycle.Submit: "submitted", lifecycle.Cancel: "cancelled"}[action]
-	if err := writeHistory(ctx, tx, key, id, expected+1, pastEvent, []string{"docstate"}); err != nil {
-		return nil, internalError("record type history", err)
+	if err := writeAudit(ctx, tx, key, id, expected+1, pastEvent, changes); err != nil {
+		return nil, err
 	}
 	updated, err := loadRecord(ctx, tx, recordType, id, "")
 	if err != nil {
@@ -311,8 +325,8 @@ func (s recordService) AmendRecord(ctx context.Context, req *athenav1.AmendRecor
 	if err := insertRow(ctx, tx, recordType, id.String(), system, columns, args); err != nil {
 		return nil, err
 	}
-	if err := writeHistory(ctx, tx, recordType.Name, id.String(), 1, "created", changedKeys(columns, args)); err != nil {
-		return nil, internalError("record type history", err)
+	if err := auditCreated(ctx, tx, recordType, id.String(), changedKeys(columns, args)); err != nil {
+		return nil, err
 	}
 	if err := copyChildRecords(ctx, tx, recordType, original, id.String(), requestID); err != nil {
 		return nil, err
@@ -407,8 +421,8 @@ func copyChildRecords(ctx context.Context, tx *sql.Tx, parent recordTypeDefiniti
 			if err := insertRow(ctx, tx, child, id.String(), system, columns, args); err != nil {
 				return err
 			}
-			if err := writeHistory(ctx, tx, child.Name, id.String(), 1, "created", changedKeys(columns, args)); err != nil {
-				return internalError("record type history", err)
+			if err := auditCreated(ctx, tx, child, id.String(), changedKeys(columns, args)); err != nil {
+				return err
 			}
 		}
 	}

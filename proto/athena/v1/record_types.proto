@@ -94,6 +94,19 @@ message RecordType {
   bool submittable = 9;
   // Requires submittable. A cancelled document can be amended into a new draft.
   bool amendable = 10;
+  // Submittable documents only: a naming series such as SINV-{yyyy}-{#####}
+  // (spec 10.4, 24.3). The kernel assigns the next name when the document is
+  // submitted; drafts keep a placeholder. Empty keeps the Record ID as name.
+  string naming_series = 11;
+  // Requires naming_series. True numbers inside the submit transaction under
+  // a counter row lock, so a rolled-back submit leaves no gap. False takes the
+  // number outside it, so numbers can skip but writers never wait.
+  bool gap_free = 12;
+  // Requires submittable. Lets a create request supply its own name.
+  bool allow_manual_name = 13;
+  // Key of the field whose value labels a Record in pickers. Empty uses the
+  // document name, then the first required text field.
+  string label_field = 14;
 }
 
 message ListRecordTypesRequest {}

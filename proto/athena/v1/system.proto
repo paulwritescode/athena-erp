@@ -6,6 +6,24 @@ option go_package = "athena-erp/gen/athena/v1;athenav1";
 
 service SystemService {
   rpc GetSystemInfo(GetSystemInfoRequest) returns (GetSystemInfoResponse);
+  // VerifyAuditLog walks the Audit Log hash chain from the first row to the
+  // last and reports the first break.
+  rpc VerifyAuditLog(VerifyAuditLogRequest) returns (VerifyAuditLogResponse);
+}
+message VerifyAuditLogRequest {
+  // Optional anchor exported earlier as "seq:hash". Verification also checks
+  // that the chain still holds it.
+  string anchor = 1;
+}
+message VerifyAuditLogResponse {
+  bool ok = 1;
+  int64 rows_checked = 2;
+  // The chain head. Export "head_seq:head_hash" as the next anchor.
+  int64 head_seq = 3;
+  string head_hash = 4;
+  // First row that fails, or 0 when the break is at the end or an anchor.
+  int64 broken_seq = 5;
+  string reason = 6;
 }
 
 message GetSystemInfoRequest {}

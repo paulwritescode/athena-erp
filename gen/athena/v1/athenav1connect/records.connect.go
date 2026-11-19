@@ -34,6 +34,9 @@ const (
 	RecordServiceUpdateRecordProcedure = "/athena.v1.RecordService/UpdateRecord"
 	// RecordServiceDeleteRecordProcedure is the procedure name of the RecordService's DeleteRecord RPC.
 	RecordServiceDeleteRecordProcedure = "/athena.v1.RecordService/DeleteRecord"
+	// RecordServiceLookupRecordsProcedure is the procedure name of the RecordService's LookupRecords
+	// RPC.
+	RecordServiceLookupRecordsProcedure = "/athena.v1.RecordService/LookupRecords"
 	// RecordServiceListRecordHistoryProcedure is the procedure name of the RecordService's
 	// ListRecordHistory RPC.
 	RecordServiceListRecordHistoryProcedure = "/athena.v1.RecordService/ListRecordHistory"
@@ -85,6 +88,13 @@ var (
 			StreamType: connect.StreamTypeUnary,
 			Schema:     v1.File_athena_v1_records_proto.Services().ByName("RecordService").Methods().ByName("DeleteRecord"),
 			Procedure:  RecordServiceDeleteRecordProcedure,
+		}
+	})
+	recordServiceLookupRecordsSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_athena_v1_records_proto.Services().ByName("RecordService").Methods().ByName("LookupRecords"),
+			Procedure:  RecordServiceLookupRecordsProcedure,
 		}
 	})
 	recordServiceListRecordHistorySpec = sync.OnceValue(func() connect.Spec {
@@ -140,7 +150,12 @@ type RecordServiceClient interface {
 	// DeleteRecord soft-deletes a Master Record (it keeps its row and is no
 	// longer listed or readable) and removes Records of other kinds.
 	DeleteRecord(context.Context, *v1.DeleteRecordRequest) (*v1.DeleteRecordResponse, error)
-	// ListRecordHistory returns a Record's changes, newest first.
+	// LookupRecords finds Records of one Record Type by display label, for
+	// pickers of Link fields and parents. It lists only Records that can be
+	// chosen now (not cancelled, not soft-deleted). With ids set it resolves
+	// those Records instead, whatever their state.
+	LookupRecords(context.Context, *v1.LookupRecordsRequest) (*v1.LookupRecordsResponse, error)
+	// ListRecordHistory returns a Record's Audit Log rows, newest first.
 	ListRecordHistory(context.Context, *v1.ListRecordHistoryRequest) (*v1.ListRecordHistoryResponse, error)
 	// SubmitRecord moves a draft of a submittable document to submitted.
 	SubmitRecord(context.Context, *v1.SubmitRecordRequest) (*v1.SubmitRecordResponse, error)
@@ -170,7 +185,12 @@ type RecordServiceHandler interface {
 	// DeleteRecord soft-deletes a Master Record (it keeps its row and is no
 	// longer listed or readable) and removes Records of other kinds.
 	DeleteRecord(context.Context, *v1.DeleteRecordRequest) (*v1.DeleteRecordResponse, error)
-	// ListRecordHistory returns a Record's changes, newest first.
+	// LookupRecords finds Records of one Record Type by display label, for
+	// pickers of Link fields and parents. It lists only Records that can be
+	// chosen now (not cancelled, not soft-deleted). With ids set it resolves
+	// those Records instead, whatever their state.
+	LookupRecords(context.Context, *v1.LookupRecordsRequest) (*v1.LookupRecordsResponse, error)
+	// ListRecordHistory returns a Record's Audit Log rows, newest first.
 	ListRecordHistory(context.Context, *v1.ListRecordHistoryRequest) (*v1.ListRecordHistoryResponse, error)
 	// SubmitRecord moves a draft of a submittable document to submitted.
 	SubmitRecord(context.Context, *v1.SubmitRecordRequest) (*v1.SubmitRecordResponse, error)
@@ -195,6 +215,7 @@ func RegisterRecordServiceHandler(server *connect.Server, svc RecordServiceHandl
 		connect.Method{Spec: recordServiceCreateRecordSpec(), Handler: adapter.createRecord},
 		connect.Method{Spec: recordServiceUpdateRecordSpec(), Handler: adapter.updateRecord},
 		connect.Method{Spec: recordServiceDeleteRecordSpec(), Handler: adapter.deleteRecord},
+		connect.Method{Spec: recordServiceLookupRecordsSpec(), Handler: adapter.lookupRecords},
 		connect.Method{Spec: recordServiceListRecordHistorySpec(), Handler: adapter.listRecordHistory},
 		connect.Method{Spec: recordServiceSubmitRecordSpec(), Handler: adapter.submitRecord},
 		connect.Method{Spec: recordServiceCancelRecordSpec(), Handler: adapter.cancelRecord},
@@ -225,6 +246,10 @@ func (UnimplementedRecordServiceHandler) UpdateRecord(context.Context, *v1.Updat
 
 func (UnimplementedRecordServiceHandler) DeleteRecord(context.Context, *v1.DeleteRecordRequest) (*v1.DeleteRecordResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, "athena.v1.RecordService.DeleteRecord is not implemented")
+}
+
+func (UnimplementedRecordServiceHandler) LookupRecords(context.Context, *v1.LookupRecordsRequest) (*v1.LookupRecordsResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "athena.v1.RecordService.LookupRecords is not implemented")
 }
 
 func (UnimplementedRecordServiceHandler) ListRecordHistory(context.Context, *v1.ListRecordHistoryRequest) (*v1.ListRecordHistoryResponse, error) {
@@ -290,6 +315,14 @@ func (c *recordServiceClient) UpdateRecord(ctx context.Context, req *v1.UpdateRe
 func (c *recordServiceClient) DeleteRecord(ctx context.Context, req *v1.DeleteRecordRequest) (*v1.DeleteRecordResponse, error) {
 	var res v1.DeleteRecordResponse
 	if err := c.client.CallUnary(ctx, recordServiceDeleteRecordSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *recordServiceClient) LookupRecords(ctx context.Context, req *v1.LookupRecordsRequest) (*v1.LookupRecordsResponse, error) {
+	var res v1.LookupRecordsResponse
+	if err := c.client.CallUnary(ctx, recordServiceLookupRecordsSpec(), req, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -399,6 +432,18 @@ func (h recordServiceHandler) deleteRecord(ctx context.Context, _ connect.Spec, 
 		return err
 	}
 	res, err := h.svc.DeleteRecord(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h recordServiceHandler) lookupRecords(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.LookupRecordsRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.LookupRecords(ctx, &req)
 	if err != nil {
 		return err
 	}

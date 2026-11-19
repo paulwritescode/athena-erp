@@ -173,14 +173,14 @@ func TestRecordHistoryRecordsEachChange(t *testing.T) {
 	}
 }
 
-// The change and its history row share one transaction: when the history write
+// The change and its Audit Log row share one transaction: when the audit write
 // fails, the change must not survive.
 func TestRecordChangeAndHistoryShareATransaction(t *testing.T) {
 	ctx := context.Background()
 	recordTypes, records := newServices(t)
 	saveRecordType(t, recordTypes, "customer", customerFields...)
 	record := newCustomer(t, records, "Acme")
-	if _, err := records.db.ExecContext(ctx, "DROP TABLE athena_record_history"); err != nil {
+	if _, err := records.db.ExecContext(ctx, "DROP TABLE athena_audit_log"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -196,7 +196,7 @@ func TestRecordChangeAndHistoryShareATransaction(t *testing.T) {
 		t.Fatalf("record should survive a failed delete: %v", err)
 	}
 	if got.GetRecord().GetRevision() != 1 || got.GetRecord().GetValues()["name"].GetStringValue() != "Acme" {
-		t.Fatalf("a failed history write left a change behind: %v", got.GetRecord())
+		t.Fatalf("a failed audit write left a change behind: %v", got.GetRecord())
 	}
 	list, _ := records.ListRecords(ctx, &athenav1.ListRecordsRequest{RecordTypeKey: "customer"})
 	if len(list.GetRecords()) != 1 {

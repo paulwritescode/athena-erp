@@ -12,7 +12,12 @@ service RecordService {
   // DeleteRecord soft-deletes a Master Record (it keeps its row and is no
   // longer listed or readable) and removes Records of other kinds.
   rpc DeleteRecord(DeleteRecordRequest) returns (DeleteRecordResponse);
-  // ListRecordHistory returns a Record's changes, newest first.
+  // LookupRecords finds Records of one Record Type by display label, for
+  // pickers of Link fields and parents. It lists only Records that can be
+  // chosen now (not cancelled, not soft-deleted). With ids set it resolves
+  // those Records instead, whatever their state.
+  rpc LookupRecords(LookupRecordsRequest) returns (LookupRecordsResponse);
+  // ListRecordHistory returns a Record's Audit Log rows, newest first.
   rpc ListRecordHistory(ListRecordHistoryRequest) returns (ListRecordHistoryResponse);
   // SubmitRecord moves a draft of a submittable document to submitted.
   rpc SubmitRecord(SubmitRecordRequest) returns (SubmitRecordResponse);
@@ -101,6 +106,9 @@ message CreateRecordRequest {
   map<string, FieldValue> values = 2;
   // Required for a child Record Type: the Record that owns the new Record.
   string parent_id = 3;
+  // Submittable documents whose Record Type allows manual names only: the
+  // name to use instead of a series number. It must be unused. Logged.
+  string name = 4;
 }
 
 message CreateRecordResponse {
@@ -132,9 +140,16 @@ message ListRecordHistoryRequest {
   string id = 2;
 }
 
-// RecordEvent is one change to a Record.
+// FieldChange is one field of an Audit Log row. Rows imported from the history
+// that predates the Audit Log name the field only.
+message FieldChange {
+  string field = 1;
+  optional string old_value = 2;
+  optional string new_value = 3;
+}
+// RecordEvent is one Audit Log row of a Record.
 message RecordEvent {
-  // created, updated or deleted.
+  // created, updated, deleted, submitted, cancelled or name_override.
   string action = 1;
   // The Record revision after the change.
   int64 revision = 2;
@@ -144,8 +159,17 @@ message RecordEvent {
   string actor = 4;
   // RFC 3339 timestamp.
   string at = 5;
+  // Field-level changes with old and new values.
+  repeated FieldChange changes = 6;
+  // Correlates this row with the request that wrote it and the Records,
+  // versions and activity of the same request.
+  string request_id = 7;
+  // api, cli, rule, import or job.
+  string source = 8;
+  // Position in the Audit Log chain, and the row's hash.
+  int64 seq = 9;
+  string hash = 10;
 }
-
 message ListRecordHistoryResponse {
   repeated RecordEvent events = 1;
 }
@@ -218,4 +242,31 @@ message ActivityEvent {
 }
 message ListRecordActivityResponse {
   repeated ActivityEvent events = 1;
+}
+message LookupRecordsRequest {
+  string record_type_key = 1;
+  // Case-insensitive text the label must contain. Empty lists everything.
+  string query = 2;
+  // Defaults to 20; capped at 50.
+  int32 page_size = 3;
+  // Opaque cursor from a previous response.
+  string page_token = 4;
+  // When set, query and paging are ignored and these Records (at most 50)
+  // are returned whatever their state. A picker uses it to label the value a
+  // Record already holds.
+  repeated string ids = 5;
+}
+// LookupItem is one Record as a picker shows it. The ID is the stored value;
+// people see the label.
+message LookupItem {
+  string id = 1;
+  string label = 2;
+  // Empty for a Record that can be chosen. cancelled or deleted for one that
+  // can only be shown (ids lookups).
+  string state = 3;
+}
+message LookupRecordsResponse {
+  repeated LookupItem items = 1;
+  // Empty when there are no more items.
+  string next_page_token = 2;
 }

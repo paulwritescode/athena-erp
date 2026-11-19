@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, reactive, ref } from 'vue'
 import type { Field, Kind, RecordType } from '../types'
+import { validateNamingSeries } from '../fieldRules'
 import FieldSettingsDialog from '../components/FieldSettingsDialog.vue'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -103,7 +104,7 @@ function chooseKind(kind: Kind) {
   const recordType = props.currentRecordType
   recordType.kind = kind
   if (kind === 'document') recordType.class = recordType.class ?? 'non_posting'
-  else { delete recordType.class; delete recordType.submittable; delete recordType.amendable }
+  else { delete recordType.class; delete recordType.submittable; delete recordType.amendable; delete recordType.naming_series; delete recordType.gap_free; delete recordType.allow_manual_name }
   if (kind === 'child') recordType.parent_record_type = recordType.parent_record_type ?? parentChoices.value[0]?.name
   else delete recordType.parent_record_type
 }
@@ -126,8 +127,24 @@ function chooseClass() {
 function setSubmittable(value: boolean) {
   const recordType = props.currentRecordType
   if (value) recordType.submittable = true
-  else { delete recordType.submittable; delete recordType.amendable }
+  else { delete recordType.submittable; delete recordType.amendable; delete recordType.naming_series; delete recordType.gap_free; delete recordType.allow_manual_name }
 }
+function setNamingSeries(value: string) {
+  const recordType = props.currentRecordType
+  if (value.trim()) recordType.naming_series = value
+  else { delete recordType.naming_series; delete recordType.gap_free }
+}
+function setFlag(key: 'gap_free' | 'allow_manual_name', value: boolean) {
+  if (value) props.currentRecordType[key] = true
+  else delete props.currentRecordType[key]
+}
+function setLabelField(value: string) {
+  if (value) props.currentRecordType.label_field = value
+  else delete props.currentRecordType.label_field
+}
+// Fields that can label a Record in a picker (internal/server/naming.go).
+const labelFieldChoices = computed(() => props.currentRecordType.fields.filter((field) => ['Text', 'Long text', 'Email', 'Phone', 'Select', 'Enum', 'Date'].includes(field.type) && !isNewField(field)))
+const namingProblem = computed(() => validateNamingSeries(props.currentRecordType.naming_series ?? ''))
 function setAmendable(value: boolean) {
   if (value) props.currentRecordType.amendable = true
   else delete props.currentRecordType.amendable
@@ -186,6 +203,10 @@ function isNewField(field: Field) {
           <label v-if="currentRecordType.kind === 'document'">Class<select v-model="currentRecordType.class" aria-label="Document class" @change="chooseClass"><option v-for="item in documentClasses" :key="item[0]" :value="item[0]">{{ item[1] }}</option></select><small>Posting documents will write to ledgers; work and batch documents track work.</small></label>
           <label v-if="currentRecordType.kind === 'document' && currentRecordType.class !== 'work'" class="switch-label"><span class="switch-line"><Checkbox :model-value="currentRecordType.submittable ?? false" aria-label="Submittable" @update:model-value="setSubmittable($event === true)" />Submittable</span><small>Records move from draft to submitted to cancelled. Submitted records stay fixed, apart from fields set to allow editing.</small></label>
           <label v-if="currentRecordType.kind === 'document' && currentRecordType.submittable" class="switch-label"><span class="switch-line"><Checkbox :model-value="currentRecordType.amendable ?? false" aria-label="Amendable" @update:model-value="setAmendable($event === true)" />Amendable</span><small>A cancelled record can be amended into a new draft that points back to it.</small></label>
+          <label v-if="currentRecordType.kind === 'document' && currentRecordType.submittable" :class="{ 'is-invalid': namingProblem }">Naming series<Input :model-value="currentRecordType.naming_series ?? ''" placeholder="INV-{yyyy}-{#####}" aria-label="Naming series" :aria-invalid="namingProblem ? 'true' : undefined" @update:model-value="setNamingSeries(String($event))" /><small>{{ namingProblem || 'Numbers each document when it is submitted. Tokens: {yyyy}, {yy}, {mm} and one counter such as {#####}. Empty keeps the Record ID as the name.' }}</small></label>
+          <label v-if="currentRecordType.kind === 'document' && currentRecordType.submittable && currentRecordType.naming_series" class="switch-label"><span class="switch-line"><Checkbox :model-value="currentRecordType.gap_free ?? false" aria-label="Gap-free numbering" @update:model-value="setFlag('gap_free', $event === true)" />Gap-free numbering</span><small>A submit that fails returns its number, so the series has no gaps. Submits take turns. Without it numbers can skip.</small></label>
+          <label v-if="currentRecordType.kind === 'document' && currentRecordType.submittable" class="switch-label"><span class="switch-line"><Checkbox :model-value="currentRecordType.allow_manual_name ?? false" aria-label="Allow manual names" @update:model-value="setFlag('allow_manual_name', $event === true)" />Allow manual names</span><small>A new document can take a name typed by hand, for example when moving old documents in. It must be unused and is logged.</small></label>
+          <label v-if="recordTypeIsSaved">Label field<select :value="currentRecordType.label_field ?? ''" aria-label="Label field" @change="setLabelField(($event.target as HTMLSelectElement).value)"><option value="">Automatic</option><option v-for="field in labelFieldChoices" :key="field.name" :value="field.name">{{ field.label }}</option></select><small>The field that names a Record when it is chosen from a list. Automatic uses the document name, then the first required text field.</small></label>
           <label v-if="currentRecordType.kind === 'child'">Belongs to<select v-model="currentRecordType.parent_record_type" :disabled="recordTypeIsSaved" aria-label="Parent Record Type"><option :value="undefined" disabled>Select a saved Record Type</option><option v-for="item in parentChoices" :key="item.name" :value="item.name">{{ item.label }}</option></select><small>{{ recordTypeIsSaved ? 'Fixed after the first save.' : 'Save the owning Record Type first.' }}</small></label>
         </div>
         <div class="field-table"><div class="field-head"><span>Label</span><span>Key</span><span>Type</span><span>Required</span><span></span></div><div v-for="(field, index) in currentRecordType.fields" :key="fieldKey(field)" class="field-row"><span><Input :model-value="field.label" :aria-label="`Field ${index + 1} label`" @update:model-value="updateFieldLabel(field, $event)" /></span><span><Input :model-value="field.name" :readonly="!isNewField(field)" :aria-label="`Field ${index + 1} database name`" @update:model-value="updateFieldName(field, $event)" @blur="normalizeNewFieldName(field)" /></span><span><select v-model="field.type" aria-label="Field type" @change="changeType(field)"><option v-for="type in fieldTypes" :key="type">{{ type }}</option></select></span><span><input v-model="field.required" type="checkbox" :aria-label="`${field.label} required`" /></span><span class="field-actions"><button class="icon-action" :aria-label="`Settings for ${field.label}`" title="Field settings" @click="settingsField = field"><SlidersHorizontalIcon /></button><button class="icon-action" :aria-label="`Remove ${field.label}`" @click="currentRecordType.fields.splice(index, 1)">×</button></span><div v-if="field.type === 'Link'" class="relationship-editor"><label>Links to<select v-model="field.target_record_type"><option :value="undefined" disabled>Select a Record Type</option><option v-for="target in recordTypes.filter((item) => item.name !== currentRecordType.name)" :key="target.name" :value="target.name">{{ target.label }}</option></select></label></div></div></div>

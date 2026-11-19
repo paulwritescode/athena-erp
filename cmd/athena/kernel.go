@@ -31,17 +31,26 @@ const recordTypesUsage = `usage: athena record-types list|show|save|delete [--wo
                                 [--confirm-data-loss] allows steps that delete stored values
   delete <key> --yes            delete a Record Type, its table and its Records`
 
-const recordsUsage = `usage: athena records list|create|delete|submit|cancel|amend|versions|activity <record-type> [--workspace slug] [--json]
+const auditUsage = `usage: athena audit verify [--anchor seq:hash] [--workspace slug] [--json]
+  verify                        walk the Audit Log hash chain from the first row to the last and
+                                report the first break. Prints the chain head as "seq:hash"; keep it
+                                somewhere else and pass it later as --anchor to prove nothing before
+                                it was changed. Exits with an error when the chain is broken`
+const recordsUsage = `usage: athena records list|lookup|create|delete|submit|cancel|amend|versions|activity|history <record-type> [--workspace slug] [--json]
   list <record-type>            list Records; child Record Types take [--parent id]
+  lookup <record-type> [text]   find Records by display label, as the desk pickers do; [--limit N]
+                                [--ids id,id] prints those Records whatever their state
   create <record-type>          create a Record from --values '{"field":"value"}' (text, true, false or null);
-                                child Record Types also take --parent id
+                                child Record Types also take --parent id; [--name text] sets a manual
+                                name when the Record Type allows it
   delete <record-type> <id> --revision N
                                 soft-delete a master Record, or remove one of another kind
   submit|cancel|amend <record-type> <id> --revision N
                                 move a submittable document from draft to submitted, from submitted
                                 to cancelled, or create a draft successor of a cancelled amendable one
   versions <record-type> <id>   list the document's snapshots (submit, cancel, amend)
-  activity <record-type> <id>   list the document's timeline`
+  activity <record-type> <id>   list the document's timeline
+  history <record-type> <id>    list the Record's Audit Log rows with old and new values`
 
 // openKernel resolves the Workspace like the migrate command and opens the
 // kernel services the ConnectRPC handlers use.
@@ -206,14 +215,19 @@ func recordsCommand(args []string, out io.Writer) error {
 		return nil
 	}
 	sub, args := args[0], args[1:]
-	want := map[string]int{"list": 1, "create": 1, "delete": 2, "submit": 2, "cancel": 2, "amend": 2, "versions": 2, "activity": 2}
+	want := map[string]int{"list": 1, "lookup": 1, "create": 1, "delete": 2, "submit": 2, "cancel": 2, "amend": 2, "versions": 2, "activity": 2, "history": 2}
 	n, ok := want[sub]
 	if !ok {
-		return fmt.Errorf("unknown records command %q; use list, create, delete, submit, cancel, amend, versions or activity", sub)
+		return fmt.Errorf("unknown records command %q; use list, lookup, create, delete, submit, cancel, amend, versions, activity or history", sub)
 	}
 	positional, args, err := leadingArgs(args, n)
 	if err != nil {
 		return fmt.Errorf("records %s: %w", sub, err)
+	}
+	// lookup takes an optional search text before its flags.
+	query := ""
+	if sub == "lookup" && len(args) > 0 && !strings.HasPrefix(args[0], "-") {
+		query, args = args[0], args[1:]
 	}
 	flags := flag.NewFlagSet("records "+sub, flag.ContinueOnError)
 	slug := flags.String("workspace", "", "workspace slug, when running from the home directory")
@@ -221,6 +235,9 @@ func recordsCommand(args []string, out io.Writer) error {
 	parent := flags.String("parent", "", "parent Record ID (child Record Types)")
 	values := flags.String("values", "", "field values as a JSON object (create)")
 	revision := flags.Int64("revision", 0, "revision of the Record you last saw (delete, submit, cancel, amend)")
+	name := flags.String("name", "", "manual document name (create)")
+	limit := flags.Int("limit", 20, "most items to print (lookup)")
+	ids := flags.String("ids", "", "comma-separated Record IDs to resolve (lookup)")
 	if ok, err := parse(flags, args); !ok {
 		return err
 	}
@@ -242,6 +259,44 @@ func recordsCommand(args []string, out io.Writer) error {
 	}
 	defer closeKernel()
 	switch sub {
+	case "lookup":
+		request := &athenav1.LookupRecordsRequest{RecordTypeKey: positional[0], Query: query, PageSize: int32(*limit)}
+		if *ids != "" {
+			request.Ids = strings.Split(*ids, ",")
+		}
+		res, err := kernel.Records.LookupRecords(ctx, request)
+		if err != nil {
+			return rpcError(err)
+		}
+		if *asJSON {
+			return writeProto(out, res)
+		}
+		for _, item := range res.GetItems() {
+			state := ""
+			if item.GetState() != "" {
+				state = "\t(" + item.GetState() + ")"
+			}
+			fmt.Fprintf(out, "%s\t%s%s\n", item.GetId(), item.GetLabel(), state)
+		}
+		if res.GetNextPageToken() != "" {
+			fmt.Fprintln(out, "More Records match; narrow the text or use --json for the page token.")
+		}
+		return nil
+	case "history":
+		res, err := kernel.Records.ListRecordHistory(ctx, &athenav1.ListRecordHistoryRequest{RecordTypeKey: positional[0], Id: positional[1]})
+		if err != nil {
+			return rpcError(err)
+		}
+		if *asJSON {
+			return writeProto(out, res)
+		}
+		for _, event := range res.GetEvents() {
+			fmt.Fprintf(out, "%s\t%s\trevision %d\t%s\t%s\n", event.GetAt(), event.GetAction(), event.GetRevision(), event.GetActor(), event.GetSource())
+			for _, change := range event.GetChanges() {
+				fmt.Fprintf(out, "  %s: %s -> %s\n", change.GetField(), orEmpty(change.OldValue), orEmpty(change.NewValue))
+			}
+		}
+		return nil
 	case "list":
 		res, err := kernel.Records.ListRecords(ctx, &athenav1.ListRecordsRequest{RecordTypeKey: positional[0], ParentId: *parent, PageSize: 200})
 		if err != nil {
@@ -258,7 +313,7 @@ func recordsCommand(args []string, out io.Writer) error {
 		}
 		return nil
 	case "create":
-		res, err := kernel.Records.CreateRecord(ctx, &athenav1.CreateRecordRequest{RecordTypeKey: positional[0], Values: fieldValues, ParentId: *parent})
+		res, err := kernel.Records.CreateRecord(ctx, &athenav1.CreateRecordRequest{RecordTypeKey: positional[0], Values: fieldValues, ParentId: *parent, Name: *name})
 		if err != nil {
 			return rpcError(err)
 		}
@@ -321,6 +376,54 @@ func recordsCommand(args []string, out io.Writer) error {
 		return rpcError(err)
 	}
 	fmt.Fprintf(out, "Deleted %s.\n", positional[1])
+	return nil
+}
+
+// orEmpty prints an empty value, or one an imported row never recorded, as "(empty)".
+func orEmpty(value *string) string {
+	if value == nil || *value == "" {
+		return "(empty)"
+	}
+	return *value
+}
+
+func auditCommand(args []string, out io.Writer) error {
+	if isHelp(args) {
+		fmt.Fprintln(out, auditUsage)
+		return nil
+	}
+	if args[0] != "verify" {
+		return fmt.Errorf("unknown audit command %q; use verify", args[0])
+	}
+	flags := flag.NewFlagSet("audit verify", flag.ContinueOnError)
+	slug := flags.String("workspace", "", "workspace slug, when running from the home directory")
+	asJSON := flags.Bool("json", false, "print JSON")
+	anchor := flags.String("anchor", "", "chain position exported earlier, as seq:hash")
+	if ok, err := parse(flags, args[1:]); !ok {
+		return err
+	}
+	if flags.NArg() > 0 {
+		return fmt.Errorf("unexpected argument %q", flags.Arg(0))
+	}
+	kernel, ctx, closeKernel, err := openKernel(*slug)
+	if err != nil {
+		return err
+	}
+	defer closeKernel()
+	res, err := kernel.System.VerifyAuditLog(ctx, &athenav1.VerifyAuditLogRequest{Anchor: *anchor})
+	if err != nil {
+		return rpcError(err)
+	}
+	if *asJSON {
+		if err := writeProto(out, res); err != nil {
+			return err
+		}
+	} else if res.GetOk() {
+		fmt.Fprintf(out, "Audit Log verified: %d rows, head %d:%s\n", res.GetRowsChecked(), res.GetHeadSeq(), res.GetHeadHash())
+	}
+	if !res.GetOk() {
+		return fmt.Errorf("Audit Log is broken: %s", res.GetReason())
+	}
 	return nil
 }
 

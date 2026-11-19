@@ -21,6 +21,138 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+type VerifyAuditLogRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Optional anchor exported earlier as "seq:hash". Verification also checks
+	// that the chain still holds it.
+	Anchor        string `protobuf:"bytes,1,opt,name=anchor,proto3" json:"anchor,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *VerifyAuditLogRequest) Reset() {
+	*x = VerifyAuditLogRequest{}
+	mi := &file_athena_v1_system_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VerifyAuditLogRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VerifyAuditLogRequest) ProtoMessage() {}
+
+func (x *VerifyAuditLogRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_system_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VerifyAuditLogRequest.ProtoReflect.Descriptor instead.
+func (*VerifyAuditLogRequest) Descriptor() ([]byte, []int) {
+	return file_athena_v1_system_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *VerifyAuditLogRequest) GetAnchor() string {
+	if x != nil {
+		return x.Anchor
+	}
+	return ""
+}
+
+type VerifyAuditLogResponse struct {
+	state       protoimpl.MessageState `protogen:"open.v1"`
+	Ok          bool                   `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"`
+	RowsChecked int64                  `protobuf:"varint,2,opt,name=rows_checked,json=rowsChecked,proto3" json:"rows_checked,omitempty"`
+	// The chain head. Export "head_seq:head_hash" as the next anchor.
+	HeadSeq  int64  `protobuf:"varint,3,opt,name=head_seq,json=headSeq,proto3" json:"head_seq,omitempty"`
+	HeadHash string `protobuf:"bytes,4,opt,name=head_hash,json=headHash,proto3" json:"head_hash,omitempty"`
+	// First row that fails, or 0 when the break is at the end or an anchor.
+	BrokenSeq     int64  `protobuf:"varint,5,opt,name=broken_seq,json=brokenSeq,proto3" json:"broken_seq,omitempty"`
+	Reason        string `protobuf:"bytes,6,opt,name=reason,proto3" json:"reason,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *VerifyAuditLogResponse) Reset() {
+	*x = VerifyAuditLogResponse{}
+	mi := &file_athena_v1_system_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VerifyAuditLogResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VerifyAuditLogResponse) ProtoMessage() {}
+
+func (x *VerifyAuditLogResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_system_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VerifyAuditLogResponse.ProtoReflect.Descriptor instead.
+func (*VerifyAuditLogResponse) Descriptor() ([]byte, []int) {
+	return file_athena_v1_system_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *VerifyAuditLogResponse) GetOk() bool {
+	if x != nil {
+		return x.Ok
+	}
+	return false
+}
+
+func (x *VerifyAuditLogResponse) GetRowsChecked() int64 {
+	if x != nil {
+		return x.RowsChecked
+	}
+	return 0
+}
+
+func (x *VerifyAuditLogResponse) GetHeadSeq() int64 {
+	if x != nil {
+		return x.HeadSeq
+	}
+	return 0
+}
+
+func (x *VerifyAuditLogResponse) GetHeadHash() string {
+	if x != nil {
+		return x.HeadHash
+	}
+	return ""
+}
+
+func (x *VerifyAuditLogResponse) GetBrokenSeq() int64 {
+	if x != nil {
+		return x.BrokenSeq
+	}
+	return 0
+}
+
+func (x *VerifyAuditLogResponse) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
 type GetSystemInfoRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -29,7 +161,7 @@ type GetSystemInfoRequest struct {
 
 func (x *GetSystemInfoRequest) Reset() {
 	*x = GetSystemInfoRequest{}
-	mi := &file_athena_v1_system_proto_msgTypes[0]
+	mi := &file_athena_v1_system_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -41,7 +173,7 @@ func (x *GetSystemInfoRequest) String() string {
 func (*GetSystemInfoRequest) ProtoMessage() {}
 
 func (x *GetSystemInfoRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_system_proto_msgTypes[0]
+	mi := &file_athena_v1_system_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -54,7 +186,7 @@ func (x *GetSystemInfoRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetSystemInfoRequest.ProtoReflect.Descriptor instead.
 func (*GetSystemInfoRequest) Descriptor() ([]byte, []int) {
-	return file_athena_v1_system_proto_rawDescGZIP(), []int{0}
+	return file_athena_v1_system_proto_rawDescGZIP(), []int{2}
 }
 
 type GetSystemInfoResponse struct {
@@ -73,7 +205,7 @@ type GetSystemInfoResponse struct {
 
 func (x *GetSystemInfoResponse) Reset() {
 	*x = GetSystemInfoResponse{}
-	mi := &file_athena_v1_system_proto_msgTypes[1]
+	mi := &file_athena_v1_system_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -85,7 +217,7 @@ func (x *GetSystemInfoResponse) String() string {
 func (*GetSystemInfoResponse) ProtoMessage() {}
 
 func (x *GetSystemInfoResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_system_proto_msgTypes[1]
+	mi := &file_athena_v1_system_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -98,7 +230,7 @@ func (x *GetSystemInfoResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetSystemInfoResponse.ProtoReflect.Descriptor instead.
 func (*GetSystemInfoResponse) Descriptor() ([]byte, []int) {
-	return file_athena_v1_system_proto_rawDescGZIP(), []int{1}
+	return file_athena_v1_system_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *GetSystemInfoResponse) GetProductName() string {
@@ -140,16 +272,27 @@ var File_athena_v1_system_proto protoreflect.FileDescriptor
 
 const file_athena_v1_system_proto_rawDesc = "" +
 	"\n" +
-	"\x16athena/v1/system.proto\x12\tathena.v1\"\x16\n" +
+	"\x16athena/v1/system.proto\x12\tathena.v1\"/\n" +
+	"\x15VerifyAuditLogRequest\x12\x16\n" +
+	"\x06anchor\x18\x01 \x01(\tR\x06anchor\"\xba\x01\n" +
+	"\x16VerifyAuditLogResponse\x12\x0e\n" +
+	"\x02ok\x18\x01 \x01(\bR\x02ok\x12!\n" +
+	"\frows_checked\x18\x02 \x01(\x03R\vrowsChecked\x12\x19\n" +
+	"\bhead_seq\x18\x03 \x01(\x03R\aheadSeq\x12\x1b\n" +
+	"\thead_hash\x18\x04 \x01(\tR\bheadHash\x12\x1d\n" +
+	"\n" +
+	"broken_seq\x18\x05 \x01(\x03R\tbrokenSeq\x12\x16\n" +
+	"\x06reason\x18\x06 \x01(\tR\x06reason\"\x16\n" +
 	"\x14GetSystemInfoRequest\"\xcf\x01\n" +
 	"\x15GetSystemInfoResponse\x12!\n" +
 	"\fproduct_name\x18\x01 \x01(\tR\vproductName\x12\x18\n" +
 	"\aversion\x18\x02 \x01(\tR\aversion\x12%\n" +
 	"\x0eworkspace_name\x18\x03 \x01(\tR\rworkspaceName\x12%\n" +
 	"\x0eworkspace_slug\x18\x04 \x01(\tR\rworkspaceSlug\x12+\n" +
-	"\x11telemetry_enabled\x18\x05 \x01(\bR\x10telemetryEnabled2c\n" +
+	"\x11telemetry_enabled\x18\x05 \x01(\bR\x10telemetryEnabled2\xba\x01\n" +
 	"\rSystemService\x12R\n" +
-	"\rGetSystemInfo\x12\x1f.athena.v1.GetSystemInfoRequest\x1a .athena.v1.GetSystemInfoResponseB#Z!athena-erp/gen/athena/v1;athenav1b\x06proto3"
+	"\rGetSystemInfo\x12\x1f.athena.v1.GetSystemInfoRequest\x1a .athena.v1.GetSystemInfoResponse\x12U\n" +
+	"\x0eVerifyAuditLog\x12 .athena.v1.VerifyAuditLogRequest\x1a!.athena.v1.VerifyAuditLogResponseB#Z!athena-erp/gen/athena/v1;athenav1b\x06proto3"
 
 var (
 	file_athena_v1_system_proto_rawDescOnce sync.Once
@@ -163,16 +306,20 @@ func file_athena_v1_system_proto_rawDescGZIP() []byte {
 	return file_athena_v1_system_proto_rawDescData
 }
 
-var file_athena_v1_system_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_athena_v1_system_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_athena_v1_system_proto_goTypes = []any{
-	(*GetSystemInfoRequest)(nil),  // 0: athena.v1.GetSystemInfoRequest
-	(*GetSystemInfoResponse)(nil), // 1: athena.v1.GetSystemInfoResponse
+	(*VerifyAuditLogRequest)(nil),  // 0: athena.v1.VerifyAuditLogRequest
+	(*VerifyAuditLogResponse)(nil), // 1: athena.v1.VerifyAuditLogResponse
+	(*GetSystemInfoRequest)(nil),   // 2: athena.v1.GetSystemInfoRequest
+	(*GetSystemInfoResponse)(nil),  // 3: athena.v1.GetSystemInfoResponse
 }
 var file_athena_v1_system_proto_depIdxs = []int32{
-	0, // 0: athena.v1.SystemService.GetSystemInfo:input_type -> athena.v1.GetSystemInfoRequest
-	1, // 1: athena.v1.SystemService.GetSystemInfo:output_type -> athena.v1.GetSystemInfoResponse
-	1, // [1:2] is the sub-list for method output_type
-	0, // [0:1] is the sub-list for method input_type
+	2, // 0: athena.v1.SystemService.GetSystemInfo:input_type -> athena.v1.GetSystemInfoRequest
+	0, // 1: athena.v1.SystemService.VerifyAuditLog:input_type -> athena.v1.VerifyAuditLogRequest
+	3, // 2: athena.v1.SystemService.GetSystemInfo:output_type -> athena.v1.GetSystemInfoResponse
+	1, // 3: athena.v1.SystemService.VerifyAuditLog:output_type -> athena.v1.VerifyAuditLogResponse
+	2, // [2:4] is the sub-list for method output_type
+	0, // [0:2] is the sub-list for method input_type
 	0, // [0:0] is the sub-list for extension type_name
 	0, // [0:0] is the sub-list for extension extendee
 	0, // [0:0] is the sub-list for field type_name
@@ -189,7 +336,7 @@ func file_athena_v1_system_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_athena_v1_system_proto_rawDesc), len(file_athena_v1_system_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   2,
+			NumMessages:   4,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

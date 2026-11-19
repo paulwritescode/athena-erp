@@ -10,7 +10,73 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file athena/v1/system.proto.
  */
 export const file_athena_v1_system: GenFile = /*@__PURE__*/
-  fileDesc("ChZhdGhlbmEvdjEvc3lzdGVtLnByb3RvEglhdGhlbmEudjEiFgoUR2V0U3lzdGVtSW5mb1JlcXVlc3QiiQEKFUdldFN5c3RlbUluZm9SZXNwb25zZRIUCgxwcm9kdWN0X25hbWUYASABKAkSDwoHdmVyc2lvbhgCIAEoCRIWCg53b3Jrc3BhY2VfbmFtZRgDIAEoCRIWCg53b3Jrc3BhY2Vfc2x1ZxgEIAEoCRIZChF0ZWxlbWV0cnlfZW5hYmxlZBgFIAEoCDJjCg1TeXN0ZW1TZXJ2aWNlElIKDUdldFN5c3RlbUluZm8SHy5hdGhlbmEudjEuR2V0U3lzdGVtSW5mb1JlcXVlc3QaIC5hdGhlbmEudjEuR2V0U3lzdGVtSW5mb1Jlc3BvbnNlQiNaIWF0aGVuYS1lcnAvZ2VuL2F0aGVuYS92MTthdGhlbmF2MWIGcHJvdG8z");
+  fileDesc("ChZhdGhlbmEvdjEvc3lzdGVtLnByb3RvEglhdGhlbmEudjEiJwoVVmVyaWZ5QXVkaXRMb2dSZXF1ZXN0Eg4KBmFuY2hvchgBIAEoCSKDAQoWVmVyaWZ5QXVkaXRMb2dSZXNwb25zZRIKCgJvaxgBIAEoCBIUCgxyb3dzX2NoZWNrZWQYAiABKAMSEAoIaGVhZF9zZXEYAyABKAMSEQoJaGVhZF9oYXNoGAQgASgJEhIKCmJyb2tlbl9zZXEYBSABKAMSDgoGcmVhc29uGAYgASgJIhYKFEdldFN5c3RlbUluZm9SZXF1ZXN0IokBChVHZXRTeXN0ZW1JbmZvUmVzcG9uc2USFAoMcHJvZHVjdF9uYW1lGAEgASgJEg8KB3ZlcnNpb24YAiABKAkSFgoOd29ya3NwYWNlX25hbWUYAyABKAkSFgoOd29ya3NwYWNlX3NsdWcYBCABKAkSGQoRdGVsZW1ldHJ5X2VuYWJsZWQYBSABKAgyugEKDVN5c3RlbVNlcnZpY2USUgoNR2V0U3lzdGVtSW5mbxIfLmF0aGVuYS52MS5HZXRTeXN0ZW1JbmZvUmVxdWVzdBogLmF0aGVuYS52MS5HZXRTeXN0ZW1JbmZvUmVzcG9uc2USVQoOVmVyaWZ5QXVkaXRMb2cSIC5hdGhlbmEudjEuVmVyaWZ5QXVkaXRMb2dSZXF1ZXN0GiEuYXRoZW5hLnYxLlZlcmlmeUF1ZGl0TG9nUmVzcG9uc2VCI1ohYXRoZW5hLWVycC9nZW4vYXRoZW5hL3YxO2F0aGVuYXYxYgZwcm90bzM");
+
+/**
+ * @generated from message athena.v1.VerifyAuditLogRequest
+ */
+export type VerifyAuditLogRequest = Message<"athena.v1.VerifyAuditLogRequest"> & {
+  /**
+   * Optional anchor exported earlier as "seq:hash". Verification also checks
+   * that the chain still holds it.
+   *
+   * @generated from field: string anchor = 1;
+   */
+  anchor: string;
+};
+
+/**
+ * Describes the message athena.v1.VerifyAuditLogRequest.
+ * Use `create(VerifyAuditLogRequestSchema)` to create a new message.
+ */
+export const VerifyAuditLogRequestSchema: GenMessage<VerifyAuditLogRequest> = /*@__PURE__*/
+  messageDesc(file_athena_v1_system, 0);
+
+/**
+ * @generated from message athena.v1.VerifyAuditLogResponse
+ */
+export type VerifyAuditLogResponse = Message<"athena.v1.VerifyAuditLogResponse"> & {
+  /**
+   * @generated from field: bool ok = 1;
+   */
+  ok: boolean;
+
+  /**
+   * @generated from field: int64 rows_checked = 2;
+   */
+  rowsChecked: bigint;
+
+  /**
+   * The chain head. Export "head_seq:head_hash" as the next anchor.
+   *
+   * @generated from field: int64 head_seq = 3;
+   */
+  headSeq: bigint;
+
+  /**
+   * @generated from field: string head_hash = 4;
+   */
+  headHash: string;
+
+  /**
+   * First row that fails, or 0 when the break is at the end or an anchor.
+   *
+   * @generated from field: int64 broken_seq = 5;
+   */
+  brokenSeq: bigint;
+
+  /**
+   * @generated from field: string reason = 6;
+   */
+  reason: string;
+};
+
+/**
+ * Describes the message athena.v1.VerifyAuditLogResponse.
+ * Use `create(VerifyAuditLogResponseSchema)` to create a new message.
+ */
+export const VerifyAuditLogResponseSchema: GenMessage<VerifyAuditLogResponse> = /*@__PURE__*/
+  messageDesc(file_athena_v1_system, 1);
 
 /**
  * @generated from message athena.v1.GetSystemInfoRequest
@@ -23,7 +89,7 @@ export type GetSystemInfoRequest = Message<"athena.v1.GetSystemInfoRequest"> & {
  * Use `create(GetSystemInfoRequestSchema)` to create a new message.
  */
 export const GetSystemInfoRequestSchema: GenMessage<GetSystemInfoRequest> = /*@__PURE__*/
-  messageDesc(file_athena_v1_system, 0);
+  messageDesc(file_athena_v1_system, 2);
 
 /**
  * @generated from message athena.v1.GetSystemInfoResponse
@@ -65,7 +131,7 @@ export type GetSystemInfoResponse = Message<"athena.v1.GetSystemInfoResponse"> &
  * Use `create(GetSystemInfoResponseSchema)` to create a new message.
  */
 export const GetSystemInfoResponseSchema: GenMessage<GetSystemInfoResponse> = /*@__PURE__*/
-  messageDesc(file_athena_v1_system, 1);
+  messageDesc(file_athena_v1_system, 3);
 
 /**
  * @generated from service athena.v1.SystemService
@@ -78,6 +144,17 @@ export const SystemService: GenService<{
     methodKind: "unary";
     input: typeof GetSystemInfoRequestSchema;
     output: typeof GetSystemInfoResponseSchema;
+  },
+  /**
+   * VerifyAuditLog walks the Audit Log hash chain from the first row to the
+   * last and reports the first break.
+   *
+   * @generated from rpc athena.v1.SystemService.VerifyAuditLog
+   */
+  verifyAuditLog: {
+    methodKind: "unary";
+    input: typeof VerifyAuditLogRequestSchema;
+    output: typeof VerifyAuditLogResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_athena_v1_system, 0);

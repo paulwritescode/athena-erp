@@ -115,6 +115,10 @@ func SystemMigrations() []store.Migration {
 				KEY idx_activity_record (record_type_name, record_id, created_at)
 			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 		)},
+		// The hash-chained Audit Log replaces the Record history, and number
+		// counters back naming series (ADR-0012). Old history rows are kept
+		// as imported Audit Log rows.
+		{Version: 8, Name: "audit_log_and_numbering", Up: createAuditAndNumbering},
 	}
 }
 

@@ -15,6 +15,7 @@ import (
 	"unicode/utf8"
 
 	athenav1 "athena-erp/gen/athena/v1"
+	"athena-erp/internal/audit"
 	"athena-erp/internal/lifecycle"
 	"athena-erp/internal/store"
 	"athena-erp/internal/types"
@@ -152,6 +153,13 @@ func (s recordService) CreateRecord(ctx context.Context, req *athenav1.CreateRec
 		}
 		system["parent_id"], system["idx"] = req.GetParentId(), idx
 	}
+	name, err := manualName(ctx, tx, recordType, req.GetName())
+	if err != nil {
+		return nil, err
+	}
+	if name != "" {
+		system["name"] = name
+	}
 	event := lifecycle.Event{RecordType: recordType.Name, RecordID: id.String(), RequestID: requestID, To: lifecycle.Draft, Tx: tx}
 	if recordType.kind() == kindDocument {
 		if err := s.fireSteps(ctx, lifecycle.Sequence(lifecycle.SaveNew), event, 0, 4); err != nil {
@@ -161,11 +169,19 @@ func (s recordService) CreateRecord(ctx context.Context, req *athenav1.CreateRec
 	if err := checkUnique(ctx, tx, recordType, columns, args, ""); err != nil {
 		return nil, err
 	}
+	if err := checkLinkTargets(ctx, tx, recordType, columns, args); err != nil {
+		return nil, err
+	}
 	if err := insertRow(ctx, tx, recordType, id.String(), system, columns, args); err != nil {
 		return nil, err
 	}
-	if err := writeHistory(ctx, tx, recordType.Name, id.String(), 1, "created", changed); err != nil {
-		return nil, internalError("record type history", err)
+	if err := auditCreated(ctx, tx, recordType, id.String(), changed); err != nil {
+		return nil, err
+	}
+	if name != "" {
+		if err := auditNameOverride(ctx, tx, recordType.Name, id.String(), name); err != nil {
+			return nil, err
+		}
 	}
 	if err := tx.Commit(); err != nil {
 		return nil, internalError("create record", err)
@@ -344,6 +360,9 @@ func (s recordService) UpdateRecord(ctx context.Context, req *athenav1.UpdateRec
 	if err := checkUnique(ctx, tx, recordType, changedColumns, changedArgs, req.GetId()); err != nil {
 		return nil, err
 	}
+	if err := checkLinkTargets(ctx, tx, recordType, changedColumns, changedArgs); err != nil {
+		return nil, err
+	}
 	assignments := []string{dialect.QuoteIdent("revision") + " = " + dialect.QuoteIdent("revision") + " + 1"}
 	for _, column := range changedColumns {
 		assignments = append(assignments, column+" = ?")
@@ -360,8 +379,12 @@ func (s recordService) UpdateRecord(ctx context.Context, req *athenav1.UpdateRec
 	if _, err := tx.ExecContext(ctx, statement, changedArgs...); err != nil {
 		return nil, writeError("update record", err)
 	}
-	if err := writeHistory(ctx, tx, recordType.Name, req.GetId(), current.GetRevision()+1, "updated", changed); err != nil {
-		return nil, internalError("record type history", err)
+	updated, err := loadRecord(ctx, tx, recordType, req.GetId(), "")
+	if err != nil {
+		return nil, err
+	}
+	if err := writeAudit(ctx, tx, recordType.Name, req.GetId(), current.GetRevision()+1, "updated", fieldChanges(changed, current, updated)); err != nil {
+		return nil, err
 	}
 	if recordType.Submittable && state == lifecycle.Submitted {
 		if err := writeActivity(ctx, tx, activityRow{recordType: recordType.Name, recordID: req.GetId(), event: "edited_after_submit", requestID: requestID, changed: changed}); err != nil {
@@ -456,8 +479,8 @@ func (s recordService) DeleteRecord(ctx context.Context, req *athenav1.DeleteRec
 	if recordType.kind() == kindMaster {
 		revision++
 	}
-	if err := writeHistory(ctx, tx, recordType.Name, req.GetId(), revision, "deleted", nil); err != nil {
-		return nil, internalError("record type history", err)
+	if err := writeAudit(ctx, tx, recordType.Name, req.GetId(), revision, "deleted", nil); err != nil {
+		return nil, err
 	}
 	if err := tx.Commit(); err != nil {
 		return nil, internalError("delete record", err)
@@ -493,27 +516,19 @@ func (s recordService) ListRecordHistory(ctx context.Context, req *athenav1.List
 	if err != nil {
 		return nil, err
 	}
-	rows, err := s.db.QueryContext(ctx, `SELECT action, revision, changed_fields, actor, created_at FROM athena_record_history WHERE record_type_name = ? AND record_id = ? ORDER BY created_at DESC, id DESC LIMIT 200`, recordType.Name, req.GetId())
+	rows, err := audit.Rows(ctx, s.db, recordType.Name, req.GetId(), 200)
 	if err != nil {
 		return nil, internalError("read history", err)
 	}
-	defer rows.Close()
 	res := &athenav1.ListRecordHistoryResponse{}
-	for rows.Next() {
-		var event athenav1.RecordEvent
-		var changed []byte
-		var at time.Time
-		if err := rows.Scan(&event.Action, &event.Revision, &changed, &event.Actor, &at); err != nil {
-			return nil, internalError("read history", err)
+	for _, row := range rows {
+		event := &athenav1.RecordEvent{Action: row.Entry.Action, Revision: row.Entry.Revision, Actor: row.Entry.Actor, At: row.At.Format(time.RFC3339),
+			RequestId: row.Entry.RequestID, Source: row.Entry.Source, Seq: row.Seq, Hash: row.Hash}
+		for _, change := range row.Entry.Changes {
+			event.ChangedFields = append(event.ChangedFields, change.Field)
+			event.Changes = append(event.Changes, &athenav1.FieldChange{Field: change.Field, OldValue: change.Old, NewValue: change.New})
 		}
-		if err := json.Unmarshal(changed, &event.ChangedFields); err != nil {
-			return nil, internalError("read history", err)
-		}
-		event.At = at.UTC().Format(time.RFC3339)
-		res.Events = append(res.Events, &event)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, internalError("read history", err)
+		res.Events = append(res.Events, event)
 	}
 	if len(res.Events) > 0 {
 		return res, nil
@@ -528,22 +543,6 @@ func (s recordService) ListRecordHistory(ctx context.Context, req *athenav1.List
 	}
 	res.Events = append(res.Events, &athenav1.RecordEvent{Action: "created", Revision: 1, Actor: localActor, At: record.GetCreatedAt()})
 	return res, nil
-}
-
-func writeHistory(ctx context.Context, tx *sql.Tx, recordTypeName, recordID string, revision int64, action string, changed []string) error {
-	id, err := uuid.NewV7()
-	if err != nil {
-		return err
-	}
-	if changed == nil {
-		changed = []string{}
-	}
-	payload, err := json.Marshal(changed)
-	if err != nil {
-		return err
-	}
-	_, err = tx.ExecContext(ctx, `INSERT INTO athena_record_history (id, record_type_name, record_id, revision, action, changed_fields, actor) VALUES (?,?,?,?,?,?,?)`, id.String(), recordTypeName, recordID, revision, action, payload, localActor)
-	return err
 }
 
 // sameValue reports whether a stored value equals a bound argument from bindValues.

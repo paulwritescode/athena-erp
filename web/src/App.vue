@@ -190,7 +190,7 @@ function cancelPendingSave() {
       <RecordTypesPage v-else-if="mode === 'build' && page === 'record-types'" :record-types="recordTypes" :current-record-type="currentRecordType" :database-state="databaseState" @select="selectedRecordType = $event" @add-record-type="addRecordType" @add-field="addField" @rename="renameRecordType" @delete="removeRecordType" @save="saveCurrentRecordType" @preview="mode = 'view'" />
       <PacksPage v-else-if="mode === 'build' && page === 'packs'" @open-record-types="page = 'record-types'" />
       <RulesPage v-else-if="mode === 'build' && page === 'rules'" />
-      <RecordsPage v-else v-model:record-id="recordRoute" :record-type="viewRecordType" @back="mode = 'build'" />
+      <RecordsPage v-else v-model:record-id="recordRoute" :record-type="viewRecordType" :record-types="viewRecordTypes" @back="mode = 'build'" />
     </main>
     <MigrationDialog v-if="pendingSave" :record-type="pendingSave.recordType" :plan="pendingSave.plan" @confirm="confirmPendingSave" @cancel="cancelPendingSave" />
     <Toaster position="bottom-right" :theme="isDark ? 'dark' : 'light'" />

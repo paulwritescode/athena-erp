@@ -3,20 +3,22 @@ import { computed, nextTick, reactive, ref, watch } from 'vue'
 import { create } from '@bufbuild/protobuf'
 import { Code, ConnectError } from '@connectrpc/connect'
 import { recordClient } from '../api'
-import { docstates, fieldEditable, validateField } from '../fieldRules'
-import { FieldValueSchema, type ActivityEvent, type Record as RecordMessage, type RecordEvent, type RecordVersion, type FieldValue } from '../gen/athena/v1/records_pb'
+import { docstates, fieldEditable, validateField, validateManualName } from '../fieldRules'
+import { forgetLabels } from '../lookup'
+import { FieldValueSchema, type ActivityEvent, type FieldChange, type Record as RecordMessage, type RecordEvent, type RecordVersion, type FieldValue } from '../gen/athena/v1/records_pb'
 import type { Field, RecordType } from '../types'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
 import RecordsTable from '../components/RecordsTable.vue'
+import RecordPicker from '../components/RecordPicker.vue'
 import { Marker, MarkerContent, MarkerIcon } from '@/components/ui/marker'
 import { CalendarPlusIcon, ClockIcon, FingerprintIcon, HashIcon, LayersIcon, PencilIcon, PlusIcon, Trash2Icon, UserIcon } from '@lucide/vue'
 import { toast } from 'vue-sonner'
 
 // recordType is null when no saved Record Type exists yet. recordId comes from the page
 // URL: '' for the table, 'new' for the create form, or an record ID.
-const props = defineProps<{ recordType: RecordType | null; recordId: string }>()
+const props = defineProps<{ recordType: RecordType | null; recordId: string; recordTypes?: RecordType[] }>()
 const emit = defineEmits<{ back: []; 'update:recordId': [id: string] }>()
 
 const records = ref<RecordMessage[]>([])
@@ -31,6 +33,8 @@ const touched = new Set<string>()
 const busy = ref(false)
 // The owning record of a new child record.
 const parentId = ref('')
+// A manual document name, for Record Types that allow one.
+const manualName = ref('')
 const history = ref<RecordEvent[]>([])
 const versions = ref<RecordVersion[]>([])
 const activity = ref<ActivityEvent[]>([])
@@ -110,10 +114,19 @@ async function loadHistory(record: RecordMessage) {
 
 const labels = computed(() => new Map(props.recordType?.fields.map((field) => [field.name, field.label]) ?? []))
 
+const historyActions: Record<string, string> = { created: 'Created', updated: 'Updated', deleted: 'Deleted', submitted: 'Submitted', cancelled: 'Cancelled', name_override: 'Name set by hand' }
 function describe(event: RecordEvent) {
-  const action = event.action === 'created' ? 'Created' : event.action === 'deleted' ? 'Deleted' : 'Updated'
+  const action = historyActions[event.action] ?? event.action
   const fields = event.changedFields.map((key) => labels.value.get(key) ?? key)
   return fields.length > 0 && event.action === 'updated' ? `${action} ${fields.join(', ')}` : action
+}
+// One line per field of an Audit Log row: the old and new value. Rows imported
+// from before the Audit Log name the field only.
+function describeChange(change: FieldChange): string {
+  const name = labels.value.get(change.field) ?? (change.field === 'docstate' ? 'Status' : change.field === 'name' ? 'Name' : change.field)
+  if (change.oldValue === undefined && change.newValue === undefined) return name
+  const show = (value: string | undefined) => (value === undefined || value === '' ? 'empty' : change.field === 'docstate' ? stateLabels[Number(value)] ?? value : value)
+  return `${name}: ${show(change.oldValue)} → ${show(change.newValue)}`
 }
 
 function clear(target: Record<string, unknown>) {
@@ -128,6 +141,7 @@ function open(record: RecordMessage | 'new') {
   activity.value = []
   clear(texts); clear(checks); clear(errors); touched.clear()
   parentId.value = record === 'new' ? '' : record.parentId
+  manualName.value = ''
   for (const field of props.recordType.fields) {
     const kind = record === 'new' ? undefined : record.values[field.name]?.kind
     // A new record shows the default the server will fill in.
@@ -162,7 +176,13 @@ function describeActivity(event: ActivityEvent) {
 }
 const isChild = computed(() => props.recordType?.kind === 'child')
 const isSetting = computed(() => props.recordType?.kind === 'setting')
-const parentLabel = computed(() => props.recordType?.parent_record_type ?? 'owning')
+const parentKey = computed(() => props.recordType?.parent_record_type ?? '')
+const parentLabel = computed(() => props.recordTypes?.find((item) => item.name === parentKey.value)?.label ?? 'owning record')
+// A Link field names its target by key; the picker shows the Record Type's label.
+function targetLabel(field: Field): string {
+  return props.recordTypes?.find((item) => item.name === field.target_record_type)?.label ?? field.target_record_type ?? 'linked record'
+}
+const allowsManualName = computed(() => props.recordType?.allow_manual_name === true && props.recordType.submittable === true)
 // A Setting holds one record, so creating is offered only while it is empty.
 const canCreate = computed(() => !isSetting.value || (records.value.length === 0 && !loading.value && !loadError.value))
 
@@ -200,6 +220,11 @@ function placeServerError(err: unknown): boolean {
     void focusFirstError()
     return true
   }
+  if (/name/i.test(err.rawMessage) && allowsManualName.value && editing.value === 'new' && !props.recordType.fields.some((item) => err.rawMessage.startsWith(item.label))) {
+    errors.manual_name = `${err.rawMessage.charAt(0).toUpperCase()}${err.rawMessage.slice(1)}.`
+    void focusFirstError()
+    return true
+  }
   const field = props.recordType.fields.find((item) => err.rawMessage.startsWith(item.label))
   if (!field) return false
   errors[field.name] = `${err.rawMessage.charAt(0).toUpperCase()}${err.rawMessage.slice(1)}.`
@@ -223,14 +248,19 @@ async function submit() {
   const recordType = props.recordType
   if (!editing.value || !recordType) return
   for (const field of recordType.fields) { touched.add(field.name); if (!locked(field)) check(field) }
-  if (editing.value === 'new' && isChild.value && !parentId.value.trim()) errors.parent_id = `Enter the ID of the ${parentLabel.value} record this belongs to.`
+  if (editing.value === 'new' && isChild.value && !parentId.value.trim()) errors.parent_id = `Choose the ${parentLabel.value} this belongs to.`
+  if (editing.value === 'new' && allowsManualName.value) {
+    const problem = validateManualName(manualName.value)
+    if (problem) errors.manual_name = problem
+  }
   if (Object.keys(errors).length > 0) { await focusFirstError(); return }
   busy.value = true
   const values = Object.fromEntries(recordType.fields.filter((field) => !locked(field)).map((field) => [field.name, toValue(field)]))
   try {
     if (editing.value === 'new') {
-      const res = await recordClient.createRecord({ recordTypeKey: recordType.name, values, parentId: isChild.value ? parentId.value.trim() : '' })
+      const res = await recordClient.createRecord({ recordTypeKey: recordType.name, values, parentId: isChild.value ? parentId.value.trim() : '', name: allowsManualName.value ? manualName.value.trim() : '' })
       if (res.record) records.value = [...records.value, res.record]
+      forgetLabels(recordType.name)
       toast.success('Record created.')
       close()
     } else {
@@ -241,6 +271,7 @@ async function submit() {
         records.value = records.value.map((item) => item.id === current.id ? updated : item)
         open(updated)
       }
+      forgetLabels(recordType.name)
       toast.success('Record saved.')
     }
   } catch (err) {
@@ -274,6 +305,7 @@ async function runTransition(action: Transition) {
         open(fresh)
       }
     }
+    forgetLabels(recordType.name)
     toast.success(transitionText[action])
   } catch (err) {
     reportWriteError(err)
@@ -305,6 +337,7 @@ async function remove() {
   try {
     await recordClient.deleteRecord({ recordTypeKey: recordType.name, id: current.id, expectedRevision: current.revision })
     records.value = records.value.filter((item) => item.id !== current.id)
+    forgetLabels(recordType.name)
     toast.success('Record deleted.')
     close()
   } catch (err) {
@@ -357,15 +390,21 @@ function inputType(field: Field) {
         <div class="entry-form-grid">
           <div v-if="isChild" class="form-field" :class="{ 'is-invalid': errors.parent_id }">
             <label for="entry-parent-id" class="form-label">Belongs to ({{ parentLabel }})<span class="required-mark" aria-hidden="true">*</span></label>
-            <input id="entry-parent-id" v-model="parentId" type="text" :disabled="editing !== 'new'" :placeholder="`${parentLabel} record ID`" :aria-invalid="errors.parent_id ? 'true' : undefined" @input="delete errors.parent_id" />
-            <p v-if="errors.parent_id" class="field-error">{{ errors.parent_id }}</p>
+            <RecordPicker id="entry-parent-id" v-model="parentId" :record-type-key="parentKey" :target-label="parentLabel" required :disabled="editing !== 'new'" :invalid="Boolean(errors.parent_id)" describedby="entry-parent-id-error" @update:model-value="delete errors.parent_id" />
+            <p v-if="errors.parent_id" id="entry-parent-id-error" class="field-error">{{ errors.parent_id }}</p>
+          </div>
+          <div v-if="allowsManualName && editing === 'new'" class="form-field" :class="{ 'is-invalid': errors.manual_name }">
+            <label for="entry-manual-name" class="form-label">Name</label>
+            <input id="entry-manual-name" v-model="manualName" type="text" autocomplete="off" placeholder="Leave empty to number it when submitted" :aria-invalid="errors.manual_name ? 'true' : undefined" aria-describedby="entry-manual-name-error" @input="delete errors.manual_name" />
+            <p v-if="errors.manual_name" id="entry-manual-name-error" class="field-error">{{ errors.manual_name }}</p>
           </div>
           <div v-for="field in recordType.fields" :key="field.name" class="form-field" :class="{ 'is-wide': field.type === 'Long text', 'is-invalid': errors[field.name] }">
             <label :for="`entry-${field.name}`" class="form-label">{{ fieldLabel(field) }}<span v-if="field.required" class="required-mark" aria-hidden="true">*</span></label>
-            <label v-if="field.type === 'Checkbox'" class="checkbox-row"><input :id="`entry-${field.name}`" v-model="checks[field.name]" type="checkbox" :disabled="locked(field)" /><span>{{ checks[field.name] ? 'Yes' : 'No' }}</span></label>
+            <RecordPicker v-if="field.type === 'Link' && field.target_record_type" :id="`entry-${field.name}`" v-model="texts[field.name]" :record-type-key="field.target_record_type" :target-label="targetLabel(field)" :required="field.required" :disabled="locked(field)" :invalid="Boolean(errors[field.name])" :describedby="errors[field.name] ? `entry-${field.name}-error` : undefined" @update:model-value="onInput(field)" @blur="onBlur(field)" />
+            <label v-else-if="field.type === 'Checkbox'" class="checkbox-row"><input :id="`entry-${field.name}`" v-model="checks[field.name]" type="checkbox" :disabled="locked(field)" /><span>{{ checks[field.name] ? 'Yes' : 'No' }}</span></label>
             <select v-else-if="field.type === 'Enum'" :id="`entry-${field.name}`" v-model="texts[field.name]" :disabled="locked(field)" :aria-invalid="errors[field.name] ? 'true' : undefined" :aria-required="field.required || undefined" :aria-describedby="errors[field.name] ? `entry-${field.name}-error` : undefined" @blur="onBlur(field)" @change="onInput(field)"><option value="">Choose…</option><option v-for="choice in field.values" :key="choice.value" :value="choice.value">{{ choice.label }}</option></select>
             <textarea v-else-if="field.type === 'Long text'" :id="`entry-${field.name}`" v-model="texts[field.name]" rows="4" :disabled="locked(field)" :aria-invalid="errors[field.name] ? 'true' : undefined" :aria-required="field.required || undefined" :aria-describedby="errors[field.name] ? `entry-${field.name}-error` : undefined" @blur="onBlur(field)" @input="onInput(field)" />
-            <input v-else :id="`entry-${field.name}`" v-model="texts[field.name]" :type="inputType(field)" :disabled="locked(field)" :inputmode="['Number', 'Currency', 'Money', 'Quantity'].includes(field.type) ? 'decimal' : undefined" :placeholder="field.type === 'Link' ? `${field.target_record_type} record ID` : undefined" :aria-invalid="errors[field.name] ? 'true' : undefined" :aria-required="field.required || undefined" :aria-describedby="errors[field.name] ? `entry-${field.name}-error` : undefined" @blur="onBlur(field)" @input="onInput(field)" />
+            <input v-else :id="`entry-${field.name}`" v-model="texts[field.name]" :type="inputType(field)" :disabled="locked(field)" :inputmode="['Number', 'Currency', 'Money', 'Quantity'].includes(field.type) ? 'decimal' : undefined" :aria-invalid="errors[field.name] ? 'true' : undefined" :aria-required="field.required || undefined" :aria-describedby="errors[field.name] ? `entry-${field.name}-error` : undefined" @blur="onBlur(field)" @input="onInput(field)" />
             <p v-if="errors[field.name]" :id="`entry-${field.name}-error`" class="field-error">{{ errors[field.name] }}</p>
           </div>
         </div>
@@ -411,12 +450,14 @@ function inputType(field: Field) {
             </li>
           </ol>
         </template>
-        <h2>History</h2>
+        <h2>Audit Log</h2>
         <ol class="entry-markers">
           <li v-for="event in history" :key="`${event.revision}:${event.action}:${event.at}`">
             <Marker variant="border">
               <MarkerIcon><PlusIcon v-if="event.action === 'created'" /><Trash2Icon v-else-if="event.action === 'deleted'" /><PencilIcon v-else /></MarkerIcon>
-              <MarkerContent><span class="marker-label">{{ describe(event) }}</span>{{ event.actor }} · {{ when.format(new Date(event.at)) }} · revision {{ event.revision }}</MarkerContent>
+              <MarkerContent><span class="marker-label">{{ describe(event) }}</span>{{ event.actor }} · {{ when.format(new Date(event.at)) }} · revision {{ event.revision }}
+                <ul v-if="event.changes.length > 0" class="audit-changes"><li v-for="change in event.changes" :key="change.field">{{ describeChange(change) }}</li></ul>
+              </MarkerContent>
             </Marker>
           </li>
         </ol>

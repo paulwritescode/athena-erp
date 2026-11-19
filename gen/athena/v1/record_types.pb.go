@@ -317,7 +317,20 @@ type RecordType struct {
 	// draft, submitted, cancelled under kernel control (spec 5.1).
 	Submittable bool `protobuf:"varint,9,opt,name=submittable,proto3" json:"submittable,omitempty"`
 	// Requires submittable. A cancelled document can be amended into a new draft.
-	Amendable     bool `protobuf:"varint,10,opt,name=amendable,proto3" json:"amendable,omitempty"`
+	Amendable bool `protobuf:"varint,10,opt,name=amendable,proto3" json:"amendable,omitempty"`
+	// Submittable documents only: a naming series such as SINV-{yyyy}-{#####}
+	// (spec 10.4, 24.3). The kernel assigns the next name when the document is
+	// submitted; drafts keep a placeholder. Empty keeps the Record ID as name.
+	NamingSeries string `protobuf:"bytes,11,opt,name=naming_series,json=namingSeries,proto3" json:"naming_series,omitempty"`
+	// Requires naming_series. True numbers inside the submit transaction under
+	// a counter row lock, so a rolled-back submit leaves no gap. False takes the
+	// number outside it, so numbers can skip but writers never wait.
+	GapFree bool `protobuf:"varint,12,opt,name=gap_free,json=gapFree,proto3" json:"gap_free,omitempty"`
+	// Requires submittable. Lets a create request supply its own name.
+	AllowManualName bool `protobuf:"varint,13,opt,name=allow_manual_name,json=allowManualName,proto3" json:"allow_manual_name,omitempty"`
+	// Key of the field whose value labels a Record in pickers. Empty uses the
+	// document name, then the first required text field.
+	LabelField    string `protobuf:"bytes,14,opt,name=label_field,json=labelField,proto3" json:"label_field,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -420,6 +433,34 @@ func (x *RecordType) GetAmendable() bool {
 		return x.Amendable
 	}
 	return false
+}
+
+func (x *RecordType) GetNamingSeries() string {
+	if x != nil {
+		return x.NamingSeries
+	}
+	return ""
+}
+
+func (x *RecordType) GetGapFree() bool {
+	if x != nil {
+		return x.GapFree
+	}
+	return false
+}
+
+func (x *RecordType) GetAllowManualName() bool {
+	if x != nil {
+		return x.AllowManualName
+	}
+	return false
+}
+
+func (x *RecordType) GetLabelField() string {
+	if x != nil {
+		return x.LabelField
+	}
+	return ""
 }
 
 type ListRecordTypesRequest struct {
@@ -944,7 +985,7 @@ const file_athena_v1_record_types_proto_rawDesc = "" +
 	"\x03uom\x18\x12 \x01(\tR\x03uom\x12\x19\n" +
 	"\x05scale\x18\x13 \x01(\x05H\x00R\x05scale\x88\x01\x01\x12&\n" +
 	"\x0fallow_on_submit\x18\x14 \x01(\bR\rallowOnSubmitB\b\n" +
-	"\x06_scale\"\xc5\x02\n" +
+	"\x06_scale\"\xd2\x03\n" +
 	"\n" +
 	"RecordType\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
@@ -957,7 +998,12 @@ const file_athena_v1_record_types_proto_rawDesc = "" +
 	"\x16parent_record_type_key\x18\b \x01(\tR\x13parentRecordTypeKey\x12 \n" +
 	"\vsubmittable\x18\t \x01(\bR\vsubmittable\x12\x1c\n" +
 	"\tamendable\x18\n" +
-	" \x01(\bR\tamendable\"\x18\n" +
+	" \x01(\bR\tamendable\x12#\n" +
+	"\rnaming_series\x18\v \x01(\tR\fnamingSeries\x12\x19\n" +
+	"\bgap_free\x18\f \x01(\bR\agapFree\x12*\n" +
+	"\x11allow_manual_name\x18\r \x01(\bR\x0fallowManualName\x12\x1f\n" +
+	"\vlabel_field\x18\x0e \x01(\tR\n" +
+	"labelField\"\x18\n" +
 	"\x16ListRecordTypesRequest\"S\n" +
 	"\x17ListRecordTypesResponse\x128\n" +
 	"\frecord_types\x18\x01 \x03(\v2\x15.athena.v1.RecordTypeR\vrecordTypes\"\xcc\x02\n" +

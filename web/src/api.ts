@@ -50,6 +50,10 @@ function fromMessage(recordType: RecordTypeMessage): RecordType {
     ...(recordType.parentRecordTypeKey ? { parent_record_type: recordType.parentRecordTypeKey } : {}),
     ...(recordType.submittable ? { submittable: true } : {}),
     ...(recordType.amendable ? { amendable: true } : {}),
+    ...(recordType.namingSeries ? { naming_series: recordType.namingSeries } : {}),
+    ...(recordType.gapFree ? { gap_free: true } : {}),
+    ...(recordType.allowManualName ? { allow_manual_name: true } : {}),
+    ...(recordType.labelField ? { label_field: recordType.labelField } : {}),
     fields: recordType.fields.map(fieldFromMessage),
   }
 }
@@ -70,6 +74,10 @@ function toMessage(recordType: RecordType): RecordTypeMessage {
     parentRecordTypeKey: recordType.kind === 'child' ? recordType.parent_record_type ?? '' : '',
     submittable: recordType.kind === 'document' && (recordType.submittable ?? false),
     amendable: recordType.kind === 'document' && (recordType.submittable ?? false) && (recordType.amendable ?? false),
+    namingSeries: recordType.kind === 'document' && (recordType.submittable ?? false) ? recordType.naming_series ?? '' : '',
+    gapFree: recordType.kind === 'document' && (recordType.submittable ?? false) && (recordType.naming_series ?? '') !== '' && (recordType.gap_free ?? false),
+    allowManualName: recordType.kind === 'document' && (recordType.submittable ?? false) && (recordType.allow_manual_name ?? false),
+    labelField: recordType.label_field ?? '',
     fields: recordType.fields.map((field) => ({
       key: field.name,
       label: field.label,

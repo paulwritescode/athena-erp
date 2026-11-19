@@ -137,3 +137,71 @@ func TestRecordsLifecycleCommands(t *testing.T) {
 		t.Fatalf("activity = %q, %v", out, err)
 	}
 }
+
+func TestNumberingLookupAndAuditCommands(t *testing.T) {
+	db, cfg := testdb.NewWithConfig(t)
+	t.Setenv("ATHENA_DATABASE_URL", cfg.FormatDSN())
+	t.Chdir(t.TempDir())
+	run := func(command func([]string, io.Writer) error, args ...string) (string, error) {
+		var out bytes.Buffer
+		err := command(args, &out)
+		return out.String(), err
+	}
+	definition := filepath.Join(t.TempDir(), "invoice.json")
+	if err := os.WriteFile(definition, []byte(`{"key":"invoice","label":"Invoice","kind":"document","class":"posting","submittable":true,
+		"namingSeries":"CLI-{####}","gapFree":true,"allowManualName":true,"labelField":"title",
+		"fields":[{"key":"title","label":"Title","type":"Text","required":true}]}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if out, err := run(recordTypesCommand, "save", "--file", definition); err != nil {
+		t.Fatalf("save = %q, %v", out, err)
+	}
+	if out, err := run(recordTypesCommand, "show", "invoice"); err != nil || !strings.Contains(out, "CLI-{####}") || !regexp.MustCompile(`"gapFree":\s+true`).MatchString(out) {
+		t.Fatalf("show = %q, %v", out, err)
+	}
+	created, err := run(recordsCommand, "create", "invoice", "--values", `{"title":"Alpha"}`, "--json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := regexp.MustCompile(`"id":\s+"([0-9a-f-]{36})"`).FindStringSubmatch(created)[1]
+	if out, err := run(recordsCommand, "submit", "invoice", id, "--revision", "1"); err != nil || !strings.Contains(out, "CLI-0001 is now submitted") {
+		t.Fatalf("submit = %q, %v", out, err)
+	}
+	if out, err := run(recordsCommand, "create", "invoice", "--values", `{"title":"Old"}`, "--name", "LEGACY-7"); err != nil || !strings.Contains(out, "Created ") {
+		t.Fatalf("manual name = %q, %v", out, err)
+	}
+	if _, err := run(recordsCommand, "create", "invoice", "--values", `{"title":"Dup"}`, "--name", "LEGACY-7"); err == nil || !strings.Contains(err.Error(), "already used") {
+		t.Fatalf("a repeated manual name must be refused: %v", err)
+	}
+	// lookup: search text before the flags, labelled by the label field.
+	if out, err := run(recordsCommand, "lookup", "invoice", "alp"); err != nil || !strings.Contains(out, id+"\tAlpha") || strings.Contains(out, "Old") {
+		t.Fatalf("lookup = %q, %v", out, err)
+	}
+	if out, err := run(recordsCommand, "lookup", "invoice", "--json", "--limit", "1"); err != nil || !strings.Contains(out, `"nextPageToken"`) {
+		t.Fatalf("lookup json = %q, %v", out, err)
+	}
+	if out, err := run(recordsCommand, "history", "invoice", id); err != nil || !strings.Contains(out, "submitted") || !strings.Contains(out, "name: ") || !strings.Contains(out, "-> CLI-0001") {
+		t.Fatalf("history = %q, %v", out, err)
+	}
+	out, err := run(auditCommand, "verify")
+	head := regexp.MustCompile(`head (\d+:[0-9a-f]{64})`).FindStringSubmatch(out)
+	if err != nil || head == nil {
+		t.Fatalf("verify = %q, %v", out, err)
+	}
+	if out, err := run(auditCommand, "verify", "--anchor", head[1], "--json"); err != nil || !regexp.MustCompile(`"ok":\s+true`).MatchString(out) {
+		t.Fatalf("anchored verify = %q, %v", out, err)
+	}
+	if _, err := run(auditCommand, "verify", "--anchor", "nonsense"); err == nil {
+		t.Fatal("a malformed anchor was accepted")
+	}
+	// Tampering makes verify fail with a non-zero result.
+	if _, err := db.Exec("UPDATE athena_audit_log SET actor = 'x' WHERE seq = 1"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := run(auditCommand, "verify"); err == nil || !strings.Contains(err.Error(), "Audit Log is broken") {
+		t.Fatalf("a tampered log must fail verification: %v", err)
+	}
+	if out, err := run(auditCommand, "help"); err != nil || !strings.Contains(out, "audit verify") {
+		t.Fatalf("help = %q, %v", out, err)
+	}
+}

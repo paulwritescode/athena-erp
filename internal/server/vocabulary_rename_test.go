@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	athenav1 "athena-erp/gen/athena/v1"
+	"athena-erp/internal/audit"
 	"athena-erp/internal/store"
 	"athena-erp/internal/testdb"
 )
@@ -133,7 +134,7 @@ func TestRenameKeepsDataAndRewritesNames(t *testing.T) {
 	if err := checkWorkspace(ctx, db, before); err != nil {
 		t.Fatalf("identity on a pre-rename database: %v", err)
 	}
-	applied, err := store.Up(ctx, db, dialect, SystemMigrations(), store.UpOptions{})
+	applied, err := store.Up(ctx, db, dialect, SystemMigrations(), store.UpOptions{Target: 7})
 	if err != nil || len(applied) != 3 || applied[0].Name != "vocabulary_rename" || applied[1].Name != "record_kinds_and_system_fields" || applied[2].Name != "document_lifecycle" {
 		t.Fatalf("up = %v, %v", applied, err)
 	}
@@ -193,11 +194,21 @@ func TestRenameKeepsDataAndRewritesNames(t *testing.T) {
 	if err := db.QueryRow("SELECT pack_name FROM athena_rules WHERE name = 'r1'").Scan(&pack); err != nil || pack != "core" {
 		t.Fatalf("pack_name = %q, %v", pack, err)
 	}
-	// History stays readable through the new service.
+	// Migration 8 moves the old history into the Audit Log; it stays readable
+	// through the service and the chain verifies.
+	if _, err := store.Up(ctx, db, dialect, SystemMigrations(), store.UpOptions{}); err != nil {
+		t.Fatal(err)
+	}
 	records := recordService{db: db}
 	history, err := records.ListRecordHistory(ctx, &athenav1.ListRecordHistoryRequest{RecordTypeKey: "customer", Id: renameCustomerID})
-	if err != nil || len(history.GetEvents()) != 1 || history.GetEvents()[0].GetAction() != "updated" {
+	if err != nil || len(history.GetEvents()) != 1 || history.GetEvents()[0].GetAction() != "updated" || history.GetEvents()[0].GetSource() != "import" || fmt.Sprint(history.GetEvents()[0].GetChangedFields()) != "[name]" {
 		t.Fatalf("history = %v, %v", history, err)
+	}
+	if tableExists(t, db, "athena_record_history") {
+		t.Error("the old history table was not dropped")
+	}
+	if res, err := audit.Verify(ctx, db, nil); err != nil || !res.OK || res.Rows != 1 {
+		t.Fatalf("verify = %+v, %v", res, err)
 	}
 	// The pending journal row finishes against the new names.
 	if err := resumeOperations(ctx, db); err != nil {
@@ -219,11 +230,11 @@ func TestRenameKeepsDataAndRewritesNames(t *testing.T) {
 func TestRenameIsIdempotent(t *testing.T) {
 	ctx := context.Background()
 	db := preRenameDatabase(t)
-	if _, err := store.Up(ctx, db, dialect, SystemMigrations(), store.UpOptions{}); err != nil {
+	if _, err := store.Up(ctx, db, dialect, SystemMigrations(), store.UpOptions{Target: 7}); err != nil {
 		t.Fatal(err)
 	}
 	structure, data := catalogue(t, db), dataOf(t, db)
-	applied, err := store.Up(ctx, db, dialect, SystemMigrations(), store.UpOptions{})
+	applied, err := store.Up(ctx, db, dialect, SystemMigrations(), store.UpOptions{Target: 7})
 	if err != nil || len(applied) != 0 {
 		t.Fatalf("second up applied %v, %v", applied, err)
 	}
@@ -269,7 +280,7 @@ func TestRenameResumesAfterACrashAtEveryStatement(t *testing.T) {
 		statements = counter.executed
 		return err
 	}
-	if _, err := store.Up(ctx, reference, dialect, counting, store.UpOptions{}); err != nil {
+	if _, err := store.Up(ctx, reference, dialect, counting, store.UpOptions{Target: 7}); err != nil {
 		t.Fatal(err)
 	}
 	wantStructure, wantData := catalogue(t, reference), dataOf(t, reference)
@@ -282,10 +293,10 @@ func TestRenameResumesAfterACrashAtEveryStatement(t *testing.T) {
 		crashing[4].Up = func(ctx context.Context, x store.Execer) error {
 			return renameVocabulary(ctx, &failingExecer{Execer: x, remaining: k})
 		}
-		if _, err := store.Up(ctx, db, dialect, crashing, store.UpOptions{}); err == nil {
+		if _, err := store.Up(ctx, db, dialect, crashing, store.UpOptions{Target: 7}); err == nil {
 			t.Fatalf("k=%d: the simulated crash did not stop the migration", k)
 		}
-		if _, err := store.Up(ctx, db, dialect, SystemMigrations(), store.UpOptions{}); err != nil {
+		if _, err := store.Up(ctx, db, dialect, SystemMigrations(), store.UpOptions{Target: 7}); err != nil {
 			t.Fatalf("k=%d: resume: %v", k, err)
 		}
 		if !reflect.DeepEqual(wantStructure, catalogue(t, db)) || !reflect.DeepEqual(wantData, dataOf(t, db)) {
@@ -302,7 +313,7 @@ func TestRenameRefusesToMergeOrGuess(t *testing.T) {
 			t.Fatal(err)
 		}
 		before := catalogue(t, db)
-		_, err := store.Up(ctx, db, dialect, SystemMigrations(), store.UpOptions{})
+		_, err := store.Up(ctx, db, dialect, SystemMigrations(), store.UpOptions{Target: 7})
 		if err == nil || !strings.Contains(err.Error(), "athena_record_customer") || !strings.Contains(err.Error(), "p_workspace__customer") {
 			t.Fatalf("error = %v", err)
 		}
@@ -316,7 +327,7 @@ func TestRenameRefusesToMergeOrGuess(t *testing.T) {
 			t.Fatal(err)
 		}
 		before := catalogue(t, db)
-		if _, err := store.Up(ctx, db, dialect, SystemMigrations(), store.UpOptions{}); err == nil || !strings.Contains(err.Error(), "is a system table") {
+		if _, err := store.Up(ctx, db, dialect, SystemMigrations(), store.UpOptions{Target: 7}); err == nil || !strings.Contains(err.Error(), "is a system table") {
 			t.Fatalf("error = %v", err)
 		}
 		if !reflect.DeepEqual(before, catalogue(t, db)) {
@@ -339,7 +350,7 @@ func TestRenameHandlesALegacyKeyThatNamesANewSystemTable(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if _, err := store.Up(ctx, db, dialect, SystemMigrations(), store.UpOptions{}); err != nil {
+	if _, err := store.Up(ctx, db, dialect, SystemMigrations(), store.UpOptions{Target: 7}); err != nil {
 		t.Fatal(err)
 	}
 	var note string

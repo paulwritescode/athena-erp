@@ -28,5 +28,7 @@ export type Field = {
 export type Kind = 'master' | 'document' | 'child' | 'setting'
 // revision is 0 until the Record Type is first saved. class applies to documents
 // and parent_record_type to child Record Types. submittable and amendable switch
-// on the document lifecycle (draft, submitted, cancelled, amended).
-export type RecordType = { name: string; label: string; description: string; kind: Kind; class?: string; parent_record_type?: string; submittable?: boolean; amendable?: boolean; fields: Field[]; revision: number }
+// on the document lifecycle (draft, submitted, cancelled, amended). naming_series,
+// gap_free and allow_manual_name set how a submittable document is named;
+// label_field names the field that labels a Record in pickers.
+export type RecordType = { name: string; label: string; description: string; kind: Kind; class?: string; parent_record_type?: string; submittable?: boolean; amendable?: boolean; naming_series?: string; gap_free?: boolean; allow_manual_name?: boolean; label_field?: string; fields: Field[]; revision: number }
