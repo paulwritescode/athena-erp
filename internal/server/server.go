@@ -257,14 +257,14 @@ func addEntryRevisions(db *sql.DB) error {
 			return fmt.Errorf("saved Record name %q is not a valid identifier", name)
 		}
 		table := recordTableName(name)
-		var exists bool
-		if err := db.QueryRow(`SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ?)`, table).Scan(&exists); err != nil {
+		exists, err := dialect.TableExists(context.Background(), db, table)
+		if err != nil {
 			return err
 		}
 		if !exists {
 			continue
 		}
-		if _, err := db.Exec(fmt.Sprintf("ALTER TABLE `%s` ADD COLUMN IF NOT EXISTS `revision` BIGINT NOT NULL DEFAULT 1 AFTER `id`", table)); err != nil {
+		if _, err := db.Exec(dialect.AddRevisionColumn(table)); err != nil {
 			return err
 		}
 	}

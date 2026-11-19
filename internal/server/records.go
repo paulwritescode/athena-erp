@@ -13,8 +13,8 @@ import (
 	"unicode/utf8"
 
 	athenav1 "athena-erp/gen/athena/v1"
+	"athena-erp/internal/store"
 	"connectrpc.com/connect/v2"
-	"github.com/go-sql-driver/mysql"
 	"github.com/google/uuid"
 )
 
@@ -53,8 +53,12 @@ const (
 	operationFailed    = "failed"
 )
 
+// dialect generates every engine-specific statement. MariaDB is the only
+// implementation.
+var dialect store.Dialect = store.MariaDB{}
+
 func recordTableName(name string) string {
-	return "athena_record_" + strings.ToLower(name)
+	return dialect.ShortenIdent("athena_record_" + strings.ToLower(name))
 }
 
 // sqlConn is satisfied by *sql.Conn, the single session that holds the schema lock.
@@ -204,12 +208,12 @@ func (s recordService) DeleteRecord(ctx context.Context, req *athenav1.DeleteRec
 // the table does not exist.
 func countEntries(ctx context.Context, conn sqlConn, key string) (int64, error) {
 	table := recordTableName(key)
-	var exists bool
-	if err := conn.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ?)`, table).Scan(&exists); err != nil || !exists {
+	exists, err := dialect.TableExists(ctx, conn, table)
+	if err != nil || !exists {
 		return 0, err
 	}
 	var count int64
-	err := conn.QueryRowContext(ctx, fmt.Sprintf("SELECT COUNT(*) FROM `%s`", table)).Scan(&count)
+	err = conn.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+dialect.QuoteIdent(table)).Scan(&count)
 	return count, err
 }
 
@@ -244,7 +248,7 @@ func linkingRecords(ctx context.Context, conn sqlConn, key string) ([]string, er
 // compare-and-swap on the revision. DROP TABLE IF EXISTS is safe to repeat,
 // so an interrupted delete resumes from the start.
 func runDelete(ctx context.Context, conn sqlConn, id string, record recordDefinition, expected int64, _ saveOptions) (int64, error) {
-	if _, err := conn.ExecContext(ctx, fmt.Sprintf("DROP TABLE IF EXISTS `%s`", recordTableName(record.Name))); err != nil {
+	if _, err := conn.ExecContext(ctx, dialect.DropTable(recordTableName(record.Name))); err != nil {
 		log.Printf("record delete %s: drop table for %q: %v", id, record.Name, err)
 		failOperation(conn, id, "drop_table", err)
 		return 0, connect.NewError(connect.CodeFailedPrecondition, fmt.Sprintf("could not delete the table for %s (operation %s)", record.Label, id))
@@ -274,20 +278,16 @@ func runDelete(ctx context.Context, conn sqlConn, id string, record recordDefini
 	return 0, nil
 }
 
-// lockSchema serializes Record saves for the current database. MariaDB named
-// locks are server-wide, so the database name is part of the lock name.
+// lockSchema serializes Record saves for the current database.
 func lockSchema(ctx context.Context, conn sqlConn) (func(), error) {
-	var got sql.NullInt64
-	if err := conn.QueryRowContext(ctx, `SELECT GET_LOCK(CONCAT('athena_schema_', DATABASE()), 10)`).Scan(&got); err != nil {
+	acquired, release, err := dialect.LockSchema(ctx, conn)
+	if err != nil {
 		return nil, internalError("lock schema", err)
 	}
-	if !got.Valid || got.Int64 != 1 {
+	if !acquired {
 		return nil, connect.NewError(connect.CodeUnavailable, "another Record save is in progress; try again")
 	}
-	return func() {
-		var released sql.NullInt64
-		_ = conn.QueryRowContext(context.Background(), `SELECT RELEASE_LOCK(CONCAT('athena_schema_', DATABASE()))`).Scan(&released)
-	}, nil
+	return release, nil
 }
 
 // loadRecord returns the active definition and revision, or nil and zero when
@@ -339,7 +339,7 @@ func validateRecord(ctx context.Context, conn sqlConn, record recordDefinition) 
 			return invalid(fmt.Sprintf("field key %q is used twice", field.Name))
 		}
 		seen[field.Name] = true
-		if _, err := mariadbColumnType(field.Type); err != nil {
+		if _, err := dialect.ColumnType(field.Type); err != nil {
 			return invalid(fmt.Sprintf("%s: %v", field.Label, err))
 		}
 		if field.Type == "Link" {
@@ -409,8 +409,7 @@ func runOperation(ctx context.Context, conn sqlConn, id string, record recordDef
 	conflict := connect.NewError(connect.CodeAborted, "this Record was saved somewhere else; reload it and try again")
 	if expected == 0 {
 		_, err = tx.ExecContext(ctx, `INSERT INTO athena_records (name, label, definition, revision) VALUES (?,?,?,1)`, record.Name, record.Label, payload)
-		var dbErr *mysql.MySQLError
-		if errors.As(err, &dbErr) && dbErr.Number == 1062 {
+		if dialect.Classify(err) == store.ErrDuplicateKey {
 			failOperation(conn, id, "activate", err)
 			return 0, conflict
 		}
@@ -524,18 +523,15 @@ func pendingOperations(ctx context.Context, conn sqlConn) ([]pendingOperation, e
 // Field columns are nullable; Go enforces required fields.
 func applySchema(ctx context.Context, conn sqlConn, record recordDefinition, previous *recordDefinition, opts saveOptions) error {
 	table := recordTableName(record.Name)
-	columns := []string{"`id` CHAR(36) NOT NULL PRIMARY KEY", "`revision` BIGINT NOT NULL DEFAULT 1", "`created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP", "`updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"}
+	columns := make([]store.Column, 0, len(record.Fields))
 	for _, field := range record.Fields {
-		columnType, err := mariadbColumnType(field.Type)
+		columnType, err := dialect.ColumnType(field.Type)
 		if err != nil {
 			return err
 		}
-		columns = append(columns, fmt.Sprintf("`%s` %s NULL", field.Name, columnType))
+		columns = append(columns, store.Column{Name: field.Name, Type: columnType})
 	}
-	statements := []string{
-		fmt.Sprintf("CREATE TABLE IF NOT EXISTS `%s` (%s) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci", table, strings.Join(columns, ",")),
-		fmt.Sprintf("ALTER TABLE `%s` ADD COLUMN IF NOT EXISTS `revision` BIGINT NOT NULL DEFAULT 1 AFTER `id`", table),
-	}
+	statements := []string{dialect.CreateRecordTable(table, columns), dialect.AddRevisionColumn(table)}
 	for _, statement := range statements {
 		if _, err := conn.ExecContext(ctx, statement); err != nil {
 			return err
@@ -550,49 +546,23 @@ func ensureLink(ctx context.Context, conn sqlConn, recordName string, field reco
 	table := recordTableName(recordName)
 	target := recordTableName(field.TargetRecord)
 	constraint := recordForeignKeyName(recordName, field.Name)
-	var referenced string
-	err := conn.QueryRowContext(ctx, `SELECT referenced_table_name FROM information_schema.referential_constraints WHERE constraint_schema = DATABASE() AND table_name = ? AND constraint_name = ?`, table, constraint).Scan(&referenced)
-	if err == nil {
+	referenced, found, err := dialect.ForeignKeyTarget(ctx, conn, table, constraint)
+	if err != nil {
+		return err
+	}
+	if found {
 		if referenced != target {
 			return fmt.Errorf("link %q already references %q", field.Name, referenced)
 		}
 		return nil
 	}
-	if !errors.Is(err, sql.ErrNoRows) {
-		return err
-	}
-	_, err = conn.ExecContext(ctx, fmt.Sprintf("ALTER TABLE `%s` ADD CONSTRAINT `%s` FOREIGN KEY (`%s`) REFERENCES `%s` (`id`) ON DELETE RESTRICT", table, constraint, field.Name, target))
+	_, err = conn.ExecContext(ctx, dialect.AddForeignKey(table, constraint, field.Name, target))
 	return err
 }
 
 func recordForeignKeyName(recordName, fieldName string) string {
 	sum := sha256.Sum256([]byte(recordName + ":" + fieldName))
 	return fmt.Sprintf("fk_record_%x", sum[:8])
-}
-
-func mariadbColumnType(fieldType string) (string, error) {
-	switch fieldType {
-	case "Text":
-		return "VARCHAR(255)", nil
-	case "Long text":
-		return "TEXT", nil
-	case "Email":
-		return "VARCHAR(320)", nil
-	case "Phone":
-		return "VARCHAR(40)", nil
-	case "Number", "Currency":
-		return "DECIMAL(18,6)", nil
-	case "Date":
-		return "DATE", nil
-	case "Select":
-		return "VARCHAR(120)", nil
-	case "Link":
-		return "CHAR(36)", nil
-	case "Checkbox":
-		return "BOOLEAN", nil
-	default:
-		return "", fmt.Errorf("unsupported field type %q", fieldType)
-	}
 }
 
 func recordFromProto(record *athenav1.Record) recordDefinition {

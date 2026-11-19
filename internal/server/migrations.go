@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	athenav1 "athena-erp/gen/athena/v1"
+	"athena-erp/internal/store"
 	"connectrpc.com/connect/v2"
 )
 
@@ -82,7 +83,7 @@ func planMigration(ctx context.Context, conn sqlConn, record recordDefinition, p
 		return []migrationStep{{Kind: stepCreateTable, Description: fmt.Sprintf("Create the table for %s with %s", record.Label, plural(int64(len(record.Fields)), "field", "fields"))}}, nil
 	}
 	table := recordTableName(record.Name)
-	hasTable, err := tableExists(ctx, conn, table)
+	hasTable, err := dialect.TableExists(ctx, conn, table)
 	if err != nil {
 		return nil, internalError("check table", err)
 	}
@@ -91,7 +92,7 @@ func planMigration(ctx context.Context, conn sqlConn, record recordDefinition, p
 			return 0, nil
 		}
 		var n int64
-		err := conn.QueryRowContext(ctx, fmt.Sprintf("SELECT COUNT(*) FROM `%s` WHERE %s", table, where)).Scan(&n)
+		err := conn.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+dialect.QuoteIdent(table)+" WHERE "+where).Scan(&n)
 		return n, err
 	}
 	entries, err := count("1=1")
@@ -107,7 +108,7 @@ func planMigration(ctx context.Context, conn sqlConn, record recordDefinition, p
 	for _, field := range record.Fields {
 		current[field.Name] = true
 		old, existed := previousByKey[field.Name]
-		column := "`" + field.Name + "`"
+		column := dialect.QuoteIdent(field.Name)
 		if !existed {
 			step := migrationStep{Kind: stepAddField, Field: field, Description: fmt.Sprintf("Add %s", field.Label)}
 			if field.Required && entries > 0 {
@@ -119,9 +120,9 @@ func planMigration(ctx context.Context, conn sqlConn, record recordDefinition, p
 		}
 		var cleared int64
 		if old.Type != field.Type || (field.Type == "Link" && old.TargetRecord != field.TargetRecord) {
-			predicate, err := incompatiblePredicate(column, field)
+			predicate, err := dialect.IncompatibleValues(column, field.Type, recordTableName(field.TargetRecord))
 			if err != nil {
-				return nil, err
+				return nil, invalid(err.Error())
 			}
 			if cleared, err = count(column + " IS NOT NULL AND (" + predicate + ")"); err != nil {
 				return nil, internalError("check values", err)
@@ -153,7 +154,7 @@ func planMigration(ctx context.Context, conn sqlConn, record recordDefinition, p
 		if current[old.Name] {
 			continue
 		}
-		values, err := count("`" + old.Name + "` IS NOT NULL")
+		values, err := count(dialect.QuoteIdent(old.Name) + " IS NOT NULL")
 		if err != nil {
 			return nil, internalError("check values", err)
 		}
@@ -193,38 +194,6 @@ func checkPlan(steps []migrationStep, confirm bool, backfills map[string]*athena
 	return opts, nil
 }
 
-// incompatiblePredicate is a SQL condition that is true for stored values that
-// cannot be kept when column becomes field's type (or link target). Identifiers
-// come from validated keys.
-func incompatiblePredicate(column string, field recordField) (string, error) {
-	text := "CAST(" + column + " AS CHAR)"
-	switch field.Type {
-	case "Number", "Currency":
-		return text + ` NOT REGEXP '^-?[0-9]{1,12}(\\.[0-9]{1,6})?$'`, nil
-	case "Date":
-		return text + ` NOT REGEXP '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' OR STR_TO_DATE(` + text + `, '%Y-%m-%d') IS NULL`, nil
-	case "Checkbox":
-		return text + ` NOT IN ('0', '1')`, nil
-	case "Link":
-		return column + " NOT IN (SELECT `id` FROM `" + recordTableName(field.TargetRecord) + "`)", nil
-	case "Long text":
-		return "CHAR_LENGTH(" + text + ") > 65535", nil
-	case "Email":
-		return "CHAR_LENGTH(" + text + ") > 320 OR " + text + " NOT LIKE '%_@_%'", nil
-	}
-	limit := map[string]int{"Text": 255, "Phone": 40, "Select": 120}[field.Type]
-	if limit == 0 {
-		return "", invalid(fmt.Sprintf("unsupported field type %q", field.Type))
-	}
-	return fmt.Sprintf("CHAR_LENGTH(%s) > %d", text, limit), nil
-}
-
-func tableExists(ctx context.Context, conn sqlConn, table string) (bool, error) {
-	var exists bool
-	err := conn.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ?)`, table).Scan(&exists)
-	return exists, err
-}
-
 // migrateFields applies field-level changes from previous to record. Every
 // statement checks or tolerates the current state, so a resumed operation can
 // run it again after a partial attempt.
@@ -245,44 +214,45 @@ func migrateFields(ctx context.Context, conn sqlConn, record recordDefinition, p
 			continue
 		}
 		if old.Type == "Link" {
-			if _, err := conn.ExecContext(ctx, fmt.Sprintf("ALTER TABLE `%s` DROP FOREIGN KEY IF EXISTS `%s`", table, recordForeignKeyName(record.Name, old.Name))); err != nil {
+			if _, err := conn.ExecContext(ctx, dialect.DropForeignKey(table, recordForeignKeyName(record.Name, old.Name))); err != nil {
 				return err
 			}
 		}
-		if _, err := conn.ExecContext(ctx, fmt.Sprintf("ALTER TABLE `%s` DROP COLUMN IF EXISTS `%s`", table, old.Name)); err != nil {
+		if _, err := conn.ExecContext(ctx, dialect.DropColumn(table, old.Name)); err != nil {
 			return err
 		}
 	}
 	for _, field := range record.Fields {
-		columnType, _ := mariadbColumnType(field.Type)
-		column := "`" + field.Name + "`"
+		columnType, _ := dialect.ColumnType(field.Type)
+		column := dialect.QuoteIdent(field.Name)
+		spec := store.Column{Name: field.Name, Type: columnType}
 		old, existed := previousByKey[field.Name]
 		typeChanged := existed && old.Type != field.Type
 		linkChanged := existed && field.Type == "Link" && (old.Type != "Link" || old.TargetRecord != field.TargetRecord)
 		if existed && old.Type == "Link" && (field.Type != "Link" || old.TargetRecord != field.TargetRecord) {
-			if _, err := conn.ExecContext(ctx, fmt.Sprintf("ALTER TABLE `%s` DROP FOREIGN KEY IF EXISTS `%s`", table, recordForeignKeyName(record.Name, field.Name))); err != nil {
+			if _, err := conn.ExecContext(ctx, dialect.DropForeignKey(table, recordForeignKeyName(record.Name, field.Name))); err != nil {
 				return err
 			}
 		}
-		if _, err := conn.ExecContext(ctx, fmt.Sprintf("ALTER TABLE `%s` ADD COLUMN IF NOT EXISTS %s %s NULL", table, column, columnType)); err != nil {
+		if _, err := conn.ExecContext(ctx, dialect.AddColumn(table, spec)); err != nil {
 			return err
 		}
 		if (typeChanged || linkChanged) && opts.ConfirmDataLoss {
-			predicate, err := incompatiblePredicate(column, field)
+			predicate, err := dialect.IncompatibleValues(column, field.Type, recordTableName(field.TargetRecord))
 			if err != nil {
 				return err
 			}
-			if _, err := conn.ExecContext(ctx, fmt.Sprintf("UPDATE `%s` SET %s = NULL WHERE %s IS NOT NULL AND (%s)", table, column, column, predicate)); err != nil {
+			if _, err := conn.ExecContext(ctx, fmt.Sprintf("UPDATE %s SET %s = NULL WHERE %s IS NOT NULL AND (%s)", dialect.QuoteIdent(table), column, column, predicate)); err != nil {
 				return err
 			}
 		}
 		// MODIFY also makes columns from earlier versions nullable; Go enforces required.
-		var nullable string
-		if err := conn.QueryRowContext(ctx, `SELECT is_nullable FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?`, table, field.Name).Scan(&nullable); err != nil {
+		nullable, err := dialect.ColumnIsNullable(ctx, conn, table, field.Name)
+		if err != nil {
 			return err
 		}
-		if typeChanged || nullable == "NO" {
-			if _, err := conn.ExecContext(ctx, fmt.Sprintf("ALTER TABLE `%s` MODIFY %s %s NULL", table, column, columnType)); err != nil {
+		if typeChanged || !nullable {
+			if _, err := conn.ExecContext(ctx, dialect.MakeNullable(table, spec)); err != nil {
 				return err
 			}
 		}
@@ -292,7 +262,7 @@ func migrateFields(ctx context.Context, conn sqlConn, record recordDefinition, p
 			}
 		}
 		if value, ok := opts.Backfills[field.Name]; ok {
-			if _, err := conn.ExecContext(ctx, fmt.Sprintf("UPDATE `%s` SET %s = ? WHERE %s IS NULL", table, column, column), value); err != nil {
+			if _, err := conn.ExecContext(ctx, fmt.Sprintf("UPDATE %s SET %s = ? WHERE %s IS NULL", dialect.QuoteIdent(table), column, column), value); err != nil {
 				return err
 			}
 		}

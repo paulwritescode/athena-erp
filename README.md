@@ -106,6 +106,7 @@ MariaDB tests read `ATHENA_TEST_DATABASE_URL`, a DSN for a user who can create a
 cmd/athena/             CLI entry point (`athena init`, `new`, `run`, `serve`, `version`)
 internal/project/        workspaces, project creation, project resolution and the run lock
 internal/server/         Go HTTP/ConnectRPC server and MariaDB-backed Record schema
+internal/store/          Dialect interface and the MariaDB implementation; all engine-specific SQL for Records and entries lives here
 internal/webui/          embedded frontend assets
 proto/athena/v1/         Protobuf API contract
 gen/                    generated Go API code

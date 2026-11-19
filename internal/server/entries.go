@@ -15,8 +15,8 @@ import (
 	"unicode/utf8"
 
 	athenav1 "athena-erp/gen/athena/v1"
+	"athena-erp/internal/store"
 	"connectrpc.com/connect/v2"
-	"github.com/go-sql-driver/mysql"
 	"github.com/google/uuid"
 )
 
@@ -55,7 +55,7 @@ func (s entryService) ListEntries(ctx context.Context, req *athenav1.ListEntries
 		}
 	}
 	// UUIDv7 IDs sort by creation time, so the primary key is the keyset cursor.
-	query := fmt.Sprintf("SELECT %s FROM `%s` WHERE `id` > ? ORDER BY `id` LIMIT ?", selectColumns(record), recordTableName(record.Name))
+	query := fmt.Sprintf("SELECT %s FROM %s WHERE %s > ? ORDER BY %s LIMIT ?", selectColumns(record), dialect.QuoteIdent(recordTableName(record.Name)), dialect.QuoteIdent("id"), dialect.QuoteIdent("id"))
 	rows, err := s.db.QueryContext(ctx, query, after, pageSize+1)
 	if err != nil {
 		return nil, internalError("list entries", err)
@@ -115,10 +115,10 @@ func (s entryService) CreateEntry(ctx context.Context, req *athenav1.CreateEntry
 			changed = append(changed, strings.Trim(column, "`"))
 		}
 	}
-	columns = append([]string{"`id`"}, columns...)
+	columns = append([]string{dialect.QuoteIdent("id")}, columns...)
 	args = append([]any{id.String()}, args...)
 	placeholders := strings.TrimSuffix(strings.Repeat("?,", len(columns)), ",")
-	statement := fmt.Sprintf("INSERT INTO `%s` (%s) VALUES (%s)", recordTableName(record.Name), strings.Join(columns, ","), placeholders)
+	statement := fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)", dialect.QuoteIdent(recordTableName(record.Name)), strings.Join(columns, ","), placeholders)
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, internalError("create entry", err)
@@ -154,7 +154,7 @@ func (s entryService) UpdateEntry(ctx context.Context, req *athenav1.UpdateEntry
 		return nil, internalError("update entry", err)
 	}
 	defer func() { _ = tx.Rollback() }()
-	current, err := loadEntry(ctx, tx, record, req.GetId(), "FOR UPDATE")
+	current, err := loadEntry(ctx, tx, record, req.GetId(), dialect.ForUpdate())
 	if err != nil {
 		return nil, err
 	}
@@ -177,12 +177,12 @@ func (s entryService) UpdateEntry(ctx context.Context, req *athenav1.UpdateEntry
 	if len(changed) == 0 {
 		return &athenav1.UpdateEntryResponse{Entry: current}, nil
 	}
-	assignments := []string{"`revision` = `revision` + 1"}
+	assignments := []string{dialect.QuoteIdent("revision") + " = " + dialect.QuoteIdent("revision") + " + 1"}
 	for _, column := range changedColumns {
 		assignments = append(assignments, column+" = ?")
 	}
 	changedArgs = append(changedArgs, req.GetId(), req.GetExpectedRevision())
-	statement := fmt.Sprintf("UPDATE `%s` SET %s WHERE `id` = ? AND `revision` = ?", recordTableName(record.Name), strings.Join(assignments, ", "))
+	statement := fmt.Sprintf("UPDATE %s SET %s WHERE `id` = ? AND `revision` = ?", dialect.QuoteIdent(recordTableName(record.Name)), strings.Join(assignments, ", "))
 	if _, err := tx.ExecContext(ctx, statement, changedArgs...); err != nil {
 		return nil, writeError("update entry", err)
 	}
@@ -209,7 +209,7 @@ func (s entryService) DeleteEntry(ctx context.Context, req *athenav1.DeleteEntry
 		return nil, internalError("delete entry", err)
 	}
 	defer func() { _ = tx.Rollback() }()
-	statement := fmt.Sprintf("DELETE FROM `%s` WHERE `id` = ? AND `revision` = ?", recordTableName(record.Name))
+	statement := fmt.Sprintf("DELETE FROM %s WHERE `id` = ? AND `revision` = ?", dialect.QuoteIdent(recordTableName(record.Name)))
 	result, err := tx.ExecContext(ctx, statement, req.GetId(), req.GetExpectedRevision())
 	if err != nil {
 		return nil, writeError("delete entry", err)
@@ -332,7 +332,7 @@ type querier interface {
 
 // loadEntry reads one entry. suffix is "" or "FOR UPDATE" inside a transaction.
 func loadEntry(ctx context.Context, q querier, record recordDefinition, id, suffix string) (*athenav1.Entry, error) {
-	query := fmt.Sprintf("SELECT %s FROM `%s` WHERE `id` = ? %s", selectColumns(record), recordTableName(record.Name), suffix)
+	query := fmt.Sprintf("SELECT %s FROM %s WHERE `id` = ? %s", selectColumns(record), dialect.QuoteIdent(recordTableName(record.Name)), suffix)
 	rows, err := q.QueryContext(ctx, query, id)
 	if err != nil {
 		return nil, internalError("read entry", err)
@@ -361,7 +361,7 @@ func (s entryService) checkChanged(ctx context.Context, record recordDefinition,
 		return nil
 	}
 	var exists bool
-	statement := fmt.Sprintf("SELECT EXISTS(SELECT 1 FROM `%s` WHERE `id` = ?)", recordTableName(record.Name))
+	statement := fmt.Sprintf("SELECT EXISTS(SELECT 1 FROM %s WHERE `id` = ?)", dialect.QuoteIdent(recordTableName(record.Name)))
 	if err := s.db.QueryRowContext(ctx, statement, id).Scan(&exists); err != nil {
 		return internalError("check write", err)
 	}
@@ -372,9 +372,9 @@ func (s entryService) checkChanged(ctx context.Context, record recordDefinition,
 }
 
 func selectColumns(record recordDefinition) string {
-	columns := []string{"`id`", "`revision`", "`created_at`", "`updated_at`"}
+	columns := []string{dialect.QuoteIdent("id"), dialect.QuoteIdent("revision"), dialect.QuoteIdent("created_at"), dialect.QuoteIdent("updated_at")}
 	for _, field := range record.Fields {
-		columns = append(columns, "`"+field.Name+"`")
+		columns = append(columns, dialect.QuoteIdent(field.Name))
 	}
 	return strings.Join(columns, ",")
 }
@@ -467,7 +467,7 @@ func bindValues(record recordDefinition, values map[string]*athenav1.FieldValue,
 		if arg == nil && field.Required {
 			return nil, nil, invalid(fmt.Sprintf("%s is required", field.Label))
 		}
-		columns = append(columns, "`"+field.Name+"`")
+		columns = append(columns, dialect.QuoteIdent(field.Name))
 		args = append(args, arg)
 	}
 	if !creating && len(columns) == 0 {
@@ -554,20 +554,17 @@ func internalError(action string, err error) error {
 	return connect.NewError(connect.CodeInternal, "could not "+action)
 }
 
-// writeError maps MariaDB constraint failures to client errors.
+// writeError maps database constraint failures to client errors.
 func writeError(action string, err error) error {
-	var dbErr *mysql.MySQLError
-	if errors.As(err, &dbErr) {
-		switch dbErr.Number {
-		case 1452:
-			return invalid("a linked entry does not exist")
-		case 1451:
-			return connect.NewError(connect.CodeFailedPrecondition, "other entries link to this entry")
-		case 1048, 1364:
-			return invalid("a required field is missing")
-		case 1406, 1264, 1366:
-			return invalid("a value does not fit its field")
-		}
+	switch dialect.Classify(err) {
+	case store.ErrForeignKeyMissingParent:
+		return invalid("a linked entry does not exist")
+	case store.ErrForeignKeyInUse:
+		return connect.NewError(connect.CodeFailedPrecondition, "other entries link to this entry")
+	case store.ErrNotNull:
+		return invalid("a required field is missing")
+	case store.ErrValueTooLong:
+		return invalid("a value does not fit its field")
 	}
 	return internalError(action, err)
 }
