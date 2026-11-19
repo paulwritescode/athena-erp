@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file athena/v1/records.proto.
  */
 export const file_athena_v1_records: GenFile = /*@__PURE__*/
-  fileDesc("ChdhdGhlbmEvdjEvcmVjb3Jkcy5wcm90bxIJYXRoZW5hLnYxIlgKCkZpZWxkVmFsdWUSFgoMc3RyaW5nX3ZhbHVlGAEgASgJSAASFAoKYm9vbF92YWx1ZRgCIAEoCEgAEhQKCm51bGxfdmFsdWUYAyABKAhIAEIGCgRraW5kIsMBCgZSZWNvcmQSCgoCaWQYASABKAkSEAoIcmV2aXNpb24YAiABKAMSLQoGdmFsdWVzGAMgAygLMh0uYXRoZW5hLnYxLlJlY29yZC5WYWx1ZXNFbnRyeRISCgpjcmVhdGVkX2F0GAQgASgJEhIKCnVwZGF0ZWRfYXQYBSABKAkaRAoLVmFsdWVzRW50cnkSCwoDa2V5GAEgASgJEiQKBXZhbHVlGAIgASgLMhUuYXRoZW5hLnYxLkZpZWxkVmFsdWU6AjgBIlQKEkxpc3RSZWNvcmRzUmVxdWVzdBIXCg9yZWNvcmRfdHlwZV9rZXkYASABKAkSEQoJcGFnZV9zaXplGAIgASgFEhIKCnBhZ2VfdG9rZW4YAyABKAkiUgoTTGlzdFJlY29yZHNSZXNwb25zZRIiCgdyZWNvcmRzGAEgAygLMhEuYXRoZW5hLnYxLlJlY29yZBIXCg9uZXh0X3BhZ2VfdG9rZW4YAiABKAkiNwoQR2V0UmVjb3JkUmVxdWVzdBIXCg9yZWNvcmRfdHlwZV9rZXkYASABKAkSCgoCaWQYAiABKAkiNgoRR2V0UmVjb3JkUmVzcG9uc2USIQoGcmVjb3JkGAEgASgLMhEuYXRoZW5hLnYxLlJlY29yZCKwAQoTQ3JlYXRlUmVjb3JkUmVxdWVzdBIXCg9yZWNvcmRfdHlwZV9rZXkYASABKAkSOgoGdmFsdWVzGAIgAygLMiouYXRoZW5hLnYxLkNyZWF0ZVJlY29yZFJlcXVlc3QuVmFsdWVzRW50cnkaRAoLVmFsdWVzRW50cnkSCwoDa2V5GAEgASgJEiQKBXZhbHVlGAIgASgLMhUuYXRoZW5hLnYxLkZpZWxkVmFsdWU6AjgBIjkKFENyZWF0ZVJlY29yZFJlc3BvbnNlEiEKBnJlY29yZBgBIAEoCzIRLmF0aGVuYS52MS5SZWNvcmQi1wEKE1VwZGF0ZVJlY29yZFJlcXVlc3QSFwoPcmVjb3JkX3R5cGVfa2V5GAEgASgJEgoKAmlkGAIgASgJEhkKEWV4cGVjdGVkX3JldmlzaW9uGAMgASgDEjoKBnZhbHVlcxgEIAMoCzIqLmF0aGVuYS52MS5VcGRhdGVSZWNvcmRSZXF1ZXN0LlZhbHVlc0VudHJ5GkQKC1ZhbHVlc0VudHJ5EgsKA2tleRgBIAEoCRIkCgV2YWx1ZRgCIAEoCzIVLmF0aGVuYS52MS5GaWVsZFZhbHVlOgI4ASI5ChRVcGRhdGVSZWNvcmRSZXNwb25zZRIhCgZyZWNvcmQYASABKAsyES5hdGhlbmEudjEuUmVjb3JkIlUKE0RlbGV0ZVJlY29yZFJlcXVlc3QSFwoPcmVjb3JkX3R5cGVfa2V5GAEgASgJEgoKAmlkGAIgASgJEhkKEWV4cGVjdGVkX3JldmlzaW9uGAMgASgDIhYKFERlbGV0ZVJlY29yZFJlc3BvbnNlIj8KGExpc3RSZWNvcmRIaXN0b3J5UmVxdWVzdBIXCg9yZWNvcmRfdHlwZV9rZXkYASABKAkSCgoCaWQYAiABKAkiYgoLUmVjb3JkRXZlbnQSDgoGYWN0aW9uGAEgASgJEhAKCHJldmlzaW9uGAIgASgDEhYKDmNoYW5nZWRfZmllbGRzGAMgAygJEg0KBWFjdG9yGAQgASgJEgoKAmF0GAUgASgJIkMKGUxpc3RSZWNvcmRIaXN0b3J5UmVzcG9uc2USJgoGZXZlbnRzGAEgAygLMhYuYXRoZW5hLnYxLlJlY29yZEV2ZW50MvgDCg1SZWNvcmRTZXJ2aWNlEkwKC0xpc3RSZWNvcmRzEh0uYXRoZW5hLnYxLkxpc3RSZWNvcmRzUmVxdWVzdBoeLmF0aGVuYS52MS5MaXN0UmVjb3Jkc1Jlc3BvbnNlEkYKCUdldFJlY29yZBIbLmF0aGVuYS52MS5HZXRSZWNvcmRSZXF1ZXN0GhwuYXRoZW5hLnYxLkdldFJlY29yZFJlc3BvbnNlEk8KDENyZWF0ZVJlY29yZBIeLmF0aGVuYS52MS5DcmVhdGVSZWNvcmRSZXF1ZXN0Gh8uYXRoZW5hLnYxLkNyZWF0ZVJlY29yZFJlc3BvbnNlEk8KDFVwZGF0ZVJlY29yZBIeLmF0aGVuYS52MS5VcGRhdGVSZWNvcmRSZXF1ZXN0Gh8uYXRoZW5hLnYxLlVwZGF0ZVJlY29yZFJlc3BvbnNlEk8KDERlbGV0ZVJlY29yZBIeLmF0aGVuYS52MS5EZWxldGVSZWNvcmRSZXF1ZXN0Gh8uYXRoZW5hLnYxLkRlbGV0ZVJlY29yZFJlc3BvbnNlEl4KEUxpc3RSZWNvcmRIaXN0b3J5EiMuYXRoZW5hLnYxLkxpc3RSZWNvcmRIaXN0b3J5UmVxdWVzdBokLmF0aGVuYS52MS5MaXN0UmVjb3JkSGlzdG9yeVJlc3BvbnNlQiNaIWF0aGVuYS1lcnAvZ2VuL2F0aGVuYS92MTthdGhlbmF2MWIGcHJvdG8z");
+  fileDesc("ChdhdGhlbmEvdjEvcmVjb3Jkcy5wcm90bxIJYXRoZW5hLnYxIlgKCkZpZWxkVmFsdWUSFgoMc3RyaW5nX3ZhbHVlGAEgASgJSAASFAoKYm9vbF92YWx1ZRgCIAEoCEgAEhQKCm51bGxfdmFsdWUYAyABKAhIAEIGCgRraW5kIsQCCgZSZWNvcmQSCgoCaWQYASABKAkSEAoIcmV2aXNpb24YAiABKAMSLQoGdmFsdWVzGAMgAygLMh0uYXRoZW5hLnYxLlJlY29yZC5WYWx1ZXNFbnRyeRISCgpjcmVhdGVkX2F0GAQgASgJEhIKCnVwZGF0ZWRfYXQYBSABKAkSEgoKY3JlYXRlZF9ieRgGIAEoCRITCgttb2RpZmllZF9ieRgHIAEoCRINCgVvd25lchgIIAEoCRITCgtkZWZfdmVyc2lvbhgJIAEoAxISCgpyZXF1ZXN0X2lkGAogASgJEhEKCXBhcmVudF9pZBgLIAEoCRILCgNpZHgYDCABKAMaRAoLVmFsdWVzRW50cnkSCwoDa2V5GAEgASgJEiQKBXZhbHVlGAIgASgLMhUuYXRoZW5hLnYxLkZpZWxkVmFsdWU6AjgBImcKEkxpc3RSZWNvcmRzUmVxdWVzdBIXCg9yZWNvcmRfdHlwZV9rZXkYASABKAkSEQoJcGFnZV9zaXplGAIgASgFEhIKCnBhZ2VfdG9rZW4YAyABKAkSEQoJcGFyZW50X2lkGAQgASgJIlIKE0xpc3RSZWNvcmRzUmVzcG9uc2USIgoHcmVjb3JkcxgBIAMoCzIRLmF0aGVuYS52MS5SZWNvcmQSFwoPbmV4dF9wYWdlX3Rva2VuGAIgASgJIjcKEEdldFJlY29yZFJlcXVlc3QSFwoPcmVjb3JkX3R5cGVfa2V5GAEgASgJEgoKAmlkGAIgASgJIjYKEUdldFJlY29yZFJlc3BvbnNlEiEKBnJlY29yZBgBIAEoCzIRLmF0aGVuYS52MS5SZWNvcmQiwwEKE0NyZWF0ZVJlY29yZFJlcXVlc3QSFwoPcmVjb3JkX3R5cGVfa2V5GAEgASgJEjoKBnZhbHVlcxgCIAMoCzIqLmF0aGVuYS52MS5DcmVhdGVSZWNvcmRSZXF1ZXN0LlZhbHVlc0VudHJ5EhEKCXBhcmVudF9pZBgDIAEoCRpECgtWYWx1ZXNFbnRyeRILCgNrZXkYASABKAkSJAoFdmFsdWUYAiABKAsyFS5hdGhlbmEudjEuRmllbGRWYWx1ZToCOAEiOQoUQ3JlYXRlUmVjb3JkUmVzcG9uc2USIQoGcmVjb3JkGAEgASgLMhEuYXRoZW5hLnYxLlJlY29yZCLXAQoTVXBkYXRlUmVjb3JkUmVxdWVzdBIXCg9yZWNvcmRfdHlwZV9rZXkYASABKAkSCgoCaWQYAiABKAkSGQoRZXhwZWN0ZWRfcmV2aXNpb24YAyABKAMSOgoGdmFsdWVzGAQgAygLMiouYXRoZW5hLnYxLlVwZGF0ZVJlY29yZFJlcXVlc3QuVmFsdWVzRW50cnkaRAoLVmFsdWVzRW50cnkSCwoDa2V5GAEgASgJEiQKBXZhbHVlGAIgASgLMhUuYXRoZW5hLnYxLkZpZWxkVmFsdWU6AjgBIjkKFFVwZGF0ZVJlY29yZFJlc3BvbnNlEiEKBnJlY29yZBgBIAEoCzIRLmF0aGVuYS52MS5SZWNvcmQiVQoTRGVsZXRlUmVjb3JkUmVxdWVzdBIXCg9yZWNvcmRfdHlwZV9rZXkYASABKAkSCgoCaWQYAiABKAkSGQoRZXhwZWN0ZWRfcmV2aXNpb24YAyABKAMiFgoURGVsZXRlUmVjb3JkUmVzcG9uc2UiPwoYTGlzdFJlY29yZEhpc3RvcnlSZXF1ZXN0EhcKD3JlY29yZF90eXBlX2tleRgBIAEoCRIKCgJpZBgCIAEoCSJiCgtSZWNvcmRFdmVudBIOCgZhY3Rpb24YASABKAkSEAoIcmV2aXNpb24YAiABKAMSFgoOY2hhbmdlZF9maWVsZHMYAyADKAkSDQoFYWN0b3IYBCABKAkSCgoCYXQYBSABKAkiQwoZTGlzdFJlY29yZEhpc3RvcnlSZXNwb25zZRImCgZldmVudHMYASADKAsyFi5hdGhlbmEudjEuUmVjb3JkRXZlbnQy+AMKDVJlY29yZFNlcnZpY2USTAoLTGlzdFJlY29yZHMSHS5hdGhlbmEudjEuTGlzdFJlY29yZHNSZXF1ZXN0Gh4uYXRoZW5hLnYxLkxpc3RSZWNvcmRzUmVzcG9uc2USRgoJR2V0UmVjb3JkEhsuYXRoZW5hLnYxLkdldFJlY29yZFJlcXVlc3QaHC5hdGhlbmEudjEuR2V0UmVjb3JkUmVzcG9uc2USTwoMQ3JlYXRlUmVjb3JkEh4uYXRoZW5hLnYxLkNyZWF0ZVJlY29yZFJlcXVlc3QaHy5hdGhlbmEudjEuQ3JlYXRlUmVjb3JkUmVzcG9uc2USTwoMVXBkYXRlUmVjb3JkEh4uYXRoZW5hLnYxLlVwZGF0ZVJlY29yZFJlcXVlc3QaHy5hdGhlbmEudjEuVXBkYXRlUmVjb3JkUmVzcG9uc2USTwoMRGVsZXRlUmVjb3JkEh4uYXRoZW5hLnYxLkRlbGV0ZVJlY29yZFJlcXVlc3QaHy5hdGhlbmEudjEuRGVsZXRlUmVjb3JkUmVzcG9uc2USXgoRTGlzdFJlY29yZEhpc3RvcnkSIy5hdGhlbmEudjEuTGlzdFJlY29yZEhpc3RvcnlSZXF1ZXN0GiQuYXRoZW5hLnYxLkxpc3RSZWNvcmRIaXN0b3J5UmVzcG9uc2VCI1ohYXRoZW5hLWVycC9nZW4vYXRoZW5hL3YxO2F0aGVuYXYxYgZwcm90bzM");
 
 /**
  * FieldValue carries one typed field value. Number and Currency use exact
@@ -86,6 +86,53 @@ export type Record = Message<"athena.v1.Record"> & {
    * @generated from field: string updated_at = 5;
    */
   updatedAt: string;
+
+  /**
+   * System fields the kernel sets (spec 24.1). Until sign-in exists the
+   * actor is "Local administrator".
+   *
+   * @generated from field: string created_by = 6;
+   */
+  createdBy: string;
+
+  /**
+   * @generated from field: string modified_by = 7;
+   */
+  modifiedBy: string;
+
+  /**
+   * The creating user; master and document Records only.
+   *
+   * @generated from field: string owner = 8;
+   */
+  owner: string;
+
+  /**
+   * Revision of the Record Type when this Record was last written.
+   *
+   * @generated from field: int64 def_version = 9;
+   */
+  defVersion: bigint;
+
+  /**
+   * Correlation ID of the last write request.
+   *
+   * @generated from field: string request_id = 10;
+   */
+  requestId: string;
+
+  /**
+   * Child Records only: the owning Record's ID and the position among its
+   * siblings.
+   *
+   * @generated from field: string parent_id = 11;
+   */
+  parentId: string;
+
+  /**
+   * @generated from field: int64 idx = 12;
+   */
+  idx: bigint;
 };
 
 /**
@@ -117,6 +164,13 @@ export type ListRecordsRequest = Message<"athena.v1.ListRecordsRequest"> & {
    * @generated from field: string page_token = 3;
    */
   pageToken: string;
+
+  /**
+   * Child Record Types only: list the Records of this parent.
+   *
+   * @generated from field: string parent_id = 4;
+   */
+  parentId: string;
 };
 
 /**
@@ -202,6 +256,13 @@ export type CreateRecordRequest = Message<"athena.v1.CreateRecordRequest"> & {
    * @generated from field: map<string, athena.v1.FieldValue> values = 2;
    */
   values: { [key: string]: FieldValue };
+
+  /**
+   * Required for a child Record Type: the Record that owns the new Record.
+   *
+   * @generated from field: string parent_id = 3;
+   */
+  parentId: string;
 };
 
 /**
@@ -447,6 +508,9 @@ export const RecordService: GenService<{
     output: typeof UpdateRecordResponseSchema;
   },
   /**
+   * DeleteRecord soft-deletes a Master Record (it keeps its row and is no
+   * longer listed or readable) and removes Records of other kinds.
+   *
    * @generated from rpc athena.v1.RecordService.DeleteRecord
    */
   deleteRecord: {

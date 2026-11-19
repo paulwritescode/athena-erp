@@ -20,6 +20,15 @@ type fieldRuleCase struct {
 	TargetRecordType string `json:"target_record_type"`
 	Value            string `json:"value"`
 	Valid            bool   `json:"valid"`
+	// Attributes of the field under test; web/src/fieldRules.ts reads the same keys.
+	MaxLength int      `json:"max_length"`
+	Min       string   `json:"min"`
+	Max       string   `json:"max"`
+	Pattern   string   `json:"pattern"`
+	Values    []string `json:"values"`
+	Currency  string   `json:"currency"`
+	Scale     *int     `json:"scale"`
+	UoM       string   `json:"uom"`
 }
 
 func (c fieldRuleCase) text(t *testing.T) string {
@@ -46,7 +55,11 @@ func TestFieldRulesSharedTable(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.Name, func(t *testing.T) {
-			field := recordTypeField{Name: "f", Label: "Field", Type: c.Type, Required: c.Required, TargetRecordType: c.TargetRecordType}
+			field := recordTypeField{Name: "f", Label: "Field", Type: c.Type, Required: c.Required, TargetRecordType: c.TargetRecordType,
+				MaxLength: c.MaxLength, Min: c.Min, Max: c.Max, Pattern: c.Pattern, Currency: c.Currency, Scale: c.Scale, UoM: c.UoM}
+			for _, v := range c.Values {
+				field.Values = append(field.Values, enumValue{Value: v, Label: v})
+			}
 			recordType := recordTypeDefinition{Name: "r", Fields: []recordTypeField{field}}
 			values := map[string]*athenav1.FieldValue{"f": {Kind: &athenav1.FieldValue_StringValue{StringValue: c.text(t)}}}
 			_, _, err := bindValues(recordType, values, true)

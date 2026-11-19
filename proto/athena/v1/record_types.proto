@@ -18,15 +18,55 @@ service RecordTypeService {
   rpc DeleteRecordType(DeleteRecordTypeRequest) returns (DeleteRecordTypeResponse);
 }
 
+// EnumValue is one permanent choice of an Enum field.
+message EnumValue {
+  // Lowercase identifier stored in the column. Fixed once saved.
+  string value = 1;
+  string label = 2;
+}
+
 message RecordTypeField {
   // Lowercase snake_case column key. Fixed once saved.
   string key = 1;
   string label = 2;
-  // One of Text, Long text, Email, Phone, Number, Currency, Date, Select, Link, Checkbox.
+  // One of Text, Long text, Email, Phone, Number, Currency, Date, Select,
+  // Link, Checkbox, Money, Quantity, Enum.
   string type = 3;
   bool required = 4;
   // Key of the linked Record Type, for Link fields only.
   string target_record_type_key = 5;
+  // Attributes the server enforces on every write (spec 3.2). An empty string
+  // or zero means the attribute is not set.
+  // No two Records may hold the same value. Soft-deleted Records keep theirs.
+  bool unique = 6;
+  // Literal value used on create when the request omits the field.
+  string default_value = 7;
+  // Inclusive bounds as exact decimals (Number, Currency, Money, Quantity) or
+  // YYYY-MM-DD dates (Date).
+  string min = 8;
+  string max = 9;
+  // Regular expression (RE2 syntax) the whole value must match, for Text,
+  // Long text and Phone fields.
+  string pattern = 10;
+  // Maximum characters, at most the type's own limit.
+  int32 max_length = 11;
+  // Writes may not change the value; only defaults set it.
+  bool read_only = 12;
+  // The value may be set once and never changed afterwards.
+  bool set_once = 13;
+  // Not copied when a Record is duplicated or amended.
+  bool no_copy = 14;
+  // Adds a database index.
+  bool index = 15;
+  // Choices, for Enum fields only.
+  repeated EnumValue enum_values = 16;
+  // ISO-style currency code such as USD, for Money fields only.
+  string currency = 17;
+  // Unit of measure key such as kg, for Quantity fields only.
+  string uom = 18;
+  // Money: minor-unit digits (2 for USD, 0 for JPY). Quantity: fraction
+  // digits, at most 6, 6 when unset.
+  optional int32 scale = 19;
 }
 
 message RecordType {
@@ -37,6 +77,15 @@ message RecordType {
   repeated RecordTypeField fields = 4;
   // Zero for a Record Type that has never been saved.
   int64 revision = 5;
+  // master, document, child or setting. Ledger, balance, log, snapshot and
+  // meta Record Types are created by the kernel only. Empty means master.
+  // Fixed once saved.
+  string kind = 6;
+  // For documents: posting, non_posting, work or batch.
+  string class = 7;
+  // For child Record Types: the key of the Master or Document that owns the
+  // Records. Fixed once saved.
+  string parent_record_type_key = 8;
 }
 
 message ListRecordTypesRequest {}
@@ -64,7 +113,8 @@ message PlanRecordTypeSaveRequest {
 
 // MigrationStep is one change the save makes to the Record Type's table.
 message MigrationStep {
-  // add_field, remove_field, change_type, change_link, require_field.
+  // create_table, add_field, remove_field, change_type, change_link,
+  // require_field, add_unique, drop_unique, add_index, drop_index.
   string kind = 1;
   string field_key = 2;
   string description = 3;

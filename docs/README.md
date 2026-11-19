@@ -16,6 +16,7 @@ This directory describes the product and the system as it exists and as decision
 - [ADR-0007: Exact numeric types](decisions/adr-0007-exact-types.md) — proposed: decimal, money in minor units, quantity, dates and allocation in `internal/types`.
 - [ADR-0008: Vocabulary](decisions/adr-0008-vocabulary.md) — proposed: Record Type, Record, Pack, Workspace, home, Grant; supersedes D-005.
 - [ADR-0009: Storage shapes](decisions/adr-0009-storage-shapes.md) — proposed: integer minor-unit money, UUIDv7 ids, table naming and the 63-byte identifier rule.
+- [ADR-0010: Record kinds and system fields](decisions/adr-0010-record-kinds-and-system-fields.md) — proposed: kinds, system columns, soft delete, field attributes and the money, quantity and enum types.
 - [ADR template](decisions/adr-template.md) — format for recording a consequential architecture decision.
 - [Project README](../README.md) — setup, run, build, and repository layout.
 

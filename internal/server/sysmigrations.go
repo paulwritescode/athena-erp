@@ -79,6 +79,9 @@ func SystemMigrations() []store.Migration {
 		// Renames every table, column, index, constraint and stored key to the
 		// Record Type, Record, Pack and Workspace vocabulary (ADR-0008).
 		{Version: 5, Name: "vocabulary_rename", Up: renameVocabulary},
+		// Gives every existing Record Type the master kind and its system
+		// columns (ADR-0010).
+		{Version: 6, Name: "record_kinds_and_system_fields", Up: addKindsAndSystemFields},
 	}
 }
 

@@ -9,6 +9,8 @@ service RecordService {
   rpc GetRecord(GetRecordRequest) returns (GetRecordResponse);
   rpc CreateRecord(CreateRecordRequest) returns (CreateRecordResponse);
   rpc UpdateRecord(UpdateRecordRequest) returns (UpdateRecordResponse);
+  // DeleteRecord soft-deletes a Master Record (it keeps its row and is no
+  // longer listed or readable) and removes Records of other kinds.
   rpc DeleteRecord(DeleteRecordRequest) returns (DeleteRecordResponse);
   // ListRecordHistory returns a Record's changes, newest first.
   rpc ListRecordHistory(ListRecordHistoryRequest) returns (ListRecordHistoryResponse);
@@ -34,6 +36,20 @@ message Record {
   // RFC 3339 timestamps.
   string created_at = 4;
   string updated_at = 5;
+  // System fields the kernel sets (spec 24.1). Until sign-in exists the
+  // actor is "Local administrator".
+  string created_by = 6;
+  string modified_by = 7;
+  // The creating user; master and document Records only.
+  string owner = 8;
+  // Revision of the Record Type when this Record was last written.
+  int64 def_version = 9;
+  // Correlation ID of the last write request.
+  string request_id = 10;
+  // Child Records only: the owning Record's ID and the position among its
+  // siblings.
+  string parent_id = 11;
+  int64 idx = 12;
 }
 
 message ListRecordsRequest {
@@ -42,6 +58,8 @@ message ListRecordsRequest {
   int32 page_size = 2;
   // Opaque cursor from a previous response.
   string page_token = 3;
+  // Child Record Types only: list the Records of this parent.
+  string parent_id = 4;
 }
 
 message ListRecordsResponse {
@@ -62,6 +80,8 @@ message GetRecordResponse {
 message CreateRecordRequest {
   string record_type_key = 1;
   map<string, FieldValue> values = 2;
+  // Required for a child Record Type: the Record that owns the new Record.
+  string parent_id = 3;
 }
 
 message CreateRecordResponse {

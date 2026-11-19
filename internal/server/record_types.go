@@ -20,10 +20,18 @@ import (
 
 // recordTypeDefinition is the JSON form stored in athena_record_types.definition.
 type recordTypeDefinition struct {
-	Name        string            `json:"name"`
-	Label       string            `json:"label"`
-	Description string            `json:"description"`
-	Fields      []recordTypeField `json:"fields"`
+	Name        string `json:"name"`
+	Label       string `json:"label"`
+	Description string `json:"description"`
+	// Kind is empty in definitions saved before kinds existed; kind() reads
+	// that as master.
+	Kind             string            `json:"kind,omitempty"`
+	Class            string            `json:"class,omitempty"`
+	ParentRecordType string            `json:"parent_record_type,omitempty"`
+	Fields           []recordTypeField `json:"fields"`
+	// Revision is the active revision. It is read from the revision column,
+	// never stored in the definition.
+	Revision int64 `json:"-"`
 }
 
 type recordTypeField struct {
@@ -32,6 +40,27 @@ type recordTypeField struct {
 	Type             string `json:"type"`
 	Required         bool   `json:"required"`
 	TargetRecordType string `json:"target_record_type,omitempty"`
+	// Attributes enforced on every write (spec 3.2). Zero values mean unset.
+	Unique    bool        `json:"unique,omitempty"`
+	Default   string      `json:"default,omitempty"`
+	Min       string      `json:"min,omitempty"`
+	Max       string      `json:"max,omitempty"`
+	Pattern   string      `json:"pattern,omitempty"`
+	MaxLength int         `json:"max_length,omitempty"`
+	ReadOnly  bool        `json:"read_only,omitempty"`
+	SetOnce   bool        `json:"set_once,omitempty"`
+	NoCopy    bool        `json:"no_copy,omitempty"`
+	Index     bool        `json:"index,omitempty"`
+	Values    []enumValue `json:"values,omitempty"`
+	Currency  string      `json:"currency,omitempty"`
+	UoM       string      `json:"uom,omitempty"`
+	Scale     *int        `json:"scale,omitempty"`
+}
+
+// enumValue is one permanent choice of an Enum field.
+type enumValue struct {
+	Value string `json:"value"`
+	Label string `json:"label"`
 }
 
 // recordTypeKeyPattern caps a key at 50 characters, so the table name
@@ -42,8 +71,10 @@ var (
 	fieldKeyPattern      = regexp.MustCompile(`^[a-z][a-z0-9_]{0,62}$`)
 )
 
-// reservedColumns are system columns present in every Record Type table.
-var reservedColumns = map[string]bool{"id": true, "revision": true, "created_at": true, "updated_at": true}
+// reservedColumns are the system columns the kernel adds to Record Type tables
+// (see systemColumns), reserved for every kind so a field never collides with
+// one. revision is the spec's version field.
+var reservedColumns = map[string]bool{"id": true, "revision": true, "created_at": true, "updated_at": true, "created_by": true, "modified_by": true, "owner": true, "deleted_at": true, "def_version": true, "request_id": true, "parent_id": true, "idx": true}
 
 // Operation actions and states in athena_record_type_operations.
 const (
@@ -140,7 +171,7 @@ func (s recordTypeService) SaveRecordType(ctx context.Context, req *athenav1.Sav
 		}
 		return nil, connect.NewError(connect.CodeAborted, "this Record Type was saved somewhere else; reload it and try again")
 	}
-	if err := validateRecordType(ctx, conn, recordType); err != nil {
+	if err := validateRecordType(ctx, conn, recordType, previous); err != nil {
 		return nil, err
 	}
 	steps, err := planMigration(ctx, conn, recordType, previous)
@@ -225,7 +256,7 @@ func countRecords(ctx context.Context, conn sqlConn, key string) (int64, error) 
 	return count, err
 }
 
-// linkingRecordTypes returns the labels of other Record Types with a Link field to key.
+// linkingRecordTypes returns the labels of other Record Types with a Link field to key, or that are children of it.
 func linkingRecordTypes(ctx context.Context, conn sqlConn, key string) ([]string, error) {
 	rows, err := conn.QueryContext(ctx, `SELECT definition FROM athena_record_types WHERE name <> ?`, key)
 	if err != nil {
@@ -241,6 +272,10 @@ func linkingRecordTypes(ctx context.Context, conn sqlConn, key string) ([]string
 		}
 		if err := json.Unmarshal(payload, &other); err != nil {
 			return nil, err
+		}
+		if other.ParentRecordType == key {
+			labels = append(labels, other.Label)
+			continue
 		}
 		for _, field := range other.Fields {
 			if field.Type == "Link" && field.TargetRecordType == key {
@@ -300,7 +335,7 @@ func lockSchema(ctx context.Context, conn sqlConn) (func(), error) {
 
 // loadRecordType returns the active definition and revision, or nil and zero when
 // the Record Type has never been saved.
-func loadRecordType(ctx context.Context, conn sqlConn, name string) (*recordTypeDefinition, int64, error) {
+func loadRecordType(ctx context.Context, conn store.Querier, name string) (*recordTypeDefinition, int64, error) {
 	var payload []byte
 	var revision int64
 	err := conn.QueryRowContext(ctx, `SELECT definition, revision FROM athena_record_types WHERE name = ?`, name).Scan(&payload, &revision)
@@ -314,12 +349,13 @@ func loadRecordType(ctx context.Context, conn sqlConn, name string) (*recordType
 	if err := json.Unmarshal(payload, &recordType); err != nil {
 		return nil, 0, err
 	}
+	recordType.Revision = revision
 	return &recordType, revision, nil
 }
 
 // validateRecordType checks a definition on its own before any storage changes.
 // Changes against the active revision are planned by planMigration.
-func validateRecordType(ctx context.Context, conn sqlConn, recordType recordTypeDefinition) error {
+func validateRecordType(ctx context.Context, conn sqlConn, recordType recordTypeDefinition, previous *recordTypeDefinition) error {
 	if !recordTypeKeyPattern.MatchString(recordType.Name) {
 		return invalid("the Record Type key must start with a letter and use up to 50 lowercase letters, digits or underscores")
 	}
@@ -328,6 +364,9 @@ func validateRecordType(ctx context.Context, conn sqlConn, recordType recordType
 	}
 	if utf8.RuneCountInString(recordType.Description) > 2000 {
 		return invalid("the description must be at most 2000 characters")
+	}
+	if err := validateKind(ctx, conn, recordType, previous); err != nil {
+		return err
 	}
 	if len(recordType.Fields) == 0 {
 		return invalid("add at least one field")
@@ -349,6 +388,9 @@ func validateRecordType(ctx context.Context, conn sqlConn, recordType recordType
 		seen[field.Name] = true
 		if _, err := dialect.ColumnType(field.Type); err != nil {
 			return invalid(fmt.Sprintf("%s: %v", field.Label, err))
+		}
+		if err := validateAttributes(field); err != nil {
+			return err
 		}
 		if field.Type == "Link" {
 			if field.TargetRecordType == "" {
@@ -531,7 +573,7 @@ func pendingOperations(ctx context.Context, conn sqlConn) ([]pendingOperation, e
 // Field columns are nullable; Go enforces required fields.
 func applySchema(ctx context.Context, conn sqlConn, recordType recordTypeDefinition, previous *recordTypeDefinition, opts saveOptions) error {
 	table := recordTypeTableName(recordType.Name)
-	columns := make([]store.Column, 0, len(recordType.Fields))
+	columns := systemColumns(recordType.kind())
 	for _, field := range recordType.Fields {
 		columnType, err := dialect.ColumnType(field.Type)
 		if err != nil {
@@ -542,6 +584,14 @@ func applySchema(ctx context.Context, conn sqlConn, recordType recordTypeDefinit
 	statements := []string{dialect.CreateRecordTypeTable(table, columns), dialect.AddRevisionColumn(table)}
 	for _, statement := range statements {
 		if _, err := conn.ExecContext(ctx, statement); err != nil {
+			return err
+		}
+	}
+	if err := ensureSystemColumns(ctx, conn, table, recordType.kind()); err != nil {
+		return err
+	}
+	if recordType.kind() == kindChild {
+		if err := ensureLink(ctx, conn, recordType.Name, recordTypeField{Name: "parent_id", Type: "Link", TargetRecordType: recordType.ParentRecordType}); err != nil {
 			return err
 		}
 	}
@@ -574,21 +624,41 @@ func recordTypeForeignKeyName(recordTypeName, fieldName string) string {
 }
 
 func recordTypeFromProto(recordType *athenav1.RecordType) recordTypeDefinition {
-	definition := recordTypeDefinition{Name: recordType.GetKey(), Label: strings.TrimSpace(recordType.GetLabel()), Description: strings.TrimSpace(recordType.GetDescription())}
+	definition := recordTypeDefinition{Name: recordType.GetKey(), Label: strings.TrimSpace(recordType.GetLabel()), Description: strings.TrimSpace(recordType.GetDescription()),
+		Kind: normalizeKind(recordType.GetKind()), Class: recordType.GetClass(), ParentRecordType: recordType.GetParentRecordTypeKey()}
 	for _, field := range recordType.GetFields() {
-		definition.Fields = append(definition.Fields, recordTypeField{Name: field.GetKey(), Label: strings.TrimSpace(field.GetLabel()), Type: field.GetType(), Required: field.GetRequired(), TargetRecordType: field.GetTargetRecordTypeKey()})
+		out := recordTypeField{Name: field.GetKey(), Label: strings.TrimSpace(field.GetLabel()), Type: field.GetType(), Required: field.GetRequired(), TargetRecordType: field.GetTargetRecordTypeKey(),
+			Unique: field.GetUnique(), Default: field.GetDefaultValue(), Min: strings.TrimSpace(field.GetMin()), Max: strings.TrimSpace(field.GetMax()), Pattern: field.GetPattern(), MaxLength: int(field.GetMaxLength()),
+			ReadOnly: field.GetReadOnly(), SetOnce: field.GetSetOnce(), NoCopy: field.GetNoCopy(), Index: field.GetIndex(), Currency: field.GetCurrency(), UoM: field.GetUom()}
+		if field.Scale != nil {
+			scale := int(field.GetScale())
+			out.Scale = &scale
+		}
+		for _, v := range field.GetEnumValues() {
+			out.Values = append(out.Values, enumValue{Value: v.GetValue(), Label: strings.TrimSpace(v.GetLabel())})
+		}
+		definition.Fields = append(definition.Fields, out)
 	}
 	return definition
 }
-
 func recordTypeToProto(recordType recordTypeDefinition, revision int64) *athenav1.RecordType {
-	result := &athenav1.RecordType{Key: recordType.Name, Label: recordType.Label, Description: recordType.Description, Revision: revision}
+	result := &athenav1.RecordType{Key: recordType.Name, Label: recordType.Label, Description: recordType.Description, Revision: revision,
+		Kind: recordType.kind(), Class: recordType.Class, ParentRecordTypeKey: recordType.ParentRecordType}
 	for _, field := range recordType.Fields {
-		result.Fields = append(result.Fields, &athenav1.RecordTypeField{Key: field.Name, Label: field.Label, Type: field.Type, Required: field.Required, TargetRecordTypeKey: field.TargetRecordType})
+		out := &athenav1.RecordTypeField{Key: field.Name, Label: field.Label, Type: field.Type, Required: field.Required, TargetRecordTypeKey: field.TargetRecordType,
+			Unique: field.Unique, DefaultValue: field.Default, Min: field.Min, Max: field.Max, Pattern: field.Pattern, MaxLength: int32(field.MaxLength),
+			ReadOnly: field.ReadOnly, SetOnce: field.SetOnce, NoCopy: field.NoCopy, Index: field.Index, Currency: field.Currency, Uom: field.UoM}
+		if field.Scale != nil {
+			scale := int32(*field.Scale)
+			out.Scale = &scale
+		}
+		for _, v := range field.Values {
+			out.EnumValues = append(out.EnumValues, &athenav1.EnumValue{Value: v.Value, Label: v.Label})
+		}
+		result.Fields = append(result.Fields, out)
 	}
 	return result
 }
-
 func plural(n int64, one, many string) string {
 	if n == 1 {
 		return "1 " + one

@@ -2,10 +2,10 @@ import { createClient } from '@connectrpc/connect'
 import { createConnectTransport } from '@connectrpc/connect-web'
 import { SystemService } from './gen/athena/v1/system_pb'
 import { RecordService, type FieldValue } from './gen/athena/v1/records_pb'
-import { RecordTypeService, RecordTypeSchema, type MigrationStep, type RecordType as RecordTypeMessage } from './gen/athena/v1/record_types_pb'
+import { RecordTypeService, RecordTypeSchema, type MigrationStep, type RecordType as RecordTypeMessage, type RecordTypeField as RecordTypeFieldMessage } from './gen/athena/v1/record_types_pb'
 import { create } from '@bufbuild/protobuf'
 import { ConnectError } from '@connectrpc/connect'
-import type { RecordType } from './types'
+import type { Field, Kind, RecordType } from './types'
 
 // All ConnectRPC calls go through these clients on the same origin as the desk.
 const transport = createConnectTransport({ baseUrl: window.location.origin })
@@ -13,13 +13,41 @@ export const systemClient = createClient(SystemService, transport)
 export const recordClient = createClient(RecordService, transport)
 const recordTypeClient = createClient(RecordTypeService, transport)
 
+function fieldFromMessage(field: RecordTypeFieldMessage): Field {
+  // Only attributes that are set are copied, so a field reads the same as one built in the desk.
+  return {
+    name: field.key,
+    label: field.label,
+    type: field.type,
+    required: field.required,
+    ...(field.targetRecordTypeKey ? { target_record_type: field.targetRecordTypeKey } : {}),
+    ...(field.unique ? { unique: true } : {}),
+    ...(field.defaultValue ? { default: field.defaultValue } : {}),
+    ...(field.min ? { min: field.min } : {}),
+    ...(field.max ? { max: field.max } : {}),
+    ...(field.pattern ? { pattern: field.pattern } : {}),
+    ...(field.maxLength ? { max_length: field.maxLength } : {}),
+    ...(field.readOnly ? { read_only: true } : {}),
+    ...(field.setOnce ? { set_once: true } : {}),
+    ...(field.noCopy ? { no_copy: true } : {}),
+    ...(field.index ? { index: true } : {}),
+    ...(field.enumValues.length > 0 ? { values: field.enumValues.map((choice) => ({ value: choice.value, label: choice.label })) } : {}),
+    ...(field.currency ? { currency: field.currency } : {}),
+    ...(field.uom ? { uom: field.uom } : {}),
+    ...(field.scale !== undefined ? { scale: field.scale } : {}),
+  }
+}
+
 function fromMessage(recordType: RecordTypeMessage): RecordType {
   return {
     name: recordType.key,
     label: recordType.label,
     description: recordType.description,
     revision: Number(recordType.revision),
-    fields: recordType.fields.map((field) => ({ name: field.key, label: field.label, type: field.type, required: field.required, ...(field.targetRecordTypeKey ? { target_record_type: field.targetRecordTypeKey } : {}) })),
+    kind: (recordType.kind || 'master') as Kind,
+    ...(recordType.class ? { class: recordType.class } : {}),
+    ...(recordType.parentRecordTypeKey ? { parent_record_type: recordType.parentRecordTypeKey } : {}),
+    fields: recordType.fields.map(fieldFromMessage),
   }
 }
 
@@ -34,7 +62,30 @@ function toMessage(recordType: RecordType): RecordTypeMessage {
     key: recordType.name,
     label: recordType.label,
     description: recordType.description,
-    fields: recordType.fields.map((field) => ({ key: field.name, label: field.label, type: field.type, required: field.required, targetRecordTypeKey: field.type === 'Link' ? field.target_record_type ?? '' : '' })),
+    kind: recordType.kind,
+    class: recordType.kind === 'document' ? recordType.class ?? '' : '',
+    parentRecordTypeKey: recordType.kind === 'child' ? recordType.parent_record_type ?? '' : '',
+    fields: recordType.fields.map((field) => ({
+      key: field.name,
+      label: field.label,
+      type: field.type,
+      required: field.required,
+      targetRecordTypeKey: field.type === 'Link' ? field.target_record_type ?? '' : '',
+      unique: field.unique ?? false,
+      defaultValue: field.default ?? '',
+      min: field.min ?? '',
+      max: field.max ?? '',
+      pattern: field.pattern ?? '',
+      maxLength: field.max_length ?? 0,
+      readOnly: field.read_only ?? false,
+      setOnce: field.set_once ?? false,
+      noCopy: field.no_copy ?? false,
+      index: field.index ?? false,
+      enumValues: field.type === 'Enum' ? field.values ?? [] : [],
+      currency: field.type === 'Money' ? field.currency ?? '' : '',
+      uom: field.type === 'Quantity' ? field.uom ?? '' : '',
+      ...(field.type === 'Money' || field.type === 'Quantity' ? { scale: field.scale } : {}),
+    })),
   })
 }
 

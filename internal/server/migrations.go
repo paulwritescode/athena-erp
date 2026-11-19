@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"strings"
 
@@ -18,6 +19,10 @@ const (
 	stepChangeLink   = "change_link"
 	stepRequireField = "require_field"
 	stepCreateTable  = "create_table"
+	stepAddUnique    = "add_unique"
+	stepDropUnique   = "drop_unique"
+	stepAddIndex     = "add_index"
+	stepDropIndex    = "drop_index"
 )
 
 // saveOptions are the client's answers to a migration plan. They are stored
@@ -61,7 +66,7 @@ func (s recordTypeService) PlanRecordTypeSave(ctx context.Context, req *athenav1
 	if revision != req.GetExpectedRevision() {
 		return nil, connect.NewError(connect.CodeAborted, "this Record Type was saved somewhere else; reload it and try again")
 	}
-	if err := validateRecordType(ctx, conn, recordType); err != nil {
+	if err := validateRecordType(ctx, conn, recordType, previous); err != nil {
 		return nil, err
 	}
 	steps, err := planMigration(ctx, conn, recordType, previous)
@@ -80,7 +85,7 @@ func (s recordTypeService) PlanRecordTypeSave(ctx context.Context, req *athenav1
 // recordType, with the Records each step affects. It reads but never writes.
 func planMigration(ctx context.Context, conn sqlConn, recordType recordTypeDefinition, previous *recordTypeDefinition) ([]migrationStep, error) {
 	if previous == nil {
-		return []migrationStep{{Kind: stepCreateTable, Description: fmt.Sprintf("Create the table for %s with %s", recordType.Label, plural(int64(len(recordType.Fields)), "field", "fields"))}}, nil
+		return []migrationStep{{Kind: stepCreateTable, Description: fmt.Sprintf("Create the table for %s (%s) with %s", recordType.Label, recordType.kind(), plural(int64(len(recordType.Fields)), "field", "fields"))}}, nil
 	}
 	table := recordTypeTableName(recordType.Name)
 	hasTable, err := dialect.TableExists(ctx, conn, table)
@@ -93,6 +98,14 @@ func planMigration(ctx context.Context, conn sqlConn, recordType recordTypeDefin
 		}
 		var n int64
 		err := conn.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+dialect.QuoteIdent(table)+" WHERE "+where).Scan(&n)
+		return n, err
+	}
+	duplicates := func(column string) (int64, error) {
+		if !hasTable {
+			return 0, nil
+		}
+		var n int64
+		err := conn.QueryRowContext(ctx, fmt.Sprintf("SELECT COUNT(*) FROM (SELECT %[1]s FROM %[2]s WHERE %[1]s IS NOT NULL GROUP BY %[1]s HAVING COUNT(*) > 1) d", column, dialect.QuoteIdent(table))).Scan(&n)
 		return n, err
 	}
 	records, err := count("1=1")
@@ -119,26 +132,36 @@ func planMigration(ctx context.Context, conn sqlConn, recordType recordTypeDefin
 			continue
 		}
 		var cleared int64
-		if old.Type != field.Type || (field.Type == "Link" && old.TargetRecordType != field.TargetRecordType) {
-			predicate, err := dialect.IncompatibleValues(column, field.Type, recordTypeTableName(field.TargetRecordType))
-			if err != nil {
-				return nil, invalid(err.Error())
-			}
+		predicate, reason, err := clearPredicate(old, field, column)
+		if err != nil {
+			return nil, invalid(err.Error())
+		}
+		if reason != "" {
 			if cleared, err = count(column + " IS NOT NULL AND (" + predicate + ")"); err != nil {
 				return nil, internalError("check values", err)
 			}
 			step := migrationStep{Kind: stepChangeType, Field: field, Affected: cleared, Destructive: cleared > 0}
-			if old.Type != field.Type {
+			switch reason {
+			case reasonType:
 				step.Description = fmt.Sprintf("Change %s from %s to %s", field.Label, old.Type, field.Type)
-			} else {
+			case reasonLink:
 				step.Kind = stepChangeLink
 				step.Description = fmt.Sprintf("Link %s to %s instead of %s", field.Label, field.TargetRecordType, old.TargetRecordType)
+			case reasonMeaning:
+				step.Description = fmt.Sprintf("Change the currency, scale or unit of %s", field.Label)
+			default:
+				step.Description = fmt.Sprintf("Change the choices of %s", field.Label)
 			}
 			if cleared > 0 {
 				step.Description += fmt.Sprintf("; %s cannot convert and will be cleared", plural(cleared, "value", "values"))
 			}
 			steps = append(steps, step)
 		}
+		indexSteps, err := planIndexes(old, field, func() (int64, error) { return duplicates(column) })
+		if err != nil {
+			return nil, err
+		}
+		steps = append(steps, indexSteps...)
 		if field.Required {
 			empty, err := count(column + " IS NULL")
 			if err != nil {
@@ -160,6 +183,77 @@ func planMigration(ctx context.Context, conn sqlConn, recordType recordTypeDefin
 		}
 		steps = append(steps, migrationStep{Kind: stepRemoveField, Field: old, Destructive: values > 0, Affected: values,
 			Description: fmt.Sprintf("Remove %s and delete its %s", old.Label, plural(values, "stored value", "stored values"))})
+	}
+	return steps, nil
+}
+
+// Reasons clearPredicate gives for clearing stored values.
+const (
+	reasonType    = "type"
+	reasonLink    = "link"
+	reasonMeaning = "meaning"
+	reasonValues  = "values"
+)
+
+// clearPredicate returns the condition selecting stored values of old that
+// cannot be kept under field, with why. Stored minor units and choices carry
+// meaning that a new currency, scale, unit, list or type would silently
+// change, so those values are cleared instead of reinterpreted. reason is ""
+// when nothing changes.
+func clearPredicate(old, field recordTypeField, column string) (predicate, reason string, err error) {
+	typeChanged := old.Type != field.Type
+	scale := func(f recordTypeField) int {
+		if f.Scale == nil {
+			return -1
+		}
+		return *f.Scale
+	}
+	switch {
+	case old.Type == "Money" && field.Type == "Money" && (old.Currency != field.Currency || scale(old) != scale(field)):
+		return "1 = 1", reasonMeaning, nil
+	case old.Type == "Quantity" && field.Type == "Quantity" && old.UoM != field.UoM:
+		return "1 = 1", reasonMeaning, nil
+	case field.Type == "Enum" && (typeChanged || !sameEnumValues(old.Values, field.Values)):
+		reason = reasonValues
+		if typeChanged {
+			reason = reasonType
+		}
+		return column + " NOT IN (" + enumLiteral(field.Values) + ")", reason, nil
+	case old.Type == "Money" && typeChanged:
+		return "1 = 1", reasonType, nil
+	case typeChanged || (field.Type == "Link" && old.TargetRecordType != field.TargetRecordType):
+		predicate, err = dialect.IncompatibleValues(column, field.Type, recordTypeTableName(field.TargetRecordType))
+		if typeChanged {
+			return predicate, reasonType, err
+		}
+		return predicate, reasonLink, err
+	}
+	return "", "", nil
+}
+
+// planIndexes lists the index changes between two revisions of a field. Making
+// a field unique is refused while stored values repeat.
+func planIndexes(old, field recordTypeField, duplicates func() (int64, error)) ([]migrationStep, error) {
+	var steps []migrationStep
+	if field.Unique && !old.Unique {
+		repeated, err := duplicates()
+		if err != nil {
+			return nil, internalError("check values", err)
+		}
+		if repeated > 0 {
+			return nil, connect.NewError(connect.CodeFailedPrecondition, fmt.Sprintf("%s cannot be unique yet: %s are used more than once. Make them different first", field.Label, plural(repeated, "value", "values")))
+		}
+		steps = append(steps, migrationStep{Kind: stepAddUnique, Field: field, Description: fmt.Sprintf("Make %s unique", field.Label)})
+	}
+	if !field.Unique && old.Unique {
+		steps = append(steps, migrationStep{Kind: stepDropUnique, Field: field, Description: fmt.Sprintf("Allow repeated values in %s", field.Label)})
+	}
+	hadPlain, wantPlain := old.Index && !old.Unique, field.Index && !field.Unique
+	if wantPlain && !hadPlain {
+		steps = append(steps, migrationStep{Kind: stepAddIndex, Field: field, Description: fmt.Sprintf("Index %s", field.Label)})
+	}
+	if hadPlain && !wantPlain {
+		steps = append(steps, migrationStep{Kind: stepDropIndex, Field: field, Description: fmt.Sprintf("Remove the index on %s", field.Label)})
 	}
 	return steps, nil
 }
@@ -228,7 +322,6 @@ func migrateFields(ctx context.Context, conn sqlConn, recordType recordTypeDefin
 		spec := store.Column{Name: field.Name, Type: columnType}
 		old, existed := previousByKey[field.Name]
 		typeChanged := existed && old.Type != field.Type
-		linkChanged := existed && field.Type == "Link" && (old.Type != "Link" || old.TargetRecordType != field.TargetRecordType)
 		if existed && old.Type == "Link" && (field.Type != "Link" || old.TargetRecordType != field.TargetRecordType) {
 			if _, err := conn.ExecContext(ctx, dialect.DropForeignKey(table, recordTypeForeignKeyName(recordType.Name, field.Name))); err != nil {
 				return err
@@ -237,13 +330,15 @@ func migrateFields(ctx context.Context, conn sqlConn, recordType recordTypeDefin
 		if _, err := conn.ExecContext(ctx, dialect.AddColumn(table, spec)); err != nil {
 			return err
 		}
-		if (typeChanged || linkChanged) && opts.ConfirmDataLoss {
-			predicate, err := dialect.IncompatibleValues(column, field.Type, recordTypeTableName(field.TargetRecordType))
+		if existed && opts.ConfirmDataLoss {
+			predicate, reason, err := clearPredicate(old, field, column)
 			if err != nil {
 				return err
 			}
-			if _, err := conn.ExecContext(ctx, fmt.Sprintf("UPDATE %s SET %s = NULL WHERE %s IS NOT NULL AND (%s)", dialect.QuoteIdent(table), column, column, predicate)); err != nil {
-				return err
+			if reason != "" {
+				if _, err := conn.ExecContext(ctx, fmt.Sprintf("UPDATE %s SET %s = NULL WHERE %s IS NOT NULL AND (%s)", dialect.QuoteIdent(table), column, column, predicate)); err != nil {
+					return err
+				}
 			}
 		}
 		// MODIFY also makes columns from earlier versions nullable; Go enforces required.
@@ -261,6 +356,9 @@ func migrateFields(ctx context.Context, conn sqlConn, recordType recordTypeDefin
 				return err
 			}
 		}
+		if err := ensureIndexes(ctx, conn, recordType.Name, field); err != nil {
+			return err
+		}
 		if value, ok := opts.Backfills[field.Name]; ok {
 			if _, err := conn.ExecContext(ctx, fmt.Sprintf("UPDATE %s SET %s = ? WHERE %s IS NULL", dialect.QuoteIdent(table), column, column), value); err != nil {
 				return err
@@ -277,4 +375,39 @@ func describeSteps(steps []migrationStep) string {
 		parts = append(parts, step.Description)
 	}
 	return strings.Join(parts, "; ")
+}
+
+// fieldIndexName names a field's index deterministically and within the
+// identifier limit; prefix is "uq" or "ix".
+func fieldIndexName(prefix, recordTypeName, fieldName string) string {
+	sum := sha256.Sum256([]byte(recordTypeName + ":" + fieldName))
+	return fmt.Sprintf("%s_rtype_%x", prefix, sum[:8])
+}
+
+// ensureIndexes makes the field's unique and plain indexes match its
+// attributes. A unique index serves lookups, so a unique field has no plain
+// one. Each statement checks the catalogue first, so a resume can repeat it.
+func ensureIndexes(ctx context.Context, conn sqlConn, recordTypeName string, field recordTypeField) error {
+	table := recordTypeTableName(recordTypeName)
+	for _, index := range []struct {
+		prefix string
+		want   bool
+		unique bool
+	}{{"uq", field.Unique, true}, {"ix", field.Index && !field.Unique, false}} {
+		name := fieldIndexName(index.prefix, recordTypeName, field.Name)
+		exists, err := dialect.IndexExists(ctx, conn, table, name)
+		if err != nil {
+			return err
+		}
+		switch {
+		case index.want && !exists:
+			_, err = conn.ExecContext(ctx, dialect.AddIndex(table, name, field.Name, index.unique))
+		case !index.want && exists:
+			_, err = conn.ExecContext(ctx, dialect.DropIndex(table, name))
+		}
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }

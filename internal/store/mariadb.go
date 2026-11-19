@@ -44,7 +44,7 @@ func (d MariaDB) ShortenIdent(name string) string {
 	return ShortenIdentifier(name, d.MaxIdentLength())
 }
 
-func (MariaDB) ColumnType(fieldType string) (string, error) {
+func (d MariaDB) ColumnType(fieldType string) (string, error) {
 	switch fieldType {
 	case "Text":
 		return "VARCHAR(255)", nil
@@ -54,11 +54,14 @@ func (MariaDB) ColumnType(fieldType string) (string, error) {
 		return "VARCHAR(320)", nil
 	case "Phone":
 		return "VARCHAR(40)", nil
-	case "Number", "Currency":
+	case "Number", "Currency", "Quantity":
 		return "DECIMAL(18,6)", nil
+	case "Money":
+		// Integer minor units; the currency is a field attribute.
+		return d.BigIntType(), nil
 	case "Date":
 		return "DATE", nil
-	case "Select":
+	case "Select", "Enum":
 		return "VARCHAR(120)", nil
 	case "Link":
 		return "CHAR(36)", nil
@@ -68,6 +71,10 @@ func (MariaDB) ColumnType(fieldType string) (string, error) {
 		return "", fmt.Errorf("unsupported field type %q", fieldType)
 	}
 }
+
+func (MariaDB) BigIntType() string { return "BIGINT" }
+
+func (MariaDB) TimestampType() string { return "TIMESTAMP" }
 
 func (MariaDB) JSONType() string { return "JSON" }
 
@@ -115,6 +122,18 @@ func (d MariaDB) DropForeignKey(table, constraint string) string {
 	return fmt.Sprintf("ALTER TABLE %s DROP FOREIGN KEY IF EXISTS %s", d.QuoteIdent(table), d.QuoteIdent(constraint))
 }
 
+func (d MariaDB) AddIndex(table, index, column string, unique bool) string {
+	kind := "INDEX"
+	if unique {
+		kind = "UNIQUE INDEX"
+	}
+	return fmt.Sprintf("CREATE %s IF NOT EXISTS %s ON %s (%s)", kind, d.QuoteIdent(index), d.QuoteIdent(table), d.QuoteIdent(column))
+}
+
+func (d MariaDB) DropIndex(table, index string) string {
+	return fmt.Sprintf("DROP INDEX IF EXISTS %s ON %s", d.QuoteIdent(index), d.QuoteIdent(table))
+}
+
 func (d MariaDB) DropTable(table string) string {
 	return "DROP TABLE IF EXISTS " + d.QuoteIdent(table)
 }
@@ -152,8 +171,11 @@ func (MariaDB) ForUpdate() string { return "FOR UPDATE" }
 func (d MariaDB) IncompatibleValues(column, fieldType, linkTable string) (string, error) {
 	text := "CAST(" + column + " AS CHAR)"
 	switch fieldType {
-	case "Number", "Currency":
+	case "Number", "Currency", "Quantity":
 		return text + ` NOT REGEXP '^-?[0-9]{1,12}(\\.[0-9]{1,6})?$'`, nil
+	case "Money":
+		// Minor units are not comparable with other types, so nothing converts.
+		return "1 = 1", nil
 	case "Date":
 		return text + ` NOT REGEXP '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' OR STR_TO_DATE(` + text + `, '%Y-%m-%d') IS NULL`, nil
 	case "Checkbox":

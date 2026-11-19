@@ -130,8 +130,22 @@ type Record struct {
 	Revision int64                  `protobuf:"varint,2,opt,name=revision,proto3" json:"revision,omitempty"`
 	Values   map[string]*FieldValue `protobuf:"bytes,3,rep,name=values,proto3" json:"values,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	// RFC 3339 timestamps.
-	CreatedAt     string `protobuf:"bytes,4,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	UpdatedAt     string `protobuf:"bytes,5,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	CreatedAt string `protobuf:"bytes,4,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	UpdatedAt string `protobuf:"bytes,5,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	// System fields the kernel sets (spec 24.1). Until sign-in exists the
+	// actor is "Local administrator".
+	CreatedBy  string `protobuf:"bytes,6,opt,name=created_by,json=createdBy,proto3" json:"created_by,omitempty"`
+	ModifiedBy string `protobuf:"bytes,7,opt,name=modified_by,json=modifiedBy,proto3" json:"modified_by,omitempty"`
+	// The creating user; master and document Records only.
+	Owner string `protobuf:"bytes,8,opt,name=owner,proto3" json:"owner,omitempty"`
+	// Revision of the Record Type when this Record was last written.
+	DefVersion int64 `protobuf:"varint,9,opt,name=def_version,json=defVersion,proto3" json:"def_version,omitempty"`
+	// Correlation ID of the last write request.
+	RequestId string `protobuf:"bytes,10,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
+	// Child Records only: the owning Record's ID and the position among its
+	// siblings.
+	ParentId      string `protobuf:"bytes,11,opt,name=parent_id,json=parentId,proto3" json:"parent_id,omitempty"`
+	Idx           int64  `protobuf:"varint,12,opt,name=idx,proto3" json:"idx,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -201,13 +215,64 @@ func (x *Record) GetUpdatedAt() string {
 	return ""
 }
 
+func (x *Record) GetCreatedBy() string {
+	if x != nil {
+		return x.CreatedBy
+	}
+	return ""
+}
+
+func (x *Record) GetModifiedBy() string {
+	if x != nil {
+		return x.ModifiedBy
+	}
+	return ""
+}
+
+func (x *Record) GetOwner() string {
+	if x != nil {
+		return x.Owner
+	}
+	return ""
+}
+
+func (x *Record) GetDefVersion() int64 {
+	if x != nil {
+		return x.DefVersion
+	}
+	return 0
+}
+
+func (x *Record) GetRequestId() string {
+	if x != nil {
+		return x.RequestId
+	}
+	return ""
+}
+
+func (x *Record) GetParentId() string {
+	if x != nil {
+		return x.ParentId
+	}
+	return ""
+}
+
+func (x *Record) GetIdx() int64 {
+	if x != nil {
+		return x.Idx
+	}
+	return 0
+}
+
 type ListRecordsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	RecordTypeKey string                 `protobuf:"bytes,1,opt,name=record_type_key,json=recordTypeKey,proto3" json:"record_type_key,omitempty"`
 	// Defaults to 50; capped at 200.
 	PageSize int32 `protobuf:"varint,2,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
 	// Opaque cursor from a previous response.
-	PageToken     string `protobuf:"bytes,3,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
+	PageToken string `protobuf:"bytes,3,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
+	// Child Record Types only: list the Records of this parent.
+	ParentId      string `protobuf:"bytes,4,opt,name=parent_id,json=parentId,proto3" json:"parent_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -259,6 +324,13 @@ func (x *ListRecordsRequest) GetPageSize() int32 {
 func (x *ListRecordsRequest) GetPageToken() string {
 	if x != nil {
 		return x.PageToken
+	}
+	return ""
+}
+
+func (x *ListRecordsRequest) GetParentId() string {
+	if x != nil {
+		return x.ParentId
 	}
 	return ""
 }
@@ -416,6 +488,8 @@ type CreateRecordRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	RecordTypeKey string                 `protobuf:"bytes,1,opt,name=record_type_key,json=recordTypeKey,proto3" json:"record_type_key,omitempty"`
 	Values        map[string]*FieldValue `protobuf:"bytes,2,rep,name=values,proto3" json:"values,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	// Required for a child Record Type: the Record that owns the new Record.
+	ParentId      string `protobuf:"bytes,3,opt,name=parent_id,json=parentId,proto3" json:"parent_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -462,6 +536,13 @@ func (x *CreateRecordRequest) GetValues() map[string]*FieldValue {
 		return x.Values
 	}
 	return nil
+}
+
+func (x *CreateRecordRequest) GetParentId() string {
+	if x != nil {
+		return x.ParentId
+	}
+	return ""
 }
 
 type CreateRecordResponse struct {
@@ -907,7 +988,7 @@ const file_athena_v1_records_proto_rawDesc = "" +
 	"bool_value\x18\x02 \x01(\bH\x00R\tboolValue\x12\x1f\n" +
 	"\n" +
 	"null_value\x18\x03 \x01(\bH\x00R\tnullValueB\x06\n" +
-	"\x04kind\"\xfb\x01\n" +
+	"\x04kind\"\xc0\x03\n" +
 	"\x06Record\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1a\n" +
 	"\brevision\x18\x02 \x01(\x03R\brevision\x125\n" +
@@ -915,15 +996,28 @@ const file_athena_v1_records_proto_rawDesc = "" +
 	"\n" +
 	"created_at\x18\x04 \x01(\tR\tcreatedAt\x12\x1d\n" +
 	"\n" +
-	"updated_at\x18\x05 \x01(\tR\tupdatedAt\x1aP\n" +
+	"updated_at\x18\x05 \x01(\tR\tupdatedAt\x12\x1d\n" +
+	"\n" +
+	"created_by\x18\x06 \x01(\tR\tcreatedBy\x12\x1f\n" +
+	"\vmodified_by\x18\a \x01(\tR\n" +
+	"modifiedBy\x12\x14\n" +
+	"\x05owner\x18\b \x01(\tR\x05owner\x12\x1f\n" +
+	"\vdef_version\x18\t \x01(\x03R\n" +
+	"defVersion\x12\x1d\n" +
+	"\n" +
+	"request_id\x18\n" +
+	" \x01(\tR\trequestId\x12\x1b\n" +
+	"\tparent_id\x18\v \x01(\tR\bparentId\x12\x10\n" +
+	"\x03idx\x18\f \x01(\x03R\x03idx\x1aP\n" +
 	"\vValuesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12+\n" +
-	"\x05value\x18\x02 \x01(\v2\x15.athena.v1.FieldValueR\x05value:\x028\x01\"x\n" +
+	"\x05value\x18\x02 \x01(\v2\x15.athena.v1.FieldValueR\x05value:\x028\x01\"\x95\x01\n" +
 	"\x12ListRecordsRequest\x12&\n" +
 	"\x0frecord_type_key\x18\x01 \x01(\tR\rrecordTypeKey\x12\x1b\n" +
 	"\tpage_size\x18\x02 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
-	"page_token\x18\x03 \x01(\tR\tpageToken\"j\n" +
+	"page_token\x18\x03 \x01(\tR\tpageToken\x12\x1b\n" +
+	"\tparent_id\x18\x04 \x01(\tR\bparentId\"j\n" +
 	"\x13ListRecordsResponse\x12+\n" +
 	"\arecords\x18\x01 \x03(\v2\x11.athena.v1.RecordR\arecords\x12&\n" +
 	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"J\n" +
@@ -931,10 +1025,11 @@ const file_athena_v1_records_proto_rawDesc = "" +
 	"\x0frecord_type_key\x18\x01 \x01(\tR\rrecordTypeKey\x12\x0e\n" +
 	"\x02id\x18\x02 \x01(\tR\x02id\">\n" +
 	"\x11GetRecordResponse\x12)\n" +
-	"\x06record\x18\x01 \x01(\v2\x11.athena.v1.RecordR\x06record\"\xd3\x01\n" +
+	"\x06record\x18\x01 \x01(\v2\x11.athena.v1.RecordR\x06record\"\xf0\x01\n" +
 	"\x13CreateRecordRequest\x12&\n" +
 	"\x0frecord_type_key\x18\x01 \x01(\tR\rrecordTypeKey\x12B\n" +
-	"\x06values\x18\x02 \x03(\v2*.athena.v1.CreateRecordRequest.ValuesEntryR\x06values\x1aP\n" +
+	"\x06values\x18\x02 \x03(\v2*.athena.v1.CreateRecordRequest.ValuesEntryR\x06values\x12\x1b\n" +
+	"\tparent_id\x18\x03 \x01(\tR\bparentId\x1aP\n" +
 	"\vValuesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12+\n" +
 	"\x05value\x18\x02 \x01(\v2\x15.athena.v1.FieldValueR\x05value:\x028\x01\"A\n" +

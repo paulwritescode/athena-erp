@@ -93,13 +93,26 @@ func TestMariaDBStatements(t *testing.T) {
 
 func TestMariaDBColumnTypesAndPredicates(t *testing.T) {
 	d := MariaDB{}
-	for _, fieldType := range []string{"Text", "Long text", "Email", "Phone", "Number", "Currency", "Date", "Select", "Link", "Checkbox"} {
+	for _, fieldType := range []string{"Text", "Long text", "Email", "Phone", "Number", "Currency", "Date", "Select", "Link", "Checkbox", "Money", "Quantity"} {
 		if _, err := d.ColumnType(fieldType); err != nil {
 			t.Errorf("ColumnType(%s): %v", fieldType, err)
 		}
 		if _, err := d.IncompatibleValues("`c`", fieldType, "u"); err != nil {
 			t.Errorf("IncompatibleValues(%s): %v", fieldType, err)
 		}
+	}
+	if _, err := d.ColumnType("Enum"); err != nil {
+		t.Errorf("ColumnType(Enum): %v", err)
+	}
+	// Enum values are checked against the field's list by the kernel, not by a column predicate.
+	if _, err := d.IncompatibleValues("`c`", "Enum", ""); err == nil {
+		t.Error("Enum has no column-only predicate")
+	}
+	if got, want := d.AddIndex("t", "ix", "c", true), "CREATE UNIQUE INDEX IF NOT EXISTS `ix` ON `t` (`c`)"; got != want {
+		t.Errorf("AddIndex = %s", got)
+	}
+	if got, want := d.DropIndex("t", "ix"), "DROP INDEX IF EXISTS `ix` ON `t`"; got != want {
+		t.Errorf("DropIndex = %s", got)
 	}
 	if _, err := d.ColumnType("Nope"); err == nil {
 		t.Error("unknown type must fail")

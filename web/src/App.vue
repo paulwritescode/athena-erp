@@ -49,7 +49,7 @@ window.addEventListener('popstate', readLocation)
 const isDark = ref(false)
 const workspaceName = ref('')
 const recordTypes = ref<RecordType[]>([])
-const emptyRecordType: RecordType = { name: '', label: '', description: '', fields: [], revision: 0 }
+const emptyRecordType: RecordType = { name: '', label: '', description: '', kind: 'master', fields: [], revision: 0 }
 const currentRecordType = computed(() => recordTypes.value.find((item) => item.name === selectedRecordType.value) ?? recordTypes.value[0] ?? emptyRecordType)
 // View works only with saved Record Types; drafts stay in Build.
 const viewRecordTypes = computed(() => recordTypes.value.filter((item) => item.revision > 0))
@@ -89,7 +89,7 @@ function toggleTheme() {
 
 function addRecordType() {
   const name = `record_type_${recordTypes.value.length + 1}`
-  recordTypes.value.push({ name, label: 'Untitled Record Type', description: '', fields: [], revision: 0 })
+  recordTypes.value.push({ name, label: 'Untitled Record Type', description: '', kind: 'master', fields: [], revision: 0 })
   selectedRecordType.value = name
   page.value = 'record-types'
 }

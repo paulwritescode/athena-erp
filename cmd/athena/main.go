@@ -51,6 +51,10 @@ func run(args []string) error {
 		return serveCommand(args[1:])
 	case "migrate":
 		return migrateCommand(args[1:], os.Stdout)
+	case "record-types":
+		return recordTypesCommand(args[1:], os.Stdout)
+	case "records":
+		return recordsCommand(args[1:], os.Stdout)
 	case "version", "--version", "-v":
 		fmt.Println(version)
 		return nil
@@ -83,6 +87,15 @@ Usage:
   athena migrate up [--workspace slug] [--to N] [--dry-run] [--json]
       Apply pending system migrations. The server also applies them at start.
       --to N stops after migration N; --dry-run lists them without applying.
+  athena record-types list|show|save|delete [--workspace slug] [--json]
+      Read and change Record Types with the same kernel code as the desk:
+      kind, class, parent and field attributes. "save --file" takes a JSON
+      RecordType; --dry-run prints the plan, --confirm-data-loss allows
+      steps that delete stored values. "delete <key> --yes" drops the table.
+  athena records list|create|delete <record-type> [--workspace slug] [--json]
+      List, create and delete Records. create takes --values '{"field":"text"}'
+      and, for child Record Types, --parent id; delete takes <id> --revision N.
+      Both commands apply pending migrations first, as the server does.
   athena version
 `, version, defaultAddr, defaultAddr)
 }

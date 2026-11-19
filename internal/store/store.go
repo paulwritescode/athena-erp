@@ -55,6 +55,10 @@ type Dialect interface {
 
 	// ColumnType maps an Athena field type to a column type.
 	ColumnType(fieldType string) (string, error)
+	// BigIntType is the column type for 64-bit integers.
+	BigIntType() string
+	// TimestampType is the column type for UTC timestamps.
+	TimestampType() string
 	// JSONType is the column type for JSON documents.
 	JSONType() string
 	// Now is the SQL expression for the current UTC-based timestamp.
@@ -73,6 +77,10 @@ type Dialect interface {
 	AddColumn(table string, column Column) string
 	// MakeNullable changes a column to the given type and allows NULL.
 	MakeNullable(table string, column Column) string
+	// AddIndex creates a single-column index when it is missing.
+	AddIndex(table, index, column string, unique bool) string
+	// DropIndex removes an index when it exists.
+	DropIndex(table, index string) string
 	// DropColumn removes a column when it exists.
 	DropColumn(table, column string) string
 	// AddForeignKey adds a restrictive foreign key to the target's id column.

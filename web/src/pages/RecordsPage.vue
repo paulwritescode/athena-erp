@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
 import RecordsTable from '../components/RecordsTable.vue'
 import { Marker, MarkerContent, MarkerIcon } from '@/components/ui/marker'
-import { CalendarPlusIcon, ClockIcon, FingerprintIcon, HashIcon, PencilIcon, PlusIcon, Trash2Icon } from '@lucide/vue'
+import { CalendarPlusIcon, ClockIcon, FingerprintIcon, HashIcon, LayersIcon, PencilIcon, PlusIcon, Trash2Icon, UserIcon } from '@lucide/vue'
 import { toast } from 'vue-sonner'
 
 // recordType is null when no saved Record Type exists yet. recordId comes from the page
@@ -28,6 +28,8 @@ const checks = reactive<Record<string, boolean>>({})
 const errors = reactive<Record<string, string>>({})
 const touched = new Set<string>()
 const busy = ref(false)
+// The owning record of a new child record.
+const parentId = ref('')
 const history = ref<RecordEvent[]>([])
 const when = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' })
 const formRef = ref<HTMLFormElement | null>(null)
@@ -114,12 +116,35 @@ function open(record: RecordMessage | 'new') {
   editing.value = record
   history.value = []
   clear(texts); clear(checks); clear(errors); touched.clear()
+  parentId.value = record === 'new' ? '' : record.parentId
   for (const field of props.recordType.fields) {
     const kind = record === 'new' ? undefined : record.values[field.name]?.kind
-    if (field.type === 'Checkbox') checks[field.name] = kind?.case === 'boolValue' ? kind.value : false
-    else texts[field.name] = kind?.case === 'stringValue' ? kind.value : ''
+    // A new record shows the default the server will fill in.
+    if (field.type === 'Checkbox') checks[field.name] = kind?.case === 'boolValue' ? kind.value : record === 'new' && field.default === 'true'
+    else texts[field.name] = kind?.case === 'stringValue' ? kind.value : record === 'new' ? field.default ?? '' : ''
   }
   if (record !== 'new') void loadHistory(record)
+}
+
+// Read-only fields take only their default, and a set-once field is fixed
+// after it has a value. The server enforces both.
+function locked(field: Field): boolean {
+  if (field.read_only) return true
+  if (!field.set_once || editing.value === null || editing.value === 'new') return false
+  const kind = editing.value.values[field.name]?.kind
+  return kind?.case === 'stringValue' || kind?.case === 'boolValue'
+}
+
+const isChild = computed(() => props.recordType?.kind === 'child')
+const isSetting = computed(() => props.recordType?.kind === 'setting')
+const parentLabel = computed(() => props.recordType?.parent_record_type ?? 'owning')
+// A Setting holds one record, so creating is offered only while it is empty.
+const canCreate = computed(() => !isSetting.value || (records.value.length === 0 && !loading.value && !loadError.value))
+
+function fieldLabel(field: Field): string {
+  if (field.type === 'Money' && field.currency) return `${field.label} (${field.currency})`
+  if (field.type === 'Quantity' && field.uom) return `${field.label} (${field.uom})`
+  return field.label
 }
 
 function check(field: Field) {
@@ -145,6 +170,11 @@ async function focusFirstError() {
 // Server validation messages start with the field label; show them under that field.
 function placeServerError(err: unknown): boolean {
   if (!(err instanceof ConnectError) || err.code !== Code.InvalidArgument || !props.recordType) return false
+  if (isChild.value && /owner|owns it|parent/i.test(err.rawMessage)) {
+    errors.parent_id = `${err.rawMessage.charAt(0).toUpperCase()}${err.rawMessage.slice(1)}.`
+    void focusFirstError()
+    return true
+  }
   const field = props.recordType.fields.find((item) => err.rawMessage.startsWith(item.label))
   if (!field) return false
   errors[field.name] = `${err.rawMessage.charAt(0).toUpperCase()}${err.rawMessage.slice(1)}.`
@@ -167,13 +197,14 @@ function toValue(field: Field): FieldValue {
 async function submit() {
   const recordType = props.recordType
   if (!editing.value || !recordType) return
-  for (const field of recordType.fields) { touched.add(field.name); check(field) }
+  for (const field of recordType.fields) { touched.add(field.name); if (!locked(field)) check(field) }
+  if (editing.value === 'new' && isChild.value && !parentId.value.trim()) errors.parent_id = `Enter the ID of the ${parentLabel.value} record this belongs to.`
   if (Object.keys(errors).length > 0) { await focusFirstError(); return }
   busy.value = true
-  const values = Object.fromEntries(recordType.fields.map((field) => [field.name, toValue(field)]))
+  const values = Object.fromEntries(recordType.fields.filter((field) => !locked(field)).map((field) => [field.name, toValue(field)]))
   try {
     if (editing.value === 'new') {
-      const res = await recordClient.createRecord({ recordTypeKey: recordType.name, values })
+      const res = await recordClient.createRecord({ recordTypeKey: recordType.name, values, parentId: isChild.value ? parentId.value.trim() : '' })
       if (res.record) records.value = [...records.value, res.record]
       toast.success('Record created.')
       close()
@@ -245,21 +276,27 @@ function inputType(field: Field) {
       <div class="page-title-row"><h1>{{ editing === 'new' ? 'New record' : 'Edit record' }}</h1></div>
       <form ref="formRef" class="entry-form" novalidate @submit.prevent="submit">
         <div class="entry-form-grid">
+          <div v-if="isChild" class="form-field" :class="{ 'is-invalid': errors.parent_id }">
+            <label for="entry-parent-id" class="form-label">Belongs to ({{ parentLabel }})<span class="required-mark" aria-hidden="true">*</span></label>
+            <input id="entry-parent-id" v-model="parentId" type="text" :disabled="editing !== 'new'" :placeholder="`${parentLabel} record ID`" :aria-invalid="errors.parent_id ? 'true' : undefined" @input="delete errors.parent_id" />
+            <p v-if="errors.parent_id" class="field-error">{{ errors.parent_id }}</p>
+          </div>
           <div v-for="field in recordType.fields" :key="field.name" class="form-field" :class="{ 'is-wide': field.type === 'Long text', 'is-invalid': errors[field.name] }">
-            <label :for="`entry-${field.name}`" class="form-label">{{ field.label }}<span v-if="field.required" class="required-mark" aria-hidden="true">*</span></label>
-            <label v-if="field.type === 'Checkbox'" class="checkbox-row"><input :id="`entry-${field.name}`" v-model="checks[field.name]" type="checkbox" /><span>{{ checks[field.name] ? 'Yes' : 'No' }}</span></label>
-            <textarea v-else-if="field.type === 'Long text'" :id="`entry-${field.name}`" v-model="texts[field.name]" rows="4" :aria-invalid="errors[field.name] ? 'true' : undefined" :aria-required="field.required || undefined" :aria-describedby="errors[field.name] ? `entry-${field.name}-error` : undefined" @blur="onBlur(field)" @input="onInput(field)" />
-            <input v-else :id="`entry-${field.name}`" v-model="texts[field.name]" :type="inputType(field)" :inputmode="field.type === 'Number' || field.type === 'Currency' ? 'decimal' : undefined" :placeholder="field.type === 'Link' ? `${field.target_record_type} record ID` : undefined" :aria-invalid="errors[field.name] ? 'true' : undefined" :aria-required="field.required || undefined" :aria-describedby="errors[field.name] ? `entry-${field.name}-error` : undefined" @blur="onBlur(field)" @input="onInput(field)" />
+            <label :for="`entry-${field.name}`" class="form-label">{{ fieldLabel(field) }}<span v-if="field.required" class="required-mark" aria-hidden="true">*</span></label>
+            <label v-if="field.type === 'Checkbox'" class="checkbox-row"><input :id="`entry-${field.name}`" v-model="checks[field.name]" type="checkbox" :disabled="locked(field)" /><span>{{ checks[field.name] ? 'Yes' : 'No' }}</span></label>
+            <select v-else-if="field.type === 'Enum'" :id="`entry-${field.name}`" v-model="texts[field.name]" :disabled="locked(field)" :aria-invalid="errors[field.name] ? 'true' : undefined" :aria-required="field.required || undefined" :aria-describedby="errors[field.name] ? `entry-${field.name}-error` : undefined" @blur="onBlur(field)" @change="onInput(field)"><option value="">Choose…</option><option v-for="choice in field.values" :key="choice.value" :value="choice.value">{{ choice.label }}</option></select>
+            <textarea v-else-if="field.type === 'Long text'" :id="`entry-${field.name}`" v-model="texts[field.name]" rows="4" :disabled="locked(field)" :aria-invalid="errors[field.name] ? 'true' : undefined" :aria-required="field.required || undefined" :aria-describedby="errors[field.name] ? `entry-${field.name}-error` : undefined" @blur="onBlur(field)" @input="onInput(field)" />
+            <input v-else :id="`entry-${field.name}`" v-model="texts[field.name]" :type="inputType(field)" :disabled="locked(field)" :inputmode="['Number', 'Currency', 'Money', 'Quantity'].includes(field.type) ? 'decimal' : undefined" :placeholder="field.type === 'Link' ? `${field.target_record_type} record ID` : undefined" :aria-invalid="errors[field.name] ? 'true' : undefined" :aria-required="field.required || undefined" :aria-describedby="errors[field.name] ? `entry-${field.name}-error` : undefined" @blur="onBlur(field)" @input="onInput(field)" />
             <p v-if="errors[field.name]" :id="`entry-${field.name}-error`" class="field-error">{{ errors[field.name] }}</p>
           </div>
         </div>
         <div class="entry-form-footer">
-          <AlertDialog v-if="editing !== 'new'">
+          <AlertDialog v-if="editing !== 'new' && !isSetting">
             <AlertDialogTrigger as-child><Button type="button" variant="ghost" :disabled="busy">Delete</Button></AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
                 <AlertDialogTitle>Delete this record?</AlertDialogTitle>
-                <AlertDialogDescription>This cannot be undone.</AlertDialogDescription>
+                <AlertDialogDescription>{{ recordType.kind === 'master' ? 'It disappears from lists. The row is kept, so its history stays.' : 'This cannot be undone.' }}</AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
@@ -276,6 +313,9 @@ function inputType(field: Field) {
           <Marker variant="border"><MarkerIcon><CalendarPlusIcon /></MarkerIcon><MarkerContent><span class="marker-label">Created</span>{{ when.format(new Date(editing.createdAt)) }}</MarkerContent></Marker>
           <Marker variant="border"><MarkerIcon><ClockIcon /></MarkerIcon><MarkerContent><span class="marker-label">Last updated</span>{{ when.format(new Date(editing.updatedAt)) }}</MarkerContent></Marker>
           <Marker variant="border"><MarkerIcon><HashIcon /></MarkerIcon><MarkerContent><span class="marker-label">Revision</span>{{ editing.revision }}</MarkerContent></Marker>
+          <Marker v-if="editing.createdBy" variant="border"><MarkerIcon><UserIcon /></MarkerIcon><MarkerContent><span class="marker-label">Created by</span>{{ editing.createdBy }}</MarkerContent></Marker>
+          <Marker v-if="editing.owner" variant="border"><MarkerIcon><UserIcon /></MarkerIcon><MarkerContent><span class="marker-label">Owner</span>{{ editing.owner }}</MarkerContent></Marker>
+          <Marker variant="border"><MarkerIcon><LayersIcon /></MarkerIcon><MarkerContent><span class="marker-label">Record Type revision</span>{{ editing.defVersion }}</MarkerContent></Marker>
           <Marker variant="border"><MarkerIcon><FingerprintIcon /></MarkerIcon><MarkerContent><span class="marker-label">Record ID</span><span class="is-mono">{{ editing.id }}</span></MarkerContent></Marker>
         </div>
         <h2>History</h2>
@@ -291,12 +331,12 @@ function inputType(field: Field) {
     </template>
 
     <template v-else>
-      <div class="view-head"><div><h1>{{ recordType.label }}</h1><p v-if="recordType.description" class="lead">{{ recordType.description }}</p></div><Button @click="openRecord('new')">New record</Button></div>
+      <div class="view-head"><div><h1>{{ recordType.label }}</h1><p v-if="recordType.description" class="lead">{{ recordType.description }}</p></div><Button v-if="canCreate" @click="openRecord('new')">New record</Button></div>
       <div class="entries-panel">
         <RecordsTable v-if="records.length > 0" :key="recordType.name" :record-type-key="recordType.name" :fields="recordType.fields" :records="records" @open="openRecord" />
         <p v-else-if="loading" class="empty-state">Loading…</p>
         <p v-else-if="loadError" class="empty-state">Records could not be loaded. <Button size="sm" variant="outline" @click="load()">Retry</Button></p>
-        <div v-else class="entries-empty"><p>No records yet.</p><Button variant="outline" size="sm" @click="openRecord('new')">Create the first record</Button></div>
+        <div v-else class="entries-empty"><p>No records yet.</p><Button v-if="canCreate" variant="outline" size="sm" @click="openRecord('new')">Create the first record</Button></div>
         <div v-if="nextPageToken && !loading" class="entries-more"><Button variant="outline" size="sm" @click="load(true)">Load more</Button></div>
       </div>
     </template>

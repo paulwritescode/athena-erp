@@ -16,6 +16,7 @@ import (
 
 	athenav1 "athena-erp/gen/athena/v1"
 	"athena-erp/internal/store"
+	"athena-erp/internal/types"
 	"connectrpc.com/connect/v2"
 	"github.com/google/uuid"
 )
@@ -55,8 +56,21 @@ func (s recordService) ListRecords(ctx context.Context, req *athenav1.ListRecord
 		}
 	}
 	// UUIDv7 IDs sort by creation time, so the primary key is the keyset cursor.
-	query := fmt.Sprintf("SELECT %s FROM %s WHERE %s > ? ORDER BY %s LIMIT ?", selectColumns(recordType), dialect.QuoteIdent(recordTypeTableName(recordType.Name)), dialect.QuoteIdent("id"), dialect.QuoteIdent("id"))
-	rows, err := s.db.QueryContext(ctx, query, after, pageSize+1)
+	where, args := "`id` > ?", []any{after}
+	if recordType.kind() == kindChild && req.GetParentId() != "" {
+		if _, err := uuid.Parse(req.GetParentId()); err != nil {
+			return nil, invalid("parent_id must be a record ID")
+		}
+		where += " AND `parent_id` = ?"
+		args = append(args, req.GetParentId())
+	} else if req.GetParentId() != "" {
+		return nil, invalid("only child Record Types have a parent")
+	}
+	if live := liveClause(recordType); live != "" {
+		where += " AND " + live
+	}
+	query := fmt.Sprintf("SELECT %s FROM %s WHERE %s ORDER BY %s LIMIT ?", selectColumns(recordType), dialect.QuoteIdent(recordTypeTableName(recordType.Name)), where, dialect.QuoteIdent("id"))
+	rows, err := s.db.QueryContext(ctx, query, append(args, pageSize+1)...)
 	if err != nil {
 		return nil, internalError("list records", err)
 	}
@@ -96,7 +110,9 @@ func (s recordService) GetRecord(ctx context.Context, req *athenav1.GetRecordReq
 // localActor names who made a change until sign-in exists.
 const localActor = "Local administrator"
 
-func (s recordService) CreateRecord(ctx context.Context, req *athenav1.CreateRecordRequest) (*athenav1.CreateRecordResponse, error) {
+func (s recordService) CreateRecord(ctx context.Context, req *athenav1.CreateRecordRequest) (res *athenav1.CreateRecordResponse, err error) {
+	ctx, requestID, end := startKernelSpan(ctx, "create_record", req.GetRecordTypeKey())
+	defer func() { end(err) }()
 	recordType, err := s.recordType(ctx, req.GetRecordTypeKey())
 	if err != nil {
 		return nil, err
@@ -115,15 +131,39 @@ func (s recordService) CreateRecord(ctx context.Context, req *athenav1.CreateRec
 			changed = append(changed, strings.Trim(column, "`"))
 		}
 	}
-	columns = append([]string{dialect.QuoteIdent("id")}, columns...)
-	args = append([]any{id.String()}, args...)
-	placeholders := strings.TrimSuffix(strings.Repeat("?,", len(columns)), ",")
-	statement := fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)", dialect.QuoteIdent(recordTypeTableName(recordType.Name)), strings.Join(columns, ","), placeholders)
+	if recordType.kind() != kindChild && req.GetParentId() != "" {
+		return nil, invalid("only child Record Types have a parent")
+	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, internalError("create record", err)
 	}
 	defer func() { _ = tx.Rollback() }()
+	system := map[string]any{"created_by": localActor, "modified_by": localActor, "def_version": recordType.Revision, "request_id": requestID, "owner": localActor}
+	switch recordType.kind() {
+	case kindSetting:
+		if err := requireNoRecord(ctx, tx, recordType); err != nil {
+			return nil, err
+		}
+	case kindChild:
+		idx, err := nextChildIndex(ctx, tx, recordType, req.GetParentId())
+		if err != nil {
+			return nil, err
+		}
+		system["parent_id"], system["idx"] = req.GetParentId(), idx
+	}
+	if err := checkUnique(ctx, tx, recordType, columns, args, ""); err != nil {
+		return nil, err
+	}
+	insertColumns, insertArgs := []string{dialect.QuoteIdent("id")}, []any{id.String()}
+	for _, column := range systemColumns(recordType.kind()) {
+		insertColumns = append(insertColumns, dialect.QuoteIdent(column.Name))
+		insertArgs = append(insertArgs, system[column.Name])
+	}
+	columns = append(insertColumns, columns...)
+	args = append(insertArgs, args...)
+	placeholders := strings.TrimSuffix(strings.Repeat("?,", len(columns)), ",")
+	statement := fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)", dialect.QuoteIdent(recordTypeTableName(recordType.Name)), strings.Join(columns, ","), placeholders)
 	if _, err := tx.ExecContext(ctx, statement, args...); err != nil {
 		return nil, writeError("create record", err)
 	}
@@ -140,7 +180,90 @@ func (s recordService) CreateRecord(ctx context.Context, req *athenav1.CreateRec
 	return &athenav1.CreateRecordResponse{Record: record}, nil
 }
 
-func (s recordService) UpdateRecord(ctx context.Context, req *athenav1.UpdateRecordRequest) (*athenav1.UpdateRecordResponse, error) {
+// requireNoRecord keeps a Setting to one Record. Locking the Record Type's
+// definition row serializes concurrent first creates, which a row lock on the
+// empty table could not.
+func requireNoRecord(ctx context.Context, tx *sql.Tx, recordType recordTypeDefinition) error {
+	var revision int64
+	if err := tx.QueryRowContext(ctx, `SELECT revision FROM athena_record_types WHERE name = ? `+dialect.ForUpdate(), recordType.Name).Scan(&revision); err != nil {
+		return internalError("lock Record Type", err)
+	}
+	var exists bool
+	if err := tx.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM "+dialect.QuoteIdent(recordTypeTableName(recordType.Name))+")").Scan(&exists); err != nil {
+		return internalError("check settings", err)
+	}
+	if exists {
+		return connect.NewError(connect.CodeFailedPrecondition, fmt.Sprintf("%s already has its record; edit it instead", recordType.Label))
+	}
+	return nil
+}
+
+// nextChildIndex checks that the parent exists and is live, and returns the
+// next position among its children. The parent row lock keeps concurrent
+// creates from taking the same position.
+func nextChildIndex(ctx context.Context, tx *sql.Tx, recordType recordTypeDefinition, parentID string) (int64, error) {
+	if _, err := uuid.Parse(parentID); err != nil {
+		return 0, invalid("a child record needs the ID of the record that owns it (parent_id)")
+	}
+	parent, _, err := loadRecordType(ctx, tx, recordType.ParentRecordType)
+	if err != nil || parent == nil {
+		return 0, internalError("load parent Record Type", fmt.Errorf("parent %q: %v", recordType.ParentRecordType, err))
+	}
+	query := "SELECT `id` FROM " + dialect.QuoteIdent(recordTypeTableName(parent.Name)) + " WHERE `id` = ?"
+	if live := liveClause(*parent); live != "" {
+		query += " AND " + live
+	}
+	var found string
+	switch err := tx.QueryRowContext(ctx, query+" "+dialect.ForUpdate(), parentID).Scan(&found); {
+	case errors.Is(err, sql.ErrNoRows):
+		return 0, invalid(fmt.Sprintf("the %s that should own this record does not exist", parent.Label))
+	case err != nil:
+		return 0, internalError("check parent", err)
+	}
+	var next int64
+	if err := tx.QueryRowContext(ctx, "SELECT COALESCE(MAX(`idx`), 0) + 1 FROM "+dialect.QuoteIdent(recordTypeTableName(recordType.Name))+" WHERE `parent_id` = ?", parentID).Scan(&next); err != nil {
+		return 0, internalError("position child record", err)
+	}
+	return next, nil
+}
+
+// checkUnique refuses a value another live Record already holds, so people
+// get a message naming the field. The unique index is the final guard against
+// a race. A soft-deleted Master keeps its values reserved (the index sees it).
+func checkUnique(ctx context.Context, tx *sql.Tx, recordType recordTypeDefinition, columns []string, args []any, selfID string) error {
+	labels := map[string]string{}
+	unique := map[string]bool{}
+	for _, field := range recordType.Fields {
+		labels[field.Name], unique[field.Name] = field.Label, field.Unique
+	}
+	for i, column := range columns {
+		key := strings.Trim(column, "`")
+		if !unique[key] || args[i] == nil {
+			continue
+		}
+		query := "SELECT EXISTS(SELECT 1 FROM " + dialect.QuoteIdent(recordTypeTableName(recordType.Name)) + " WHERE " + column + " = ?"
+		params := []any{args[i]}
+		if selfID != "" {
+			query += " AND `id` <> ?"
+			params = append(params, selfID)
+		}
+		if live := liveClause(recordType); live != "" {
+			query += " AND " + live
+		}
+		var taken bool
+		if err := tx.QueryRowContext(ctx, query+")", params...).Scan(&taken); err != nil {
+			return internalError("check unique value", err)
+		}
+		if taken {
+			return invalid(fmt.Sprintf("%s is already used by another record", labels[key]))
+		}
+	}
+	return nil
+}
+
+func (s recordService) UpdateRecord(ctx context.Context, req *athenav1.UpdateRecordRequest) (res *athenav1.UpdateRecordResponse, err error) {
+	ctx, requestID, end := startKernelSpan(ctx, "update_record", req.GetRecordTypeKey())
+	defer func() { end(err) }()
 	recordType, err := s.recordType(ctx, req.GetRecordTypeKey())
 	if err != nil {
 		return nil, err
@@ -163,12 +286,20 @@ func (s recordService) UpdateRecord(ctx context.Context, req *athenav1.UpdateRec
 	}
 	// Only fields whose stored value differs count as changed; an unchanged save
 	// keeps the revision and writes no history.
+	fields := fieldsByKey(recordType)
 	var changedColumns, changed []string
 	var changedArgs []any
 	for i, column := range columns {
 		key := strings.Trim(column, "`")
-		if sameValue(current.GetValues()[key], args[i]) {
+		field := fields[key]
+		if sameValue(field, current.GetValues()[key], args[i]) {
 			continue
+		}
+		if field.ReadOnly {
+			return nil, invalid(fmt.Sprintf("%s is read only", field.Label))
+		}
+		if field.SetOnce && !current.GetValues()[key].GetNullValue() && current.GetValues()[key].GetKind() != nil {
+			return nil, invalid(fmt.Sprintf("%s can be set once and cannot change", field.Label))
 		}
 		changedColumns = append(changedColumns, column)
 		changedArgs = append(changedArgs, args[i])
@@ -177,9 +308,19 @@ func (s recordService) UpdateRecord(ctx context.Context, req *athenav1.UpdateRec
 	if len(changed) == 0 {
 		return &athenav1.UpdateRecordResponse{Record: current}, nil
 	}
+	if err := checkUnique(ctx, tx, recordType, changedColumns, changedArgs, req.GetId()); err != nil {
+		return nil, err
+	}
 	assignments := []string{dialect.QuoteIdent("revision") + " = " + dialect.QuoteIdent("revision") + " + 1"}
 	for _, column := range changedColumns {
 		assignments = append(assignments, column+" = ?")
+	}
+	for _, kernel := range []struct {
+		column string
+		value  any
+	}{{"modified_by", localActor}, {"def_version", recordType.Revision}, {"request_id", requestID}} {
+		assignments = append(assignments, dialect.QuoteIdent(kernel.column)+" = ?")
+		changedArgs = append(changedArgs, kernel.value)
 	}
 	changedArgs = append(changedArgs, req.GetId(), req.GetExpectedRevision())
 	statement := fmt.Sprintf("UPDATE %s SET %s WHERE `id` = ? AND `revision` = ?", dialect.QuoteIdent(recordTypeTableName(recordType.Name)), strings.Join(assignments, ", "))
@@ -199,18 +340,52 @@ func (s recordService) UpdateRecord(ctx context.Context, req *athenav1.UpdateRec
 	return &athenav1.UpdateRecordResponse{Record: record}, nil
 }
 
-func (s recordService) DeleteRecord(ctx context.Context, req *athenav1.DeleteRecordRequest) (*athenav1.DeleteRecordResponse, error) {
+func fieldsByKey(recordType recordTypeDefinition) map[string]recordTypeField {
+	fields := make(map[string]recordTypeField, len(recordType.Fields))
+	for _, field := range recordType.Fields {
+		fields[field.Name] = field
+	}
+	return fields
+}
+
+// liveClause hides soft-deleted Records. Only Masters are soft-deleted.
+func liveClause(recordType recordTypeDefinition) string {
+	if recordType.kind() == kindMaster {
+		return "`deleted_at` IS NULL"
+	}
+	return ""
+}
+
+func (s recordService) DeleteRecord(ctx context.Context, req *athenav1.DeleteRecordRequest) (res *athenav1.DeleteRecordResponse, err error) {
+	ctx, requestID, end := startKernelSpan(ctx, "delete_record", req.GetRecordTypeKey())
+	defer func() { end(err) }()
 	recordType, err := s.recordType(ctx, req.GetRecordTypeKey())
 	if err != nil {
 		return nil, err
+	}
+	if recordType.kind() == kindSetting {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, fmt.Sprintf("%s is a setting; edit it instead of deleting it", recordType.Label))
 	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, internalError("delete record", err)
 	}
 	defer func() { _ = tx.Rollback() }()
-	statement := fmt.Sprintf("DELETE FROM %s WHERE `id` = ? AND `revision` = ?", dialect.QuoteIdent(recordTypeTableName(recordType.Name)))
-	result, err := tx.ExecContext(ctx, statement, req.GetId(), req.GetExpectedRevision())
+	table := dialect.QuoteIdent(recordTypeTableName(recordType.Name))
+	// A soft delete leaves the row in place, so the foreign key on a child's
+	// parent_id never fires. Check for children here, in the same transaction.
+	if err := ensureNoChildRecords(ctx, tx, recordType.Name, req.GetId()); err != nil {
+		return nil, err
+	}
+	// A Master is soft-deleted: the row stays, marked, so nothing that refers
+	// to it breaks and the data can be audited. Other kinds remove the row.
+	statement := fmt.Sprintf("DELETE FROM %s WHERE `id` = ? AND `revision` = ?", table)
+	args := []any{req.GetId(), req.GetExpectedRevision()}
+	if recordType.kind() == kindMaster {
+		statement = fmt.Sprintf("UPDATE %s SET `deleted_at` = %s, `revision` = `revision` + 1, `modified_by` = ?, `def_version` = ?, `request_id` = ? WHERE `id` = ? AND `revision` = ? AND `deleted_at` IS NULL", table, dialect.Now())
+		args = append([]any{localActor, recordType.Revision, requestID}, args...)
+	}
+	result, err := tx.ExecContext(ctx, statement, args...)
 	if err != nil {
 		return nil, writeError("delete record", err)
 	}
@@ -218,13 +393,58 @@ func (s recordService) DeleteRecord(ctx context.Context, req *athenav1.DeleteRec
 		_ = tx.Rollback()
 		return nil, s.checkChanged(ctx, recordType, req.GetId(), result)
 	}
-	if err := writeHistory(ctx, tx, recordType.Name, req.GetId(), req.GetExpectedRevision(), "deleted", nil); err != nil {
+	revision := req.GetExpectedRevision()
+	if recordType.kind() == kindMaster {
+		revision++
+	}
+	if err := writeHistory(ctx, tx, recordType.Name, req.GetId(), revision, "deleted", nil); err != nil {
 		return nil, internalError("record type history", err)
 	}
 	if err := tx.Commit(); err != nil {
 		return nil, internalError("delete record", err)
 	}
 	return &athenav1.DeleteRecordResponse{}, nil
+}
+
+// ensureNoChildRecords returns FailedPrecondition when any child Record Type
+// of parentKey has a Record whose parent_id is id.
+func ensureNoChildRecords(ctx context.Context, conn *sql.Tx, parentKey, id string) error {
+	rows, err := conn.QueryContext(ctx, `SELECT definition FROM athena_record_types WHERE name <> ?`, parentKey)
+	if err != nil {
+		return internalError("check child records", err)
+	}
+	var children []string
+	for rows.Next() {
+		var payload []byte
+		var other recordTypeDefinition
+		if err := rows.Scan(&payload); err != nil {
+			_ = rows.Close()
+			return internalError("check child records", err)
+		}
+		if err := json.Unmarshal(payload, &other); err != nil {
+			_ = rows.Close()
+			return internalError("check child records", err)
+		}
+		if other.ParentRecordType == parentKey {
+			children = append(children, other.Name)
+		}
+	}
+	err = rows.Err()
+	_ = rows.Close()
+	if err != nil {
+		return internalError("check child records", err)
+	}
+	for _, child := range children {
+		var found int
+		query := "SELECT 1 FROM " + dialect.QuoteIdent(recordTypeTableName(child)) + " WHERE `parent_id` = ? LIMIT 1"
+		switch err := conn.QueryRowContext(ctx, query, id).Scan(&found); {
+		case err == nil:
+			return connect.NewError(connect.CodeFailedPrecondition, "other records belong to this record")
+		case !errors.Is(err, sql.ErrNoRows):
+			return internalError("check child records", err)
+		}
+	}
+	return nil
 }
 
 func (s recordService) ListRecordHistory(ctx context.Context, req *athenav1.ListRecordHistoryRequest) (*athenav1.ListRecordHistoryResponse, error) {
@@ -286,13 +506,16 @@ func writeHistory(ctx context.Context, tx *sql.Tx, recordTypeName, recordID stri
 }
 
 // sameValue reports whether a stored value equals a bound argument from bindValues.
-func sameValue(stored *athenav1.FieldValue, arg any) bool {
+func sameValue(field recordTypeField, stored *athenav1.FieldValue, arg any) bool {
 	switch v := arg.(type) {
 	case nil:
 		return stored == nil || stored.GetNullValue()
 	case bool:
 		b, ok := stored.GetKind().(*athenav1.FieldValue_BoolValue)
 		return ok && b.BoolValue == v
+	case int64:
+		text, ok := stored.GetKind().(*athenav1.FieldValue_StringValue)
+		return ok && field.Type == "Money" && text.StringValue == moneyText(field, v)
 	case string:
 		text, ok := stored.GetKind().(*athenav1.FieldValue_StringValue)
 		return ok && (text.StringValue == v || (decimalPattern.MatchString(v) && trimDecimal(text.StringValue) == trimDecimal(v)))
@@ -307,7 +530,8 @@ func (s recordService) recordType(ctx context.Context, key string) (recordTypeDe
 		return recordTypeDefinition{}, connect.NewError(connect.CodeUnavailable, "the database is not configured")
 	}
 	var payload []byte
-	err := s.db.QueryRowContext(ctx, `SELECT definition FROM athena_record_types WHERE name = ?`, key).Scan(&payload)
+	var revision int64
+	err := s.db.QueryRowContext(ctx, `SELECT definition, revision FROM athena_record_types WHERE name = ?`, key).Scan(&payload, &revision)
 	if errors.Is(err, sql.ErrNoRows) {
 		return recordTypeDefinition{}, connect.NewError(connect.CodeNotFound, fmt.Sprintf("Record Type %q does not exist", key))
 	}
@@ -318,6 +542,7 @@ func (s recordService) recordType(ctx context.Context, key string) (recordTypeDe
 	if err := json.Unmarshal(payload, &recordType); err != nil {
 		return recordTypeDefinition{}, internalError("decode Record Type", err)
 	}
+	recordType.Revision = revision
 	return recordType, nil
 }
 
@@ -332,7 +557,11 @@ type querier interface {
 
 // loadRecord reads one record. suffix is "" or "FOR UPDATE" inside a transaction.
 func loadRecord(ctx context.Context, q querier, recordType recordTypeDefinition, id, suffix string) (*athenav1.Record, error) {
-	query := fmt.Sprintf("SELECT %s FROM %s WHERE `id` = ? %s", selectColumns(recordType), dialect.QuoteIdent(recordTypeTableName(recordType.Name)), suffix)
+	where := "`id` = ?"
+	if live := liveClause(recordType); live != "" {
+		where += " AND " + live
+	}
+	query := fmt.Sprintf("SELECT %s FROM %s WHERE %s %s", selectColumns(recordType), dialect.QuoteIdent(recordTypeTableName(recordType.Name)), where, suffix)
 	rows, err := q.QueryContext(ctx, query, id)
 	if err != nil {
 		return nil, internalError("read record", err)
@@ -361,7 +590,11 @@ func (s recordService) checkChanged(ctx context.Context, recordType recordTypeDe
 		return nil
 	}
 	var exists bool
-	statement := fmt.Sprintf("SELECT EXISTS(SELECT 1 FROM %s WHERE `id` = ?)", dialect.QuoteIdent(recordTypeTableName(recordType.Name)))
+	where := "`id` = ?"
+	if live := liveClause(recordType); live != "" {
+		where += " AND " + live
+	}
+	statement := fmt.Sprintf("SELECT EXISTS(SELECT 1 FROM %s WHERE %s)", dialect.QuoteIdent(recordTypeTableName(recordType.Name)), where)
 	if err := s.db.QueryRowContext(ctx, statement, id).Scan(&exists); err != nil {
 		return internalError("check write", err)
 	}
@@ -373,6 +606,9 @@ func (s recordService) checkChanged(ctx context.Context, recordType recordTypeDe
 
 func selectColumns(recordType recordTypeDefinition) string {
 	columns := []string{dialect.QuoteIdent("id"), dialect.QuoteIdent("revision"), dialect.QuoteIdent("created_at"), dialect.QuoteIdent("updated_at")}
+	for _, column := range systemColumns(recordType.kind()) {
+		columns = append(columns, dialect.QuoteIdent(column.Name))
+	}
 	for _, field := range recordType.Fields {
 		columns = append(columns, dialect.QuoteIdent(field.Name))
 	}
@@ -383,6 +619,14 @@ func scanRecord(rows *sql.Rows, recordType recordTypeDefinition) (*athenav1.Reco
 	var record athenav1.Record
 	var created, updated time.Time
 	targets := []any{&record.Id, &record.Revision, &created, &updated}
+	// Rows written before system fields existed hold NULL in them.
+	var createdBy, modifiedBy, requestID, owner, parentID sql.NullString
+	var defVersion, idx sql.NullInt64
+	var deletedAt sql.NullTime
+	system := map[string]any{"created_by": &createdBy, "modified_by": &modifiedBy, "request_id": &requestID, "owner": &owner, "parent_id": &parentID, "def_version": &defVersion, "idx": &idx, "deleted_at": &deletedAt}
+	for _, column := range systemColumns(recordType.kind()) {
+		targets = append(targets, system[column.Name])
+	}
 	values := make([]any, len(recordType.Fields))
 	for i, field := range recordType.Fields {
 		switch field.Type {
@@ -390,6 +634,8 @@ func scanRecord(rows *sql.Rows, recordType recordTypeDefinition) (*athenav1.Reco
 			values[i] = new(sql.NullBool)
 		case "Date":
 			values[i] = new(sql.NullTime)
+		case "Money":
+			values[i] = new(sql.NullInt64)
 		default:
 			values[i] = new(sql.NullString)
 		}
@@ -400,6 +646,8 @@ func scanRecord(rows *sql.Rows, recordType recordTypeDefinition) (*athenav1.Reco
 	}
 	record.CreatedAt = created.UTC().Format(time.RFC3339)
 	record.UpdatedAt = updated.UTC().Format(time.RFC3339)
+	record.CreatedBy, record.ModifiedBy, record.Owner, record.RequestId, record.ParentId = createdBy.String, modifiedBy.String, owner.String, requestID.String, parentID.String
+	record.DefVersion, record.Idx = defVersion.Int64, idx.Int64
 	record.Values = make(map[string]*athenav1.FieldValue, len(recordType.Fields))
 	for i, field := range recordType.Fields {
 		value := &athenav1.FieldValue{}
@@ -412,10 +660,14 @@ func scanRecord(rows *sql.Rows, recordType recordTypeDefinition) (*athenav1.Reco
 			if v.Valid {
 				value.Kind = &athenav1.FieldValue_StringValue{StringValue: v.Time.Format(time.DateOnly)}
 			}
+		case *sql.NullInt64:
+			if v.Valid {
+				value.Kind = &athenav1.FieldValue_StringValue{StringValue: moneyText(field, v.Int64)}
+			}
 		case *sql.NullString:
 			if v.Valid {
 				text := v.String
-				if field.Type == "Number" || field.Type == "Currency" {
+				if field.Type == "Number" || field.Type == "Currency" || field.Type == "Quantity" {
 					text = trimDecimal(text)
 				}
 				value.Kind = &athenav1.FieldValue_StringValue{StringValue: text}
@@ -439,12 +691,9 @@ func trimDecimal(text string) string {
 
 // bindValues validates request values against the Record Type's fields and returns
 // quoted column names with matching bound arguments. Creating requires every
-// required field; updating checks only the fields sent.
+// required field and fills defaults; updating checks only the fields sent.
 func bindValues(recordType recordTypeDefinition, values map[string]*athenav1.FieldValue, creating bool) ([]string, []any, error) {
-	fields := make(map[string]recordTypeField, len(recordType.Fields))
-	for _, field := range recordType.Fields {
-		fields[field.Name] = field
-	}
+	fields := fieldsByKey(recordType)
 	for key := range values {
 		if _, ok := fields[key]; !ok {
 			return nil, nil, invalid(fmt.Sprintf("Record Type %q has no field %q", recordType.Name, key))
@@ -454,15 +703,31 @@ func bindValues(recordType recordTypeDefinition, values map[string]*athenav1.Fie
 	var args []any
 	for _, field := range recordType.Fields {
 		value, present := values[field.Name]
-		if !present {
+		var arg any
+		if present {
+			var err error
+			if arg, err = fieldArgument(field, value); err != nil {
+				return nil, nil, err
+			}
+		}
+		if creating {
+			fallback, err := createDefault(field)
+			if err != nil {
+				return nil, nil, err
+			}
+			// A read-only field takes only its default, even when the client echoes it back.
+			if field.ReadOnly && arg != nil && arg != fallback {
+				return nil, nil, invalid(fmt.Sprintf("%s is read only", field.Label))
+			}
+			if arg == nil {
+				arg = fallback
+			}
+		}
+		if !present && arg == nil {
 			if creating && field.Required {
 				return nil, nil, invalid(fmt.Sprintf("%s is required", field.Label))
 			}
 			continue
-		}
-		arg, err := fieldArgument(field, value)
-		if err != nil {
-			return nil, nil, err
 		}
 		if arg == nil && field.Required {
 			return nil, nil, invalid(fmt.Sprintf("%s is required", field.Label))
@@ -476,7 +741,17 @@ func bindValues(recordType recordTypeDefinition, values map[string]*athenav1.Fie
 	return columns, args, nil
 }
 
-// fieldArgument converts one FieldValue into a database argument, or nil for null.
+// createDefault returns the database argument for a field's default, or nil.
+func createDefault(field recordTypeField) (any, error) {
+	if field.Default == "" {
+		return nil, nil
+	}
+	return defaultArgument(field)
+}
+
+// fieldArgument converts one FieldValue into a database argument, or nil for
+// null. It applies the type's own rules, then the field's attributes. A Money
+// field returns int64 minor units; every other type returns a string or bool.
 func fieldArgument(field recordTypeField, value *athenav1.FieldValue) (any, error) {
 	if value == nil || value.GetNullValue() {
 		return nil, nil
@@ -496,9 +771,21 @@ func fieldArgument(field recordTypeField, value *athenav1.FieldValue) (any, erro
 	if text == "" {
 		return nil, nil
 	}
-	limit := map[string]int{"Text": 255, "Email": 320, "Phone": 40, "Select": 120, "Long text": 65535}[field.Type]
+	limit := textLimits[field.Type]
+	if field.MaxLength > 0 && field.MaxLength < limit {
+		limit = field.MaxLength
+	}
 	if limit > 0 && utf8.RuneCountInString(text) > limit {
 		return nil, invalid(fmt.Sprintf("%s is longer than %d characters", field.Label, limit))
+	}
+	if field.Pattern != "" {
+		re, err := compilePattern(field.Pattern)
+		if err != nil {
+			return nil, internalError("read pattern", err)
+		}
+		if !re.MatchString(text) {
+			return nil, invalid(fmt.Sprintf("%s does not match the required format", field.Label))
+		}
 	}
 	switch field.Type {
 	case "Email":
@@ -509,10 +796,49 @@ func fieldArgument(field recordTypeField, value *athenav1.FieldValue) (any, erro
 		if !decimalPattern.MatchString(text) {
 			return nil, invalid(fmt.Sprintf("%s must be a number with up to 12 digits before and 6 after the decimal point", field.Label))
 		}
+		if err := checkRange(field, text); err != nil {
+			return nil, err
+		}
+	case "Quantity":
+		if !decimalPattern.MatchString(text) {
+			return nil, invalid(fmt.Sprintf("%s must be a number with up to 12 digits before and 6 after the decimal point", field.Label))
+		}
+		scale := maxQuantityScale
+		if field.Scale != nil {
+			scale = *field.Scale
+		}
+		if _, fraction, _ := strings.Cut(text, "."); len(fraction) > scale {
+			return nil, invalid(fmt.Sprintf("%s must have at most %d decimal places", field.Label, scale))
+		}
+		if err := checkRange(field, text); err != nil {
+			return nil, err
+		}
+	case "Money":
+		minor, err := moneyMinor(field, text)
+		if err != nil {
+			if errors.Is(err, types.ErrRounding) {
+				return nil, invalid(fmt.Sprintf("%s must have at most %d decimal places", field.Label, *field.Scale))
+			}
+			return nil, invalid(fmt.Sprintf("%s must be an amount in %s with at most %d decimal places", field.Label, field.Currency, *field.Scale))
+		}
+		if err := checkRange(field, text); err != nil {
+			return nil, err
+		}
+		return minor, nil
 	case "Date":
 		if _, err := time.Parse(time.DateOnly, text); err != nil {
 			return nil, invalid(fmt.Sprintf("%s must be a date as YYYY-MM-DD", field.Label))
 		}
+		if err := checkRange(field, text); err != nil {
+			return nil, err
+		}
+	case "Enum":
+		for _, choice := range field.Values {
+			if choice.Value == text {
+				return text, nil
+			}
+		}
+		return nil, invalid(fmt.Sprintf("%s must be one of the listed choices", field.Label))
 	case "Link":
 		if _, err := uuid.Parse(text); err != nil {
 			return nil, invalid(fmt.Sprintf("%s must be an record ID", field.Label))
@@ -561,6 +887,8 @@ func writeError(action string, err error) error {
 		return invalid("a linked record does not exist")
 	case store.ErrForeignKeyInUse:
 		return connect.NewError(connect.CodeFailedPrecondition, "other records link to this record")
+	case store.ErrDuplicateKey:
+		return invalid("a value that must be unique is already used, possibly by a deleted record")
 	case store.ErrNotNull:
 		return invalid("a required field is missing")
 	case store.ErrValueTooLong:

@@ -11,14 +11,14 @@ const emit = defineEmits<{ open: [record: RecordMessage] }>()
 const features = tableFeatures({ columnSizingFeature, columnResizingFeature })
 
 // Starting widths in pixels by field type; people can drag any column wider.
-const defaultWidths: Record<string, number> = { 'Long text': 320, Email: 240, Text: 200, Select: 160, Link: 200, Phone: 160, Date: 140, Number: 130, Currency: 130, Checkbox: 110 }
-const alignRight = new Set(['Number', 'Currency'])
+const defaultWidths: Record<string, number> = { 'Long text': 320, Email: 240, Text: 200, Select: 160, Link: 200, Phone: 160, Date: 140, Number: 130, Currency: 130, Money: 150, Quantity: 150, Enum: 160, Checkbox: 110 }
+const alignRight = new Set(['Number', 'Currency', 'Money', 'Quantity'])
 const alignCenter = new Set(['Checkbox'])
 
 function display(record: RecordMessage, field: Field): string {
   const kind = record.values[field.name]?.kind
   if (kind?.case === 'boolValue') return kind.value ? 'Yes' : 'No'
-  if (kind?.case === 'stringValue') return kind.value
+  if (kind?.case === 'stringValue') return field.type === 'Enum' ? field.values?.find((choice) => choice.value === kind.value)?.label ?? kind.value : kind.value
   return ''
 }
 
@@ -27,7 +27,7 @@ function display(record: RecordMessage, field: Field): string {
 const columns = computed<ColumnDef<typeof features, RecordMessage>[]>(() => [
   ...props.fields.map((field): ColumnDef<typeof features, RecordMessage> => ({
     id: field.name,
-    header: field.label,
+    header: field.type === 'Money' && field.currency ? `${field.label} (${field.currency})` : field.type === 'Quantity' && field.uom ? `${field.label} (${field.uom})` : field.label,
     accessorFn: (record: RecordMessage) => display(record, field),
     size: defaultWidths[field.type] ?? 180,
     minSize: 80,

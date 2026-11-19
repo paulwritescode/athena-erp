@@ -90,6 +90,8 @@ type RecordServiceClient interface {
 	GetRecord(context.Context, *v1.GetRecordRequest) (*v1.GetRecordResponse, error)
 	CreateRecord(context.Context, *v1.CreateRecordRequest) (*v1.CreateRecordResponse, error)
 	UpdateRecord(context.Context, *v1.UpdateRecordRequest) (*v1.UpdateRecordResponse, error)
+	// DeleteRecord soft-deletes a Master Record (it keeps its row and is no
+	// longer listed or readable) and removes Records of other kinds.
 	DeleteRecord(context.Context, *v1.DeleteRecordRequest) (*v1.DeleteRecordResponse, error)
 	// ListRecordHistory returns a Record's changes, newest first.
 	ListRecordHistory(context.Context, *v1.ListRecordHistoryRequest) (*v1.ListRecordHistoryResponse, error)
@@ -107,6 +109,8 @@ type RecordServiceHandler interface {
 	GetRecord(context.Context, *v1.GetRecordRequest) (*v1.GetRecordResponse, error)
 	CreateRecord(context.Context, *v1.CreateRecordRequest) (*v1.CreateRecordResponse, error)
 	UpdateRecord(context.Context, *v1.UpdateRecordRequest) (*v1.UpdateRecordResponse, error)
+	// DeleteRecord soft-deletes a Master Record (it keeps its row and is no
+	// longer listed or readable) and removes Records of other kinds.
 	DeleteRecord(context.Context, *v1.DeleteRecordRequest) (*v1.DeleteRecordResponse, error)
 	// ListRecordHistory returns a Record's changes, newest first.
 	ListRecordHistory(context.Context, *v1.ListRecordHistoryRequest) (*v1.ListRecordHistoryResponse, error)

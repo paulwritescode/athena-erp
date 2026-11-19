@@ -150,7 +150,7 @@ body,.app-shell,.main-content,.page-content{background:var(--background);color:v
 .app-shell .record-title-input:hover{border-color:var(--input);background:transparent}
 
 /* Field table: header text lines up with the text inside each input. */
-.record-editor .field-head,.record-editor .field-row{grid-template-columns:minmax(0,1.3fr) minmax(0,1.1fr) minmax(0,1fr) 72px 32px;gap:12px;padding:0 12px}
+.record-editor .field-head,.record-editor .field-row{grid-template-columns:minmax(0,1.3fr) minmax(0,1.1fr) minmax(0,1fr) 72px 64px;gap:12px;padding:0 12px}
 .record-editor .field-head{height:36px;align-items:center;font-size:var(--type-caption-size);font-weight:500;color:var(--muted-foreground);background:transparent;border-bottom:1px solid var(--border)}
 .record-editor .field-head>span:not(:nth-child(n+4)){padding-left:13px}
 .record-editor .field-head>span:nth-child(4),.record-editor .field-row>span:nth-child(4){display:flex;justify-content:center;text-align:center}
@@ -266,3 +266,23 @@ body,.app-shell,.main-content,.page-content{background:var(--background);color:v
 .panel-heading{padding:0 0 8px;border-bottom:1px solid var(--border);margin-bottom:8px}
 .entry-markers [data-slot=marker-icon]{display:grid;place-items:center;width:16px;height:16px;color:var(--muted-foreground)}
 .entry-markers [data-slot=marker-icon] svg{width:16px;height:16px}
+/* Record kind row, field settings and enum entry (P4). Colors stay on semantic tokens. */
+.record-kind{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+.record-meta select,.form-field select,.field-settings select{height:36px;padding:0 32px 0 12px;background-color:transparent;color:var(--foreground);border:1px solid var(--input);border-radius:var(--radius-md);font-size:var(--type-body-sm-size);appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238a8a93' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;cursor:pointer}
+.record-meta select:disabled,.form-field select:disabled{color:var(--muted-foreground);border-style:dashed;cursor:default}
+.form-field select:hover,.record-meta select:hover{border-color:var(--app-border-strong)}
+.form-field select:focus-visible,.record-meta select:focus-visible{outline:none;border-color:var(--ring);box-shadow:0 0 0 3px color-mix(in oklab,var(--ring) 25%,transparent)}
+.form-field.is-invalid select{border-color:var(--destructive)}
+.form-field input:disabled,.form-field textarea:disabled{color:var(--muted-foreground);border-style:dashed;cursor:default}
+.field-actions{display:flex;justify-content:flex-end;gap:2px}
+.field-settings{max-width:560px}
+.settings-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 16px}
+.settings-field{display:grid;gap:6px;align-content:start}
+.settings-field.is-wide,.settings-note{grid-column:1/-1}
+.settings-note{margin:0;font-size:var(--type-caption-size);color:var(--muted-foreground)}
+.settings-textarea{width:100%;padding:8px 12px;background:transparent;color:var(--foreground);border:1px solid var(--input);border-radius:var(--radius-md);font-size:var(--type-body-sm-size);font-family:inherit;resize:vertical}
+.settings-textarea:focus-visible{outline:none;border-color:var(--ring);box-shadow:0 0 0 3px color-mix(in oklab,var(--ring) 25%,transparent)}
+.settings-flags{display:grid;gap:10px;margin-top:4px}
+.settings-flags label{display:flex;align-items:center;gap:8px;font-size:var(--type-body-sm-size);cursor:pointer}
+.settings-flags small{color:var(--muted-foreground);font-size:var(--type-caption-size)}
+@media(max-width:760px){.settings-grid{grid-template-columns:1fr}}

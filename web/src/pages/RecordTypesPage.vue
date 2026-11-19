@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { computed, nextTick, reactive, ref } from 'vue'
-import type { Field, RecordType } from '../types'
+import type { Field, Kind, RecordType } from '../types'
+import FieldSettingsDialog from '../components/FieldSettingsDialog.vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { SlidersHorizontalIcon } from '@lucide/vue'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
 const props = defineProps<{ recordTypes: RecordType[]; currentRecordType: RecordType; databaseState: string }>()
 const emit = defineEmits<{ select: [name: string]; addRecordType: []; addField: []; rename: [from: string, to: string]; delete: [recordType: RecordType]; save: [complete: (saved: boolean) => void]; preview: [] }>()
@@ -34,7 +36,7 @@ function snakeKey(text: string, fallback: string, taken: Set<string>, reserved: 
 }
 function fieldNameFromLabel(label: string, field: Field) {
   const taken = new Set(props.currentRecordType.fields.filter((item) => item !== field).map((item) => item.name.toLowerCase()))
-  return snakeKey(label, 'field', taken, ['id', 'revision', 'created_at', 'updated_at'])
+  return snakeKey(label, 'field', taken, ['id', 'revision', 'created_at', 'updated_at', 'created_by', 'modified_by', 'owner', 'deleted_at', 'def_version', 'request_id', 'parent_id', 'idx'])
 }
 const manuallyNamedRecordTypes = new Set<string>()
 const recordTypeIsSaved = computed(() => props.currentRecordType.revision > 0)
@@ -85,6 +87,40 @@ function addField() {
   })
 }
 
+const kinds: { value: Kind; label: string; hint: string }[] = [
+  { value: 'master', label: 'Master', hint: 'A long-lived thing, like a customer or an item. Deleting hides it and keeps the row.' },
+  { value: 'document', label: 'Document', hint: 'A business event with a class. Records of this kind are drafts for now.' },
+  { value: 'child', label: 'Child', hint: 'A line that belongs to one record of another Record Type.' },
+  { value: 'setting', label: 'Setting', hint: 'One record that holds configuration. It is edited, never deleted.' },
+]
+const documentClasses = [['posting', 'Posting'], ['non_posting', 'Non-posting'], ['work', 'Work'], ['batch', 'Batch']]
+// A child belongs to a master or a document that has been saved.
+const parentChoices = computed(() => props.recordTypes.filter((item) => item.revision > 0 && (item.kind === 'master' || item.kind === 'document') && item.name !== props.currentRecordType.name))
+const kindHint = computed(() => kinds.find((item) => item.value === props.currentRecordType.kind)?.hint ?? '')
+
+function chooseKind(kind: Kind) {
+  const recordType = props.currentRecordType
+  recordType.kind = kind
+  if (kind === 'document') recordType.class = recordType.class ?? 'non_posting'
+  else delete recordType.class
+  if (kind === 'child') recordType.parent_record_type = recordType.parent_record_type ?? parentChoices.value[0]?.name
+  else delete recordType.parent_record_type
+}
+
+// Attributes belong to a type, so switching type drops the ones that no longer
+// apply and fills in the settings Money and Quantity cannot save without.
+function changeType(field: Field) {
+  const keep = new Set(['name', 'label', 'type', 'required', 'unique', 'index', 'read_only', 'set_once', 'no_copy'])
+  for (const key of Object.keys(field)) if (!keep.has(key)) delete (field as Record<string, unknown>)[key]
+  if (field.type === 'Money') { field.currency = 'USD'; field.scale = 2 }
+  if (field.type === 'Quantity') field.uom = 'unit'
+  if (field.type === 'Enum') field.values = [{ value: 'option_1', label: 'Option 1' }]
+  if (field.type === 'Long text' || field.type === 'Checkbox') { delete field.unique; delete field.index }
+}
+
+const settingsField = ref<Field | null>(null)
+const fieldTypes = ['Text', 'Long text', 'Email', 'Phone', 'Number', 'Currency', 'Money', 'Quantity', 'Date', 'Select', 'Enum', 'Link', 'Checkbox']
+
 function save() {
   for (const field of props.currentRecordType.fields) normalizeNewFieldName(field)
   emit('save', (saved) => {
@@ -131,10 +167,16 @@ function isNewField(field: Field) {
           <label>Key<Input :model-value="currentRecordType.name" :readonly="recordTypeIsSaved" aria-label="Record Type name" @input="typeRecordTypeName" @blur="normalizeRecordTypeName" /><small>{{ recordTypeIsSaved ? 'Fixed after the first save.' : 'Follows the name until you edit it.' }}</small></label>
           <label>Description<Input v-model="currentRecordType.description" placeholder="Optional" aria-label="Description" /></label>
         </div>
-        <div class="field-table"><div class="field-head"><span>Label</span><span>Key</span><span>Type</span><span>Required</span><span></span></div><div v-for="(field, index) in currentRecordType.fields" :key="fieldKey(field)" class="field-row"><span><Input :model-value="field.label" :aria-label="`Field ${index + 1} label`" @update:model-value="updateFieldLabel(field, $event)" /></span><span><Input :model-value="field.name" :readonly="!isNewField(field)" :aria-label="`Field ${index + 1} database name`" @update:model-value="updateFieldName(field, $event)" @blur="normalizeNewFieldName(field)" /></span><span><select v-model="field.type" aria-label="Field type"><option>Text</option><option>Long text</option><option>Email</option><option>Phone</option><option>Number</option><option>Currency</option><option>Date</option><option>Select</option><option>Link</option><option>Checkbox</option></select></span><span><input v-model="field.required" type="checkbox" :aria-label="`${field.label} required`" /></span><span><button class="icon-action" :aria-label="`Remove ${field.label}`" @click="currentRecordType.fields.splice(index, 1)">×</button></span><div v-if="field.type === 'Link'" class="relationship-editor"><label>Links to<select v-model="field.target_record_type"><option :value="undefined" disabled>Select a Record Type</option><option v-for="target in recordTypes.filter((item) => item.name !== currentRecordType.name)" :key="target.name" :value="target.name">{{ target.label }}</option></select></label></div></div></div>
+        <div class="record-meta record-kind">
+          <label>Kind<select :value="currentRecordType.kind" :disabled="recordTypeIsSaved" aria-label="Record Type kind" @change="chooseKind(($event.target as HTMLSelectElement).value as Kind)"><option v-for="kind in kinds" :key="kind.value" :value="kind.value">{{ kind.label }}</option></select><small>{{ recordTypeIsSaved ? 'Fixed after the first save. ' : '' }}{{ kindHint }}</small></label>
+          <label v-if="currentRecordType.kind === 'document'">Class<select v-model="currentRecordType.class" aria-label="Document class"><option v-for="item in documentClasses" :key="item[0]" :value="item[0]">{{ item[1] }}</option></select><small>Posting documents will write to ledgers; work and batch documents track work.</small></label>
+          <label v-if="currentRecordType.kind === 'child'">Belongs to<select v-model="currentRecordType.parent_record_type" :disabled="recordTypeIsSaved" aria-label="Parent Record Type"><option :value="undefined" disabled>Select a saved Record Type</option><option v-for="item in parentChoices" :key="item.name" :value="item.name">{{ item.label }}</option></select><small>{{ recordTypeIsSaved ? 'Fixed after the first save.' : 'Save the owning Record Type first.' }}</small></label>
+        </div>
+        <div class="field-table"><div class="field-head"><span>Label</span><span>Key</span><span>Type</span><span>Required</span><span></span></div><div v-for="(field, index) in currentRecordType.fields" :key="fieldKey(field)" class="field-row"><span><Input :model-value="field.label" :aria-label="`Field ${index + 1} label`" @update:model-value="updateFieldLabel(field, $event)" /></span><span><Input :model-value="field.name" :readonly="!isNewField(field)" :aria-label="`Field ${index + 1} database name`" @update:model-value="updateFieldName(field, $event)" @blur="normalizeNewFieldName(field)" /></span><span><select v-model="field.type" aria-label="Field type" @change="changeType(field)"><option v-for="type in fieldTypes" :key="type">{{ type }}</option></select></span><span><input v-model="field.required" type="checkbox" :aria-label="`${field.label} required`" /></span><span class="field-actions"><button class="icon-action" :aria-label="`Settings for ${field.label}`" title="Field settings" @click="settingsField = field"><SlidersHorizontalIcon /></button><button class="icon-action" :aria-label="`Remove ${field.label}`" @click="currentRecordType.fields.splice(index, 1)">×</button></span><div v-if="field.type === 'Link'" class="relationship-editor"><label>Links to<select v-model="field.target_record_type"><option :value="undefined" disabled>Select a Record Type</option><option v-for="target in recordTypes.filter((item) => item.name !== currentRecordType.name)" :key="target.name" :value="target.name">{{ target.label }}</option></select></label></div></div></div>
         <button class="add-field" @click="addField">+ Add field</button>
         <p v-if="databaseState !== 'Connected'" class="muted-label">The database is not connected. Changes stay in this browser session.</p>
       </div>
     </div>
+    <FieldSettingsDialog :field="settingsField" @close="settingsField = null" />
   </section>
 </template>
