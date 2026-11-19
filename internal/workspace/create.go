@@ -1,4 +1,4 @@
-package project
+package workspace
 
 import (
 	"context"
@@ -15,25 +15,25 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// InitWorkspace writes athena-workspace.yaml and the server login into dir.
-// It refuses to overwrite an existing workspace.
-func InitWorkspace(dir, serverURL string) error {
-	if exists(filepath.Join(dir, WorkspaceFile)) {
-		return fmt.Errorf("%s already contains a workspace", dir)
+// InitHome writes athena-home.yaml and the server login into dir.
+// It refuses to overwrite an existing home.
+func InitHome(dir, serverURL string) error {
+	if exists(filepath.Join(dir, HomeFile)) {
+		return fmt.Errorf("%s already contains a home", dir)
 	}
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
-	ws := Workspace{FormatVersion: 1, Database: WorkspaceDatabase{Driver: "mariadb", CredentialsEnv: ServerURLEnv}}
-	data, err := yaml.Marshal(ws)
+	home := Home{FormatVersion: 1, Database: HomeDatabase{Driver: "mariadb", CredentialsEnv: ServerURLEnv}}
+	data, err := yaml.Marshal(home)
 	if err != nil {
 		return err
 	}
-	header := "# Athena workspace. Each project is a sibling directory with its own database.\n# The server login is in .env.local, which must stay private.\n"
-	if err := os.WriteFile(filepath.Join(dir, WorkspaceFile), append([]byte(header), data...), 0o644); err != nil {
+	header := "# Athena home. Each workspace is a sibling directory with its own database.\n# The server login is in .env.local, which must stay private.\n"
+	if err := os.WriteFile(filepath.Join(dir, HomeFile), append([]byte(header), data...), 0o644); err != nil {
 		return err
 	}
-	env := fmt.Sprintf("# Database server login for every project in this workspace. Keep private.\n%s='%s'\n", ServerURLEnv, serverURL)
+	env := fmt.Sprintf("# Database server login for every workspace in this home. Keep private.\n%s='%s'\n", ServerURLEnv, serverURL)
 	if err := os.WriteFile(filepath.Join(dir, ".env.local"), []byte(env), 0o600); err != nil {
 		return err
 	}
@@ -44,11 +44,11 @@ func InitWorkspace(dir, serverURL string) error {
 	return nil
 }
 
-// ServerConfig parses the workspace server DSN and returns the driver config
+// ServerConfig parses the home server DSN and returns the driver config
 // for the given database name. Pass "" for a server-level connection.
 func ServerConfig(serverURL, database string) (*mysql.Config, error) {
 	if serverURL == "" {
-		return nil, fmt.Errorf("%s is not set; run athena init or set it in the workspace .env.local", ServerURLEnv)
+		return nil, fmt.Errorf("%s is not set; run athena init or set it in the home .env.local", ServerURLEnv)
 	}
 	cfg, err := mysql.ParseDSN(serverURL)
 	if err != nil {
@@ -58,7 +58,7 @@ func ServerConfig(serverURL, database string) (*mysql.Config, error) {
 	return cfg, nil
 }
 
-// CreateResult describes a created project.
+// CreateResult describes a created workspace.
 type CreateResult struct {
 	Root     string
 	Manifest Manifest
@@ -66,60 +66,60 @@ type CreateResult struct {
 	GitInitialized bool
 }
 
-// Create makes a new project in the workspace: it stages the project files
-// beside their final directory, creates the project database and records the
-// project ID in it, then moves the files into place and initializes Git.
+// Create makes a new workspace in the home: it stages the workspace files
+// beside their final directory, creates the workspace database and records the
+// workspace ID in it, then moves the files into place and initializes Git.
 //
 // Each step can be retried. A staging directory left by an interrupted run is
-// reused with its ID and any edited files. An existing project directory, or a
-// database that holds tables but no matching project ID, is never adopted.
-func Create(ctx context.Context, workspace, name, serverURL, coreVersion string) (CreateResult, error) {
+// reused with its ID and any edited files. An existing workspace directory, or a
+// database that holds tables but no matching workspace ID, is never adopted.
+func Create(ctx context.Context, home, name, serverURL, coreVersion string) (CreateResult, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
-		return CreateResult{}, errors.New("a project name is required")
+		return CreateResult{}, errors.New("a workspace name is required")
 	}
 	slug := Slugify(name)
 	if err := ValidateSlug(slug); err != nil {
 		return CreateResult{}, fmt.Errorf("%w (from name %q)", err, name)
 	}
-	if _, err := LoadWorkspace(workspace); err != nil {
+	if _, err := LoadHome(home); err != nil {
 		return CreateResult{}, err
 	}
-	final := filepath.Join(workspace, slug)
+	final := filepath.Join(home, slug)
 	if _, err := os.Lstat(final); err == nil {
 		return CreateResult{}, fmt.Errorf("%s already exists; choose another name", final)
 	}
-	staging := filepath.Join(workspace, "."+slug+".creating")
+	staging := filepath.Join(home, "."+slug+".creating")
 
 	manifest, err := stageFiles(staging, name, slug, coreVersion)
 	if err != nil {
-		return CreateResult{}, fmt.Errorf("stage project files: %w", err)
+		return CreateResult{}, fmt.Errorf("stage workspace files: %w", err)
 	}
 	if err := createDatabase(ctx, serverURL, manifest); err != nil {
 		return CreateResult{}, err
 	}
 	if err := os.Rename(staging, final); err != nil {
-		return CreateResult{}, fmt.Errorf("move project into place: %w", err)
+		return CreateResult{}, fmt.Errorf("move workspace into place: %w", err)
 	}
 	result := CreateResult{Root: final, Manifest: manifest}
 	if _, err := exec.LookPath("git"); err == nil && !exists(filepath.Join(final, ".git")) {
 		cmd := exec.CommandContext(ctx, "git", "init", "--quiet", "--initial-branch=main")
 		cmd.Dir = final
 		if out, err := cmd.CombinedOutput(); err != nil {
-			return result, fmt.Errorf("project created, but git init failed: %v: %s", err, out)
+			return result, fmt.Errorf("workspace created, but git init failed: %v: %s", err, out)
 		}
 		result.GitInitialized = true
 	}
 	return result, nil
 }
 
-// stageFiles writes any project files missing from the staging directory and
+// stageFiles writes any workspace files missing from the staging directory and
 // returns its manifest, reusing the ID from an earlier interrupted run.
 func stageFiles(staging, name, slug, coreVersion string) (Manifest, error) {
 	if err := os.MkdirAll(staging, 0o755); err != nil {
 		return Manifest{}, err
 	}
-	manifest := Manifest{Name: name, Slug: slug, SchemaFormatVersion: SchemaFormatVersion, CoreVersion: coreVersion, Database: ProjectDatabase{Name: slug}}
+	manifest := Manifest{Name: name, Slug: slug, SchemaFormatVersion: SchemaFormatVersion, CoreVersion: coreVersion, Database: WorkspaceDatabase{Name: slug}}
 	if exists(filepath.Join(staging, ManifestFile)) {
 		previous, err := LoadManifest(staging)
 		if err != nil {
@@ -136,7 +136,7 @@ func stageFiles(staging, name, slug, coreVersion string) (Manifest, error) {
 		if err != nil {
 			return Manifest{}, err
 		}
-		header := "# Athena project identity. The id, slug and database name are fixed at creation;\n# renaming the project changes only name.\n"
+		header := "# Athena workspace identity. The id, slug and database name are fixed at creation;\n# renaming the workspace changes only name.\n"
 		if err := os.WriteFile(filepath.Join(staging, ManifestFile), append([]byte(header), data...), 0o644); err != nil {
 			return Manifest{}, err
 		}
@@ -147,7 +147,7 @@ func stageFiles(staging, name, slug, coreVersion string) (Manifest, error) {
 		".gitignore":            gitignoreTemplate,
 		".env.example":          envExampleTemplate,
 		"README.md":             readme,
-		"records/.gitkeep":      "",
+		"record_types/.gitkeep": "",
 		"storage/uploads/.keep": "",
 	}
 	for rel, content := range files {
@@ -165,8 +165,8 @@ func stageFiles(staging, name, slug, coreVersion string) (Manifest, error) {
 	return manifest, nil
 }
 
-// createDatabase creates the project database and its athena_project row.
-// An existing database is accepted only if it already carries this project's
+// createDatabase creates the workspace database and its athena_workspace row.
+// An existing database is accepted only if it already carries this workspace's
 // ID, or is empty (left by an interrupted run of this same creation).
 func createDatabase(ctx context.Context, serverURL string, manifest Manifest) error {
 	cfg, err := ServerConfig(serverURL, "")
@@ -193,9 +193,9 @@ func createDatabase(ctx context.Context, serverURL string, manifest Manifest) er
 			return err
 		}
 		if tables > 0 {
-			id, err := ProjectID(ctx, db, name)
+			id, err := WorkspaceID(ctx, db, name)
 			if err != nil || id != manifest.ID {
-				return fmt.Errorf("database %q already exists and does not belong to this new project; choose another name", name)
+				return fmt.Errorf("database %q already exists and does not belong to this new workspace; choose another name", name)
 			}
 			return nil
 		}
@@ -206,8 +206,8 @@ func createDatabase(ctx context.Context, serverURL string, manifest Manifest) er
 		}
 	}
 	statements := []string{
-		fmt.Sprintf("CREATE TABLE IF NOT EXISTS `%s`.athena_project (id CHAR(36) NOT NULL PRIMARY KEY, slug VARCHAR(48) NOT NULL, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci", name),
-		fmt.Sprintf("INSERT IGNORE INTO `%s`.athena_project (id, slug) VALUES (?, ?)", name),
+		fmt.Sprintf("CREATE TABLE IF NOT EXISTS `%s`.athena_workspace (id CHAR(36) NOT NULL PRIMARY KEY, slug VARCHAR(48) NOT NULL, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci", name),
+		fmt.Sprintf("INSERT IGNORE INTO `%s`.athena_workspace (id, slug) VALUES (?, ?)", name),
 	}
 	if _, err := db.ExecContext(ctx, statements[0]); err != nil {
 		return err
@@ -216,9 +216,9 @@ func createDatabase(ctx context.Context, serverURL string, manifest Manifest) er
 	return err
 }
 
-// ProjectID returns the project ID recorded in a project database.
-func ProjectID(ctx context.Context, db *sql.DB, database string) (string, error) {
+// WorkspaceID returns the workspace ID recorded in a workspace database.
+func WorkspaceID(ctx context.Context, db *sql.DB, database string) (string, error) {
 	var id string
-	err := db.QueryRowContext(ctx, fmt.Sprintf("SELECT id FROM `%s`.athena_project LIMIT 1", database)).Scan(&id)
+	err := db.QueryRowContext(ctx, fmt.Sprintf("SELECT id FROM `%s`.athena_workspace LIMIT 1", database)).Scan(&id)
 	return id, err
 }

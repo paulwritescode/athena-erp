@@ -1,50 +1,49 @@
 import { createClient } from '@connectrpc/connect'
 import { createConnectTransport } from '@connectrpc/connect-web'
 import { SystemService } from './gen/athena/v1/system_pb'
-import { EntryService } from './gen/athena/v1/entries_pb'
-import { RecordService, RecordSchema, type MigrationStep, type Record as RecordMessage } from './gen/athena/v1/records_pb'
-import type { FieldValue } from './gen/athena/v1/entries_pb'
+import { RecordService, type FieldValue } from './gen/athena/v1/records_pb'
+import { RecordTypeService, RecordTypeSchema, type MigrationStep, type RecordType as RecordTypeMessage } from './gen/athena/v1/record_types_pb'
 import { create } from '@bufbuild/protobuf'
 import { ConnectError } from '@connectrpc/connect'
-import type { RecordDefinition } from './types'
+import type { RecordType } from './types'
 
 // All ConnectRPC calls go through these clients on the same origin as the desk.
 const transport = createConnectTransport({ baseUrl: window.location.origin })
 export const systemClient = createClient(SystemService, transport)
-export const entryClient = createClient(EntryService, transport)
-const recordClient = createClient(RecordService, transport)
+export const recordClient = createClient(RecordService, transport)
+const recordTypeClient = createClient(RecordTypeService, transport)
 
-function fromMessage(record: RecordMessage): RecordDefinition {
+function fromMessage(recordType: RecordTypeMessage): RecordType {
   return {
-    name: record.key,
-    label: record.label,
-    description: record.description,
-    revision: Number(record.revision),
-    fields: record.fields.map((field) => ({ name: field.key, label: field.label, type: field.type, required: field.required, ...(field.targetRecordKey ? { target_record: field.targetRecordKey } : {}) })),
+    name: recordType.key,
+    label: recordType.label,
+    description: recordType.description,
+    revision: Number(recordType.revision),
+    fields: recordType.fields.map((field) => ({ name: field.key, label: field.label, type: field.type, required: field.required, ...(field.targetRecordTypeKey ? { target_record_type: field.targetRecordTypeKey } : {}) })),
   }
 }
 
-/** Loads every saved Record definition. */
-export async function listRecords(): Promise<RecordDefinition[]> {
-  const res = await recordClient.listRecords({})
-  return res.records.map(fromMessage)
+/** Loads every saved Record Type. */
+export async function listRecordTypes(): Promise<RecordType[]> {
+  const res = await recordTypeClient.listRecordTypes({})
+  return res.recordTypes.map(fromMessage)
 }
 
-function toMessage(record: RecordDefinition): RecordMessage {
-  return create(RecordSchema, {
-    key: record.name,
-    label: record.label,
-    description: record.description,
-    fields: record.fields.map((field) => ({ key: field.name, label: field.label, type: field.type, required: field.required, targetRecordKey: field.type === 'Link' ? field.target_record ?? '' : '' })),
+function toMessage(recordType: RecordType): RecordTypeMessage {
+  return create(RecordTypeSchema, {
+    key: recordType.name,
+    label: recordType.label,
+    description: recordType.description,
+    fields: recordType.fields.map((field) => ({ key: field.name, label: field.label, type: field.type, required: field.required, targetRecordTypeKey: field.type === 'Link' ? field.target_record_type ?? '' : '' })),
   })
 }
 
 /** The table migration a save would run, as reported by the server. */
 export type SavePlan = { steps: MigrationStep[]; requiresConfirmation: boolean }
 
-/** Asks the server what saving this Record would change, without changing anything. */
-export async function planRecordSave(record: RecordDefinition): Promise<SavePlan> {
-  const res = await recordClient.planRecordSave({ record: toMessage(record), expectedRevision: BigInt(record.revision) })
+/** Asks the server what saving this Record Type would change, without changing anything. */
+export async function planRecordTypeSave(recordType: RecordType): Promise<SavePlan> {
+  const res = await recordTypeClient.planRecordTypeSave({ recordType: toMessage(recordType), expectedRevision: BigInt(recordType.revision) })
   return { steps: res.steps, requiresConfirmation: res.requiresConfirmation }
 }
 
@@ -52,20 +51,20 @@ export async function planRecordSave(record: RecordDefinition): Promise<SavePlan
 export type SaveAnswers = { confirmDataLoss: boolean; backfills: { [key: string]: FieldValue } }
 
 /**
- * Saves a Record and returns it at its new revision. Throws ConnectError with
- * code Aborted when someone else saved the Record first, and FailedPrecondition
- * when the plan needs answers that were not given.
+ * Saves a Record Type and returns it at its new revision. Throws ConnectError
+ * with code Aborted when someone else saved the Record Type first, and
+ * FailedPrecondition when the plan needs answers that were not given.
  */
-export async function saveRecord(record: RecordDefinition, answers?: SaveAnswers): Promise<RecordDefinition> {
-  const res = await recordClient.saveRecord({ record: toMessage(record), expectedRevision: BigInt(record.revision), confirmDataLoss: answers?.confirmDataLoss ?? false, backfills: answers?.backfills ?? {} })
-  if (!res.record) throw new ConnectError('the server returned no Record')
-  return fromMessage(res.record)
+export async function saveRecordType(recordType: RecordType, answers?: SaveAnswers): Promise<RecordType> {
+  const res = await recordTypeClient.saveRecordType({ recordType: toMessage(recordType), expectedRevision: BigInt(recordType.revision), confirmDataLoss: answers?.confirmDataLoss ?? false, backfills: answers?.backfills ?? {} })
+  if (!res.recordType) throw new ConnectError('the server returned no Record Type')
+  return fromMessage(res.recordType)
 }
 
 /**
- * Deletes a saved Record, its table and its entries. Throws ConnectError with
- * code FailedPrecondition when other Records link to it.
+ * Deletes a saved Record Type, its table and its Records. Throws ConnectError
+ * with code FailedPrecondition when other Record Types link to it.
  */
-export async function deleteRecord(record: RecordDefinition): Promise<void> {
-  await recordClient.deleteRecord({ key: record.name, expectedRevision: BigInt(record.revision), deleteEntries: true })
+export async function deleteRecordType(recordType: RecordType): Promise<void> {
+  await recordTypeClient.deleteRecordType({ key: recordType.name, expectedRevision: BigInt(recordType.revision), deleteRecords: true })
 }

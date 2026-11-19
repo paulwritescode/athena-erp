@@ -4,57 +4,52 @@
 
 import type { GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
 import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
-import type { FieldValue } from "./entries_pb";
-import { file_athena_v1_entries } from "./entries_pb";
 import type { Message } from "@bufbuild/protobuf";
 
 /**
  * Describes the file athena/v1/records.proto.
  */
 export const file_athena_v1_records: GenFile = /*@__PURE__*/
-  fileDesc("ChdhdGhlbmEvdjEvcmVjb3Jkcy5wcm90bxIJYXRoZW5hLnYxImQKC1JlY29yZEZpZWxkEgsKA2tleRgBIAEoCRINCgVsYWJlbBgCIAEoCRIMCgR0eXBlGAMgASgJEhAKCHJlcXVpcmVkGAQgASgIEhkKEXRhcmdldF9yZWNvcmRfa2V5GAUgASgJInMKBlJlY29yZBILCgNrZXkYASABKAkSDQoFbGFiZWwYAiABKAkSEwoLZGVzY3JpcHRpb24YAyABKAkSJgoGZmllbGRzGAQgAygLMhYuYXRoZW5hLnYxLlJlY29yZEZpZWxkEhAKCHJldmlzaW9uGAUgASgDIhQKEkxpc3RSZWNvcmRzUmVxdWVzdCI5ChNMaXN0UmVjb3Jkc1Jlc3BvbnNlEiIKB3JlY29yZHMYASADKAsyES5hdGhlbmEudjEuUmVjb3JkIvUBChFTYXZlUmVjb3JkUmVxdWVzdBIhCgZyZWNvcmQYASABKAsyES5hdGhlbmEudjEuUmVjb3JkEhkKEWV4cGVjdGVkX3JldmlzaW9uGAIgASgDEhkKEWNvbmZpcm1fZGF0YV9sb3NzGAMgASgIEj4KCWJhY2tmaWxscxgEIAMoCzIrLmF0aGVuYS52MS5TYXZlUmVjb3JkUmVxdWVzdC5CYWNrZmlsbHNFbnRyeRpHCg5CYWNrZmlsbHNFbnRyeRILCgNrZXkYASABKAkSJAoFdmFsdWUYAiABKAsyFS5hdGhlbmEudjEuRmllbGRWYWx1ZToCOAEiVQoVUGxhblJlY29yZFNhdmVSZXF1ZXN0EiEKBnJlY29yZBgBIAEoCzIRLmF0aGVuYS52MS5SZWNvcmQSGQoRZXhwZWN0ZWRfcmV2aXNpb24YAiABKAMijAEKDU1pZ3JhdGlvblN0ZXASDAoEa2luZBgBIAEoCRIRCglmaWVsZF9rZXkYAiABKAkSEwoLZGVzY3JpcHRpb24YAyABKAkSEwoLZGVzdHJ1Y3RpdmUYBCABKAgSGAoQYWZmZWN0ZWRfZW50cmllcxgFIAEoAxIWCg5uZWVkc19iYWNrZmlsbBgGIAEoCCJgChZQbGFuUmVjb3JkU2F2ZVJlc3BvbnNlEicKBXN0ZXBzGAEgAygLMhguYXRoZW5hLnYxLk1pZ3JhdGlvblN0ZXASHQoVcmVxdWlyZXNfY29uZmlybWF0aW9uGAIgASgIIjcKElNhdmVSZWNvcmRSZXNwb25zZRIhCgZyZWNvcmQYASABKAsyES5hdGhlbmEudjEuUmVjb3JkIlUKE0RlbGV0ZVJlY29yZFJlcXVlc3QSCwoDa2V5GAEgASgJEhkKEWV4cGVjdGVkX3JldmlzaW9uGAIgASgDEhYKDmRlbGV0ZV9lbnRyaWVzGAMgASgIIhYKFERlbGV0ZVJlY29yZFJlc3BvbnNlMtACCg1SZWNvcmRTZXJ2aWNlEkwKC0xpc3RSZWNvcmRzEh0uYXRoZW5hLnYxLkxpc3RSZWNvcmRzUmVxdWVzdBoeLmF0aGVuYS52MS5MaXN0UmVjb3Jkc1Jlc3BvbnNlElUKDlBsYW5SZWNvcmRTYXZlEiAuYXRoZW5hLnYxLlBsYW5SZWNvcmRTYXZlUmVxdWVzdBohLmF0aGVuYS52MS5QbGFuUmVjb3JkU2F2ZVJlc3BvbnNlEkkKClNhdmVSZWNvcmQSHC5hdGhlbmEudjEuU2F2ZVJlY29yZFJlcXVlc3QaHS5hdGhlbmEudjEuU2F2ZVJlY29yZFJlc3BvbnNlEk8KDERlbGV0ZVJlY29yZBIeLmF0aGVuYS52MS5EZWxldGVSZWNvcmRSZXF1ZXN0Gh8uYXRoZW5hLnYxLkRlbGV0ZVJlY29yZFJlc3BvbnNlQiNaIWF0aGVuYS1lcnAvZ2VuL2F0aGVuYS92MTthdGhlbmF2MWIGcHJvdG8z", [file_athena_v1_entries]);
+  fileDesc("ChdhdGhlbmEvdjEvcmVjb3Jkcy5wcm90bxIJYXRoZW5hLnYxIlgKCkZpZWxkVmFsdWUSFgoMc3RyaW5nX3ZhbHVlGAEgASgJSAASFAoKYm9vbF92YWx1ZRgCIAEoCEgAEhQKCm51bGxfdmFsdWUYAyABKAhIAEIGCgRraW5kIsMBCgZSZWNvcmQSCgoCaWQYASABKAkSEAoIcmV2aXNpb24YAiABKAMSLQoGdmFsdWVzGAMgAygLMh0uYXRoZW5hLnYxLlJlY29yZC5WYWx1ZXNFbnRyeRISCgpjcmVhdGVkX2F0GAQgASgJEhIKCnVwZGF0ZWRfYXQYBSABKAkaRAoLVmFsdWVzRW50cnkSCwoDa2V5GAEgASgJEiQKBXZhbHVlGAIgASgLMhUuYXRoZW5hLnYxLkZpZWxkVmFsdWU6AjgBIlQKEkxpc3RSZWNvcmRzUmVxdWVzdBIXCg9yZWNvcmRfdHlwZV9rZXkYASABKAkSEQoJcGFnZV9zaXplGAIgASgFEhIKCnBhZ2VfdG9rZW4YAyABKAkiUgoTTGlzdFJlY29yZHNSZXNwb25zZRIiCgdyZWNvcmRzGAEgAygLMhEuYXRoZW5hLnYxLlJlY29yZBIXCg9uZXh0X3BhZ2VfdG9rZW4YAiABKAkiNwoQR2V0UmVjb3JkUmVxdWVzdBIXCg9yZWNvcmRfdHlwZV9rZXkYASABKAkSCgoCaWQYAiABKAkiNgoRR2V0UmVjb3JkUmVzcG9uc2USIQoGcmVjb3JkGAEgASgLMhEuYXRoZW5hLnYxLlJlY29yZCKwAQoTQ3JlYXRlUmVjb3JkUmVxdWVzdBIXCg9yZWNvcmRfdHlwZV9rZXkYASABKAkSOgoGdmFsdWVzGAIgAygLMiouYXRoZW5hLnYxLkNyZWF0ZVJlY29yZFJlcXVlc3QuVmFsdWVzRW50cnkaRAoLVmFsdWVzRW50cnkSCwoDa2V5GAEgASgJEiQKBXZhbHVlGAIgASgLMhUuYXRoZW5hLnYxLkZpZWxkVmFsdWU6AjgBIjkKFENyZWF0ZVJlY29yZFJlc3BvbnNlEiEKBnJlY29yZBgBIAEoCzIRLmF0aGVuYS52MS5SZWNvcmQi1wEKE1VwZGF0ZVJlY29yZFJlcXVlc3QSFwoPcmVjb3JkX3R5cGVfa2V5GAEgASgJEgoKAmlkGAIgASgJEhkKEWV4cGVjdGVkX3JldmlzaW9uGAMgASgDEjoKBnZhbHVlcxgEIAMoCzIqLmF0aGVuYS52MS5VcGRhdGVSZWNvcmRSZXF1ZXN0LlZhbHVlc0VudHJ5GkQKC1ZhbHVlc0VudHJ5EgsKA2tleRgBIAEoCRIkCgV2YWx1ZRgCIAEoCzIVLmF0aGVuYS52MS5GaWVsZFZhbHVlOgI4ASI5ChRVcGRhdGVSZWNvcmRSZXNwb25zZRIhCgZyZWNvcmQYASABKAsyES5hdGhlbmEudjEuUmVjb3JkIlUKE0RlbGV0ZVJlY29yZFJlcXVlc3QSFwoPcmVjb3JkX3R5cGVfa2V5GAEgASgJEgoKAmlkGAIgASgJEhkKEWV4cGVjdGVkX3JldmlzaW9uGAMgASgDIhYKFERlbGV0ZVJlY29yZFJlc3BvbnNlIj8KGExpc3RSZWNvcmRIaXN0b3J5UmVxdWVzdBIXCg9yZWNvcmRfdHlwZV9rZXkYASABKAkSCgoCaWQYAiABKAkiYgoLUmVjb3JkRXZlbnQSDgoGYWN0aW9uGAEgASgJEhAKCHJldmlzaW9uGAIgASgDEhYKDmNoYW5nZWRfZmllbGRzGAMgAygJEg0KBWFjdG9yGAQgASgJEgoKAmF0GAUgASgJIkMKGUxpc3RSZWNvcmRIaXN0b3J5UmVzcG9uc2USJgoGZXZlbnRzGAEgAygLMhYuYXRoZW5hLnYxLlJlY29yZEV2ZW50MvgDCg1SZWNvcmRTZXJ2aWNlEkwKC0xpc3RSZWNvcmRzEh0uYXRoZW5hLnYxLkxpc3RSZWNvcmRzUmVxdWVzdBoeLmF0aGVuYS52MS5MaXN0UmVjb3Jkc1Jlc3BvbnNlEkYKCUdldFJlY29yZBIbLmF0aGVuYS52MS5HZXRSZWNvcmRSZXF1ZXN0GhwuYXRoZW5hLnYxLkdldFJlY29yZFJlc3BvbnNlEk8KDENyZWF0ZVJlY29yZBIeLmF0aGVuYS52MS5DcmVhdGVSZWNvcmRSZXF1ZXN0Gh8uYXRoZW5hLnYxLkNyZWF0ZVJlY29yZFJlc3BvbnNlEk8KDFVwZGF0ZVJlY29yZBIeLmF0aGVuYS52MS5VcGRhdGVSZWNvcmRSZXF1ZXN0Gh8uYXRoZW5hLnYxLlVwZGF0ZVJlY29yZFJlc3BvbnNlEk8KDERlbGV0ZVJlY29yZBIeLmF0aGVuYS52MS5EZWxldGVSZWNvcmRSZXF1ZXN0Gh8uYXRoZW5hLnYxLkRlbGV0ZVJlY29yZFJlc3BvbnNlEl4KEUxpc3RSZWNvcmRIaXN0b3J5EiMuYXRoZW5hLnYxLkxpc3RSZWNvcmRIaXN0b3J5UmVxdWVzdBokLmF0aGVuYS52MS5MaXN0UmVjb3JkSGlzdG9yeVJlc3BvbnNlQiNaIWF0aGVuYS1lcnAvZ2VuL2F0aGVuYS92MTthdGhlbmF2MWIGcHJvdG8z");
 
 /**
- * @generated from message athena.v1.RecordField
+ * FieldValue carries one typed field value. Number and Currency use exact
+ * decimal strings, Date uses YYYY-MM-DD and Link uses the target Record ID.
+ *
+ * @generated from message athena.v1.FieldValue
  */
-export type RecordField = Message<"athena.v1.RecordField"> & {
+export type FieldValue = Message<"athena.v1.FieldValue"> & {
   /**
-   * Lowercase snake_case column key. Fixed once saved.
-   *
-   * @generated from field: string key = 1;
+   * @generated from oneof athena.v1.FieldValue.kind
    */
-  key: string;
-
-  /**
-   * @generated from field: string label = 2;
-   */
-  label: string;
-
-  /**
-   * One of Text, Long text, Email, Phone, Number, Currency, Date, Select, Link, Checkbox.
-   *
-   * @generated from field: string type = 3;
-   */
-  type: string;
-
-  /**
-   * @generated from field: bool required = 4;
-   */
-  required: boolean;
-
-  /**
-   * Key of the linked Record, for Link fields only.
-   *
-   * @generated from field: string target_record_key = 5;
-   */
-  targetRecordKey: string;
+  kind: {
+    /**
+     * @generated from field: string string_value = 1;
+     */
+    value: string;
+    case: "stringValue";
+  } | {
+    /**
+     * @generated from field: bool bool_value = 2;
+     */
+    value: boolean;
+    case: "boolValue";
+  } | {
+    /**
+     * Explicit null. Set to true to clear a field.
+     *
+     * @generated from field: bool null_value = 3;
+     */
+    value: boolean;
+    case: "nullValue";
+  } | { case: undefined; value?: undefined };
 };
 
 /**
- * Describes the message athena.v1.RecordField.
- * Use `create(RecordFieldSchema)` to create a new message.
+ * Describes the message athena.v1.FieldValue.
+ * Use `create(FieldValueSchema)` to create a new message.
  */
-export const RecordFieldSchema: GenMessage<RecordField> = /*@__PURE__*/
+export const FieldValueSchema: GenMessage<FieldValue> = /*@__PURE__*/
   messageDesc(file_athena_v1_records, 0);
 
 /**
@@ -62,33 +57,35 @@ export const RecordFieldSchema: GenMessage<RecordField> = /*@__PURE__*/
  */
 export type Record = Message<"athena.v1.Record"> & {
   /**
-   * Lowercase snake_case key that names the table. Fixed once saved.
+   * UUIDv7 assigned by the server.
    *
-   * @generated from field: string key = 1;
+   * @generated from field: string id = 1;
    */
-  key: string;
+  id: string;
 
   /**
-   * @generated from field: string label = 2;
-   */
-  label: string;
-
-  /**
-   * @generated from field: string description = 3;
-   */
-  description: string;
-
-  /**
-   * @generated from field: repeated athena.v1.RecordField fields = 4;
-   */
-  fields: RecordField[];
-
-  /**
-   * Zero for a Record that has never been saved.
+   * Incremented on each update. Send it back as expected_revision.
    *
-   * @generated from field: int64 revision = 5;
+   * @generated from field: int64 revision = 2;
    */
   revision: bigint;
+
+  /**
+   * @generated from field: map<string, athena.v1.FieldValue> values = 3;
+   */
+  values: { [key: string]: FieldValue };
+
+  /**
+   * RFC 3339 timestamps.
+   *
+   * @generated from field: string created_at = 4;
+   */
+  createdAt: string;
+
+  /**
+   * @generated from field: string updated_at = 5;
+   */
+  updatedAt: string;
 };
 
 /**
@@ -102,6 +99,24 @@ export const RecordSchema: GenMessage<Record> = /*@__PURE__*/
  * @generated from message athena.v1.ListRecordsRequest
  */
 export type ListRecordsRequest = Message<"athena.v1.ListRecordsRequest"> & {
+  /**
+   * @generated from field: string record_type_key = 1;
+   */
+  recordTypeKey: string;
+
+  /**
+   * Defaults to 50; capped at 200.
+   *
+   * @generated from field: int32 page_size = 2;
+   */
+  pageSize: number;
+
+  /**
+   * Opaque cursor from a previous response.
+   *
+   * @generated from field: string page_token = 3;
+   */
+  pageToken: string;
 };
 
 /**
@@ -119,6 +134,13 @@ export type ListRecordsResponse = Message<"athena.v1.ListRecordsResponse"> & {
    * @generated from field: repeated athena.v1.Record records = 1;
    */
   records: Record[];
+
+  /**
+   * Empty when there are no more Records.
+   *
+   * @generated from field: string next_page_token = 2;
+   */
+  nextPageToken: string;
 };
 
 /**
@@ -129,147 +151,70 @@ export const ListRecordsResponseSchema: GenMessage<ListRecordsResponse> = /*@__P
   messageDesc(file_athena_v1_records, 3);
 
 /**
- * @generated from message athena.v1.SaveRecordRequest
+ * @generated from message athena.v1.GetRecordRequest
  */
-export type SaveRecordRequest = Message<"athena.v1.SaveRecordRequest"> & {
+export type GetRecordRequest = Message<"athena.v1.GetRecordRequest"> & {
   /**
-   * @generated from field: athena.v1.Record record = 1;
+   * @generated from field: string record_type_key = 1;
    */
-  record?: Record | undefined;
+  recordTypeKey: string;
 
   /**
-   * The revision the client edited. Zero creates a new Record.
-   *
-   * @generated from field: int64 expected_revision = 2;
+   * @generated from field: string id = 2;
    */
-  expectedRevision: bigint;
-
-  /**
-   * Must be true when the plan removes stored values (dropped fields or
-   * values that cannot convert to a new type or link target).
-   *
-   * @generated from field: bool confirm_data_loss = 3;
-   */
-  confirmDataLoss: boolean;
-
-  /**
-   * Values written into empty entries for fields that become required,
-   * keyed by field key.
-   *
-   * @generated from field: map<string, athena.v1.FieldValue> backfills = 4;
-   */
-  backfills: { [key: string]: FieldValue };
+  id: string;
 };
 
 /**
- * Describes the message athena.v1.SaveRecordRequest.
- * Use `create(SaveRecordRequestSchema)` to create a new message.
+ * Describes the message athena.v1.GetRecordRequest.
+ * Use `create(GetRecordRequestSchema)` to create a new message.
  */
-export const SaveRecordRequestSchema: GenMessage<SaveRecordRequest> = /*@__PURE__*/
+export const GetRecordRequestSchema: GenMessage<GetRecordRequest> = /*@__PURE__*/
   messageDesc(file_athena_v1_records, 4);
 
 /**
- * @generated from message athena.v1.PlanRecordSaveRequest
+ * @generated from message athena.v1.GetRecordResponse
  */
-export type PlanRecordSaveRequest = Message<"athena.v1.PlanRecordSaveRequest"> & {
+export type GetRecordResponse = Message<"athena.v1.GetRecordResponse"> & {
   /**
    * @generated from field: athena.v1.Record record = 1;
    */
   record?: Record | undefined;
-
-  /**
-   * @generated from field: int64 expected_revision = 2;
-   */
-  expectedRevision: bigint;
 };
 
 /**
- * Describes the message athena.v1.PlanRecordSaveRequest.
- * Use `create(PlanRecordSaveRequestSchema)` to create a new message.
+ * Describes the message athena.v1.GetRecordResponse.
+ * Use `create(GetRecordResponseSchema)` to create a new message.
  */
-export const PlanRecordSaveRequestSchema: GenMessage<PlanRecordSaveRequest> = /*@__PURE__*/
+export const GetRecordResponseSchema: GenMessage<GetRecordResponse> = /*@__PURE__*/
   messageDesc(file_athena_v1_records, 5);
 
 /**
- * MigrationStep is one change the save makes to the Record's table.
- *
- * @generated from message athena.v1.MigrationStep
+ * @generated from message athena.v1.CreateRecordRequest
  */
-export type MigrationStep = Message<"athena.v1.MigrationStep"> & {
+export type CreateRecordRequest = Message<"athena.v1.CreateRecordRequest"> & {
   /**
-   * add_field, remove_field, change_type, change_link, require_field.
-   *
-   * @generated from field: string kind = 1;
+   * @generated from field: string record_type_key = 1;
    */
-  kind: string;
+  recordTypeKey: string;
 
   /**
-   * @generated from field: string field_key = 2;
+   * @generated from field: map<string, athena.v1.FieldValue> values = 2;
    */
-  fieldKey: string;
-
-  /**
-   * @generated from field: string description = 3;
-   */
-  description: string;
-
-  /**
-   * True when the step deletes stored values.
-   *
-   * @generated from field: bool destructive = 4;
-   */
-  destructive: boolean;
-
-  /**
-   * Entries whose values this step deletes or must fill in.
-   *
-   * @generated from field: int64 affected_entries = 5;
-   */
-  affectedEntries: bigint;
-
-  /**
-   * True when the step needs a value in backfills.
-   *
-   * @generated from field: bool needs_backfill = 6;
-   */
-  needsBackfill: boolean;
+  values: { [key: string]: FieldValue };
 };
 
 /**
- * Describes the message athena.v1.MigrationStep.
- * Use `create(MigrationStepSchema)` to create a new message.
+ * Describes the message athena.v1.CreateRecordRequest.
+ * Use `create(CreateRecordRequestSchema)` to create a new message.
  */
-export const MigrationStepSchema: GenMessage<MigrationStep> = /*@__PURE__*/
+export const CreateRecordRequestSchema: GenMessage<CreateRecordRequest> = /*@__PURE__*/
   messageDesc(file_athena_v1_records, 6);
 
 /**
- * @generated from message athena.v1.PlanRecordSaveResponse
+ * @generated from message athena.v1.CreateRecordResponse
  */
-export type PlanRecordSaveResponse = Message<"athena.v1.PlanRecordSaveResponse"> & {
-  /**
-   * @generated from field: repeated athena.v1.MigrationStep steps = 1;
-   */
-  steps: MigrationStep[];
-
-  /**
-   * True when SaveRecord needs confirm_data_loss or backfills for this plan.
-   *
-   * @generated from field: bool requires_confirmation = 2;
-   */
-  requiresConfirmation: boolean;
-};
-
-/**
- * Describes the message athena.v1.PlanRecordSaveResponse.
- * Use `create(PlanRecordSaveResponseSchema)` to create a new message.
- */
-export const PlanRecordSaveResponseSchema: GenMessage<PlanRecordSaveResponse> = /*@__PURE__*/
-  messageDesc(file_athena_v1_records, 7);
-
-/**
- * @generated from message athena.v1.SaveRecordResponse
- */
-export type SaveRecordResponse = Message<"athena.v1.SaveRecordResponse"> & {
+export type CreateRecordResponse = Message<"athena.v1.CreateRecordResponse"> & {
   /**
    * @generated from field: athena.v1.Record record = 1;
    */
@@ -277,34 +222,81 @@ export type SaveRecordResponse = Message<"athena.v1.SaveRecordResponse"> & {
 };
 
 /**
- * Describes the message athena.v1.SaveRecordResponse.
- * Use `create(SaveRecordResponseSchema)` to create a new message.
+ * Describes the message athena.v1.CreateRecordResponse.
+ * Use `create(CreateRecordResponseSchema)` to create a new message.
  */
-export const SaveRecordResponseSchema: GenMessage<SaveRecordResponse> = /*@__PURE__*/
+export const CreateRecordResponseSchema: GenMessage<CreateRecordResponse> = /*@__PURE__*/
+  messageDesc(file_athena_v1_records, 7);
+
+/**
+ * UpdateRecordRequest changes only the fields present in values.
+ *
+ * @generated from message athena.v1.UpdateRecordRequest
+ */
+export type UpdateRecordRequest = Message<"athena.v1.UpdateRecordRequest"> & {
+  /**
+   * @generated from field: string record_type_key = 1;
+   */
+  recordTypeKey: string;
+
+  /**
+   * @generated from field: string id = 2;
+   */
+  id: string;
+
+  /**
+   * @generated from field: int64 expected_revision = 3;
+   */
+  expectedRevision: bigint;
+
+  /**
+   * @generated from field: map<string, athena.v1.FieldValue> values = 4;
+   */
+  values: { [key: string]: FieldValue };
+};
+
+/**
+ * Describes the message athena.v1.UpdateRecordRequest.
+ * Use `create(UpdateRecordRequestSchema)` to create a new message.
+ */
+export const UpdateRecordRequestSchema: GenMessage<UpdateRecordRequest> = /*@__PURE__*/
   messageDesc(file_athena_v1_records, 8);
+
+/**
+ * @generated from message athena.v1.UpdateRecordResponse
+ */
+export type UpdateRecordResponse = Message<"athena.v1.UpdateRecordResponse"> & {
+  /**
+   * @generated from field: athena.v1.Record record = 1;
+   */
+  record?: Record | undefined;
+};
+
+/**
+ * Describes the message athena.v1.UpdateRecordResponse.
+ * Use `create(UpdateRecordResponseSchema)` to create a new message.
+ */
+export const UpdateRecordResponseSchema: GenMessage<UpdateRecordResponse> = /*@__PURE__*/
+  messageDesc(file_athena_v1_records, 9);
 
 /**
  * @generated from message athena.v1.DeleteRecordRequest
  */
 export type DeleteRecordRequest = Message<"athena.v1.DeleteRecordRequest"> & {
   /**
-   * @generated from field: string key = 1;
+   * @generated from field: string record_type_key = 1;
    */
-  key: string;
+  recordTypeKey: string;
 
   /**
-   * The revision the client last saw.
-   *
-   * @generated from field: int64 expected_revision = 2;
+   * @generated from field: string id = 2;
+   */
+  id: string;
+
+  /**
+   * @generated from field: int64 expected_revision = 3;
    */
   expectedRevision: bigint;
-
-  /**
-   * Must be true when the Record has entries; they are deleted with it.
-   *
-   * @generated from field: bool delete_entries = 3;
-   */
-  deleteEntries: boolean;
 };
 
 /**
@@ -312,7 +304,7 @@ export type DeleteRecordRequest = Message<"athena.v1.DeleteRecordRequest"> & {
  * Use `create(DeleteRecordRequestSchema)` to create a new message.
  */
 export const DeleteRecordRequestSchema: GenMessage<DeleteRecordRequest> = /*@__PURE__*/
-  messageDesc(file_athena_v1_records, 9);
+  messageDesc(file_athena_v1_records, 10);
 
 /**
  * @generated from message athena.v1.DeleteRecordResponse
@@ -325,12 +317,99 @@ export type DeleteRecordResponse = Message<"athena.v1.DeleteRecordResponse"> & {
  * Use `create(DeleteRecordResponseSchema)` to create a new message.
  */
 export const DeleteRecordResponseSchema: GenMessage<DeleteRecordResponse> = /*@__PURE__*/
-  messageDesc(file_athena_v1_records, 10);
+  messageDesc(file_athena_v1_records, 11);
 
 /**
- * RecordService reads and saves Record definitions. Saving applies the
- * definition's table changes and activates the new revision as one journaled
- * operation.
+ * @generated from message athena.v1.ListRecordHistoryRequest
+ */
+export type ListRecordHistoryRequest = Message<"athena.v1.ListRecordHistoryRequest"> & {
+  /**
+   * @generated from field: string record_type_key = 1;
+   */
+  recordTypeKey: string;
+
+  /**
+   * @generated from field: string id = 2;
+   */
+  id: string;
+};
+
+/**
+ * Describes the message athena.v1.ListRecordHistoryRequest.
+ * Use `create(ListRecordHistoryRequestSchema)` to create a new message.
+ */
+export const ListRecordHistoryRequestSchema: GenMessage<ListRecordHistoryRequest> = /*@__PURE__*/
+  messageDesc(file_athena_v1_records, 12);
+
+/**
+ * RecordEvent is one change to a Record.
+ *
+ * @generated from message athena.v1.RecordEvent
+ */
+export type RecordEvent = Message<"athena.v1.RecordEvent"> & {
+  /**
+   * created, updated or deleted.
+   *
+   * @generated from field: string action = 1;
+   */
+  action: string;
+
+  /**
+   * The Record revision after the change.
+   *
+   * @generated from field: int64 revision = 2;
+   */
+  revision: bigint;
+
+  /**
+   * Keys of the fields whose values changed.
+   *
+   * @generated from field: repeated string changed_fields = 3;
+   */
+  changedFields: string[];
+
+  /**
+   * Who made the change. "Local administrator" until sign-in exists.
+   *
+   * @generated from field: string actor = 4;
+   */
+  actor: string;
+
+  /**
+   * RFC 3339 timestamp.
+   *
+   * @generated from field: string at = 5;
+   */
+  at: string;
+};
+
+/**
+ * Describes the message athena.v1.RecordEvent.
+ * Use `create(RecordEventSchema)` to create a new message.
+ */
+export const RecordEventSchema: GenMessage<RecordEvent> = /*@__PURE__*/
+  messageDesc(file_athena_v1_records, 13);
+
+/**
+ * @generated from message athena.v1.ListRecordHistoryResponse
+ */
+export type ListRecordHistoryResponse = Message<"athena.v1.ListRecordHistoryResponse"> & {
+  /**
+   * @generated from field: repeated athena.v1.RecordEvent events = 1;
+   */
+  events: RecordEvent[];
+};
+
+/**
+ * Describes the message athena.v1.ListRecordHistoryResponse.
+ * Use `create(ListRecordHistoryResponseSchema)` to create a new message.
+ */
+export const ListRecordHistoryResponseSchema: GenMessage<ListRecordHistoryResponse> = /*@__PURE__*/
+  messageDesc(file_athena_v1_records, 14);
+
+/**
+ * RecordService reads and writes Records. Each Record is one row in the table
+ * that belongs to its Record Type.
  *
  * @generated from service athena.v1.RecordService
  */
@@ -344,34 +423,46 @@ export const RecordService: GenService<{
     output: typeof ListRecordsResponseSchema;
   },
   /**
-   * PlanRecordSave describes the table migration a save would run, without
-   * changing anything.
-   *
-   * @generated from rpc athena.v1.RecordService.PlanRecordSave
+   * @generated from rpc athena.v1.RecordService.GetRecord
    */
-  planRecordSave: {
+  getRecord: {
     methodKind: "unary";
-    input: typeof PlanRecordSaveRequestSchema;
-    output: typeof PlanRecordSaveResponseSchema;
+    input: typeof GetRecordRequestSchema;
+    output: typeof GetRecordResponseSchema;
   },
   /**
-   * @generated from rpc athena.v1.RecordService.SaveRecord
+   * @generated from rpc athena.v1.RecordService.CreateRecord
    */
-  saveRecord: {
+  createRecord: {
     methodKind: "unary";
-    input: typeof SaveRecordRequestSchema;
-    output: typeof SaveRecordResponseSchema;
+    input: typeof CreateRecordRequestSchema;
+    output: typeof CreateRecordResponseSchema;
   },
   /**
-   * DeleteRecord drops the Record's table with its entries and removes the
-   * definition. It is refused while other Records link to it.
-   *
+   * @generated from rpc athena.v1.RecordService.UpdateRecord
+   */
+  updateRecord: {
+    methodKind: "unary";
+    input: typeof UpdateRecordRequestSchema;
+    output: typeof UpdateRecordResponseSchema;
+  },
+  /**
    * @generated from rpc athena.v1.RecordService.DeleteRecord
    */
   deleteRecord: {
     methodKind: "unary";
     input: typeof DeleteRecordRequestSchema;
     output: typeof DeleteRecordResponseSchema;
+  },
+  /**
+   * ListRecordHistory returns a Record's changes, newest first.
+   *
+   * @generated from rpc athena.v1.RecordService.ListRecordHistory
+   */
+  listRecordHistory: {
+    methodKind: "unary";
+    input: typeof ListRecordHistoryRequestSchema;
+    output: typeof ListRecordHistoryResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_athena_v1_records, 0);

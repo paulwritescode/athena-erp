@@ -1,14 +1,14 @@
 # Athena ERP
 
-Athena is a reusable ERP platform core built with Go, ConnectRPC, MariaDB, and a Vue 3 + TypeScript + Vite control desk. It is not preconfigured for a particular industry. Records and Modules will be installed or authored on top of the core.
+Athena is a reusable ERP platform core built with Go, ConnectRPC, MariaDB, and a Vue 3 + TypeScript + Vite control desk. It is not preconfigured for a particular industry. Record Types and Packs will be installed or authored on top of the core.
 
-The admin desk has separate **Build** and **View** modes. Build contains Overview, Records, Modules, and Rules. A Record definition describes a database table; a Record entry is a row. Modules compose Records and their relationships into reusable capabilities.
+The admin desk has separate **Build** and **View** modes. Build contains Overview, Record Types, Packs, and Rules. A Record Type describes a database table; a Record is a row. A Pack bundles Record Types and their relationships into an installable capability. A Workspace is a database plus its installed Packs and data. Vocabulary follows [ADR-0008](docs/decisions/adr-0008-vocabulary.md) (Proposed).
 
 ## Documentation
 
 - Start with [`docs/README.md`](docs/README.md).
 - Read [`AGENTS.md`](AGENTS.md) for current decisions and contributor guidance.
-- See the [Record and Module model](docs/architecture/record-and-module-model.md) for intended data mapping and code generation boundaries.
+- See the [Record Type and Pack model](docs/architecture/record-type-and-pack-model.md) for intended data mapping and code generation boundaries.
 
 ## Run
 
@@ -26,7 +26,7 @@ Copy `.env.example` to `.env.local` and set `ATHENA_DATABASE_URL` to a Go MySQL-
 ATHENA_DATABASE_URL='athena_app:change-me@tcp(127.0.0.1:3306)/athena_erp?parseTime=true' make run
 ```
 
-Use a dedicated database and user for Athena. The password above is only an example; keep credentials in the ignored `.env.local`, never in a tracked file. On startup Athena applies pending system migrations, which create the metadata tables (`athena migrate status` lists them, `athena migrate up [--to N] [--dry-run]` applies them without starting the server; both take `--project slug` or fall back to `ATHENA_DATABASE_URL`, and `--json`; `--addr` does not apply because no server starts). Saving a Record definition creates its dedicated table and adds its field columns. A Link field requires a saved target Record and creates a foreign key. Each save is recorded in `athena_record_operations` and checked against the Record's revision, so a save from a stale tab is refused. A save interrupted by a crash is finished at the next startup. Adding optional fields and renaming labels save directly. Removing a field, changing its type or link target, or adding a required field to a table with entries is planned first (`RecordService.PlanRecordSave`) and needs `confirm_data_loss` and fill-in values where the plan asks for them. Record-definition migrations and rollback are not implemented. A saved Record can be deleted with `RecordService.DeleteRecord`, which drops its table and entries through the same journal and revision check. It is refused while other Records link to it, and needs `delete_entries` when entries exist. The desk asks for confirmation first; an unsaved Record is just discarded. `make run` stops with an error if `ATHENA_DATABASE_URL` is unset or MariaDB is unreachable, so the served desk always has a database.
+Use a dedicated database and user for Athena. The password above is only an example; keep credentials in the ignored `.env.local`, never in a tracked file. On startup Athena applies pending system migrations, which create the metadata tables (`athena migrate status` lists them, `athena migrate up [--to N] [--dry-run]` applies them without starting the server; both take `--workspace slug` or fall back to `ATHENA_DATABASE_URL`, and `--json`; `--addr` does not apply because no server starts). Saving a Record Type creates its dedicated table (`p_workspace__<key>`) and adds its field columns. A Link field requires a saved target Record Type and creates a foreign key. Each save is recorded in `athena_record_type_operations` and checked against the Record Type's revision, so a save from a stale tab is refused. A save interrupted by a crash is finished at the next startup. Adding optional fields and renaming labels save directly. Removing a field, changing its type or link target, or adding a required field to a table with Records is planned first (`RecordTypeService.PlanRecordTypeSave`) and needs `confirm_data_loss` and fill-in values where the plan asks for them. Record Type migrations and rollback are not implemented. A saved Record Type can be deleted with `RecordTypeService.DeleteRecordType`, which drops its table and Records through the same journal and revision check. It is refused while other Record Types link to it, and needs `delete_records` when Records exist. The desk asks for confirmation first; an unsaved Record Type is just discarded. A database created before the vocabulary rename is upgraded by system migration 5 on the next start; back it up first with `mariadb-dump` because the rename cannot be rolled back. `make run` stops with an error if `ATHENA_DATABASE_URL` is unset or MariaDB is unreachable, so the served desk always has a database.
 
 To stop the running server, or stop it and start again after a change:
 
@@ -60,28 +60,28 @@ make telemetry        # starts grafana/otel-lgtm in Docker; Grafana at http://12
 make restart
 ```
 
-- The server traces every ConnectRPC call (`otelconnect`) and every MariaDB statement (`otelsql`), and exports request and connection-pool metrics. SQL text is recorded; parameter values (entry data) are not.
+- The server traces every ConnectRPC call (`otelconnect`) and every MariaDB statement (`otelsql`), and exports request and connection-pool metrics. SQL text is recorded; parameter values (Record data) are not.
 - The desk traces page loads and each API call, and sends its spans to `/otlp/v1/traces` on the Athena server, which forwards them to the collector. Browser and server spans for one action share a trace.
 - In Grafana, open Explore and choose Tempo to search traces (service `athena` or `athena-desk`), or Prometheus for metrics. `make telemetry-stop` stops the container.
 
-## Workspaces and projects
+## Homes and Workspaces
 
-`make run` above is the development path for this repository. To use Athena as an installed tool, build `bin/athena` and create a workspace. The workspace keeps the database server login; each project gets its own folder and its own database.
+`make run` above is the development path for this repository. To use Athena as an installed tool, build `bin/athena` and create a home. The home keeps the database server login; each Workspace gets its own folder and its own database.
 
 ```sh
 make build
 ./bin/athena init ~/athena --user <mariadb-user>   # prompts for the password, or set ATHENA_SERVER_PASSWORD
 cd ~/athena
 ../path/to/bin/athena new "Acme Trading"            # creates ./acme_trading and the database acme_trading
-cd acme_trading && athena run                       # or from the workspace: athena run --project acme_trading
+cd acme_trading && athena run                       # or from the home: athena run --workspace acme_trading
 ```
 
-- The MariaDB user given to `athena init` must be able to create databases. Its login is saved as `ATHENA_SERVER_URL` in the workspace `.env.local` (owner-only).
-- The project slug, folder and database name come from the name at creation and never change. Renaming the project changes only `name` in `athena.yaml`.
-- A new project contains `athena.yaml`, `AGENTS.md`, `README.md`, `.gitignore`, `.env.example`, `records/` and `storage/uploads/`, and is a Git repository on `main` with no commits.
-- `athena migrate status` and `athena migrate up [--to N] [--dry-run]` show and apply system migrations for a project (or for `ATHENA_DATABASE_URL`) without starting the server.
-- `athena run` refuses a database whose recorded project ID differs from `athena.yaml`.
-- Only one Athena process runs at a time per user (`athena run`, `athena serve` and `make run`). A second launch reports the running project and exits.
+- The MariaDB user given to `athena init` must be able to create databases. Its login is saved as `ATHENA_SERVER_URL` in the home `.env.local` (owner-only). A home that still has `athena-workspace.yaml` from an earlier build has the file renamed to `athena-home.yaml` the first time a command finds it.
+- The Workspace slug, folder and database name come from the name at creation and never change. Renaming the Workspace changes only `name` in `athena.yaml`.
+- A new Workspace contains `athena.yaml`, `AGENTS.md`, `README.md`, `.gitignore`, `.env.example`, `record_types/` and `storage/uploads/`, and is a Git repository on `main` with no commits.
+- `athena migrate status` and `athena migrate up [--to N] [--dry-run]` show and apply system migrations for a Workspace (or for `ATHENA_DATABASE_URL`) without starting the server.
+- `athena run` refuses a database whose recorded Workspace ID differs from `athena.yaml`.
+- Only one Athena process runs at a time per user (`athena run`, `athena serve` and `make run`). A second launch reports the running Workspace and exits.
 
 ## Tests
 
@@ -91,22 +91,22 @@ go test ./...                               # Go only; MariaDB tests skip when n
 CI=true pnpm --dir web run test             # Vitest only
 ```
 
-MariaDB tests read `ATHENA_TEST_DATABASE_URL`, a DSN for a user who can create and drop databases named `test_athena_*` (MariaDB grants this to every user by default). `make test` falls back to `ATHENA_DATABASE_URL` from `.env.local`. Each test creates its own empty database and drops it afterwards, so your project data is never touched. The field-rule cases in `internal/server/testdata/field_rules.json` run in both Go and Vitest.
+MariaDB tests read `ATHENA_TEST_DATABASE_URL`, a DSN for a user who can create and drop databases named `test_athena_*` (MariaDB grants this to every user by default). `make test` falls back to `ATHENA_DATABASE_URL` from `.env.local`. Each test creates its own empty database and drops it afterwards, so your Workspace data is never touched. The field-rule cases in `internal/server/testdata/field_rules.json` run in both Go and Vitest.
 
 ## Current limits
 
-- Record entries can be listed, created, edited and deleted through `athena.v1.EntryService` and the View page. Each entry has a UUIDv7 `id` and a `revision`; a stale `expected_revision` returns `aborted`. Each change is recorded in `athena_entry_history` and shown on the entry page. There is no authentication or filtering yet, so every change is attributed to "Local administrator".
-- Module composition, relationship/join-table management, and package installation are not implemented.
-- Go source generation for dashboard-created Records and Starlark rule execution are accepted product directions but are not implemented.
+- Records can be listed, created, edited and deleted through `athena.v1.RecordService` and the View page. Each Record has a UUIDv7 `id` and a `revision`; a stale `expected_revision` returns `aborted`. Each change is recorded in `athena_record_history` and shown on the Record page. There is no authentication or filtering yet, so every change is attributed to "Local administrator".
+- Pack composition, relationship/join-table management, and Pack installation are not implemented.
+- Go source generation for dashboard-created Record Types and Starlark rule execution are accepted product directions but are not implemented.
 - Authentication and authorization are not implemented. Do not expose database-backed authoring endpoints to an untrusted network.
 - PostgreSQL support is planned for later; MariaDB is the only current database target.
 
-## Project layout
+## Repository layout
 
 ```text
 cmd/athena/             CLI entry point (`athena init`, `new`, `run`, `serve`, `version`)
-internal/project/        workspaces, project creation, project resolution and the run lock
-internal/server/         Go HTTP/ConnectRPC server and MariaDB-backed Record schema
+internal/workspace/      homes, Workspace creation, Workspace resolution and the run lock
+internal/server/         Go HTTP/ConnectRPC server and MariaDB-backed Record Type schema
 internal/store/          Dialect interface, the MariaDB implementation and the system migration runner; engine-specific SQL lives here
 internal/webui/          embedded frontend assets
 proto/athena/v1/         Protobuf API contract

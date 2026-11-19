@@ -60,9 +60,10 @@ type Dialect interface {
 	// Now is the SQL expression for the current UTC-based timestamp.
 	Now() string
 
-	// CreateRecordTable creates a Record table with the system columns
-	// (id, revision, created_at, updated_at) followed by nullable columns.
-	CreateRecordTable(table string, columns []Column) string
+	// CreateRecordTypeTable creates a Record Type's table with the system
+	// columns (id, revision, created_at, updated_at) followed by nullable
+	// columns.
+	CreateRecordTypeTable(table string, columns []Column) string
 	// CreateMigrationsTable creates athena_migrations (version, name,
 	// applied_at) when it is missing.
 	CreateMigrationsTable() string
@@ -80,6 +81,13 @@ type Dialect interface {
 	DropForeignKey(table, constraint string) string
 	// DropTable removes a table when it exists.
 	DropTable(table string) string
+	// RenameTable renames a table. Foreign keys that reference it follow the
+	// new name but keep their constraint names.
+	RenameTable(from, to string) string
+	// RenameColumn renames a column and keeps its type, default and nullability.
+	RenameColumn(table, from, to string) string
+	// RenameIndex renames a secondary index.
+	RenameIndex(table, from, to string) string
 
 	// Upsert inserts a row, or updates updateColumns when keyColumn collides.
 	Upsert(table string, columns []string, keyColumn string, updateColumns []string) string
@@ -91,9 +99,11 @@ type Dialect interface {
 	// Link, linkTable is the target table.
 	IncompatibleValues(column, fieldType, linkTable string) (string, error)
 
-	// TableExists, ColumnIsNullable and ForeignKeyTarget read the catalogue
-	// of the current database.
+	// TableExists, ColumnExists, IndexExists, ColumnIsNullable and
+	// ForeignKeyTarget read the catalogue of the current database.
 	TableExists(ctx context.Context, q Querier, table string) (bool, error)
+	ColumnExists(ctx context.Context, q Querier, table, column string) (bool, error)
+	IndexExists(ctx context.Context, q Querier, table, index string) (bool, error)
 	ColumnIsNullable(ctx context.Context, q Querier, table, column string) (bool, error)
 	// ForeignKeyTarget returns the table a constraint references; found is
 	// false when the constraint does not exist.
@@ -107,6 +117,11 @@ type Dialect interface {
 	// Classify maps a driver error to an ErrorKind.
 	Classify(err error) ErrorKind
 }
+
+// GeneratedIdentLimit is the longest identifier Athena generates on any
+// engine. PostgreSQL stops at 63 bytes and MariaDB at 64, so a name that is
+// valid here is valid on both. Dialect.MaxIdentLength stays the engine fact.
+const GeneratedIdentLimit = 63
 
 // ShortenIdentifier returns name unchanged when it is at most limit bytes.
 // Otherwise it keeps a prefix and appends "_" and 12 hex characters of the

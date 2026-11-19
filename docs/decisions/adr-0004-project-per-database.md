@@ -1,5 +1,7 @@
 # ADR-0004: One database per project on a workspace database server
 
+> **Amended by [ADR-0008](adr-0008-vocabulary.md) (Proposed).** This ADR keeps the vocabulary of its date. Read "project" as Workspace, the parent "workspace" folder as home, `athena-workspace.yaml` as `athena-home.yaml`, `athena_project` as `athena_workspace` and `--project` as `--workspace`. See the Amendments section.
+
 - **Status:** Accepted
 - **Date:** 2026-11-17
 - **Decision owner:** Project owner (requested in the 2026-11-17 working session)
@@ -37,3 +39,7 @@ On 2026-11-18, against local MariaDB 11.8 with a login limited to `zz_%` databas
 
 - Live deployments need their own credentials (the plan's separate live database), or a hosted environment cannot grant `CREATE`.
 - The PostgreSQL adapter is implemented.
+
+## Amendments
+
+- **ADR-0008 (Proposed):** the "project" is a Workspace and the "workspace" folder is a home, because the kernel specification uses Workspace for a database plus its installed packs and data. `athena init` creates a home and writes `athena-home.yaml`; `athena new` creates a Workspace; `athena run --workspace <slug>` selects one; the identity row is in `athena_workspace` (renamed by system migration 5). A home that still has `athena-workspace.yaml` has it renamed once, in place, with a notice. The Workspace ID, slug, directory and database name are unchanged, so `athena.yaml` needs no change.

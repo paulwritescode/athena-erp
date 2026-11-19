@@ -5,15 +5,17 @@ This directory describes the product and the system as it exists and as decision
 ## Current references
 
 - [Architecture overview](architecture/overview.md) — product scope, component boundaries, current implementation status, and not-yet-built capabilities.
-- [Record and Module model](architecture/record-and-module-model.md) — definitions, MariaDB mapping, Go/Starlark boundaries, code generation, and open lifecycle choices.
+- [Record Type and Pack model](architecture/record-type-and-pack-model.md) — Record Types, MariaDB mapping, Go/Starlark boundaries, code generation, and open lifecycle choices.
 - [Frontend theme and typography](architecture/frontend-theme-and-type.md) — centralized color tokens, button variants, and the supplied typography scale.
 - [Decision log](decisions/decision-log.md) — accepted decisions, proposals, unresolved choices, and rejected assumptions.
 - [ADR-0002: MariaDB first](decisions/adr-0002-mariadb-first.md) — initial database selection and current persistence limits.
-- [ADR-0003: Record table model](decisions/adr-0003-record-table-model.md) — Record definitions map to MariaDB tables.
-- [ADR-0004: One database per project](decisions/adr-0004-project-per-database.md) — workspaces, project creation and the run lock.
+- [ADR-0003: Record table model](decisions/adr-0003-record-table-model.md) — Record Types (then called Record definitions) map to MariaDB tables; amended by ADR-0008 and ADR-0009.
+- [ADR-0004: One database per project](decisions/adr-0004-project-per-database.md) — homes, Workspace creation and the run lock; amended by ADR-0008.
 - [ADR-0005: Database dialect layer](decisions/adr-0005-database-dialect-layer.md) — proposed: engine-specific SQL behind a `Dialect` interface, MariaDB only.
 - [ADR-0006: Versioned system migrations](decisions/adr-0006-versioned-system-migrations.md) — accepted: numbered idempotent platform migrations, `athena migrate`.
 - [ADR-0007: Exact numeric types](decisions/adr-0007-exact-types.md) — proposed: decimal, money in minor units, quantity, dates and allocation in `internal/types`.
+- [ADR-0008: Vocabulary](decisions/adr-0008-vocabulary.md) — proposed: Record Type, Record, Pack, Workspace, home, Grant; supersedes D-005.
+- [ADR-0009: Storage shapes](decisions/adr-0009-storage-shapes.md) — proposed: integer minor-unit money, UUIDv7 ids, table naming and the 63-byte identifier rule.
 - [ADR template](decisions/adr-template.md) — format for recording a consequential architecture decision.
 - [Project README](../README.md) — setup, run, build, and repository layout.
 

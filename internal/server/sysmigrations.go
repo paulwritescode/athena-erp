@@ -76,6 +76,9 @@ func SystemMigrations() []store.Migration {
 			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 		)},
 		{Version: 4, Name: "entry_revisions", Up: addEntryRevisions},
+		// Renames every table, column, index, constraint and stored key to the
+		// Record Type, Record, Pack and Workspace vocabulary (ADR-0008).
+		{Version: 5, Name: "vocabulary_rename", Up: renameVocabulary},
 	}
 }
 
@@ -93,7 +96,7 @@ func execAll(statements ...string) func(context.Context, store.Execer) error {
 // legacyRecordKeyPattern accepts keys saved before keys were lowercase-only.
 var legacyRecordKeyPattern = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_]{0,62}$`)
 
-// addEntryRevisions adds the revision column to Record tables saved before
+// addEntryRevisions adds the revision column to Record Type tables saved before
 // optimistic concurrency existed. Names come from saved definitions only.
 func addEntryRevisions(ctx context.Context, x store.Execer) error {
 	rows, err := x.QueryContext(ctx, `SELECT name FROM athena_records`)
@@ -115,9 +118,9 @@ func addEntryRevisions(ctx context.Context, x store.Execer) error {
 	}
 	for _, name := range names {
 		if !legacyRecordKeyPattern.MatchString(name) {
-			return fmt.Errorf("saved Record name %q is not a valid identifier", name)
+			return fmt.Errorf("saved Record Type name %q is not a valid identifier", name)
 		}
-		table := recordTableName(name)
+		table := legacyRecordTableName(name)
 		exists, err := dialect.TableExists(ctx, x, table)
 		if err != nil {
 			return err
@@ -140,10 +143,10 @@ type MigrationOptions struct {
 }
 
 // MigrationStatus reports each system migration and whether the database has
-// applied it. It writes nothing. When project is set, the database must
+// applied it. It writes nothing. When workspace is set, the database must
 // belong to it.
-func MigrationStatus(ctx context.Context, cfg *mysql.Config, project *Project) ([]store.MigrationState, error) {
-	db, err := openMigrationDB(ctx, cfg, project)
+func MigrationStatus(ctx context.Context, cfg *mysql.Config, workspace *Workspace) ([]store.MigrationState, error) {
+	db, err := openMigrationDB(ctx, cfg, workspace)
 	if err != nil {
 		return nil, err
 	}
@@ -153,8 +156,8 @@ func MigrationStatus(ctx context.Context, cfg *mysql.Config, project *Project) (
 
 // Migrate applies pending system migrations the way the server does at
 // start-up and returns the ones it applied (or would apply with DryRun).
-func Migrate(ctx context.Context, cfg *mysql.Config, project *Project, opts MigrationOptions) ([]store.Migration, error) {
-	db, err := openMigrationDB(ctx, cfg, project)
+func Migrate(ctx context.Context, cfg *mysql.Config, workspace *Workspace, opts MigrationOptions) ([]store.Migration, error) {
+	db, err := openMigrationDB(ctx, cfg, workspace)
 	if err != nil {
 		return nil, err
 	}
@@ -162,7 +165,7 @@ func Migrate(ctx context.Context, cfg *mysql.Config, project *Project, opts Migr
 	return store.Up(ctx, db, dialect, SystemMigrations(), store.UpOptions{Target: opts.Target, DryRun: opts.DryRun})
 }
 
-func openMigrationDB(ctx context.Context, cfg *mysql.Config, project *Project) (*sql.DB, error) {
+func openMigrationDB(ctx context.Context, cfg *mysql.Config, workspace *Workspace) (*sql.DB, error) {
 	connector, err := mysql.NewConnector(utcConfig(cfg))
 	if err != nil {
 		return nil, fmt.Errorf("open MariaDB connection: %w", err)
@@ -172,8 +175,8 @@ func openMigrationDB(ctx context.Context, cfg *mysql.Config, project *Project) (
 		db.Close()
 		return nil, fmt.Errorf("connect to MariaDB: %w", err)
 	}
-	if project != nil {
-		if err := checkProject(ctx, db, *project); err != nil {
+	if workspace != nil {
+		if err := checkWorkspace(ctx, db, *workspace); err != nil {
 			db.Close()
 			return nil, err
 		}

@@ -12,7 +12,7 @@ function expand(value: string): string {
 describe('validateField parity with the server', () => {
   for (const c of cases) {
     it(c.name, () => {
-      const field = { name: 'f', label: 'Field', type: c.type, required: c.required, target_record: c.target_record }
+      const field = { name: 'f', label: 'Field', type: c.type, required: c.required, target_record_type: c.target_record_type }
       expect(validateField(field, expand(c.value)) === '').toBe(c.valid)
     })
   }

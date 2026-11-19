@@ -21,34 +21,34 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-type RecordField struct {
+// FieldValue carries one typed field value. Number and Currency use exact
+// decimal strings, Date uses YYYY-MM-DD and Link uses the target Record ID.
+type FieldValue struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Lowercase snake_case column key. Fixed once saved.
-	Key   string `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
-	Label string `protobuf:"bytes,2,opt,name=label,proto3" json:"label,omitempty"`
-	// One of Text, Long text, Email, Phone, Number, Currency, Date, Select, Link, Checkbox.
-	Type     string `protobuf:"bytes,3,opt,name=type,proto3" json:"type,omitempty"`
-	Required bool   `protobuf:"varint,4,opt,name=required,proto3" json:"required,omitempty"`
-	// Key of the linked Record, for Link fields only.
-	TargetRecordKey string `protobuf:"bytes,5,opt,name=target_record_key,json=targetRecordKey,proto3" json:"target_record_key,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	// Types that are valid to be assigned to Kind:
+	//
+	//	*FieldValue_StringValue
+	//	*FieldValue_BoolValue
+	//	*FieldValue_NullValue
+	Kind          isFieldValue_Kind `protobuf_oneof:"kind"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
-func (x *RecordField) Reset() {
-	*x = RecordField{}
+func (x *FieldValue) Reset() {
+	*x = FieldValue{}
 	mi := &file_athena_v1_records_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *RecordField) String() string {
+func (x *FieldValue) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*RecordField) ProtoMessage() {}
+func (*FieldValue) ProtoMessage() {}
 
-func (x *RecordField) ProtoReflect() protoreflect.Message {
+func (x *FieldValue) ProtoReflect() protoreflect.Message {
 	mi := &file_athena_v1_records_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -60,55 +60,78 @@ func (x *RecordField) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use RecordField.ProtoReflect.Descriptor instead.
-func (*RecordField) Descriptor() ([]byte, []int) {
+// Deprecated: Use FieldValue.ProtoReflect.Descriptor instead.
+func (*FieldValue) Descriptor() ([]byte, []int) {
 	return file_athena_v1_records_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *RecordField) GetKey() string {
+func (x *FieldValue) GetKind() isFieldValue_Kind {
 	if x != nil {
-		return x.Key
+		return x.Kind
+	}
+	return nil
+}
+
+func (x *FieldValue) GetStringValue() string {
+	if x != nil {
+		if x, ok := x.Kind.(*FieldValue_StringValue); ok {
+			return x.StringValue
+		}
 	}
 	return ""
 }
 
-func (x *RecordField) GetLabel() string {
+func (x *FieldValue) GetBoolValue() bool {
 	if x != nil {
-		return x.Label
-	}
-	return ""
-}
-
-func (x *RecordField) GetType() string {
-	if x != nil {
-		return x.Type
-	}
-	return ""
-}
-
-func (x *RecordField) GetRequired() bool {
-	if x != nil {
-		return x.Required
+		if x, ok := x.Kind.(*FieldValue_BoolValue); ok {
+			return x.BoolValue
+		}
 	}
 	return false
 }
 
-func (x *RecordField) GetTargetRecordKey() string {
+func (x *FieldValue) GetNullValue() bool {
 	if x != nil {
-		return x.TargetRecordKey
+		if x, ok := x.Kind.(*FieldValue_NullValue); ok {
+			return x.NullValue
+		}
 	}
-	return ""
+	return false
 }
+
+type isFieldValue_Kind interface {
+	isFieldValue_Kind()
+}
+
+type FieldValue_StringValue struct {
+	StringValue string `protobuf:"bytes,1,opt,name=string_value,json=stringValue,proto3,oneof"`
+}
+
+type FieldValue_BoolValue struct {
+	BoolValue bool `protobuf:"varint,2,opt,name=bool_value,json=boolValue,proto3,oneof"`
+}
+
+type FieldValue_NullValue struct {
+	// Explicit null. Set to true to clear a field.
+	NullValue bool `protobuf:"varint,3,opt,name=null_value,json=nullValue,proto3,oneof"`
+}
+
+func (*FieldValue_StringValue) isFieldValue_Kind() {}
+
+func (*FieldValue_BoolValue) isFieldValue_Kind() {}
+
+func (*FieldValue_NullValue) isFieldValue_Kind() {}
 
 type Record struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Lowercase snake_case key that names the table. Fixed once saved.
-	Key         string         `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
-	Label       string         `protobuf:"bytes,2,opt,name=label,proto3" json:"label,omitempty"`
-	Description string         `protobuf:"bytes,3,opt,name=description,proto3" json:"description,omitempty"`
-	Fields      []*RecordField `protobuf:"bytes,4,rep,name=fields,proto3" json:"fields,omitempty"`
-	// Zero for a Record that has never been saved.
-	Revision      int64 `protobuf:"varint,5,opt,name=revision,proto3" json:"revision,omitempty"`
+	// UUIDv7 assigned by the server.
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// Incremented on each update. Send it back as expected_revision.
+	Revision int64                  `protobuf:"varint,2,opt,name=revision,proto3" json:"revision,omitempty"`
+	Values   map[string]*FieldValue `protobuf:"bytes,3,rep,name=values,proto3" json:"values,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	// RFC 3339 timestamps.
+	CreatedAt     string `protobuf:"bytes,4,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	UpdatedAt     string `protobuf:"bytes,5,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -143,32 +166,11 @@ func (*Record) Descriptor() ([]byte, []int) {
 	return file_athena_v1_records_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *Record) GetKey() string {
+func (x *Record) GetId() string {
 	if x != nil {
-		return x.Key
+		return x.Id
 	}
 	return ""
-}
-
-func (x *Record) GetLabel() string {
-	if x != nil {
-		return x.Label
-	}
-	return ""
-}
-
-func (x *Record) GetDescription() string {
-	if x != nil {
-		return x.Description
-	}
-	return ""
-}
-
-func (x *Record) GetFields() []*RecordField {
-	if x != nil {
-		return x.Fields
-	}
-	return nil
 }
 
 func (x *Record) GetRevision() int64 {
@@ -178,8 +180,34 @@ func (x *Record) GetRevision() int64 {
 	return 0
 }
 
+func (x *Record) GetValues() map[string]*FieldValue {
+	if x != nil {
+		return x.Values
+	}
+	return nil
+}
+
+func (x *Record) GetCreatedAt() string {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return ""
+}
+
+func (x *Record) GetUpdatedAt() string {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return ""
+}
+
 type ListRecordsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	RecordTypeKey string                 `protobuf:"bytes,1,opt,name=record_type_key,json=recordTypeKey,proto3" json:"record_type_key,omitempty"`
+	// Defaults to 50; capped at 200.
+	PageSize int32 `protobuf:"varint,2,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	// Opaque cursor from a previous response.
+	PageToken     string `protobuf:"bytes,3,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -214,9 +242,32 @@ func (*ListRecordsRequest) Descriptor() ([]byte, []int) {
 	return file_athena_v1_records_proto_rawDescGZIP(), []int{2}
 }
 
+func (x *ListRecordsRequest) GetRecordTypeKey() string {
+	if x != nil {
+		return x.RecordTypeKey
+	}
+	return ""
+}
+
+func (x *ListRecordsRequest) GetPageSize() int32 {
+	if x != nil {
+		return x.PageSize
+	}
+	return 0
+}
+
+func (x *ListRecordsRequest) GetPageToken() string {
+	if x != nil {
+		return x.PageToken
+	}
+	return ""
+}
+
 type ListRecordsResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Records       []*Record              `protobuf:"bytes,1,rep,name=records,proto3" json:"records,omitempty"`
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	Records []*Record              `protobuf:"bytes,1,rep,name=records,proto3" json:"records,omitempty"`
+	// Empty when there are no more Records.
+	NextPageToken string `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -258,35 +309,35 @@ func (x *ListRecordsResponse) GetRecords() []*Record {
 	return nil
 }
 
-type SaveRecordRequest struct {
-	state  protoimpl.MessageState `protogen:"open.v1"`
-	Record *Record                `protobuf:"bytes,1,opt,name=record,proto3" json:"record,omitempty"`
-	// The revision the client edited. Zero creates a new Record.
-	ExpectedRevision int64 `protobuf:"varint,2,opt,name=expected_revision,json=expectedRevision,proto3" json:"expected_revision,omitempty"`
-	// Must be true when the plan removes stored values (dropped fields or
-	// values that cannot convert to a new type or link target).
-	ConfirmDataLoss bool `protobuf:"varint,3,opt,name=confirm_data_loss,json=confirmDataLoss,proto3" json:"confirm_data_loss,omitempty"`
-	// Values written into empty entries for fields that become required,
-	// keyed by field key.
-	Backfills     map[string]*FieldValue `protobuf:"bytes,4,rep,name=backfills,proto3" json:"backfills,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+func (x *ListRecordsResponse) GetNextPageToken() string {
+	if x != nil {
+		return x.NextPageToken
+	}
+	return ""
+}
+
+type GetRecordRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RecordTypeKey string                 `protobuf:"bytes,1,opt,name=record_type_key,json=recordTypeKey,proto3" json:"record_type_key,omitempty"`
+	Id            string                 `protobuf:"bytes,2,opt,name=id,proto3" json:"id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *SaveRecordRequest) Reset() {
-	*x = SaveRecordRequest{}
+func (x *GetRecordRequest) Reset() {
+	*x = GetRecordRequest{}
 	mi := &file_athena_v1_records_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *SaveRecordRequest) String() string {
+func (x *GetRecordRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*SaveRecordRequest) ProtoMessage() {}
+func (*GetRecordRequest) ProtoMessage() {}
 
-func (x *SaveRecordRequest) ProtoReflect() protoreflect.Message {
+func (x *GetRecordRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_athena_v1_records_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -298,254 +349,190 @@ func (x *SaveRecordRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SaveRecordRequest.ProtoReflect.Descriptor instead.
-func (*SaveRecordRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use GetRecordRequest.ProtoReflect.Descriptor instead.
+func (*GetRecordRequest) Descriptor() ([]byte, []int) {
 	return file_athena_v1_records_proto_rawDescGZIP(), []int{4}
 }
 
-func (x *SaveRecordRequest) GetRecord() *Record {
+func (x *GetRecordRequest) GetRecordTypeKey() string {
 	if x != nil {
-		return x.Record
-	}
-	return nil
-}
-
-func (x *SaveRecordRequest) GetExpectedRevision() int64 {
-	if x != nil {
-		return x.ExpectedRevision
-	}
-	return 0
-}
-
-func (x *SaveRecordRequest) GetConfirmDataLoss() bool {
-	if x != nil {
-		return x.ConfirmDataLoss
-	}
-	return false
-}
-
-func (x *SaveRecordRequest) GetBackfills() map[string]*FieldValue {
-	if x != nil {
-		return x.Backfills
-	}
-	return nil
-}
-
-type PlanRecordSaveRequest struct {
-	state            protoimpl.MessageState `protogen:"open.v1"`
-	Record           *Record                `protobuf:"bytes,1,opt,name=record,proto3" json:"record,omitempty"`
-	ExpectedRevision int64                  `protobuf:"varint,2,opt,name=expected_revision,json=expectedRevision,proto3" json:"expected_revision,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
-}
-
-func (x *PlanRecordSaveRequest) Reset() {
-	*x = PlanRecordSaveRequest{}
-	mi := &file_athena_v1_records_proto_msgTypes[5]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *PlanRecordSaveRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*PlanRecordSaveRequest) ProtoMessage() {}
-
-func (x *PlanRecordSaveRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_records_proto_msgTypes[5]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use PlanRecordSaveRequest.ProtoReflect.Descriptor instead.
-func (*PlanRecordSaveRequest) Descriptor() ([]byte, []int) {
-	return file_athena_v1_records_proto_rawDescGZIP(), []int{5}
-}
-
-func (x *PlanRecordSaveRequest) GetRecord() *Record {
-	if x != nil {
-		return x.Record
-	}
-	return nil
-}
-
-func (x *PlanRecordSaveRequest) GetExpectedRevision() int64 {
-	if x != nil {
-		return x.ExpectedRevision
-	}
-	return 0
-}
-
-// MigrationStep is one change the save makes to the Record's table.
-type MigrationStep struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// add_field, remove_field, change_type, change_link, require_field.
-	Kind        string `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
-	FieldKey    string `protobuf:"bytes,2,opt,name=field_key,json=fieldKey,proto3" json:"field_key,omitempty"`
-	Description string `protobuf:"bytes,3,opt,name=description,proto3" json:"description,omitempty"`
-	// True when the step deletes stored values.
-	Destructive bool `protobuf:"varint,4,opt,name=destructive,proto3" json:"destructive,omitempty"`
-	// Entries whose values this step deletes or must fill in.
-	AffectedEntries int64 `protobuf:"varint,5,opt,name=affected_entries,json=affectedEntries,proto3" json:"affected_entries,omitempty"`
-	// True when the step needs a value in backfills.
-	NeedsBackfill bool `protobuf:"varint,6,opt,name=needs_backfill,json=needsBackfill,proto3" json:"needs_backfill,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *MigrationStep) Reset() {
-	*x = MigrationStep{}
-	mi := &file_athena_v1_records_proto_msgTypes[6]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *MigrationStep) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*MigrationStep) ProtoMessage() {}
-
-func (x *MigrationStep) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_records_proto_msgTypes[6]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use MigrationStep.ProtoReflect.Descriptor instead.
-func (*MigrationStep) Descriptor() ([]byte, []int) {
-	return file_athena_v1_records_proto_rawDescGZIP(), []int{6}
-}
-
-func (x *MigrationStep) GetKind() string {
-	if x != nil {
-		return x.Kind
+		return x.RecordTypeKey
 	}
 	return ""
 }
 
-func (x *MigrationStep) GetFieldKey() string {
+func (x *GetRecordRequest) GetId() string {
 	if x != nil {
-		return x.FieldKey
+		return x.Id
 	}
 	return ""
 }
 
-func (x *MigrationStep) GetDescription() string {
-	if x != nil {
-		return x.Description
-	}
-	return ""
-}
-
-func (x *MigrationStep) GetDestructive() bool {
-	if x != nil {
-		return x.Destructive
-	}
-	return false
-}
-
-func (x *MigrationStep) GetAffectedEntries() int64 {
-	if x != nil {
-		return x.AffectedEntries
-	}
-	return 0
-}
-
-func (x *MigrationStep) GetNeedsBackfill() bool {
-	if x != nil {
-		return x.NeedsBackfill
-	}
-	return false
-}
-
-type PlanRecordSaveResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	Steps []*MigrationStep       `protobuf:"bytes,1,rep,name=steps,proto3" json:"steps,omitempty"`
-	// True when SaveRecord needs confirm_data_loss or backfills for this plan.
-	RequiresConfirmation bool `protobuf:"varint,2,opt,name=requires_confirmation,json=requiresConfirmation,proto3" json:"requires_confirmation,omitempty"`
-	unknownFields        protoimpl.UnknownFields
-	sizeCache            protoimpl.SizeCache
-}
-
-func (x *PlanRecordSaveResponse) Reset() {
-	*x = PlanRecordSaveResponse{}
-	mi := &file_athena_v1_records_proto_msgTypes[7]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *PlanRecordSaveResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*PlanRecordSaveResponse) ProtoMessage() {}
-
-func (x *PlanRecordSaveResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_records_proto_msgTypes[7]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use PlanRecordSaveResponse.ProtoReflect.Descriptor instead.
-func (*PlanRecordSaveResponse) Descriptor() ([]byte, []int) {
-	return file_athena_v1_records_proto_rawDescGZIP(), []int{7}
-}
-
-func (x *PlanRecordSaveResponse) GetSteps() []*MigrationStep {
-	if x != nil {
-		return x.Steps
-	}
-	return nil
-}
-
-func (x *PlanRecordSaveResponse) GetRequiresConfirmation() bool {
-	if x != nil {
-		return x.RequiresConfirmation
-	}
-	return false
-}
-
-type SaveRecordResponse struct {
+type GetRecordResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Record        *Record                `protobuf:"bytes,1,opt,name=record,proto3" json:"record,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *SaveRecordResponse) Reset() {
-	*x = SaveRecordResponse{}
+func (x *GetRecordResponse) Reset() {
+	*x = GetRecordResponse{}
+	mi := &file_athena_v1_records_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetRecordResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetRecordResponse) ProtoMessage() {}
+
+func (x *GetRecordResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_records_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetRecordResponse.ProtoReflect.Descriptor instead.
+func (*GetRecordResponse) Descriptor() ([]byte, []int) {
+	return file_athena_v1_records_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *GetRecordResponse) GetRecord() *Record {
+	if x != nil {
+		return x.Record
+	}
+	return nil
+}
+
+type CreateRecordRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RecordTypeKey string                 `protobuf:"bytes,1,opt,name=record_type_key,json=recordTypeKey,proto3" json:"record_type_key,omitempty"`
+	Values        map[string]*FieldValue `protobuf:"bytes,2,rep,name=values,proto3" json:"values,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateRecordRequest) Reset() {
+	*x = CreateRecordRequest{}
+	mi := &file_athena_v1_records_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateRecordRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateRecordRequest) ProtoMessage() {}
+
+func (x *CreateRecordRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_records_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateRecordRequest.ProtoReflect.Descriptor instead.
+func (*CreateRecordRequest) Descriptor() ([]byte, []int) {
+	return file_athena_v1_records_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *CreateRecordRequest) GetRecordTypeKey() string {
+	if x != nil {
+		return x.RecordTypeKey
+	}
+	return ""
+}
+
+func (x *CreateRecordRequest) GetValues() map[string]*FieldValue {
+	if x != nil {
+		return x.Values
+	}
+	return nil
+}
+
+type CreateRecordResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Record        *Record                `protobuf:"bytes,1,opt,name=record,proto3" json:"record,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateRecordResponse) Reset() {
+	*x = CreateRecordResponse{}
+	mi := &file_athena_v1_records_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateRecordResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateRecordResponse) ProtoMessage() {}
+
+func (x *CreateRecordResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_records_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateRecordResponse.ProtoReflect.Descriptor instead.
+func (*CreateRecordResponse) Descriptor() ([]byte, []int) {
+	return file_athena_v1_records_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *CreateRecordResponse) GetRecord() *Record {
+	if x != nil {
+		return x.Record
+	}
+	return nil
+}
+
+// UpdateRecordRequest changes only the fields present in values.
+type UpdateRecordRequest struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	RecordTypeKey    string                 `protobuf:"bytes,1,opt,name=record_type_key,json=recordTypeKey,proto3" json:"record_type_key,omitempty"`
+	Id               string                 `protobuf:"bytes,2,opt,name=id,proto3" json:"id,omitempty"`
+	ExpectedRevision int64                  `protobuf:"varint,3,opt,name=expected_revision,json=expectedRevision,proto3" json:"expected_revision,omitempty"`
+	Values           map[string]*FieldValue `protobuf:"bytes,4,rep,name=values,proto3" json:"values,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *UpdateRecordRequest) Reset() {
+	*x = UpdateRecordRequest{}
 	mi := &file_athena_v1_records_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *SaveRecordResponse) String() string {
+func (x *UpdateRecordRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*SaveRecordResponse) ProtoMessage() {}
+func (*UpdateRecordRequest) ProtoMessage() {}
 
-func (x *SaveRecordResponse) ProtoReflect() protoreflect.Message {
+func (x *UpdateRecordRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_athena_v1_records_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -557,12 +544,77 @@ func (x *SaveRecordResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SaveRecordResponse.ProtoReflect.Descriptor instead.
-func (*SaveRecordResponse) Descriptor() ([]byte, []int) {
+// Deprecated: Use UpdateRecordRequest.ProtoReflect.Descriptor instead.
+func (*UpdateRecordRequest) Descriptor() ([]byte, []int) {
 	return file_athena_v1_records_proto_rawDescGZIP(), []int{8}
 }
 
-func (x *SaveRecordResponse) GetRecord() *Record {
+func (x *UpdateRecordRequest) GetRecordTypeKey() string {
+	if x != nil {
+		return x.RecordTypeKey
+	}
+	return ""
+}
+
+func (x *UpdateRecordRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *UpdateRecordRequest) GetExpectedRevision() int64 {
+	if x != nil {
+		return x.ExpectedRevision
+	}
+	return 0
+}
+
+func (x *UpdateRecordRequest) GetValues() map[string]*FieldValue {
+	if x != nil {
+		return x.Values
+	}
+	return nil
+}
+
+type UpdateRecordResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Record        *Record                `protobuf:"bytes,1,opt,name=record,proto3" json:"record,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateRecordResponse) Reset() {
+	*x = UpdateRecordResponse{}
+	mi := &file_athena_v1_records_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateRecordResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateRecordResponse) ProtoMessage() {}
+
+func (x *UpdateRecordResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_records_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateRecordResponse.ProtoReflect.Descriptor instead.
+func (*UpdateRecordResponse) Descriptor() ([]byte, []int) {
+	return file_athena_v1_records_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *UpdateRecordResponse) GetRecord() *Record {
 	if x != nil {
 		return x.Record
 	}
@@ -570,19 +622,17 @@ func (x *SaveRecordResponse) GetRecord() *Record {
 }
 
 type DeleteRecordRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	Key   string                 `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
-	// The revision the client last saw.
-	ExpectedRevision int64 `protobuf:"varint,2,opt,name=expected_revision,json=expectedRevision,proto3" json:"expected_revision,omitempty"`
-	// Must be true when the Record has entries; they are deleted with it.
-	DeleteEntries bool `protobuf:"varint,3,opt,name=delete_entries,json=deleteEntries,proto3" json:"delete_entries,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	RecordTypeKey    string                 `protobuf:"bytes,1,opt,name=record_type_key,json=recordTypeKey,proto3" json:"record_type_key,omitempty"`
+	Id               string                 `protobuf:"bytes,2,opt,name=id,proto3" json:"id,omitempty"`
+	ExpectedRevision int64                  `protobuf:"varint,3,opt,name=expected_revision,json=expectedRevision,proto3" json:"expected_revision,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *DeleteRecordRequest) Reset() {
 	*x = DeleteRecordRequest{}
-	mi := &file_athena_v1_records_proto_msgTypes[9]
+	mi := &file_athena_v1_records_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -594,7 +644,7 @@ func (x *DeleteRecordRequest) String() string {
 func (*DeleteRecordRequest) ProtoMessage() {}
 
 func (x *DeleteRecordRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_records_proto_msgTypes[9]
+	mi := &file_athena_v1_records_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -607,12 +657,19 @@ func (x *DeleteRecordRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteRecordRequest.ProtoReflect.Descriptor instead.
 func (*DeleteRecordRequest) Descriptor() ([]byte, []int) {
-	return file_athena_v1_records_proto_rawDescGZIP(), []int{9}
+	return file_athena_v1_records_proto_rawDescGZIP(), []int{10}
 }
 
-func (x *DeleteRecordRequest) GetKey() string {
+func (x *DeleteRecordRequest) GetRecordTypeKey() string {
 	if x != nil {
-		return x.Key
+		return x.RecordTypeKey
+	}
+	return ""
+}
+
+func (x *DeleteRecordRequest) GetId() string {
+	if x != nil {
+		return x.Id
 	}
 	return ""
 }
@@ -624,13 +681,6 @@ func (x *DeleteRecordRequest) GetExpectedRevision() int64 {
 	return 0
 }
 
-func (x *DeleteRecordRequest) GetDeleteEntries() bool {
-	if x != nil {
-		return x.DeleteEntries
-	}
-	return false
-}
-
 type DeleteRecordResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -639,7 +689,7 @@ type DeleteRecordResponse struct {
 
 func (x *DeleteRecordResponse) Reset() {
 	*x = DeleteRecordResponse{}
-	mi := &file_athena_v1_records_proto_msgTypes[10]
+	mi := &file_athena_v1_records_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -651,7 +701,7 @@ func (x *DeleteRecordResponse) String() string {
 func (*DeleteRecordResponse) ProtoMessage() {}
 
 func (x *DeleteRecordResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_records_proto_msgTypes[10]
+	mi := &file_athena_v1_records_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -664,63 +714,265 @@ func (x *DeleteRecordResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteRecordResponse.ProtoReflect.Descriptor instead.
 func (*DeleteRecordResponse) Descriptor() ([]byte, []int) {
-	return file_athena_v1_records_proto_rawDescGZIP(), []int{10}
+	return file_athena_v1_records_proto_rawDescGZIP(), []int{11}
+}
+
+type ListRecordHistoryRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RecordTypeKey string                 `protobuf:"bytes,1,opt,name=record_type_key,json=recordTypeKey,proto3" json:"record_type_key,omitempty"`
+	Id            string                 `protobuf:"bytes,2,opt,name=id,proto3" json:"id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListRecordHistoryRequest) Reset() {
+	*x = ListRecordHistoryRequest{}
+	mi := &file_athena_v1_records_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListRecordHistoryRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListRecordHistoryRequest) ProtoMessage() {}
+
+func (x *ListRecordHistoryRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_records_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListRecordHistoryRequest.ProtoReflect.Descriptor instead.
+func (*ListRecordHistoryRequest) Descriptor() ([]byte, []int) {
+	return file_athena_v1_records_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *ListRecordHistoryRequest) GetRecordTypeKey() string {
+	if x != nil {
+		return x.RecordTypeKey
+	}
+	return ""
+}
+
+func (x *ListRecordHistoryRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+// RecordEvent is one change to a Record.
+type RecordEvent struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// created, updated or deleted.
+	Action string `protobuf:"bytes,1,opt,name=action,proto3" json:"action,omitempty"`
+	// The Record revision after the change.
+	Revision int64 `protobuf:"varint,2,opt,name=revision,proto3" json:"revision,omitempty"`
+	// Keys of the fields whose values changed.
+	ChangedFields []string `protobuf:"bytes,3,rep,name=changed_fields,json=changedFields,proto3" json:"changed_fields,omitempty"`
+	// Who made the change. "Local administrator" until sign-in exists.
+	Actor string `protobuf:"bytes,4,opt,name=actor,proto3" json:"actor,omitempty"`
+	// RFC 3339 timestamp.
+	At            string `protobuf:"bytes,5,opt,name=at,proto3" json:"at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RecordEvent) Reset() {
+	*x = RecordEvent{}
+	mi := &file_athena_v1_records_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RecordEvent) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RecordEvent) ProtoMessage() {}
+
+func (x *RecordEvent) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_records_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RecordEvent.ProtoReflect.Descriptor instead.
+func (*RecordEvent) Descriptor() ([]byte, []int) {
+	return file_athena_v1_records_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *RecordEvent) GetAction() string {
+	if x != nil {
+		return x.Action
+	}
+	return ""
+}
+
+func (x *RecordEvent) GetRevision() int64 {
+	if x != nil {
+		return x.Revision
+	}
+	return 0
+}
+
+func (x *RecordEvent) GetChangedFields() []string {
+	if x != nil {
+		return x.ChangedFields
+	}
+	return nil
+}
+
+func (x *RecordEvent) GetActor() string {
+	if x != nil {
+		return x.Actor
+	}
+	return ""
+}
+
+func (x *RecordEvent) GetAt() string {
+	if x != nil {
+		return x.At
+	}
+	return ""
+}
+
+type ListRecordHistoryResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Events        []*RecordEvent         `protobuf:"bytes,1,rep,name=events,proto3" json:"events,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListRecordHistoryResponse) Reset() {
+	*x = ListRecordHistoryResponse{}
+	mi := &file_athena_v1_records_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListRecordHistoryResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListRecordHistoryResponse) ProtoMessage() {}
+
+func (x *ListRecordHistoryResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_records_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListRecordHistoryResponse.ProtoReflect.Descriptor instead.
+func (*ListRecordHistoryResponse) Descriptor() ([]byte, []int) {
+	return file_athena_v1_records_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *ListRecordHistoryResponse) GetEvents() []*RecordEvent {
+	if x != nil {
+		return x.Events
+	}
+	return nil
 }
 
 var File_athena_v1_records_proto protoreflect.FileDescriptor
 
 const file_athena_v1_records_proto_rawDesc = "" +
 	"\n" +
-	"\x17athena/v1/records.proto\x12\tathena.v1\x1a\x17athena/v1/entries.proto\"\x91\x01\n" +
-	"\vRecordField\x12\x10\n" +
-	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05label\x18\x02 \x01(\tR\x05label\x12\x12\n" +
-	"\x04type\x18\x03 \x01(\tR\x04type\x12\x1a\n" +
-	"\brequired\x18\x04 \x01(\bR\brequired\x12*\n" +
-	"\x11target_record_key\x18\x05 \x01(\tR\x0ftargetRecordKey\"\x9e\x01\n" +
-	"\x06Record\x12\x10\n" +
-	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05label\x18\x02 \x01(\tR\x05label\x12 \n" +
-	"\vdescription\x18\x03 \x01(\tR\vdescription\x12.\n" +
-	"\x06fields\x18\x04 \x03(\v2\x16.athena.v1.RecordFieldR\x06fields\x12\x1a\n" +
-	"\brevision\x18\x05 \x01(\x03R\brevision\"\x14\n" +
-	"\x12ListRecordsRequest\"B\n" +
-	"\x13ListRecordsResponse\x12+\n" +
-	"\arecords\x18\x01 \x03(\v2\x11.athena.v1.RecordR\arecords\"\xb7\x02\n" +
-	"\x11SaveRecordRequest\x12)\n" +
-	"\x06record\x18\x01 \x01(\v2\x11.athena.v1.RecordR\x06record\x12+\n" +
-	"\x11expected_revision\x18\x02 \x01(\x03R\x10expectedRevision\x12*\n" +
-	"\x11confirm_data_loss\x18\x03 \x01(\bR\x0fconfirmDataLoss\x12I\n" +
-	"\tbackfills\x18\x04 \x03(\v2+.athena.v1.SaveRecordRequest.BackfillsEntryR\tbackfills\x1aS\n" +
-	"\x0eBackfillsEntry\x12\x10\n" +
-	"\x03key\x18\x01 \x01(\tR\x03key\x12+\n" +
-	"\x05value\x18\x02 \x01(\v2\x15.athena.v1.FieldValueR\x05value:\x028\x01\"o\n" +
-	"\x15PlanRecordSaveRequest\x12)\n" +
-	"\x06record\x18\x01 \x01(\v2\x11.athena.v1.RecordR\x06record\x12+\n" +
-	"\x11expected_revision\x18\x02 \x01(\x03R\x10expectedRevision\"\xd6\x01\n" +
-	"\rMigrationStep\x12\x12\n" +
-	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x1b\n" +
-	"\tfield_key\x18\x02 \x01(\tR\bfieldKey\x12 \n" +
-	"\vdescription\x18\x03 \x01(\tR\vdescription\x12 \n" +
-	"\vdestructive\x18\x04 \x01(\bR\vdestructive\x12)\n" +
-	"\x10affected_entries\x18\x05 \x01(\x03R\x0faffectedEntries\x12%\n" +
-	"\x0eneeds_backfill\x18\x06 \x01(\bR\rneedsBackfill\"}\n" +
-	"\x16PlanRecordSaveResponse\x12.\n" +
-	"\x05steps\x18\x01 \x03(\v2\x18.athena.v1.MigrationStepR\x05steps\x123\n" +
-	"\x15requires_confirmation\x18\x02 \x01(\bR\x14requiresConfirmation\"?\n" +
-	"\x12SaveRecordResponse\x12)\n" +
-	"\x06record\x18\x01 \x01(\v2\x11.athena.v1.RecordR\x06record\"{\n" +
-	"\x13DeleteRecordRequest\x12\x10\n" +
-	"\x03key\x18\x01 \x01(\tR\x03key\x12+\n" +
-	"\x11expected_revision\x18\x02 \x01(\x03R\x10expectedRevision\x12%\n" +
-	"\x0edelete_entries\x18\x03 \x01(\bR\rdeleteEntries\"\x16\n" +
-	"\x14DeleteRecordResponse2\xd0\x02\n" +
-	"\rRecordService\x12L\n" +
-	"\vListRecords\x12\x1d.athena.v1.ListRecordsRequest\x1a\x1e.athena.v1.ListRecordsResponse\x12U\n" +
-	"\x0ePlanRecordSave\x12 .athena.v1.PlanRecordSaveRequest\x1a!.athena.v1.PlanRecordSaveResponse\x12I\n" +
+	"\x17athena/v1/records.proto\x12\tathena.v1\"{\n" +
 	"\n" +
-	"SaveRecord\x12\x1c.athena.v1.SaveRecordRequest\x1a\x1d.athena.v1.SaveRecordResponse\x12O\n" +
-	"\fDeleteRecord\x12\x1e.athena.v1.DeleteRecordRequest\x1a\x1f.athena.v1.DeleteRecordResponseB#Z!athena-erp/gen/athena/v1;athenav1b\x06proto3"
+	"FieldValue\x12#\n" +
+	"\fstring_value\x18\x01 \x01(\tH\x00R\vstringValue\x12\x1f\n" +
+	"\n" +
+	"bool_value\x18\x02 \x01(\bH\x00R\tboolValue\x12\x1f\n" +
+	"\n" +
+	"null_value\x18\x03 \x01(\bH\x00R\tnullValueB\x06\n" +
+	"\x04kind\"\xfb\x01\n" +
+	"\x06Record\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1a\n" +
+	"\brevision\x18\x02 \x01(\x03R\brevision\x125\n" +
+	"\x06values\x18\x03 \x03(\v2\x1d.athena.v1.Record.ValuesEntryR\x06values\x12\x1d\n" +
+	"\n" +
+	"created_at\x18\x04 \x01(\tR\tcreatedAt\x12\x1d\n" +
+	"\n" +
+	"updated_at\x18\x05 \x01(\tR\tupdatedAt\x1aP\n" +
+	"\vValuesEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12+\n" +
+	"\x05value\x18\x02 \x01(\v2\x15.athena.v1.FieldValueR\x05value:\x028\x01\"x\n" +
+	"\x12ListRecordsRequest\x12&\n" +
+	"\x0frecord_type_key\x18\x01 \x01(\tR\rrecordTypeKey\x12\x1b\n" +
+	"\tpage_size\x18\x02 \x01(\x05R\bpageSize\x12\x1d\n" +
+	"\n" +
+	"page_token\x18\x03 \x01(\tR\tpageToken\"j\n" +
+	"\x13ListRecordsResponse\x12+\n" +
+	"\arecords\x18\x01 \x03(\v2\x11.athena.v1.RecordR\arecords\x12&\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"J\n" +
+	"\x10GetRecordRequest\x12&\n" +
+	"\x0frecord_type_key\x18\x01 \x01(\tR\rrecordTypeKey\x12\x0e\n" +
+	"\x02id\x18\x02 \x01(\tR\x02id\">\n" +
+	"\x11GetRecordResponse\x12)\n" +
+	"\x06record\x18\x01 \x01(\v2\x11.athena.v1.RecordR\x06record\"\xd3\x01\n" +
+	"\x13CreateRecordRequest\x12&\n" +
+	"\x0frecord_type_key\x18\x01 \x01(\tR\rrecordTypeKey\x12B\n" +
+	"\x06values\x18\x02 \x03(\v2*.athena.v1.CreateRecordRequest.ValuesEntryR\x06values\x1aP\n" +
+	"\vValuesEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12+\n" +
+	"\x05value\x18\x02 \x01(\v2\x15.athena.v1.FieldValueR\x05value:\x028\x01\"A\n" +
+	"\x14CreateRecordResponse\x12)\n" +
+	"\x06record\x18\x01 \x01(\v2\x11.athena.v1.RecordR\x06record\"\x90\x02\n" +
+	"\x13UpdateRecordRequest\x12&\n" +
+	"\x0frecord_type_key\x18\x01 \x01(\tR\rrecordTypeKey\x12\x0e\n" +
+	"\x02id\x18\x02 \x01(\tR\x02id\x12+\n" +
+	"\x11expected_revision\x18\x03 \x01(\x03R\x10expectedRevision\x12B\n" +
+	"\x06values\x18\x04 \x03(\v2*.athena.v1.UpdateRecordRequest.ValuesEntryR\x06values\x1aP\n" +
+	"\vValuesEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12+\n" +
+	"\x05value\x18\x02 \x01(\v2\x15.athena.v1.FieldValueR\x05value:\x028\x01\"A\n" +
+	"\x14UpdateRecordResponse\x12)\n" +
+	"\x06record\x18\x01 \x01(\v2\x11.athena.v1.RecordR\x06record\"z\n" +
+	"\x13DeleteRecordRequest\x12&\n" +
+	"\x0frecord_type_key\x18\x01 \x01(\tR\rrecordTypeKey\x12\x0e\n" +
+	"\x02id\x18\x02 \x01(\tR\x02id\x12+\n" +
+	"\x11expected_revision\x18\x03 \x01(\x03R\x10expectedRevision\"\x16\n" +
+	"\x14DeleteRecordResponse\"R\n" +
+	"\x18ListRecordHistoryRequest\x12&\n" +
+	"\x0frecord_type_key\x18\x01 \x01(\tR\rrecordTypeKey\x12\x0e\n" +
+	"\x02id\x18\x02 \x01(\tR\x02id\"\x8e\x01\n" +
+	"\vRecordEvent\x12\x16\n" +
+	"\x06action\x18\x01 \x01(\tR\x06action\x12\x1a\n" +
+	"\brevision\x18\x02 \x01(\x03R\brevision\x12%\n" +
+	"\x0echanged_fields\x18\x03 \x03(\tR\rchangedFields\x12\x14\n" +
+	"\x05actor\x18\x04 \x01(\tR\x05actor\x12\x0e\n" +
+	"\x02at\x18\x05 \x01(\tR\x02at\"K\n" +
+	"\x19ListRecordHistoryResponse\x12.\n" +
+	"\x06events\x18\x01 \x03(\v2\x16.athena.v1.RecordEventR\x06events2\xf8\x03\n" +
+	"\rRecordService\x12L\n" +
+	"\vListRecords\x12\x1d.athena.v1.ListRecordsRequest\x1a\x1e.athena.v1.ListRecordsResponse\x12F\n" +
+	"\tGetRecord\x12\x1b.athena.v1.GetRecordRequest\x1a\x1c.athena.v1.GetRecordResponse\x12O\n" +
+	"\fCreateRecord\x12\x1e.athena.v1.CreateRecordRequest\x1a\x1f.athena.v1.CreateRecordResponse\x12O\n" +
+	"\fUpdateRecord\x12\x1e.athena.v1.UpdateRecordRequest\x1a\x1f.athena.v1.UpdateRecordResponse\x12O\n" +
+	"\fDeleteRecord\x12\x1e.athena.v1.DeleteRecordRequest\x1a\x1f.athena.v1.DeleteRecordResponse\x12^\n" +
+	"\x11ListRecordHistory\x12#.athena.v1.ListRecordHistoryRequest\x1a$.athena.v1.ListRecordHistoryResponseB#Z!athena-erp/gen/athena/v1;athenav1b\x06proto3"
 
 var (
 	file_athena_v1_records_proto_rawDescOnce sync.Once
@@ -734,44 +986,56 @@ func file_athena_v1_records_proto_rawDescGZIP() []byte {
 	return file_athena_v1_records_proto_rawDescData
 }
 
-var file_athena_v1_records_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+var file_athena_v1_records_proto_msgTypes = make([]protoimpl.MessageInfo, 18)
 var file_athena_v1_records_proto_goTypes = []any{
-	(*RecordField)(nil),            // 0: athena.v1.RecordField
-	(*Record)(nil),                 // 1: athena.v1.Record
-	(*ListRecordsRequest)(nil),     // 2: athena.v1.ListRecordsRequest
-	(*ListRecordsResponse)(nil),    // 3: athena.v1.ListRecordsResponse
-	(*SaveRecordRequest)(nil),      // 4: athena.v1.SaveRecordRequest
-	(*PlanRecordSaveRequest)(nil),  // 5: athena.v1.PlanRecordSaveRequest
-	(*MigrationStep)(nil),          // 6: athena.v1.MigrationStep
-	(*PlanRecordSaveResponse)(nil), // 7: athena.v1.PlanRecordSaveResponse
-	(*SaveRecordResponse)(nil),     // 8: athena.v1.SaveRecordResponse
-	(*DeleteRecordRequest)(nil),    // 9: athena.v1.DeleteRecordRequest
-	(*DeleteRecordResponse)(nil),   // 10: athena.v1.DeleteRecordResponse
-	nil,                            // 11: athena.v1.SaveRecordRequest.BackfillsEntry
-	(*FieldValue)(nil),             // 12: athena.v1.FieldValue
+	(*FieldValue)(nil),                // 0: athena.v1.FieldValue
+	(*Record)(nil),                    // 1: athena.v1.Record
+	(*ListRecordsRequest)(nil),        // 2: athena.v1.ListRecordsRequest
+	(*ListRecordsResponse)(nil),       // 3: athena.v1.ListRecordsResponse
+	(*GetRecordRequest)(nil),          // 4: athena.v1.GetRecordRequest
+	(*GetRecordResponse)(nil),         // 5: athena.v1.GetRecordResponse
+	(*CreateRecordRequest)(nil),       // 6: athena.v1.CreateRecordRequest
+	(*CreateRecordResponse)(nil),      // 7: athena.v1.CreateRecordResponse
+	(*UpdateRecordRequest)(nil),       // 8: athena.v1.UpdateRecordRequest
+	(*UpdateRecordResponse)(nil),      // 9: athena.v1.UpdateRecordResponse
+	(*DeleteRecordRequest)(nil),       // 10: athena.v1.DeleteRecordRequest
+	(*DeleteRecordResponse)(nil),      // 11: athena.v1.DeleteRecordResponse
+	(*ListRecordHistoryRequest)(nil),  // 12: athena.v1.ListRecordHistoryRequest
+	(*RecordEvent)(nil),               // 13: athena.v1.RecordEvent
+	(*ListRecordHistoryResponse)(nil), // 14: athena.v1.ListRecordHistoryResponse
+	nil,                               // 15: athena.v1.Record.ValuesEntry
+	nil,                               // 16: athena.v1.CreateRecordRequest.ValuesEntry
+	nil,                               // 17: athena.v1.UpdateRecordRequest.ValuesEntry
 }
 var file_athena_v1_records_proto_depIdxs = []int32{
-	0,  // 0: athena.v1.Record.fields:type_name -> athena.v1.RecordField
+	15, // 0: athena.v1.Record.values:type_name -> athena.v1.Record.ValuesEntry
 	1,  // 1: athena.v1.ListRecordsResponse.records:type_name -> athena.v1.Record
-	1,  // 2: athena.v1.SaveRecordRequest.record:type_name -> athena.v1.Record
-	11, // 3: athena.v1.SaveRecordRequest.backfills:type_name -> athena.v1.SaveRecordRequest.BackfillsEntry
-	1,  // 4: athena.v1.PlanRecordSaveRequest.record:type_name -> athena.v1.Record
-	6,  // 5: athena.v1.PlanRecordSaveResponse.steps:type_name -> athena.v1.MigrationStep
-	1,  // 6: athena.v1.SaveRecordResponse.record:type_name -> athena.v1.Record
-	12, // 7: athena.v1.SaveRecordRequest.BackfillsEntry.value:type_name -> athena.v1.FieldValue
-	2,  // 8: athena.v1.RecordService.ListRecords:input_type -> athena.v1.ListRecordsRequest
-	5,  // 9: athena.v1.RecordService.PlanRecordSave:input_type -> athena.v1.PlanRecordSaveRequest
-	4,  // 10: athena.v1.RecordService.SaveRecord:input_type -> athena.v1.SaveRecordRequest
-	9,  // 11: athena.v1.RecordService.DeleteRecord:input_type -> athena.v1.DeleteRecordRequest
-	3,  // 12: athena.v1.RecordService.ListRecords:output_type -> athena.v1.ListRecordsResponse
-	7,  // 13: athena.v1.RecordService.PlanRecordSave:output_type -> athena.v1.PlanRecordSaveResponse
-	8,  // 14: athena.v1.RecordService.SaveRecord:output_type -> athena.v1.SaveRecordResponse
-	10, // 15: athena.v1.RecordService.DeleteRecord:output_type -> athena.v1.DeleteRecordResponse
-	12, // [12:16] is the sub-list for method output_type
-	8,  // [8:12] is the sub-list for method input_type
-	8,  // [8:8] is the sub-list for extension type_name
-	8,  // [8:8] is the sub-list for extension extendee
-	0,  // [0:8] is the sub-list for field type_name
+	1,  // 2: athena.v1.GetRecordResponse.record:type_name -> athena.v1.Record
+	16, // 3: athena.v1.CreateRecordRequest.values:type_name -> athena.v1.CreateRecordRequest.ValuesEntry
+	1,  // 4: athena.v1.CreateRecordResponse.record:type_name -> athena.v1.Record
+	17, // 5: athena.v1.UpdateRecordRequest.values:type_name -> athena.v1.UpdateRecordRequest.ValuesEntry
+	1,  // 6: athena.v1.UpdateRecordResponse.record:type_name -> athena.v1.Record
+	13, // 7: athena.v1.ListRecordHistoryResponse.events:type_name -> athena.v1.RecordEvent
+	0,  // 8: athena.v1.Record.ValuesEntry.value:type_name -> athena.v1.FieldValue
+	0,  // 9: athena.v1.CreateRecordRequest.ValuesEntry.value:type_name -> athena.v1.FieldValue
+	0,  // 10: athena.v1.UpdateRecordRequest.ValuesEntry.value:type_name -> athena.v1.FieldValue
+	2,  // 11: athena.v1.RecordService.ListRecords:input_type -> athena.v1.ListRecordsRequest
+	4,  // 12: athena.v1.RecordService.GetRecord:input_type -> athena.v1.GetRecordRequest
+	6,  // 13: athena.v1.RecordService.CreateRecord:input_type -> athena.v1.CreateRecordRequest
+	8,  // 14: athena.v1.RecordService.UpdateRecord:input_type -> athena.v1.UpdateRecordRequest
+	10, // 15: athena.v1.RecordService.DeleteRecord:input_type -> athena.v1.DeleteRecordRequest
+	12, // 16: athena.v1.RecordService.ListRecordHistory:input_type -> athena.v1.ListRecordHistoryRequest
+	3,  // 17: athena.v1.RecordService.ListRecords:output_type -> athena.v1.ListRecordsResponse
+	5,  // 18: athena.v1.RecordService.GetRecord:output_type -> athena.v1.GetRecordResponse
+	7,  // 19: athena.v1.RecordService.CreateRecord:output_type -> athena.v1.CreateRecordResponse
+	9,  // 20: athena.v1.RecordService.UpdateRecord:output_type -> athena.v1.UpdateRecordResponse
+	11, // 21: athena.v1.RecordService.DeleteRecord:output_type -> athena.v1.DeleteRecordResponse
+	14, // 22: athena.v1.RecordService.ListRecordHistory:output_type -> athena.v1.ListRecordHistoryResponse
+	17, // [17:23] is the sub-list for method output_type
+	11, // [11:17] is the sub-list for method input_type
+	11, // [11:11] is the sub-list for extension type_name
+	11, // [11:11] is the sub-list for extension extendee
+	0,  // [0:11] is the sub-list for field type_name
 }
 
 func init() { file_athena_v1_records_proto_init() }
@@ -779,14 +1043,18 @@ func file_athena_v1_records_proto_init() {
 	if File_athena_v1_records_proto != nil {
 		return
 	}
-	file_athena_v1_entries_proto_init()
+	file_athena_v1_records_proto_msgTypes[0].OneofWrappers = []any{
+		(*FieldValue_StringValue)(nil),
+		(*FieldValue_BoolValue)(nil),
+		(*FieldValue_NullValue)(nil),
+	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_athena_v1_records_proto_rawDesc), len(file_athena_v1_records_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   12,
+			NumMessages:   18,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

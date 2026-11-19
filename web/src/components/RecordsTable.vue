@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { columnResizingFeature, columnSizingFeature, tableFeatures, useTable, type ColumnDef, type ColumnSizingState, type Updater } from '@tanstack/vue-table'
-import type { Entry } from '../gen/athena/v1/entries_pb'
+import type { Record as RecordMessage } from '../gen/athena/v1/records_pb'
 import type { Field } from '../types'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
-const props = defineProps<{ recordKey: string; fields: Field[]; entries: Entry[] }>()
-const emit = defineEmits<{ open: [entry: Entry] }>()
+const props = defineProps<{ recordTypeKey: string; fields: Field[]; records: RecordMessage[] }>()
+const emit = defineEmits<{ open: [record: RecordMessage] }>()
 
 const features = tableFeatures({ columnSizingFeature, columnResizingFeature })
 
@@ -15,27 +15,27 @@ const defaultWidths: Record<string, number> = { 'Long text': 320, Email: 240, Te
 const alignRight = new Set(['Number', 'Currency'])
 const alignCenter = new Set(['Checkbox'])
 
-function display(entry: Entry, field: Field): string {
-  const kind = entry.values[field.name]?.kind
+function display(record: RecordMessage, field: Field): string {
+  const kind = record.values[field.name]?.kind
   if (kind?.case === 'boolValue') return kind.value ? 'Yes' : 'No'
   if (kind?.case === 'stringValue') return kind.value
   return ''
 }
 
-// Fields only change when the Record is saved; the parent re-creates this
-// component per Record, so the column list is stable for a table's lifetime.
-const columns = computed<ColumnDef<typeof features, Entry>[]>(() => [
-  ...props.fields.map((field): ColumnDef<typeof features, Entry> => ({
+// Fields only change when the Record Type is saved; the parent re-creates this
+// component per Record Type, so the column list is stable for a table's lifetime.
+const columns = computed<ColumnDef<typeof features, RecordMessage>[]>(() => [
+  ...props.fields.map((field): ColumnDef<typeof features, RecordMessage> => ({
     id: field.name,
     header: field.label,
-    accessorFn: (entry: Entry) => display(entry, field),
+    accessorFn: (record: RecordMessage) => display(record, field),
     size: defaultWidths[field.type] ?? 180,
     minSize: 80,
     maxSize: 900,
   })),
 ])
 
-const storageKey = computed(() => `athena-entry-columns:${props.recordKey}`)
+const storageKey = computed(() => `athena-entry-columns:${props.recordTypeKey}`)
 
 function loadSizing(): ColumnSizingState {
   try {
@@ -53,8 +53,8 @@ watch(columnSizing, (value) => { localStorage.setItem(storageKey.value, JSON.str
 const table = useTable({
   features,
   columns,
-  data: computed(() => props.entries),
-  getRowId: (entry: Entry) => entry.id,
+  data: computed(() => props.records),
+  getRowId: (record: RecordMessage) => record.id,
   columnResizeMode: 'onChange',
   state: computed(() => ({ columnSizing: columnSizing.value })),
   onColumnSizingChange: (next: Updater<ColumnSizingState>) => {

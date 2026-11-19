@@ -77,7 +77,7 @@ func (d MariaDB) CreateMigrationsTable() string {
 	return fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (version INT NOT NULL PRIMARY KEY, name VARCHAR(100) NOT NULL, applied_at TIMESTAMP NOT NULL DEFAULT %s) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci", d.QuoteIdent(MigrationsTable), d.Now())
 }
 
-func (d MariaDB) CreateRecordTable(table string, columns []Column) string {
+func (d MariaDB) CreateRecordTypeTable(table string, columns []Column) string {
 	defs := []string{
 		d.QuoteIdent("id") + " CHAR(36) NOT NULL PRIMARY KEY",
 		d.QuoteIdent("revision") + " BIGINT NOT NULL DEFAULT 1",
@@ -117,6 +117,18 @@ func (d MariaDB) DropForeignKey(table, constraint string) string {
 
 func (d MariaDB) DropTable(table string) string {
 	return "DROP TABLE IF EXISTS " + d.QuoteIdent(table)
+}
+
+func (d MariaDB) RenameTable(from, to string) string {
+	return fmt.Sprintf("RENAME TABLE %s TO %s", d.QuoteIdent(from), d.QuoteIdent(to))
+}
+
+func (d MariaDB) RenameColumn(table, from, to string) string {
+	return fmt.Sprintf("ALTER TABLE %s RENAME COLUMN %s TO %s", d.QuoteIdent(table), d.QuoteIdent(from), d.QuoteIdent(to))
+}
+
+func (d MariaDB) RenameIndex(table, from, to string) string {
+	return fmt.Sprintf("ALTER TABLE %s RENAME INDEX %s TO %s", d.QuoteIdent(table), d.QuoteIdent(from), d.QuoteIdent(to))
 }
 
 func (d MariaDB) Upsert(table string, columns []string, keyColumn string, updateColumns []string) string {
@@ -163,6 +175,18 @@ func (d MariaDB) IncompatibleValues(column, fieldType, linkTable string) (string
 func (MariaDB) TableExists(ctx context.Context, q Querier, table string) (bool, error) {
 	var exists bool
 	err := q.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ?)`, table).Scan(&exists)
+	return exists, err
+}
+
+func (MariaDB) ColumnExists(ctx context.Context, q Querier, table, column string) (bool, error) {
+	var exists bool
+	err := q.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?)`, table, column).Scan(&exists)
+	return exists, err
+}
+
+func (MariaDB) IndexExists(ctx context.Context, q Querier, table, index string) (bool, error) {
+	var exists bool
+	err := q.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = ? AND index_name = ?)`, table, index).Scan(&exists)
 	return exists, err
 }
 

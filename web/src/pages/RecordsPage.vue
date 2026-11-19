@@ -1,140 +1,304 @@
 <script setup lang="ts">
-import { computed, nextTick, reactive, ref } from 'vue'
-import type { Field, RecordDefinition } from '../types'
+import { computed, nextTick, reactive, ref, watch } from 'vue'
+import { create } from '@bufbuild/protobuf'
+import { Code, ConnectError } from '@connectrpc/connect'
+import { recordClient } from '../api'
+import { validateField } from '../fieldRules'
+import { FieldValueSchema, type Record as RecordMessage, type RecordEvent, type FieldValue } from '../gen/athena/v1/records_pb'
+import type { Field, RecordType } from '../types'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
-const props = defineProps<{ records: RecordDefinition[]; currentRecord: RecordDefinition; databaseState: string }>()
-const emit = defineEmits<{ select: [name: string]; addRecord: []; addField: []; rename: [from: string, to: string]; delete: [record: RecordDefinition]; save: [complete: (saved: boolean) => void]; preview: [] }>()
-const search = ref('')
-const newFields = reactive(new Set<Field>())
-const manuallyNamedFields = new WeakSet<Field>()
-const fieldKeys = new WeakMap<Field, number>()
-let nextFieldKey = 0
-const filteredRecords = computed(() => props.records.filter((item) => `${item.label} ${item.name}`.toLowerCase().includes(search.value.toLowerCase())))
+import RecordsTable from '../components/RecordsTable.vue'
+import { Marker, MarkerContent, MarkerIcon } from '@/components/ui/marker'
+import { CalendarPlusIcon, ClockIcon, FingerprintIcon, HashIcon, PencilIcon, PlusIcon, Trash2Icon } from '@lucide/vue'
+import { toast } from 'vue-sonner'
 
-function fieldKey(field: Field) {
-  let key = fieldKeys.get(field)
-  if (key === undefined) {
-    key = nextFieldKey++
-    fieldKeys.set(field, key)
+// recordType is null when no saved Record Type exists yet. recordId comes from the page
+// URL: '' for the table, 'new' for the create form, or an record ID.
+const props = defineProps<{ recordType: RecordType | null; recordId: string }>()
+const emit = defineEmits<{ back: []; 'update:recordId': [id: string] }>()
+
+const records = ref<RecordMessage[]>([])
+const nextPageToken = ref('')
+const loading = ref(false)
+const loadError = ref('')
+const editing = ref<RecordMessage | 'new' | null>(null)
+const texts = reactive<Record<string, string>>({})
+const checks = reactive<Record<string, boolean>>({})
+const errors = reactive<Record<string, string>>({})
+const touched = new Set<string>()
+const busy = ref(false)
+const history = ref<RecordEvent[]>([])
+const when = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+const formRef = ref<HTMLFormElement | null>(null)
+// Each list request gets a number so a slow response for a previous Record Type is ignored.
+let listRequest = 0
+
+function message(err: unknown) {
+  return err instanceof ConnectError ? err.rawMessage : 'Something went wrong.'
+}
+
+async function load(more = false) {
+  const recordType = props.recordType
+  if (!recordType) { records.value = []; nextPageToken.value = ''; return }
+  const request = ++listRequest
+  loading.value = true
+  loadError.value = ''
+  try {
+    const res = await recordClient.listRecords({ recordTypeKey: recordType.name, pageSize: 50, pageToken: more ? nextPageToken.value : '' })
+    if (request !== listRequest) return
+    records.value = more ? [...records.value, ...res.records] : res.records
+    nextPageToken.value = res.nextPageToken
+  } catch (err) {
+    if (request !== listRequest) return
+    loadError.value = message(err)
+    toast.error(`Could not load records: ${loadError.value}`, { action: { label: 'Retry', onClick: () => { void load() } } })
+  } finally {
+    if (request === listRequest) loading.value = false
   }
-  return key
 }
 
-function snakeKey(text: string, fallback: string, taken: Set<string>, reserved: string[]) {
-  let base = text.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')
-  if (!base) base = fallback
-  if (reserved.includes(base)) base = `${fallback}_${base}`
-  if (/^[0-9]/.test(base)) base = `${fallback}_${base}`
-  let candidate = base
-  let suffix = 2
-  while (taken.has(candidate)) candidate = `${base}_${suffix++}`
-  return candidate
-}
-function fieldNameFromLabel(label: string, field: Field) {
-  const taken = new Set(props.currentRecord.fields.filter((item) => item !== field).map((item) => item.name.toLowerCase()))
-  return snakeKey(label, 'field', taken, ['id', 'revision', 'created_at', 'updated_at'])
-}
-const manuallyNamedRecords = new Set<string>()
-const recordIsSaved = computed(() => props.currentRecord.revision > 0)
-function recordKeyFrom(text: string) {
-  const taken = new Set(props.records.filter((item) => item !== props.currentRecord).map((item) => item.name.toLowerCase()))
-  return snakeKey(text, 'record', taken, [])
-}
-function renameRecord(name: string) {
-  const from = props.currentRecord.name
-  if (name === from) return
-  if (manuallyNamedRecords.delete(from)) manuallyNamedRecords.add(name)
-  emit('rename', from, name)
-}
-function updateRecordLabel(label: string | number) {
-  const wasAuto = !manuallyNamedRecords.has(props.currentRecord.name)
-  props.currentRecord.label = String(label)
-  if (!recordIsSaved.value && wasAuto) renameRecord(recordKeyFrom(props.currentRecord.label))
-}
-function typeRecordName(event: Event) {
-  const from = props.currentRecord.name
-  const value = (event.target as HTMLInputElement).value
-  if (!value) return
-  manuallyNamedRecords.add(from)
-  renameRecord(value)
-}
-function normalizeRecordName() {
-  if (!recordIsSaved.value) renameRecord(recordKeyFrom(props.currentRecord.name))
-}
-function updateFieldLabel(field: Field, label: string | number) {
-  field.label = String(label)
-  if (newFields.has(field) && !manuallyNamedFields.has(field)) field.name = fieldNameFromLabel(field.label, field)
+watch(() => props.recordType?.name, () => { void load() }, { immediate: true })
+
+// Opening an record changes the URL; the watcher below fills the form, so a
+// page refresh lands on the same record.
+function openRecord(record: RecordMessage | 'new') {
+  emit('update:recordId', record === 'new' ? 'new' : record.id)
 }
 
-function updateFieldName(field: Field, name: string | number) {
-  field.name = String(name)
-  manuallyNamedFields.add(field)
+function close() {
+  emit('update:recordId', '')
 }
 
-function normalizeNewFieldName(field: Field) {
-  if (newFields.has(field)) field.name = fieldNameFromLabel(field.name, field)
+watch(() => [props.recordId, props.recordType?.name] as const, async ([id]) => {
+  const recordType = props.recordType
+  if (!id || !recordType) { editing.value = null; return }
+  if (id === 'new') { open('new'); return }
+  if (editing.value !== null && editing.value !== 'new' && editing.value.id === id) return
+  const known = records.value.find((item) => item.id === id)
+  if (known) { open(known); return }
+  try {
+    const res = await recordClient.getRecord({ recordTypeKey: recordType.name, id })
+    if (res.record && props.recordId === id) open(res.record)
+  } catch (err) {
+    toast.error(message(err))
+    close()
+  }
+}, { immediate: true })
+
+async function loadHistory(record: RecordMessage) {
+  const recordType = props.recordType
+  if (!recordType) return
+  try {
+    const res = await recordClient.listRecordHistory({ recordTypeKey: recordType.name, id: record.id })
+    if (editing.value !== 'new' && editing.value?.id === record.id) history.value = res.events
+  } catch (err) {
+    toast.error(`Could not load history: ${message(err)}`)
+  }
 }
 
-function addField() {
-  emit('addField')
-  void nextTick(() => {
-    const field = props.currentRecord.fields.at(-1)
-    if (field) newFields.add(field)
-  })
+const labels = computed(() => new Map(props.recordType?.fields.map((field) => [field.name, field.label]) ?? []))
+
+function describe(event: RecordEvent) {
+  const action = event.action === 'created' ? 'Created' : event.action === 'deleted' ? 'Deleted' : 'Updated'
+  const fields = event.changedFields.map((key) => labels.value.get(key) ?? key)
+  return fields.length > 0 && event.action === 'updated' ? `${action} ${fields.join(', ')}` : action
 }
 
-function save() {
-  for (const field of props.currentRecord.fields) normalizeNewFieldName(field)
-  emit('save', (saved) => {
-    if (saved) for (const field of props.currentRecord.fields) newFields.delete(field)
-  })
+function clear(target: Record<string, unknown>) {
+  for (const key of Object.keys(target)) delete target[key]
 }
 
-function isNewField(field: Field) {
-  return newFields.has(field)
+function open(record: RecordMessage | 'new') {
+  if (!props.recordType) return
+  editing.value = record
+  history.value = []
+  clear(texts); clear(checks); clear(errors); touched.clear()
+  for (const field of props.recordType.fields) {
+    const kind = record === 'new' ? undefined : record.values[field.name]?.kind
+    if (field.type === 'Checkbox') checks[field.name] = kind?.case === 'boolValue' ? kind.value : false
+    else texts[field.name] = kind?.case === 'stringValue' ? kind.value : ''
+  }
+  if (record !== 'new') void loadHistory(record)
+}
+
+function check(field: Field) {
+  const problem = validateField(field, texts[field.name] ?? '')
+  if (problem) errors[field.name] = problem
+  else delete errors[field.name]
+}
+
+function onBlur(field: Field) {
+  touched.add(field.name)
+  check(field)
+}
+
+function onInput(field: Field) {
+  if (touched.has(field.name) || errors[field.name]) check(field)
+}
+
+async function focusFirstError() {
+  await nextTick()
+  formRef.value?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()
+}
+
+// Server validation messages start with the field label; show them under that field.
+function placeServerError(err: unknown): boolean {
+  if (!(err instanceof ConnectError) || err.code !== Code.InvalidArgument || !props.recordType) return false
+  const field = props.recordType.fields.find((item) => err.rawMessage.startsWith(item.label))
+  if (!field) return false
+  errors[field.name] = `${err.rawMessage.charAt(0).toUpperCase()}${err.rawMessage.slice(1)}.`
+  void focusFirstError()
+  return true
+}
+
+function reportWriteError(err: unknown) {
+  if (placeServerError(err)) return
+  if (err instanceof ConnectError && err.code === Code.Aborted) toast.error(message(err), { action: { label: 'Reload', onClick: () => { void reloadRecord() } } })
+  else toast.error(message(err))
+}
+
+function toValue(field: Field): FieldValue {
+  if (field.type === 'Checkbox') return create(FieldValueSchema, { kind: { case: 'boolValue', value: checks[field.name] ?? false } })
+  const text = (texts[field.name] ?? '').trim()
+  return create(FieldValueSchema, text ? { kind: { case: 'stringValue', value: text } } : { kind: { case: 'nullValue', value: true } })
+}
+
+async function submit() {
+  const recordType = props.recordType
+  if (!editing.value || !recordType) return
+  for (const field of recordType.fields) { touched.add(field.name); check(field) }
+  if (Object.keys(errors).length > 0) { await focusFirstError(); return }
+  busy.value = true
+  const values = Object.fromEntries(recordType.fields.map((field) => [field.name, toValue(field)]))
+  try {
+    if (editing.value === 'new') {
+      const res = await recordClient.createRecord({ recordTypeKey: recordType.name, values })
+      if (res.record) records.value = [...records.value, res.record]
+      toast.success('Record created.')
+      close()
+    } else {
+      const current = editing.value
+      const res = await recordClient.updateRecord({ recordTypeKey: recordType.name, id: current.id, expectedRevision: current.revision, values })
+      const updated = res.record
+      if (updated) {
+        records.value = records.value.map((item) => item.id === current.id ? updated : item)
+        open(updated)
+      }
+      toast.success('Record saved.')
+    }
+  } catch (err) {
+    reportWriteError(err)
+  } finally {
+    busy.value = false
+  }
+}
+
+async function reloadRecord() {
+  const recordType = props.recordType
+  if (!editing.value || editing.value === 'new' || !recordType) return
+  try {
+    const res = await recordClient.getRecord({ recordTypeKey: recordType.name, id: editing.value.id })
+    if (res.record) {
+      const fresh = res.record
+      records.value = records.value.map((item) => item.id === fresh.id ? fresh : item)
+      open(fresh)
+      toast.info('Record reloaded with the latest changes.')
+    }
+  } catch (err) {
+    toast.error(message(err))
+  }
+}
+
+async function remove() {
+  const recordType = props.recordType
+  if (!editing.value || editing.value === 'new' || !recordType) return
+  const current = editing.value
+  busy.value = true
+  try {
+    await recordClient.deleteRecord({ recordTypeKey: recordType.name, id: current.id, expectedRevision: current.revision })
+    records.value = records.value.filter((item) => item.id !== current.id)
+    toast.success('Record deleted.')
+    close()
+  } catch (err) {
+    reportWriteError(err)
+  } finally {
+    busy.value = false
+  }
+}
+
+function inputType(field: Field) {
+  return field.type === 'Email' ? 'email' : field.type === 'Date' ? 'date' : field.type === 'Phone' ? 'tel' : 'text'
 }
 </script>
 
 <template>
-  <section class="page-content builder-page">
-    <div class="page-title-row"><div><h1>Records</h1><p class="lead">Each Record defines the fields of one table.</p></div><Button @click="emit('addRecord')">New Record</Button></div>
-    <div v-if="records.length === 0" class="empty-builder"><h2>No Records yet</h2><p>Create a Record, add its fields and save it to start adding entries.</p><Button @click="emit('addRecord')">Create your first Record</Button></div>
-    <div v-else class="records-layout">
-      <aside class="records-list">
-        <Input v-if="records.length > 6" v-model="search" placeholder="Find a Record" aria-label="Find a Record" />
-        <button v-for="record in filteredRecords" :key="record.name" class="records-list-item" :class="{ chosen: currentRecord.name === record.name }" @click="emit('select', record.name)">{{ record.label || 'Untitled' }}</button>
-        <p v-if="filteredRecords.length === 0" class="empty-state">No matching Records.</p>
-      </aside>
-      <div class="record-editor">
-        <div class="record-editor-head">
-          <Input :model-value="currentRecord.label" class="record-title-input" placeholder="Record name" aria-label="Record label" @update:model-value="updateRecordLabel" />
-          <span class="muted-label">{{ recordIsSaved ? 'Saved' : 'Not saved' }}</span>
-          <div class="toolbar-actions">
-            <AlertDialog>
-              <AlertDialogTrigger as-child><Button variant="ghost" size="sm">Delete</Button></AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>{{ recordIsSaved ? `Delete ${currentRecord.label}?` : `Discard ${currentRecord.label}?` }}</AlertDialogTitle>
-                  <AlertDialogDescription>{{ recordIsSaved ? 'Its table and every entry in it are deleted. This cannot be undone.' : 'This Record has not been saved, so nothing is stored yet.' }}</AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction variant="destructive" @click="emit('delete', currentRecord)">{{ recordIsSaved ? 'Delete Record' : 'Discard' }}</AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-            <Button variant="outline" size="sm" :disabled="!recordIsSaved" :title="recordIsSaved ? '' : 'Save the Record first'" @click="emit('preview')">Entries</Button><Button size="sm" @click="save">Save</Button></div>
-        </div>
-        <div class="record-meta">
-          <label>Key<Input :model-value="currentRecord.name" :readonly="recordIsSaved" aria-label="Record name" @input="typeRecordName" @blur="normalizeRecordName" /><small>{{ recordIsSaved ? 'Fixed after the first save.' : 'Follows the name until you edit it.' }}</small></label>
-          <label>Description<Input v-model="currentRecord.description" placeholder="Optional" aria-label="Description" /></label>
-        </div>
-        <div class="field-table"><div class="field-head"><span>Label</span><span>Key</span><span>Type</span><span>Required</span><span></span></div><div v-for="(field, index) in currentRecord.fields" :key="fieldKey(field)" class="field-row"><span><Input :model-value="field.label" :aria-label="`Field ${index + 1} label`" @update:model-value="updateFieldLabel(field, $event)" /></span><span><Input :model-value="field.name" :readonly="!isNewField(field)" :aria-label="`Field ${index + 1} database name`" @update:model-value="updateFieldName(field, $event)" @blur="normalizeNewFieldName(field)" /></span><span><select v-model="field.type" aria-label="Field type"><option>Text</option><option>Long text</option><option>Email</option><option>Phone</option><option>Number</option><option>Currency</option><option>Date</option><option>Select</option><option>Link</option><option>Checkbox</option></select></span><span><input v-model="field.required" type="checkbox" :aria-label="`${field.label} required`" /></span><span><button class="icon-action" :aria-label="`Remove ${field.label}`" @click="currentRecord.fields.splice(index, 1)">×</button></span><div v-if="field.type === 'Link'" class="relationship-editor"><label>Links to<select v-model="field.target_record"><option :value="undefined" disabled>Select a Record</option><option v-for="target in records.filter((item) => item.name !== currentRecord.name)" :key="target.name" :value="target.name">{{ target.label }}</option></select></label></div></div></div>
-        <button class="add-field" @click="addField">+ Add field</button>
-        <p v-if="databaseState !== 'Connected'" class="muted-label">The database is not connected. Changes stay in this browser session.</p>
-      </div>
+  <section class="page-content view-page">
+    <div v-if="!recordType" class="empty-builder">
+      <h2>Nothing to view yet</h2>
+      <p>Create and save a Record Type in Build, then add its records here.</p>
+      <Button variant="outline" @click="emit('back')">Go to Build</Button>
     </div>
+
+    <template v-else-if="editing">
+      <button type="button" class="back-link" @click="close">← {{ recordType.label }}</button>
+      <div class="page-title-row"><h1>{{ editing === 'new' ? 'New record' : 'Edit record' }}</h1></div>
+      <form ref="formRef" class="entry-form" novalidate @submit.prevent="submit">
+        <div class="entry-form-grid">
+          <div v-for="field in recordType.fields" :key="field.name" class="form-field" :class="{ 'is-wide': field.type === 'Long text', 'is-invalid': errors[field.name] }">
+            <label :for="`entry-${field.name}`" class="form-label">{{ field.label }}<span v-if="field.required" class="required-mark" aria-hidden="true">*</span></label>
+            <label v-if="field.type === 'Checkbox'" class="checkbox-row"><input :id="`entry-${field.name}`" v-model="checks[field.name]" type="checkbox" /><span>{{ checks[field.name] ? 'Yes' : 'No' }}</span></label>
+            <textarea v-else-if="field.type === 'Long text'" :id="`entry-${field.name}`" v-model="texts[field.name]" rows="4" :aria-invalid="errors[field.name] ? 'true' : undefined" :aria-required="field.required || undefined" :aria-describedby="errors[field.name] ? `entry-${field.name}-error` : undefined" @blur="onBlur(field)" @input="onInput(field)" />
+            <input v-else :id="`entry-${field.name}`" v-model="texts[field.name]" :type="inputType(field)" :inputmode="field.type === 'Number' || field.type === 'Currency' ? 'decimal' : undefined" :placeholder="field.type === 'Link' ? `${field.target_record_type} record ID` : undefined" :aria-invalid="errors[field.name] ? 'true' : undefined" :aria-required="field.required || undefined" :aria-describedby="errors[field.name] ? `entry-${field.name}-error` : undefined" @blur="onBlur(field)" @input="onInput(field)" />
+            <p v-if="errors[field.name]" :id="`entry-${field.name}-error`" class="field-error">{{ errors[field.name] }}</p>
+          </div>
+        </div>
+        <div class="entry-form-footer">
+          <AlertDialog v-if="editing !== 'new'">
+            <AlertDialogTrigger as-child><Button type="button" variant="ghost" :disabled="busy">Delete</Button></AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete this record?</AlertDialogTitle>
+                <AlertDialogDescription>This cannot be undone.</AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction variant="destructive" @click="remove">Delete record</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+          <div class="toolbar-actions"><Button type="button" variant="outline" @click="close">Cancel</Button><Button type="submit" :disabled="busy">{{ editing === 'new' ? 'Create record' : 'Save' }}</Button></div>
+        </div>
+      </form>
+      <section v-if="editing !== 'new'" class="entry-meta" aria-labelledby="entry-details-heading">
+        <h2 id="entry-details-heading">Details</h2>
+        <div class="entry-markers">
+          <Marker variant="border"><MarkerIcon><CalendarPlusIcon /></MarkerIcon><MarkerContent><span class="marker-label">Created</span>{{ when.format(new Date(editing.createdAt)) }}</MarkerContent></Marker>
+          <Marker variant="border"><MarkerIcon><ClockIcon /></MarkerIcon><MarkerContent><span class="marker-label">Last updated</span>{{ when.format(new Date(editing.updatedAt)) }}</MarkerContent></Marker>
+          <Marker variant="border"><MarkerIcon><HashIcon /></MarkerIcon><MarkerContent><span class="marker-label">Revision</span>{{ editing.revision }}</MarkerContent></Marker>
+          <Marker variant="border"><MarkerIcon><FingerprintIcon /></MarkerIcon><MarkerContent><span class="marker-label">Record ID</span><span class="is-mono">{{ editing.id }}</span></MarkerContent></Marker>
+        </div>
+        <h2>History</h2>
+        <ol class="entry-markers">
+          <li v-for="event in history" :key="`${event.revision}:${event.action}:${event.at}`">
+            <Marker variant="border">
+              <MarkerIcon><PlusIcon v-if="event.action === 'created'" /><Trash2Icon v-else-if="event.action === 'deleted'" /><PencilIcon v-else /></MarkerIcon>
+              <MarkerContent><span class="marker-label">{{ describe(event) }}</span>{{ event.actor }} · {{ when.format(new Date(event.at)) }} · revision {{ event.revision }}</MarkerContent>
+            </Marker>
+          </li>
+        </ol>
+      </section>
+    </template>
+
+    <template v-else>
+      <div class="view-head"><div><h1>{{ recordType.label }}</h1><p v-if="recordType.description" class="lead">{{ recordType.description }}</p></div><Button @click="openRecord('new')">New record</Button></div>
+      <div class="entries-panel">
+        <RecordsTable v-if="records.length > 0" :key="recordType.name" :record-type-key="recordType.name" :fields="recordType.fields" :records="records" @open="openRecord" />
+        <p v-else-if="loading" class="empty-state">Loading…</p>
+        <p v-else-if="loadError" class="empty-state">Records could not be loaded. <Button size="sm" variant="outline" @click="load()">Retry</Button></p>
+        <div v-else class="entries-empty"><p>No records yet.</p><Button variant="outline" size="sm" @click="openRecord('new')">Create the first record</Button></div>
+        <div v-if="nextPageToken && !loading" class="entries-more"><Button variant="outline" size="sm" @click="load(true)">Load more</Button></div>
+      </div>
+    </template>
   </section>
 </template>

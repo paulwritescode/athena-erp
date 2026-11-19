@@ -1,10 +1,10 @@
-// Package project manages Athena workspaces and the projects inside them.
+// Package workspace manages Athena homes and the workspaces inside them.
 //
-// A workspace is a directory holding athena-workspace.yaml, the database
-// server login in .env.local, and one sibling directory per project. Each
-// project has its own athena.yaml and its own database, named from the
-// project slug when it is created.
-package project
+// A home is a directory holding athena-home.yaml, the database
+// server login in .env.local, and one sibling directory per workspace. Each
+// workspace has its own athena.yaml and its own database, named from the
+// workspace slug when it is created.
+package workspace
 
 import (
 	"bufio"
@@ -19,50 +19,50 @@ import (
 )
 
 const (
-	// WorkspaceFile marks a workspace root.
-	WorkspaceFile = "athena-workspace.yaml"
-	// ManifestFile marks a project root.
+	// HomeFile marks a home root.
+	HomeFile = "athena-home.yaml"
+	// ManifestFile marks a workspace root.
 	ManifestFile = "athena.yaml"
 	// ServerURLEnv names the variable holding the database server DSN,
 	// without a database name.
 	ServerURLEnv = "ATHENA_SERVER_URL"
-	// SchemaFormatVersion is the project file layout this build writes.
+	// SchemaFormatVersion is the workspace file layout this build writes.
 	SchemaFormatVersion = 1
 )
 
-// Workspace is athena-workspace.yaml.
-type Workspace struct {
-	FormatVersion int               `yaml:"format_version"`
-	Database      WorkspaceDatabase `yaml:"database"`
+// Home is athena-home.yaml.
+type Home struct {
+	FormatVersion int          `yaml:"format_version"`
+	Database      HomeDatabase `yaml:"database"`
 }
 
-// WorkspaceDatabase names the database server every project in the workspace uses.
-type WorkspaceDatabase struct {
+// HomeDatabase names the database server every workspace in the home uses.
+type HomeDatabase struct {
 	Driver string `yaml:"driver"`
 	// CredentialsEnv names the environment variable with the server DSN.
 	CredentialsEnv string `yaml:"credentials_env"`
 }
 
-// Manifest is a project's athena.yaml.
+// Manifest is a workspace's athena.yaml.
 type Manifest struct {
-	ID                  string          `yaml:"id"`
-	Name                string          `yaml:"name"`
-	Slug                string          `yaml:"slug"`
-	SchemaFormatVersion int             `yaml:"schema_format_version"`
-	CoreVersion         string          `yaml:"core_version"`
-	Database            ProjectDatabase `yaml:"database"`
+	ID                  string            `yaml:"id"`
+	Name                string            `yaml:"name"`
+	Slug                string            `yaml:"slug"`
+	SchemaFormatVersion int               `yaml:"schema_format_version"`
+	CoreVersion         string            `yaml:"core_version"`
+	Database            WorkspaceDatabase `yaml:"database"`
 }
 
-// ProjectDatabase is the project's own database on the workspace server.
-type ProjectDatabase struct {
+// WorkspaceDatabase is the workspace's own database on the home server.
+type WorkspaceDatabase struct {
 	Name string `yaml:"name"`
 }
 
-// Project is a resolved project: its manifest, root and workspace.
-type Project struct {
-	Manifest  Manifest
-	Root      string
-	Workspace string
+// Workspace is a resolved workspace: its manifest, root and home.
+type Workspace struct {
+	Manifest Manifest
+	Root     string
+	Home     string
 }
 
 // slugPattern keeps slugs valid as directory names, database names and
@@ -90,33 +90,33 @@ func Slugify(name string) string {
 	return strings.Trim(b.String(), "_")
 }
 
-// ValidateSlug reports why a slug cannot name a project, or nil.
+// ValidateSlug reports why a slug cannot name a workspace, or nil.
 func ValidateSlug(slug string) error {
 	if !slugPattern.MatchString(slug) {
-		return fmt.Errorf("project slug %q must start with a letter and use up to 48 lowercase letters, digits or underscores", slug)
+		return fmt.Errorf("workspace slug %q must start with a letter and use up to 48 lowercase letters, digits or underscores", slug)
 	}
 	if reservedSlugs[slug] {
-		return fmt.Errorf("project slug %q is reserved", slug)
+		return fmt.Errorf("workspace slug %q is reserved", slug)
 	}
 	return nil
 }
 
-// LoadWorkspace reads athena-workspace.yaml from dir.
-func LoadWorkspace(dir string) (Workspace, error) {
-	var ws Workspace
-	if err := readYAML(filepath.Join(dir, WorkspaceFile), &ws); err != nil {
-		return ws, err
+// LoadHome reads athena-home.yaml from dir.
+func LoadHome(dir string) (Home, error) {
+	var home Home
+	if err := readYAML(filepath.Join(dir, HomeFile), &home); err != nil {
+		return home, err
 	}
-	if ws.Database.Driver != "mariadb" {
-		return ws, fmt.Errorf("%s: database driver %q is not supported; use mariadb", WorkspaceFile, ws.Database.Driver)
+	if home.Database.Driver != "mariadb" {
+		return home, fmt.Errorf("%s: database driver %q is not supported; use mariadb", HomeFile, home.Database.Driver)
 	}
-	if ws.Database.CredentialsEnv == "" {
-		ws.Database.CredentialsEnv = ServerURLEnv
+	if home.Database.CredentialsEnv == "" {
+		home.Database.CredentialsEnv = ServerURLEnv
 	}
-	return ws, nil
+	return home, nil
 }
 
-// LoadManifest reads and validates a project's athena.yaml.
+// LoadManifest reads and validates a workspace's athena.yaml.
 func LoadManifest(root string) (Manifest, error) {
 	var m Manifest
 	if err := readYAML(filepath.Join(root, ManifestFile), &m); err != nil {
@@ -132,49 +132,54 @@ func LoadManifest(root string) (Manifest, error) {
 		return m, fmt.Errorf("%s: database.name must equal slug %q", filepath.Join(root, ManifestFile), m.Slug)
 	}
 	if m.SchemaFormatVersion > SchemaFormatVersion {
-		return m, fmt.Errorf("project %q uses schema format %d; this Athena supports up to %d", m.Slug, m.SchemaFormatVersion, SchemaFormatVersion)
+		return m, fmt.Errorf("workspace %q uses schema format %d; this Athena supports up to %d", m.Slug, m.SchemaFormatVersion, SchemaFormatVersion)
 	}
 	return m, nil
 }
 
-// FindWorkspace walks up from dir to the nearest workspace root.
-func FindWorkspace(dir string) (string, error) {
+// FindHome walks up from dir to the nearest home root.
+func FindHome(dir string) (string, error) {
 	dir, err := filepath.Abs(dir)
 	if err != nil {
 		return "", err
 	}
 	for {
-		if exists(filepath.Join(dir, WorkspaceFile)) {
+		if upgraded, err := UpgradeLegacyHome(dir); err != nil {
+			return "", err
+		} else if upgraded {
+			fmt.Fprintf(os.Stderr, "athena: renamed %s to %s in %s\n", legacyHomeFile, HomeFile, dir)
+		}
+		if exists(filepath.Join(dir, HomeFile)) {
 			return dir, nil
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
-			return "", errors.New("no Athena workspace found here or in any parent directory; run athena init first")
+			return "", errors.New("no Athena home found here or in any parent directory; run athena init first")
 		}
 		dir = parent
 	}
 }
 
-// Resolve finds the project to run. With a slug it selects that project in
-// the workspace. Without one it walks up from dir to the nearest athena.yaml,
-// stopping at the workspace root, which must then be given a slug.
-func Resolve(dir, slug string) (Project, error) {
-	workspace, err := FindWorkspace(dir)
+// Resolve finds the workspace to run. With a slug it selects that workspace in
+// the home. Without one it walks up from dir to the nearest athena.yaml,
+// stopping at the home root, which must then be given a slug.
+func Resolve(dir, slug string) (Workspace, error) {
+	home, err := FindHome(dir)
 	if err != nil {
-		return Project{}, err
+		return Workspace{}, err
 	}
 	root := ""
 	if slug != "" {
 		if err := ValidateSlug(slug); err != nil {
-			return Project{}, err
+			return Workspace{}, err
 		}
-		root = filepath.Join(workspace, slug)
+		root = filepath.Join(home, slug)
 	} else {
 		current, err := filepath.Abs(dir)
 		if err != nil {
-			return Project{}, err
+			return Workspace{}, err
 		}
-		for current != workspace {
+		for current != home {
 			if exists(filepath.Join(current, ManifestFile)) {
 				root = current
 				break
@@ -182,29 +187,29 @@ func Resolve(dir, slug string) (Project, error) {
 			current = filepath.Dir(current)
 		}
 		if root == "" {
-			return Project{}, errors.New("this is the workspace, not a project; run from a project directory or pass --project <slug>")
+			return Workspace{}, errors.New("this is the home, not a workspace; run from a workspace directory or pass --workspace <slug>")
 		}
 	}
-	// A project must be a direct child of its workspace, and not a symlink out of it.
+	// A workspace must be a direct child of its home, and not a symlink out of it.
 	resolved, err := filepath.EvalSymlinks(root)
 	if err != nil {
-		return Project{}, fmt.Errorf("project %q not found in %s", filepath.Base(root), workspace)
+		return Workspace{}, fmt.Errorf("workspace %q not found in %s", filepath.Base(root), home)
 	}
-	resolvedWorkspace, err := filepath.EvalSymlinks(workspace)
+	resolvedHome, err := filepath.EvalSymlinks(home)
 	if err != nil {
-		return Project{}, err
+		return Workspace{}, err
 	}
-	if filepath.Dir(resolved) != resolvedWorkspace {
-		return Project{}, fmt.Errorf("project %s is not directly inside workspace %s", root, workspace)
+	if filepath.Dir(resolved) != resolvedHome {
+		return Workspace{}, fmt.Errorf("workspace %s is not directly inside home %s", root, home)
 	}
 	manifest, err := LoadManifest(root)
 	if err != nil {
-		return Project{}, err
+		return Workspace{}, err
 	}
 	if manifest.Slug != filepath.Base(root) {
-		return Project{}, fmt.Errorf("%s: slug %q does not match its directory %q", filepath.Join(root, ManifestFile), manifest.Slug, filepath.Base(root))
+		return Workspace{}, fmt.Errorf("%s: slug %q does not match its directory %q", filepath.Join(root, ManifestFile), manifest.Slug, filepath.Base(root))
 	}
-	return Project{Manifest: manifest, Root: root, Workspace: workspace}, nil
+	return Workspace{Manifest: manifest, Root: root, Home: home}, nil
 }
 
 // LoadEnv reads KEY=value lines from the given .env files, earlier files

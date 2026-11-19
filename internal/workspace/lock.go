@@ -1,4 +1,4 @@
-package project
+package workspace
 
 import (
 	"encoding/json"
@@ -12,14 +12,14 @@ import (
 
 // Active describes the process holding the installation lock.
 type Active struct {
-	Project string    `json:"project"`
-	Root    string    `json:"root,omitempty"`
-	Addr    string    `json:"addr"`
-	PID     int       `json:"pid"`
-	Started time.Time `json:"started"`
+	Workspace string    `json:"workspace"`
+	Root      string    `json:"root,omitempty"`
+	Addr      string    `json:"addr"`
+	PID       int       `json:"pid"`
+	Started   time.Time `json:"started"`
 }
 
-// Lock is the per-user installation lock. Only one Athena project runs at a
+// Lock is the per-user installation lock. Only one Athena workspace runs at a
 // time; the OS releases the lock when the process exits, even after a crash.
 type Lock struct {
 	file *os.File
@@ -34,7 +34,7 @@ func LockPath() (string, error) {
 	return filepath.Join(dir, "athena", "active.lock"), nil
 }
 
-// Acquire takes the installation lock or reports the project already running.
+// Acquire takes the installation lock or reports the workspace already running.
 func Acquire(info Active) (*Lock, error) {
 	path, err := LockPath()
 	if err != nil {
@@ -51,8 +51,8 @@ func Acquire(info Active) (*Lock, error) {
 		defer f.Close()
 		if errors.Is(err, syscall.EWOULDBLOCK) {
 			var active Active
-			if data, readErr := os.ReadFile(path); readErr == nil && json.Unmarshal(data, &active) == nil && active.Project != "" {
-				return nil, fmt.Errorf("Athena is already running %s at http://%s (pid %d); stop it first", active.Project, active.Addr, active.PID)
+			if data, readErr := os.ReadFile(path); readErr == nil && json.Unmarshal(data, &active) == nil && active.Workspace != "" {
+				return nil, fmt.Errorf("Athena is already running %s at http://%s (pid %d); stop it first", active.Workspace, active.Addr, active.PID)
 			}
 			return nil, errors.New("another Athena process is already running; stop it first")
 		}

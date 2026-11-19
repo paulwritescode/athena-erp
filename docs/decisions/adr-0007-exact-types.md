@@ -18,7 +18,7 @@ The kernel specification (3.1, 3.4) requires exact numerics, money as integer mi
 - `Allocate`: floor shares on the absolute value, leftover units to the largest remainders, ties to the lowest index. Shares sum to the total exactly and the result is deterministic. Decimals allocate only at a scale that represents the total exactly.
 - Tests use `testing/quick` (standard library) for the invariants: exact sum, no drift across repeated split and re-add, lossless scale round trip, and a test that fails if the package source mentions the binary-fraction type.
 ## Not decided here
-Wiring into Record fields, columns and entry validation (P4), the Currency master (P11), the UoM Conversion master (P20), `period` and `duration` types, and the stored column types for money fields.
+Wiring into Record Type fields, columns and Record validation (P4), the Currency master (P11), the UoM Conversion master (P20), `period` and `duration` types, and the stored column types for money fields.
 ## Consequences
 - Later ledger tables can store money as `BIGINT` minor units plus a currency code.
 - Existing `Number` and `Currency` fields are unchanged until P4.

@@ -27,7 +27,7 @@
   {"name": "date impossible day", "type": "Date", "required": false, "value": "2026-02-30", "valid": false},
   {"name": "date impossible month", "type": "Date", "required": false, "value": "2026-13-01", "valid": false},
   {"name": "date wrong format", "type": "Date", "required": false, "value": "28/02/2026", "valid": false},
-  {"name": "link ok", "type": "Link", "required": false, "target_record": "customer", "value": "0190a1b2-c3d4-7e5f-8a6b-7c8d9e0f1a2b", "valid": true},
-  {"name": "link not an id", "type": "Link", "required": false, "target_record": "customer", "value": "customer-1", "valid": false},
+  {"name": "link ok", "type": "Link", "required": false, "target_record_type": "customer", "value": "0190a1b2-c3d4-7e5f-8a6b-7c8d9e0f1a2b", "valid": true},
+  {"name": "link not an id", "type": "Link", "required": false, "target_record_type": "customer", "value": "customer-1", "valid": false},
   {"name": "required number empty", "type": "Number", "required": true, "value": "", "valid": false}
 ]

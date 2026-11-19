@@ -17,8 +17,8 @@ import (
 	"syscall"
 	"time"
 
-	"athena-erp/internal/project"
 	"athena-erp/internal/server"
+	"athena-erp/internal/workspace"
 	"github.com/go-sql-driver/mysql"
 	"golang.org/x/term"
 )
@@ -68,19 +68,19 @@ func printUsage() {
 
 Usage:
   athena init [directory] [--host 127.0.0.1] [--port 3306] [--user name]
-      Create a workspace and save its MariaDB server login. The password is
+      Create a home and save its MariaDB server login. The password is
       read from ATHENA_SERVER_PASSWORD or prompted for.
   athena new [name]
-      Create a project in the current workspace, with its own database.
-  athena run [--project slug] [--addr %s]
-      Run a project. Inside a project directory the project is found
-      automatically; from the workspace pass --project.
+      Create a workspace in the current home, with its own database.
+  athena run [--workspace slug] [--addr %s]
+      Run a workspace. Inside a workspace directory the workspace is found
+      automatically; from the home pass --workspace.
   athena serve [--addr %s]
-      Run against ATHENA_DATABASE_URL without a project (development).
-  athena migrate status [--project slug] [--json]
+      Run against ATHENA_DATABASE_URL without a workspace (development).
+  athena migrate status [--workspace slug] [--json]
       List the system migrations and whether the database has applied them.
-      Writes nothing. Without a project it uses ATHENA_DATABASE_URL.
-  athena migrate up [--project slug] [--to N] [--dry-run] [--json]
+      Writes nothing. Without a workspace it uses ATHENA_DATABASE_URL.
+  athena migrate up [--workspace slug] [--to N] [--dry-run] [--json]
       Apply pending system migrations. The server also applies them at start.
       --to N stops after migration N; --dry-run lists them without applying.
   athena version
@@ -140,10 +140,10 @@ func initCommand(args []string) error {
 	if err := ping(cfg); err != nil {
 		return fmt.Errorf("cannot connect to MariaDB at %s as %s: %w", cfg.Addr, cfg.User, err)
 	}
-	if err := project.InitWorkspace(dir, cfg.FormatDSN()); err != nil {
+	if err := workspace.InitHome(dir, cfg.FormatDSN()); err != nil {
 		return err
 	}
-	fmt.Printf("Workspace ready at %s\nCreate a project with:\n  cd %s && athena new \"Project name\"\n", dir, dir)
+	fmt.Printf("Home ready at %s\nCreate a workspace with:\n  cd %s && athena new \"Workspace name\"\n", dir, dir)
 	return nil
 }
 
@@ -152,23 +152,23 @@ func newCommand(args []string) error {
 	if ok, err := parse(flags, args); !ok {
 		return err
 	}
-	workspace, err := project.FindWorkspace(".")
+	home, err := workspace.FindHome(".")
 	if err != nil {
 		return err
 	}
 	name := strings.Join(flags.Args(), " ")
 	if name == "" {
-		if name, err = prompt(bufio.NewReader(os.Stdin), "Project name: "); err != nil {
+		if name, err = prompt(bufio.NewReader(os.Stdin), "Workspace name: "); err != nil {
 			return err
 		}
 	}
-	env, err := project.LoadEnv(filepath.Join(workspace, ".env.local"))
+	env, err := workspace.LoadEnv(filepath.Join(home, ".env.local"))
 	if err != nil {
 		return err
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
-	result, err := project.Create(ctx, workspace, name, env[project.ServerURLEnv], version)
+	result, err := workspace.Create(ctx, home, name, env[workspace.ServerURLEnv], version)
 	if err != nil {
 		return err
 	}
@@ -184,45 +184,45 @@ func newCommand(args []string) error {
 
 func runCommand(args []string) error {
 	flags := flag.NewFlagSet("run", flag.ContinueOnError)
-	slug := flags.String("project", "", "project slug, when running from the workspace directory")
+	slug := flags.String("workspace", "", "workspace slug, when running from the home directory")
 	addr := flags.String("addr", defaultAddr, "HTTP listen address (loopback by default)")
 	if ok, err := parse(flags, args); !ok {
 		return err
 	}
-	p, cfg, err := resolveProject(*slug)
+	p, cfg, err := resolveWorkspace(*slug)
 	if err != nil {
 		return err
 	}
-	lock, err := project.Acquire(project.Active{Project: p.Manifest.Name + " (" + p.Manifest.Slug + ")", Root: p.Root, Addr: *addr})
+	lock, err := workspace.Acquire(workspace.Active{Workspace: p.Manifest.Name + " (" + p.Manifest.Slug + ")", Root: p.Root, Addr: *addr})
 	if err != nil {
 		return err
 	}
 	defer lock.Release()
-	log.Printf("Running project %s from %s", p.Manifest.Name, p.Root)
+	log.Printf("Running workspace %s from %s", p.Manifest.Name, p.Root)
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	return server.Serve(ctx, server.Config{
-		Addr:     *addr,
-		Database: cfg,
-		Project:  &server.Project{ID: p.Manifest.ID, Name: p.Manifest.Name, Slug: p.Manifest.Slug},
-		Version:  version,
+		Addr:      *addr,
+		Database:  cfg,
+		Workspace: &server.Workspace{ID: p.Manifest.ID, Name: p.Manifest.Name, Slug: p.Manifest.Slug},
+		Version:   version,
 	})
 }
 
-// resolveProject finds a project and the database config its server login and
+// resolveWorkspace finds a workspace and the database config its server login and
 // database name give.
-func resolveProject(slug string) (project.Project, *mysql.Config, error) {
-	p, err := project.Resolve(".", slug)
+func resolveWorkspace(slug string) (workspace.Workspace, *mysql.Config, error) {
+	p, err := workspace.Resolve(".", slug)
 	if err != nil {
-		return project.Project{}, nil, err
+		return workspace.Workspace{}, nil, err
 	}
-	env, err := project.LoadEnv(filepath.Join(p.Root, ".env.local"), filepath.Join(p.Workspace, ".env.local"))
+	env, err := workspace.LoadEnv(filepath.Join(p.Root, ".env.local"), filepath.Join(p.Home, ".env.local"))
 	if err != nil {
-		return project.Project{}, nil, err
+		return workspace.Workspace{}, nil, err
 	}
-	cfg, err := project.ServerConfig(env[project.ServerURLEnv], p.Manifest.Database.Name)
+	cfg, err := workspace.ServerConfig(env[workspace.ServerURLEnv], p.Manifest.Database.Name)
 	if err != nil {
-		return project.Project{}, nil, err
+		return workspace.Workspace{}, nil, err
 	}
 	return p, cfg, nil
 }
@@ -243,7 +243,7 @@ func serveCommand(args []string) error {
 		config.Database = cfg
 		label = "athena serve (database " + cfg.DBName + ")"
 	}
-	lock, err := project.Acquire(project.Active{Project: label, Addr: *addr})
+	lock, err := workspace.Acquire(workspace.Active{Workspace: label, Addr: *addr})
 	if err != nil {
 		return err
 	}

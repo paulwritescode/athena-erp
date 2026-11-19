@@ -30,7 +30,7 @@ type saveOptions struct {
 
 type migrationStep struct {
 	Kind          string
-	Field         recordField
+	Field         recordTypeField
 	Description   string
 	Destructive   bool
 	Affected      int64
@@ -38,37 +38,37 @@ type migrationStep struct {
 }
 
 func (s migrationStep) proto() *athenav1.MigrationStep {
-	return &athenav1.MigrationStep{Kind: s.Kind, FieldKey: s.Field.Name, Description: s.Description, Destructive: s.Destructive, AffectedEntries: s.Affected, NeedsBackfill: s.NeedsBackfill}
+	return &athenav1.MigrationStep{Kind: s.Kind, FieldKey: s.Field.Name, Description: s.Description, Destructive: s.Destructive, AffectedRecords: s.Affected, NeedsBackfill: s.NeedsBackfill}
 }
 
-func (s recordService) PlanRecordSave(ctx context.Context, req *athenav1.PlanRecordSaveRequest) (*athenav1.PlanRecordSaveResponse, error) {
+func (s recordTypeService) PlanRecordTypeSave(ctx context.Context, req *athenav1.PlanRecordTypeSaveRequest) (*athenav1.PlanRecordTypeSaveResponse, error) {
 	if s.db == nil {
 		return nil, connect.NewError(connect.CodeUnavailable, "the database is not configured")
 	}
-	if req.GetRecord() == nil {
-		return nil, invalid("record is required")
+	if req.GetRecordType() == nil {
+		return nil, invalid("record type is required")
 	}
-	record := recordFromProto(req.GetRecord())
+	recordType := recordTypeFromProto(req.GetRecordType())
 	conn, err := s.db.Conn(ctx)
 	if err != nil {
 		return nil, internalError("open connection", err)
 	}
 	defer conn.Close()
-	previous, revision, err := loadRecord(ctx, conn, record.Name)
+	previous, revision, err := loadRecordType(ctx, conn, recordType.Name)
 	if err != nil {
-		return nil, internalError("load Record", err)
+		return nil, internalError("load Record Type", err)
 	}
 	if revision != req.GetExpectedRevision() {
-		return nil, connect.NewError(connect.CodeAborted, "this Record was saved somewhere else; reload it and try again")
+		return nil, connect.NewError(connect.CodeAborted, "this Record Type was saved somewhere else; reload it and try again")
 	}
-	if err := validateRecord(ctx, conn, record); err != nil {
+	if err := validateRecordType(ctx, conn, recordType); err != nil {
 		return nil, err
 	}
-	steps, err := planMigration(ctx, conn, record, previous)
+	steps, err := planMigration(ctx, conn, recordType, previous)
 	if err != nil {
 		return nil, err
 	}
-	res := &athenav1.PlanRecordSaveResponse{}
+	res := &athenav1.PlanRecordTypeSaveResponse{}
 	for _, step := range steps {
 		res.Steps = append(res.Steps, step.proto())
 		res.RequiresConfirmation = res.RequiresConfirmation || step.Destructive || step.NeedsBackfill
@@ -77,12 +77,12 @@ func (s recordService) PlanRecordSave(ctx context.Context, req *athenav1.PlanRec
 }
 
 // planMigration lists the table changes needed to move from previous to
-// record, with the entries each step affects. It reads but never writes.
-func planMigration(ctx context.Context, conn sqlConn, record recordDefinition, previous *recordDefinition) ([]migrationStep, error) {
+// recordType, with the Records each step affects. It reads but never writes.
+func planMigration(ctx context.Context, conn sqlConn, recordType recordTypeDefinition, previous *recordTypeDefinition) ([]migrationStep, error) {
 	if previous == nil {
-		return []migrationStep{{Kind: stepCreateTable, Description: fmt.Sprintf("Create the table for %s with %s", record.Label, plural(int64(len(record.Fields)), "field", "fields"))}}, nil
+		return []migrationStep{{Kind: stepCreateTable, Description: fmt.Sprintf("Create the table for %s with %s", recordType.Label, plural(int64(len(recordType.Fields)), "field", "fields"))}}, nil
 	}
-	table := recordTableName(record.Name)
+	table := recordTypeTableName(recordType.Name)
 	hasTable, err := dialect.TableExists(ctx, conn, table)
 	if err != nil {
 		return nil, internalError("check table", err)
@@ -95,32 +95,32 @@ func planMigration(ctx context.Context, conn sqlConn, record recordDefinition, p
 		err := conn.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+dialect.QuoteIdent(table)+" WHERE "+where).Scan(&n)
 		return n, err
 	}
-	entries, err := count("1=1")
+	records, err := count("1=1")
 	if err != nil {
-		return nil, internalError("count entries", err)
+		return nil, internalError("count records", err)
 	}
-	previousByKey := map[string]recordField{}
+	previousByKey := map[string]recordTypeField{}
 	for _, field := range previous.Fields {
 		previousByKey[field.Name] = field
 	}
 	current := map[string]bool{}
 	var steps []migrationStep
-	for _, field := range record.Fields {
+	for _, field := range recordType.Fields {
 		current[field.Name] = true
 		old, existed := previousByKey[field.Name]
 		column := dialect.QuoteIdent(field.Name)
 		if !existed {
 			step := migrationStep{Kind: stepAddField, Field: field, Description: fmt.Sprintf("Add %s", field.Label)}
-			if field.Required && entries > 0 {
-				step.Kind, step.NeedsBackfill, step.Affected = stepRequireField, true, entries
-				step.Description = fmt.Sprintf("Add required %s and fill it in for %s", field.Label, plural(entries, "existing entry", "existing entries"))
+			if field.Required && records > 0 {
+				step.Kind, step.NeedsBackfill, step.Affected = stepRequireField, true, records
+				step.Description = fmt.Sprintf("Add required %s and fill it in for %s", field.Label, plural(records, "existing record", "existing records"))
 			}
 			steps = append(steps, step)
 			continue
 		}
 		var cleared int64
-		if old.Type != field.Type || (field.Type == "Link" && old.TargetRecord != field.TargetRecord) {
-			predicate, err := dialect.IncompatibleValues(column, field.Type, recordTableName(field.TargetRecord))
+		if old.Type != field.Type || (field.Type == "Link" && old.TargetRecordType != field.TargetRecordType) {
+			predicate, err := dialect.IncompatibleValues(column, field.Type, recordTypeTableName(field.TargetRecordType))
 			if err != nil {
 				return nil, invalid(err.Error())
 			}
@@ -132,7 +132,7 @@ func planMigration(ctx context.Context, conn sqlConn, record recordDefinition, p
 				step.Description = fmt.Sprintf("Change %s from %s to %s", field.Label, old.Type, field.Type)
 			} else {
 				step.Kind = stepChangeLink
-				step.Description = fmt.Sprintf("Link %s to %s instead of %s", field.Label, field.TargetRecord, old.TargetRecord)
+				step.Description = fmt.Sprintf("Link %s to %s instead of %s", field.Label, field.TargetRecordType, old.TargetRecordType)
 			}
 			if cleared > 0 {
 				step.Description += fmt.Sprintf("; %s cannot convert and will be cleared", plural(cleared, "value", "values"))
@@ -146,7 +146,7 @@ func planMigration(ctx context.Context, conn sqlConn, record recordDefinition, p
 			}
 			if missing := empty + cleared; missing > 0 {
 				steps = append(steps, migrationStep{Kind: stepRequireField, Field: field, NeedsBackfill: true, Affected: missing,
-					Description: fmt.Sprintf("Make %s required and fill it in for %s without a value", field.Label, plural(missing, "entry", "entries"))})
+					Description: fmt.Sprintf("Make %s required and fill it in for %s without a value", field.Label, plural(missing, "record", "records"))})
 			}
 		}
 	}
@@ -177,7 +177,7 @@ func checkPlan(steps []migrationStep, confirm bool, backfills map[string]*athena
 		}
 		value, ok := backfills[step.Field.Name]
 		if !ok {
-			return opts, connect.NewError(connect.CodeFailedPrecondition, fmt.Sprintf("%s needs a value to fill in for %s", step.Field.Label, plural(step.Affected, "entry", "entries")))
+			return opts, connect.NewError(connect.CodeFailedPrecondition, fmt.Sprintf("%s needs a value to fill in for %s", step.Field.Label, plural(step.Affected, "record", "records")))
 		}
 		arg, err := fieldArgument(step.Field, value)
 		if err != nil {
@@ -194,19 +194,19 @@ func checkPlan(steps []migrationStep, confirm bool, backfills map[string]*athena
 	return opts, nil
 }
 
-// migrateFields applies field-level changes from previous to record. Every
+// migrateFields applies field-level changes from previous to recordType. Every
 // statement checks or tolerates the current state, so a resumed operation can
 // run it again after a partial attempt.
-func migrateFields(ctx context.Context, conn sqlConn, record recordDefinition, previous *recordDefinition, opts saveOptions) error {
-	table := recordTableName(record.Name)
-	previousByKey := map[string]recordField{}
+func migrateFields(ctx context.Context, conn sqlConn, recordType recordTypeDefinition, previous *recordTypeDefinition, opts saveOptions) error {
+	table := recordTypeTableName(recordType.Name)
+	previousByKey := map[string]recordTypeField{}
 	if previous != nil {
 		for _, field := range previous.Fields {
 			previousByKey[field.Name] = field
 		}
 	}
 	current := map[string]bool{}
-	for _, field := range record.Fields {
+	for _, field := range recordType.Fields {
 		current[field.Name] = true
 	}
 	for _, old := range previousByKey {
@@ -214,7 +214,7 @@ func migrateFields(ctx context.Context, conn sqlConn, record recordDefinition, p
 			continue
 		}
 		if old.Type == "Link" {
-			if _, err := conn.ExecContext(ctx, dialect.DropForeignKey(table, recordForeignKeyName(record.Name, old.Name))); err != nil {
+			if _, err := conn.ExecContext(ctx, dialect.DropForeignKey(table, recordTypeForeignKeyName(recordType.Name, old.Name))); err != nil {
 				return err
 			}
 		}
@@ -222,15 +222,15 @@ func migrateFields(ctx context.Context, conn sqlConn, record recordDefinition, p
 			return err
 		}
 	}
-	for _, field := range record.Fields {
+	for _, field := range recordType.Fields {
 		columnType, _ := dialect.ColumnType(field.Type)
 		column := dialect.QuoteIdent(field.Name)
 		spec := store.Column{Name: field.Name, Type: columnType}
 		old, existed := previousByKey[field.Name]
 		typeChanged := existed && old.Type != field.Type
-		linkChanged := existed && field.Type == "Link" && (old.Type != "Link" || old.TargetRecord != field.TargetRecord)
-		if existed && old.Type == "Link" && (field.Type != "Link" || old.TargetRecord != field.TargetRecord) {
-			if _, err := conn.ExecContext(ctx, dialect.DropForeignKey(table, recordForeignKeyName(record.Name, field.Name))); err != nil {
+		linkChanged := existed && field.Type == "Link" && (old.Type != "Link" || old.TargetRecordType != field.TargetRecordType)
+		if existed && old.Type == "Link" && (field.Type != "Link" || old.TargetRecordType != field.TargetRecordType) {
+			if _, err := conn.ExecContext(ctx, dialect.DropForeignKey(table, recordTypeForeignKeyName(recordType.Name, field.Name))); err != nil {
 				return err
 			}
 		}
@@ -238,7 +238,7 @@ func migrateFields(ctx context.Context, conn sqlConn, record recordDefinition, p
 			return err
 		}
 		if (typeChanged || linkChanged) && opts.ConfirmDataLoss {
-			predicate, err := dialect.IncompatibleValues(column, field.Type, recordTableName(field.TargetRecord))
+			predicate, err := dialect.IncompatibleValues(column, field.Type, recordTypeTableName(field.TargetRecordType))
 			if err != nil {
 				return err
 			}
@@ -257,7 +257,7 @@ func migrateFields(ctx context.Context, conn sqlConn, record recordDefinition, p
 			}
 		}
 		if field.Type == "Link" {
-			if err := ensureLink(ctx, conn, record.Name, field); err != nil {
+			if err := ensureLink(ctx, conn, recordType.Name, field); err != nil {
 				return err
 			}
 		}

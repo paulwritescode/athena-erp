@@ -16,14 +16,14 @@ let started = false
  * Fetch spans carry a traceparent header, so ConnectRPC calls continue as
  * server spans in the same trace. Request and response bodies are never recorded.
  */
-export function startBrowserTelemetry(version: string, projectSlug: string) {
+export function startBrowserTelemetry(version: string, workspaceSlug: string) {
   if (started) return
   started = true
   const provider = new TracerProvider({
     resource: resourceFromAttributes({
       [ATTR_SERVICE_NAME]: 'athena-desk',
       [ATTR_SERVICE_VERSION]: version,
-      ...(projectSlug ? { 'athena.project.slug': projectSlug } : {}),
+      ...(workspaceSlug ? { 'athena.workspace.slug': workspaceSlug } : {}),
     }),
     spanProcessors: [new BatchSpanProcessor({ exporter: new OTLPTraceExporter({ url: `${window.location.origin}/otlp/v1/traces` }) })],
   })

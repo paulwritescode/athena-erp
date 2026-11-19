@@ -1,4 +1,6 @@
 # ADR-0006: Versioned system migrations
+
+> **Vocabulary:** this ADR keeps the terms and table names of its date. [ADR-0008](adr-0008-vocabulary.md) (Proposed) renames them; system migration 5 (`vocabulary_rename`) applies the rename after migrations 1 to 4, which are unchanged.
 - **Status:** Accepted 2026-11-19 (project owner approved the design in roadmap decision 2; accepted when P2 landed)
 - **Date:** 2026-11-19
 - **Decision owner:** project owner

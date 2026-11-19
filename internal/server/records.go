@@ -2,14 +2,16 @@ package server
 
 import (
 	"context"
-	"crypto/sha256"
 	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
+	"net/mail"
 	"regexp"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	athenav1 "athena-erp/gen/athena/v1"
@@ -18,572 +20,551 @@ import (
 	"github.com/google/uuid"
 )
 
-// recordDefinition is the JSON form stored in athena_records.definition.
-type recordDefinition struct {
-	Name        string        `json:"name"`
-	Label       string        `json:"label"`
-	Description string        `json:"description"`
-	Fields      []recordField `json:"fields"`
-}
-
-type recordField struct {
-	Name         string `json:"name"`
-	Label        string `json:"label"`
-	Type         string `json:"type"`
-	Required     bool   `json:"required"`
-	TargetRecord string `json:"target_record,omitempty"`
-}
-
-// recordKeyPattern leaves room for the athena_record_ prefix inside MariaDB's
-// 64-character identifier limit.
-var (
-	recordKeyPattern = regexp.MustCompile(`^[a-z][a-z0-9_]{0,49}$`)
-	fieldKeyPattern  = regexp.MustCompile(`^[a-z][a-z0-9_]{0,62}$`)
-)
-
-// reservedColumns are system columns present in every Record table.
-var reservedColumns = map[string]bool{"id": true, "revision": true, "created_at": true, "updated_at": true}
-
-// Operation actions and states in athena_record_operations.
 const (
-	actionSave         = "save"
-	actionDelete       = "delete"
-	operationPending   = "pending"
-	operationCompleted = "completed"
-	operationFailed    = "failed"
+	defaultPageSize = 50
+	maxPageSize     = 200
 )
 
-// dialect generates every engine-specific statement. MariaDB is the only
-// implementation.
-var dialect store.Dialect = store.MariaDB{}
+// decimalPattern matches the DECIMAL(18,6) column: up to 12 integer digits and 6 fraction digits.
+var decimalPattern = regexp.MustCompile(`^-?[0-9]{1,12}(\.[0-9]{1,6})?$`)
 
-func recordTableName(name string) string {
-	return dialect.ShortenIdent("athena_record_" + strings.ToLower(name))
-}
+// emailDomainDot requires a dot in the domain, which mail.ParseAddress allows
+// to be missing. It mirrors the email pattern in web/src/fieldRules.ts.
+var emailDomainDot = regexp.MustCompile(`^[^\s@]+@[^\s@]+\.[^\s@]+$`)
 
-// sqlConn is satisfied by *sql.Conn, the single session that holds the schema lock.
-type sqlConn interface {
-	ExecContext(context.Context, string, ...any) (sql.Result, error)
-	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
-	QueryRowContext(context.Context, string, ...any) *sql.Row
-	BeginTx(context.Context, *sql.TxOptions) (*sql.Tx, error)
-}
-
-// recordService implements athena.v1.RecordService. It has no authentication
-// yet, so the server must stay bound to loopback.
+// recordService implements athena.v1.RecordService over the Record Type tables.
+// It has no authentication yet, so the server must stay bound to loopback.
 type recordService struct {
 	db *sql.DB
 }
 
-func (s recordService) ListRecords(ctx context.Context, _ *athenav1.ListRecordsRequest) (*athenav1.ListRecordsResponse, error) {
-	if s.db == nil {
-		return nil, connect.NewError(connect.CodeUnavailable, "the database is not configured")
-	}
-	rows, err := s.db.QueryContext(ctx, `SELECT definition, revision FROM athena_records ORDER BY label`)
+func (s recordService) ListRecords(ctx context.Context, req *athenav1.ListRecordsRequest) (*athenav1.ListRecordsResponse, error) {
+	recordType, err := s.recordType(ctx, req.GetRecordTypeKey())
 	if err != nil {
-		return nil, internalError("list Records", err)
+		return nil, err
+	}
+	pageSize := int(req.GetPageSize())
+	if pageSize <= 0 {
+		pageSize = defaultPageSize
+	}
+	pageSize = min(pageSize, maxPageSize)
+	after := ""
+	if req.GetPageToken() != "" {
+		if after, err = decodeCursor(req.GetPageToken(), recordType.Name); err != nil {
+			return nil, err
+		}
+	}
+	// UUIDv7 IDs sort by creation time, so the primary key is the keyset cursor.
+	query := fmt.Sprintf("SELECT %s FROM %s WHERE %s > ? ORDER BY %s LIMIT ?", selectColumns(recordType), dialect.QuoteIdent(recordTypeTableName(recordType.Name)), dialect.QuoteIdent("id"), dialect.QuoteIdent("id"))
+	rows, err := s.db.QueryContext(ctx, query, after, pageSize+1)
+	if err != nil {
+		return nil, internalError("list records", err)
 	}
 	defer rows.Close()
-	res := &athenav1.ListRecordsResponse{}
+	records := make([]*athenav1.Record, 0, pageSize)
 	for rows.Next() {
-		var payload []byte
-		var revision int64
-		if err := rows.Scan(&payload, &revision); err != nil {
-			return nil, internalError("read Record", err)
+		record, err := scanRecord(rows, recordType)
+		if err != nil {
+			return nil, internalError("read record", err)
 		}
-		var record recordDefinition
-		if err := json.Unmarshal(payload, &record); err != nil {
-			return nil, internalError("decode Record", err)
-		}
-		res.Records = append(res.Records, recordToProto(record, revision))
+		records = append(records, record)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, internalError("list Records", err)
+		return nil, internalError("list records", err)
 	}
+	res := &athenav1.ListRecordsResponse{}
+	if len(records) > pageSize {
+		records = records[:pageSize]
+		res.NextPageToken = encodeCursor(recordType.Name, records[pageSize-1].GetId())
+	}
+	res.Records = records
 	return res, nil
 }
 
-func (s recordService) SaveRecord(ctx context.Context, req *athenav1.SaveRecordRequest) (*athenav1.SaveRecordResponse, error) {
-	if s.db == nil {
-		return nil, connect.NewError(connect.CodeUnavailable, "the database is not configured")
-	}
-	if req.GetRecord() == nil {
-		return nil, invalid("record is required")
-	}
-	record := recordFromProto(req.GetRecord())
-	conn, err := s.db.Conn(ctx)
-	if err != nil {
-		return nil, internalError("open connection", err)
-	}
-	defer conn.Close()
-	unlock, err := lockSchema(ctx, conn)
+func (s recordService) GetRecord(ctx context.Context, req *athenav1.GetRecordRequest) (*athenav1.GetRecordResponse, error) {
+	recordType, err := s.recordType(ctx, req.GetRecordTypeKey())
 	if err != nil {
 		return nil, err
 	}
-	defer unlock()
+	record, err := s.load(ctx, recordType, req.GetId())
+	if err != nil {
+		return nil, err
+	}
+	return &athenav1.GetRecordResponse{Record: record}, nil
+}
 
-	previous, revision, err := loadRecord(ctx, conn, record.Name)
+// localActor names who made a change until sign-in exists.
+const localActor = "Local administrator"
+
+func (s recordService) CreateRecord(ctx context.Context, req *athenav1.CreateRecordRequest) (*athenav1.CreateRecordResponse, error) {
+	recordType, err := s.recordType(ctx, req.GetRecordTypeKey())
 	if err != nil {
-		return nil, internalError("load Record", err)
+		return nil, err
 	}
-	if revision != req.GetExpectedRevision() {
-		if req.GetExpectedRevision() == 0 {
-			return nil, connect.NewError(connect.CodeAlreadyExists, fmt.Sprintf("a Record with the key %q already exists", record.Name))
+	columns, args, err := bindValues(recordType, req.GetValues(), true)
+	if err != nil {
+		return nil, err
+	}
+	id, err := uuid.NewV7()
+	if err != nil {
+		return nil, internalError("generate record ID", err)
+	}
+	var changed []string
+	for i, column := range columns {
+		if args[i] != nil {
+			changed = append(changed, strings.Trim(column, "`"))
 		}
-		return nil, connect.NewError(connect.CodeAborted, "this Record was saved somewhere else; reload it and try again")
 	}
-	if err := validateRecord(ctx, conn, record); err != nil {
-		return nil, err
+	columns = append([]string{dialect.QuoteIdent("id")}, columns...)
+	args = append([]any{id.String()}, args...)
+	placeholders := strings.TrimSuffix(strings.Repeat("?,", len(columns)), ",")
+	statement := fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)", dialect.QuoteIdent(recordTypeTableName(recordType.Name)), strings.Join(columns, ","), placeholders)
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, internalError("create record", err)
 	}
-	steps, err := planMigration(ctx, conn, record, previous)
+	defer func() { _ = tx.Rollback() }()
+	if _, err := tx.ExecContext(ctx, statement, args...); err != nil {
+		return nil, writeError("create record", err)
+	}
+	if err := writeHistory(ctx, tx, recordType.Name, id.String(), 1, "created", changed); err != nil {
+		return nil, internalError("record type history", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, internalError("create record", err)
+	}
+	record, err := s.load(ctx, recordType, id.String())
 	if err != nil {
 		return nil, err
 	}
-	opts, err := checkPlan(steps, req.GetConfirmDataLoss(), req.GetBackfills())
+	return &athenav1.CreateRecordResponse{Record: record}, nil
+}
+
+func (s recordService) UpdateRecord(ctx context.Context, req *athenav1.UpdateRecordRequest) (*athenav1.UpdateRecordResponse, error) {
+	recordType, err := s.recordType(ctx, req.GetRecordTypeKey())
 	if err != nil {
 		return nil, err
 	}
-	operationID, err := startOperation(ctx, conn, actionSave, record, revision, opts)
-	if err != nil {
-		return nil, internalError("record save operation", err)
-	}
-	log.Printf("record save %s: %s", operationID, describeSteps(steps))
-	saved, err := runOperation(ctx, conn, operationID, record, revision, opts)
+	columns, args, err := bindValues(recordType, req.GetValues(), false)
 	if err != nil {
 		return nil, err
 	}
-	return &athenav1.SaveRecordResponse{Record: recordToProto(record, saved)}, nil
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, internalError("update record", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	current, err := loadRecord(ctx, tx, recordType, req.GetId(), dialect.ForUpdate())
+	if err != nil {
+		return nil, err
+	}
+	if current.GetRevision() != req.GetExpectedRevision() {
+		return nil, connect.NewError(connect.CodeAborted, "someone else changed this record; reload it and try again")
+	}
+	// Only fields whose stored value differs count as changed; an unchanged save
+	// keeps the revision and writes no history.
+	var changedColumns, changed []string
+	var changedArgs []any
+	for i, column := range columns {
+		key := strings.Trim(column, "`")
+		if sameValue(current.GetValues()[key], args[i]) {
+			continue
+		}
+		changedColumns = append(changedColumns, column)
+		changedArgs = append(changedArgs, args[i])
+		changed = append(changed, key)
+	}
+	if len(changed) == 0 {
+		return &athenav1.UpdateRecordResponse{Record: current}, nil
+	}
+	assignments := []string{dialect.QuoteIdent("revision") + " = " + dialect.QuoteIdent("revision") + " + 1"}
+	for _, column := range changedColumns {
+		assignments = append(assignments, column+" = ?")
+	}
+	changedArgs = append(changedArgs, req.GetId(), req.GetExpectedRevision())
+	statement := fmt.Sprintf("UPDATE %s SET %s WHERE `id` = ? AND `revision` = ?", dialect.QuoteIdent(recordTypeTableName(recordType.Name)), strings.Join(assignments, ", "))
+	if _, err := tx.ExecContext(ctx, statement, changedArgs...); err != nil {
+		return nil, writeError("update record", err)
+	}
+	if err := writeHistory(ctx, tx, recordType.Name, req.GetId(), current.GetRevision()+1, "updated", changed); err != nil {
+		return nil, internalError("record type history", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, internalError("update record", err)
+	}
+	record, err := s.load(ctx, recordType, req.GetId())
+	if err != nil {
+		return nil, err
+	}
+	return &athenav1.UpdateRecordResponse{Record: record}, nil
 }
 
 func (s recordService) DeleteRecord(ctx context.Context, req *athenav1.DeleteRecordRequest) (*athenav1.DeleteRecordResponse, error) {
-	if s.db == nil {
-		return nil, connect.NewError(connect.CodeUnavailable, "the database is not configured")
-	}
-	conn, err := s.db.Conn(ctx)
-	if err != nil {
-		return nil, internalError("open connection", err)
-	}
-	defer conn.Close()
-	unlock, err := lockSchema(ctx, conn)
+	recordType, err := s.recordType(ctx, req.GetRecordTypeKey())
 	if err != nil {
 		return nil, err
 	}
-	defer unlock()
-
-	record, revision, err := loadRecord(ctx, conn, req.GetKey())
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return nil, internalError("load Record", err)
+		return nil, internalError("delete record", err)
 	}
-	if record == nil {
-		return nil, connect.NewError(connect.CodeNotFound, fmt.Sprintf("Record %q does not exist", req.GetKey()))
-	}
-	if revision != req.GetExpectedRevision() {
-		return nil, connect.NewError(connect.CodeAborted, "this Record was saved somewhere else; reload it and try again")
-	}
-	linked, err := linkingRecords(ctx, conn, record.Name)
+	defer func() { _ = tx.Rollback() }()
+	statement := fmt.Sprintf("DELETE FROM %s WHERE `id` = ? AND `revision` = ?", dialect.QuoteIdent(recordTypeTableName(recordType.Name)))
+	result, err := tx.ExecContext(ctx, statement, req.GetId(), req.GetExpectedRevision())
 	if err != nil {
-		return nil, internalError("check links", err)
+		return nil, writeError("delete record", err)
 	}
-	if len(linked) > 0 {
-		return nil, connect.NewError(connect.CodeFailedPrecondition, fmt.Sprintf("%s cannot be deleted because these Records link to it: %s. Remove those Link fields first", record.Label, strings.Join(linked, ", ")))
+	if affected, err := result.RowsAffected(); err != nil || affected == 0 {
+		_ = tx.Rollback()
+		return nil, s.checkChanged(ctx, recordType, req.GetId(), result)
 	}
-	entries, err := countEntries(ctx, conn, record.Name)
-	if err != nil {
-		return nil, internalError("count entries", err)
+	if err := writeHistory(ctx, tx, recordType.Name, req.GetId(), req.GetExpectedRevision(), "deleted", nil); err != nil {
+		return nil, internalError("record type history", err)
 	}
-	if entries > 0 && !req.GetDeleteEntries() {
-		return nil, connect.NewError(connect.CodeFailedPrecondition, fmt.Sprintf("%s has %s; confirm that they should be deleted too", record.Label, plural(entries, "entry", "entries")))
-	}
-	operationID, err := startOperation(ctx, conn, actionDelete, *record, revision, saveOptions{})
-	if err != nil {
-		return nil, internalError("record delete operation", err)
-	}
-	if _, err := runDelete(ctx, conn, operationID, *record, revision, saveOptions{}); err != nil {
-		return nil, err
+	if err := tx.Commit(); err != nil {
+		return nil, internalError("delete record", err)
 	}
 	return &athenav1.DeleteRecordResponse{}, nil
 }
 
-// countEntries returns the number of rows in a Record's table, or zero when
-// the table does not exist.
-func countEntries(ctx context.Context, conn sqlConn, key string) (int64, error) {
-	table := recordTableName(key)
-	exists, err := dialect.TableExists(ctx, conn, table)
-	if err != nil || !exists {
-		return 0, err
-	}
-	var count int64
-	err = conn.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+dialect.QuoteIdent(table)).Scan(&count)
-	return count, err
-}
-
-// linkingRecords returns the labels of other Records with a Link field to key.
-func linkingRecords(ctx context.Context, conn sqlConn, key string) ([]string, error) {
-	rows, err := conn.QueryContext(ctx, `SELECT definition FROM athena_records WHERE name <> ?`, key)
+func (s recordService) ListRecordHistory(ctx context.Context, req *athenav1.ListRecordHistoryRequest) (*athenav1.ListRecordHistoryResponse, error) {
+	recordType, err := s.recordType(ctx, req.GetRecordTypeKey())
 	if err != nil {
 		return nil, err
 	}
+	rows, err := s.db.QueryContext(ctx, `SELECT action, revision, changed_fields, actor, created_at FROM athena_record_history WHERE record_type_name = ? AND record_id = ? ORDER BY created_at DESC, id DESC LIMIT 200`, recordType.Name, req.GetId())
+	if err != nil {
+		return nil, internalError("read history", err)
+	}
 	defer rows.Close()
-	var labels []string
+	res := &athenav1.ListRecordHistoryResponse{}
 	for rows.Next() {
-		var payload []byte
-		var other recordDefinition
-		if err := rows.Scan(&payload); err != nil {
-			return nil, err
+		var event athenav1.RecordEvent
+		var changed []byte
+		var at time.Time
+		if err := rows.Scan(&event.Action, &event.Revision, &changed, &event.Actor, &at); err != nil {
+			return nil, internalError("read history", err)
 		}
-		if err := json.Unmarshal(payload, &other); err != nil {
-			return nil, err
+		if err := json.Unmarshal(changed, &event.ChangedFields); err != nil {
+			return nil, internalError("read history", err)
 		}
-		for _, field := range other.Fields {
-			if field.Type == "Link" && field.TargetRecord == key {
-				labels = append(labels, other.Label)
-				break
-			}
-		}
+		event.At = at.UTC().Format(time.RFC3339)
+		res.Events = append(res.Events, &event)
 	}
-	return labels, rows.Err()
-}
-
-// runDelete drops the Record's table, then removes the definition with a
-// compare-and-swap on the revision. DROP TABLE IF EXISTS is safe to repeat,
-// so an interrupted delete resumes from the start.
-func runDelete(ctx context.Context, conn sqlConn, id string, record recordDefinition, expected int64, _ saveOptions) (int64, error) {
-	if _, err := conn.ExecContext(ctx, dialect.DropTable(recordTableName(record.Name))); err != nil {
-		log.Printf("record delete %s: drop table for %q: %v", id, record.Name, err)
-		failOperation(conn, id, "drop_table", err)
-		return 0, connect.NewError(connect.CodeFailedPrecondition, fmt.Sprintf("could not delete the table for %s (operation %s)", record.Label, id))
+	if err := rows.Err(); err != nil {
+		return nil, internalError("read history", err)
 	}
-	if _, err := conn.ExecContext(ctx, `UPDATE athena_record_operations SET last_step = 'table_dropped' WHERE id = ?`, id); err != nil {
-		return 0, internalError("record delete progress", err)
+	if len(res.Events) > 0 {
+		return res, nil
 	}
-	tx, err := conn.BeginTx(ctx, nil)
+	// Records written before history existed: describe what the row itself records.
+	record, err := s.load(ctx, recordType, req.GetId())
 	if err != nil {
-		return 0, internalError("delete Record", err)
+		return nil, err
 	}
-	defer func() { _ = tx.Rollback() }()
-	result, err := tx.ExecContext(ctx, `DELETE FROM athena_records WHERE name = ? AND revision = ?`, record.Name, expected)
-	if err != nil {
-		return 0, internalError("delete Record", err)
+	if record.GetUpdatedAt() != record.GetCreatedAt() || record.GetRevision() > 1 {
+		res.Events = append(res.Events, &athenav1.RecordEvent{Action: "updated", Revision: record.GetRevision(), Actor: localActor, At: record.GetUpdatedAt()})
 	}
-	if affected, _ := result.RowsAffected(); affected == 0 {
-		failOperation(conn, id, "remove_definition", errors.New("revision changed"))
-		return 0, connect.NewError(connect.CodeAborted, "this Record was saved somewhere else; reload it and try again")
-	}
-	if _, err := tx.ExecContext(ctx, `UPDATE athena_record_operations SET status = ?, last_step = 'definition_removed' WHERE id = ?`, operationCompleted, id); err != nil {
-		return 0, internalError("delete Record", err)
-	}
-	if err := tx.Commit(); err != nil {
-		return 0, internalError("delete Record", err)
-	}
-	return 0, nil
+	res.Events = append(res.Events, &athenav1.RecordEvent{Action: "created", Revision: 1, Actor: localActor, At: record.GetCreatedAt()})
+	return res, nil
 }
 
-// lockSchema serializes Record saves for the current database.
-func lockSchema(ctx context.Context, conn sqlConn) (func(), error) {
-	acquired, release, err := dialect.LockSchema(ctx, conn)
-	if err != nil {
-		return nil, internalError("lock schema", err)
-	}
-	if !acquired {
-		return nil, connect.NewError(connect.CodeUnavailable, "another Record save is in progress; try again")
-	}
-	return release, nil
-}
-
-// loadRecord returns the active definition and revision, or nil and zero when
-// the Record has never been saved.
-func loadRecord(ctx context.Context, conn sqlConn, name string) (*recordDefinition, int64, error) {
-	var payload []byte
-	var revision int64
-	err := conn.QueryRowContext(ctx, `SELECT definition, revision FROM athena_records WHERE name = ?`, name).Scan(&payload, &revision)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, 0, nil
-	}
-	if err != nil {
-		return nil, 0, err
-	}
-	var record recordDefinition
-	if err := json.Unmarshal(payload, &record); err != nil {
-		return nil, 0, err
-	}
-	return &record, revision, nil
-}
-
-// validateRecord checks a definition on its own before any storage changes.
-// Changes against the active revision are planned by planMigration.
-func validateRecord(ctx context.Context, conn sqlConn, record recordDefinition) error {
-	if !recordKeyPattern.MatchString(record.Name) {
-		return invalid("the Record key must start with a letter and use up to 50 lowercase letters, digits or underscores")
-	}
-	if record.Label == "" || utf8.RuneCountInString(record.Label) > 255 {
-		return invalid("the Record name is required and must be at most 255 characters")
-	}
-	if utf8.RuneCountInString(record.Description) > 2000 {
-		return invalid("the description must be at most 2000 characters")
-	}
-	if len(record.Fields) == 0 {
-		return invalid("add at least one field")
-	}
-	seen := map[string]bool{}
-	for _, field := range record.Fields {
-		if field.Label == "" {
-			return invalid("every field needs a label")
-		}
-		if !fieldKeyPattern.MatchString(field.Name) {
-			return invalid(fmt.Sprintf("field key %q must start with a letter and use lowercase letters, digits or underscores", field.Name))
-		}
-		if reservedColumns[field.Name] {
-			return invalid(fmt.Sprintf("field key %q is reserved", field.Name))
-		}
-		if seen[field.Name] {
-			return invalid(fmt.Sprintf("field key %q is used twice", field.Name))
-		}
-		seen[field.Name] = true
-		if _, err := dialect.ColumnType(field.Type); err != nil {
-			return invalid(fmt.Sprintf("%s: %v", field.Label, err))
-		}
-		if field.Type == "Link" {
-			if field.TargetRecord == "" {
-				return invalid(fmt.Sprintf("%s needs a Record to link to", field.Label))
-			}
-			var exists bool
-			if err := conn.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM athena_records WHERE name = ?)`, field.TargetRecord).Scan(&exists); err != nil {
-				return internalError("check link target", err)
-			}
-			if !exists {
-				return invalid(fmt.Sprintf("%s links to %q, which is not a saved Record", field.Label, field.TargetRecord))
-			}
-		} else if field.TargetRecord != "" {
-			return invalid(fmt.Sprintf("%s is not a Link field and cannot have a link target", field.Label))
-		}
-	}
-	return nil
-}
-
-// startOperation journals the operation and its definition before touching the schema.
-func startOperation(ctx context.Context, conn sqlConn, action string, record recordDefinition, expected int64, opts saveOptions) (string, error) {
+func writeHistory(ctx context.Context, tx *sql.Tx, recordTypeName, recordID string, revision int64, action string, changed []string) error {
 	id, err := uuid.NewV7()
 	if err != nil {
-		return "", err
+		return err
 	}
-	payload, err := json.Marshal(record)
-	if err != nil {
-		return "", err
+	if changed == nil {
+		changed = []string{}
 	}
-	options, err := json.Marshal(opts)
-	if err != nil {
-		return "", err
-	}
-	_, err = conn.ExecContext(ctx, `INSERT INTO athena_record_operations (id, record_name, action, expected_revision, definition, options, status, last_step) VALUES (?,?,?,?,?,?,?,'planned')`,
-		id.String(), record.Name, action, expected, payload, options, operationPending)
-	return id.String(), err
-}
-
-// runOperation applies the schema, then activates the definition with a
-// compare-and-swap on the revision. MariaDB commits each DDL statement on its
-// own, so applySchema is idempotent and a retry continues where it stopped.
-func runOperation(ctx context.Context, conn sqlConn, id string, record recordDefinition, expected int64, opts saveOptions) (int64, error) {
-	// The active definition is still the previous revision until activation,
-	// including when an interrupted operation is resumed.
-	previous, _, err := loadRecord(ctx, conn, record.Name)
-	if err != nil {
-		return 0, internalError("load Record", err)
-	}
-	if err := applySchema(ctx, conn, record, previous, opts); err != nil {
-		log.Printf("record save %s: apply schema for %q: %v", id, record.Name, err)
-		failOperation(conn, id, "schema", err)
-		return 0, connect.NewError(connect.CodeFailedPrecondition, fmt.Sprintf("could not update the table for %s; the save was not applied (operation %s)", record.Label, id))
-	}
-	if _, err := conn.ExecContext(ctx, `UPDATE athena_record_operations SET last_step = 'schema_applied' WHERE id = ?`, id); err != nil {
-		return 0, internalError("record save progress", err)
-	}
-	payload, err := json.Marshal(record)
-	if err != nil {
-		return 0, internalError("encode Record", err)
-	}
-	tx, err := conn.BeginTx(ctx, nil)
-	if err != nil {
-		return 0, internalError("activate Record", err)
-	}
-	defer func() { _ = tx.Rollback() }()
-	conflict := connect.NewError(connect.CodeAborted, "this Record was saved somewhere else; reload it and try again")
-	if expected == 0 {
-		_, err = tx.ExecContext(ctx, `INSERT INTO athena_records (name, label, definition, revision) VALUES (?,?,?,1)`, record.Name, record.Label, payload)
-		if dialect.Classify(err) == store.ErrDuplicateKey {
-			failOperation(conn, id, "activate", err)
-			return 0, conflict
-		}
-	} else {
-		var result sql.Result
-		result, err = tx.ExecContext(ctx, `UPDATE athena_records SET label = ?, definition = ?, revision = revision + 1 WHERE name = ? AND revision = ?`, record.Label, payload, record.Name, expected)
-		if err == nil {
-			if affected, _ := result.RowsAffected(); affected == 0 {
-				failOperation(conn, id, "activate", errors.New("revision changed"))
-				return 0, conflict
-			}
-		}
-	}
-	if err != nil {
-		return 0, internalError("activate Record", err)
-	}
-	next := expected + 1
-	if _, err := tx.ExecContext(ctx, `UPDATE athena_record_operations SET status = ?, last_step = 'activated', target_revision = ? WHERE id = ?`, operationCompleted, next, id); err != nil {
-		return 0, internalError("activate Record", err)
-	}
-	if err := tx.Commit(); err != nil {
-		return 0, internalError("activate Record", err)
-	}
-	return next, nil
-}
-
-func failOperation(conn sqlConn, id, step string, cause error) {
-	message := cause.Error()
-	if len(message) > 1000 {
-		message = message[:1000]
-	}
-	if _, err := conn.ExecContext(context.Background(), `UPDATE athena_record_operations SET status = ?, last_step = ?, error = ? WHERE id = ?`, operationFailed, step, message, id); err != nil {
-		log.Printf("record save %s: mark failed: %v", id, err)
-	}
-}
-
-type pendingOperation struct {
-	id       string
-	action   string
-	options  saveOptions
-	expected int64
-	record   recordDefinition
-}
-
-// resumeOperations finishes saves interrupted by a crash or restart. An
-// operation whose Record has since moved to another revision is marked failed.
-func resumeOperations(ctx context.Context, db *sql.DB) error {
-	conn, err := db.Conn(ctx)
+	payload, err := json.Marshal(changed)
 	if err != nil {
 		return err
 	}
-	defer conn.Close()
-	unlock, err := lockSchema(ctx, conn)
-	if err != nil {
-		return err
-	}
-	defer unlock()
-	operations, err := pendingOperations(ctx, conn)
-	if err != nil {
-		return err
-	}
-	for _, op := range operations {
-		_, revision, err := loadRecord(ctx, conn, op.record.Name)
-		if err != nil {
-			return err
-		}
-		if revision != op.expected {
-			failOperation(conn, op.id, "resume", fmt.Errorf("record is at revision %d, operation expected %d", revision, op.expected))
-			log.Printf("record save %s: superseded, not resumed", op.id)
-			continue
-		}
-		run := runOperation
-		if op.action == actionDelete {
-			run = runDelete
-		}
-		if _, err := run(ctx, conn, op.id, op.record, op.expected, op.options); err != nil {
-			log.Printf("record save %s: resume failed: %v", op.id, err)
-			continue
-		}
-		log.Printf("record %s %s: resumed and completed %q", op.action, op.id, op.record.Name)
-	}
-	return nil
-}
-
-func pendingOperations(ctx context.Context, conn sqlConn) ([]pendingOperation, error) {
-	rows, err := conn.QueryContext(ctx, `SELECT id, action, expected_revision, definition, COALESCE(options, '{}') FROM athena_record_operations WHERE status = ? ORDER BY id`, operationPending)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var operations []pendingOperation
-	for rows.Next() {
-		var op pendingOperation
-		var payload, options []byte
-		if err := rows.Scan(&op.id, &op.action, &op.expected, &payload, &options); err != nil {
-			return nil, err
-		}
-		if err := json.Unmarshal(options, &op.options); err != nil {
-			return nil, err
-		}
-		if err := json.Unmarshal(payload, &op.record); err != nil {
-			return nil, err
-		}
-		operations = append(operations, op)
-	}
-	return operations, rows.Err()
-}
-
-// applySchema creates the Record's table if needed, then applies field
-// changes from the previous revision. Every statement is safe to repeat.
-// Field columns are nullable; Go enforces required fields.
-func applySchema(ctx context.Context, conn sqlConn, record recordDefinition, previous *recordDefinition, opts saveOptions) error {
-	table := recordTableName(record.Name)
-	columns := make([]store.Column, 0, len(record.Fields))
-	for _, field := range record.Fields {
-		columnType, err := dialect.ColumnType(field.Type)
-		if err != nil {
-			return err
-		}
-		columns = append(columns, store.Column{Name: field.Name, Type: columnType})
-	}
-	statements := []string{dialect.CreateRecordTable(table, columns), dialect.AddRevisionColumn(table)}
-	for _, statement := range statements {
-		if _, err := conn.ExecContext(ctx, statement); err != nil {
-			return err
-		}
-	}
-	return migrateFields(ctx, conn, record, previous, opts)
-}
-
-// ensureLink adds the foreign key for a Link field, or confirms that an
-// existing constraint already points at the intended table.
-func ensureLink(ctx context.Context, conn sqlConn, recordName string, field recordField) error {
-	table := recordTableName(recordName)
-	target := recordTableName(field.TargetRecord)
-	constraint := recordForeignKeyName(recordName, field.Name)
-	referenced, found, err := dialect.ForeignKeyTarget(ctx, conn, table, constraint)
-	if err != nil {
-		return err
-	}
-	if found {
-		if referenced != target {
-			return fmt.Errorf("link %q already references %q", field.Name, referenced)
-		}
-		return nil
-	}
-	_, err = conn.ExecContext(ctx, dialect.AddForeignKey(table, constraint, field.Name, target))
+	_, err = tx.ExecContext(ctx, `INSERT INTO athena_record_history (id, record_type_name, record_id, revision, action, changed_fields, actor) VALUES (?,?,?,?,?,?,?)`, id.String(), recordTypeName, recordID, revision, action, payload, localActor)
 	return err
 }
 
-func recordForeignKeyName(recordName, fieldName string) string {
-	sum := sha256.Sum256([]byte(recordName + ":" + fieldName))
-	return fmt.Sprintf("fk_record_%x", sum[:8])
+// sameValue reports whether a stored value equals a bound argument from bindValues.
+func sameValue(stored *athenav1.FieldValue, arg any) bool {
+	switch v := arg.(type) {
+	case nil:
+		return stored == nil || stored.GetNullValue()
+	case bool:
+		b, ok := stored.GetKind().(*athenav1.FieldValue_BoolValue)
+		return ok && b.BoolValue == v
+	case string:
+		text, ok := stored.GetKind().(*athenav1.FieldValue_StringValue)
+		return ok && (text.StringValue == v || (decimalPattern.MatchString(v) && trimDecimal(text.StringValue) == trimDecimal(v)))
+	}
+	return false
 }
 
-func recordFromProto(record *athenav1.Record) recordDefinition {
-	definition := recordDefinition{Name: record.GetKey(), Label: strings.TrimSpace(record.GetLabel()), Description: strings.TrimSpace(record.GetDescription())}
-	for _, field := range record.GetFields() {
-		definition.Fields = append(definition.Fields, recordField{Name: field.GetKey(), Label: strings.TrimSpace(field.GetLabel()), Type: field.GetType(), Required: field.GetRequired(), TargetRecord: field.GetTargetRecordKey()})
+// recordType loads a saved Record Type definition. Table and column names in later queries
+// come only from this definition, never from the request.
+func (s recordService) recordType(ctx context.Context, key string) (recordTypeDefinition, error) {
+	if s.db == nil {
+		return recordTypeDefinition{}, connect.NewError(connect.CodeUnavailable, "the database is not configured")
 	}
-	return definition
+	var payload []byte
+	err := s.db.QueryRowContext(ctx, `SELECT definition FROM athena_record_types WHERE name = ?`, key).Scan(&payload)
+	if errors.Is(err, sql.ErrNoRows) {
+		return recordTypeDefinition{}, connect.NewError(connect.CodeNotFound, fmt.Sprintf("Record Type %q does not exist", key))
+	}
+	if err != nil {
+		return recordTypeDefinition{}, internalError("load Record Type", err)
+	}
+	var recordType recordTypeDefinition
+	if err := json.Unmarshal(payload, &recordType); err != nil {
+		return recordTypeDefinition{}, internalError("decode Record Type", err)
+	}
+	return recordType, nil
 }
 
-func recordToProto(record recordDefinition, revision int64) *athenav1.Record {
-	result := &athenav1.Record{Key: record.Name, Label: record.Label, Description: record.Description, Revision: revision}
-	for _, field := range record.Fields {
-		result.Fields = append(result.Fields, &athenav1.RecordField{Key: field.Name, Label: field.Label, Type: field.Type, Required: field.Required, TargetRecordKey: field.TargetRecord})
-	}
-	return result
+func (s recordService) load(ctx context.Context, recordType recordTypeDefinition, id string) (*athenav1.Record, error) {
+	return loadRecord(ctx, s.db, recordType, id, "")
 }
 
-func plural(n int64, one, many string) string {
-	if n == 1 {
-		return "1 " + one
+// querier is satisfied by *sql.DB and *sql.Tx.
+type querier interface {
+	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
+}
+
+// loadRecord reads one record. suffix is "" or "FOR UPDATE" inside a transaction.
+func loadRecord(ctx context.Context, q querier, recordType recordTypeDefinition, id, suffix string) (*athenav1.Record, error) {
+	query := fmt.Sprintf("SELECT %s FROM %s WHERE `id` = ? %s", selectColumns(recordType), dialect.QuoteIdent(recordTypeTableName(recordType.Name)), suffix)
+	rows, err := q.QueryContext(ctx, query, id)
+	if err != nil {
+		return nil, internalError("read record", err)
 	}
-	return fmt.Sprintf("%d %s", n, many)
+	defer rows.Close()
+	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			return nil, internalError("read record", err)
+		}
+		return nil, connect.NewError(connect.CodeNotFound, "the record does not exist")
+	}
+	record, err := scanRecord(rows, recordType)
+	if err != nil {
+		return nil, internalError("read record", err)
+	}
+	return record, nil
+}
+
+// checkChanged tells a missing record apart from a revision conflict after a guarded write.
+func (s recordService) checkChanged(ctx context.Context, recordType recordTypeDefinition, id string, result sql.Result) error {
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return internalError("check write", err)
+	}
+	if affected > 0 {
+		return nil
+	}
+	var exists bool
+	statement := fmt.Sprintf("SELECT EXISTS(SELECT 1 FROM %s WHERE `id` = ?)", dialect.QuoteIdent(recordTypeTableName(recordType.Name)))
+	if err := s.db.QueryRowContext(ctx, statement, id).Scan(&exists); err != nil {
+		return internalError("check write", err)
+	}
+	if !exists {
+		return connect.NewError(connect.CodeNotFound, "the record does not exist")
+	}
+	return connect.NewError(connect.CodeAborted, "someone else changed this record; reload it and try again")
+}
+
+func selectColumns(recordType recordTypeDefinition) string {
+	columns := []string{dialect.QuoteIdent("id"), dialect.QuoteIdent("revision"), dialect.QuoteIdent("created_at"), dialect.QuoteIdent("updated_at")}
+	for _, field := range recordType.Fields {
+		columns = append(columns, dialect.QuoteIdent(field.Name))
+	}
+	return strings.Join(columns, ",")
+}
+
+func scanRecord(rows *sql.Rows, recordType recordTypeDefinition) (*athenav1.Record, error) {
+	var record athenav1.Record
+	var created, updated time.Time
+	targets := []any{&record.Id, &record.Revision, &created, &updated}
+	values := make([]any, len(recordType.Fields))
+	for i, field := range recordType.Fields {
+		switch field.Type {
+		case "Checkbox":
+			values[i] = new(sql.NullBool)
+		case "Date":
+			values[i] = new(sql.NullTime)
+		default:
+			values[i] = new(sql.NullString)
+		}
+		targets = append(targets, values[i])
+	}
+	if err := rows.Scan(targets...); err != nil {
+		return nil, err
+	}
+	record.CreatedAt = created.UTC().Format(time.RFC3339)
+	record.UpdatedAt = updated.UTC().Format(time.RFC3339)
+	record.Values = make(map[string]*athenav1.FieldValue, len(recordType.Fields))
+	for i, field := range recordType.Fields {
+		value := &athenav1.FieldValue{}
+		switch v := values[i].(type) {
+		case *sql.NullBool:
+			if v.Valid {
+				value.Kind = &athenav1.FieldValue_BoolValue{BoolValue: v.Bool}
+			}
+		case *sql.NullTime:
+			if v.Valid {
+				value.Kind = &athenav1.FieldValue_StringValue{StringValue: v.Time.Format(time.DateOnly)}
+			}
+		case *sql.NullString:
+			if v.Valid {
+				text := v.String
+				if field.Type == "Number" || field.Type == "Currency" {
+					text = trimDecimal(text)
+				}
+				value.Kind = &athenav1.FieldValue_StringValue{StringValue: text}
+			}
+		}
+		if value.Kind == nil {
+			value.Kind = &athenav1.FieldValue_NullValue{NullValue: true}
+		}
+		record.Values[field.Name] = value
+	}
+	return &record, nil
+}
+
+// trimDecimal removes the trailing zeros MariaDB pads DECIMAL(18,6) values with.
+func trimDecimal(text string) string {
+	if !strings.Contains(text, ".") {
+		return text
+	}
+	return strings.TrimSuffix(strings.TrimRight(text, "0"), ".")
+}
+
+// bindValues validates request values against the Record Type's fields and returns
+// quoted column names with matching bound arguments. Creating requires every
+// required field; updating checks only the fields sent.
+func bindValues(recordType recordTypeDefinition, values map[string]*athenav1.FieldValue, creating bool) ([]string, []any, error) {
+	fields := make(map[string]recordTypeField, len(recordType.Fields))
+	for _, field := range recordType.Fields {
+		fields[field.Name] = field
+	}
+	for key := range values {
+		if _, ok := fields[key]; !ok {
+			return nil, nil, invalid(fmt.Sprintf("Record Type %q has no field %q", recordType.Name, key))
+		}
+	}
+	var columns []string
+	var args []any
+	for _, field := range recordType.Fields {
+		value, present := values[field.Name]
+		if !present {
+			if creating && field.Required {
+				return nil, nil, invalid(fmt.Sprintf("%s is required", field.Label))
+			}
+			continue
+		}
+		arg, err := fieldArgument(field, value)
+		if err != nil {
+			return nil, nil, err
+		}
+		if arg == nil && field.Required {
+			return nil, nil, invalid(fmt.Sprintf("%s is required", field.Label))
+		}
+		columns = append(columns, dialect.QuoteIdent(field.Name))
+		args = append(args, arg)
+	}
+	if !creating && len(columns) == 0 {
+		return nil, nil, invalid("no field values to update")
+	}
+	return columns, args, nil
+}
+
+// fieldArgument converts one FieldValue into a database argument, or nil for null.
+func fieldArgument(field recordTypeField, value *athenav1.FieldValue) (any, error) {
+	if value == nil || value.GetNullValue() {
+		return nil, nil
+	}
+	if field.Type == "Checkbox" {
+		v, ok := value.GetKind().(*athenav1.FieldValue_BoolValue)
+		if !ok {
+			return nil, invalid(fmt.Sprintf("%s must be true or false", field.Label))
+		}
+		return v.BoolValue, nil
+	}
+	v, ok := value.GetKind().(*athenav1.FieldValue_StringValue)
+	if !ok {
+		return nil, invalid(fmt.Sprintf("%s must be text", field.Label))
+	}
+	text := strings.TrimSpace(v.StringValue)
+	if text == "" {
+		return nil, nil
+	}
+	limit := map[string]int{"Text": 255, "Email": 320, "Phone": 40, "Select": 120, "Long text": 65535}[field.Type]
+	if limit > 0 && utf8.RuneCountInString(text) > limit {
+		return nil, invalid(fmt.Sprintf("%s is longer than %d characters", field.Label, limit))
+	}
+	switch field.Type {
+	case "Email":
+		if address, err := mail.ParseAddress(text); err != nil || address.Address != text || !emailDomainDot.MatchString(text) {
+			return nil, invalid(fmt.Sprintf("%s must be an email address", field.Label))
+		}
+	case "Number", "Currency":
+		if !decimalPattern.MatchString(text) {
+			return nil, invalid(fmt.Sprintf("%s must be a number with up to 12 digits before and 6 after the decimal point", field.Label))
+		}
+	case "Date":
+		if _, err := time.Parse(time.DateOnly, text); err != nil {
+			return nil, invalid(fmt.Sprintf("%s must be a date as YYYY-MM-DD", field.Label))
+		}
+	case "Link":
+		if _, err := uuid.Parse(text); err != nil {
+			return nil, invalid(fmt.Sprintf("%s must be an record ID", field.Label))
+		}
+	}
+	return text, nil
+}
+
+type cursor struct {
+	RecordType string `json:"r"`
+	After      string `json:"a"`
+}
+
+func encodeCursor(recordType, after string) string {
+	payload, _ := json.Marshal(cursor{RecordType: recordType, After: after})
+	return base64.RawURLEncoding.EncodeToString(payload)
+}
+
+// decodeCursor rejects a token issued for a different Record Type.
+func decodeCursor(token, recordType string) (string, error) {
+	payload, err := base64.RawURLEncoding.DecodeString(token)
+	var c cursor
+	if err != nil || json.Unmarshal(payload, &c) != nil || c.RecordType != recordType {
+		return "", invalid("page_token is not valid for this Record Type")
+	}
+	if _, err := uuid.Parse(c.After); err != nil {
+		return "", invalid("page_token is not valid for this Record Type")
+	}
+	return c.After, nil
+}
+
+func invalid(message string) error {
+	return connect.NewError(connect.CodeInvalidArgument, message)
+}
+
+// internalError logs the cause on the server and hides driver detail from the client.
+func internalError(action string, err error) error {
+	log.Printf("record service: %s: %v", action, err)
+	return connect.NewError(connect.CodeInternal, "could not "+action)
+}
+
+// writeError maps database constraint failures to client errors.
+func writeError(action string, err error) error {
+	switch dialect.Classify(err) {
+	case store.ErrForeignKeyMissingParent:
+		return invalid("a linked record does not exist")
+	case store.ErrForeignKeyInUse:
+		return connect.NewError(connect.CodeFailedPrecondition, "other records link to this record")
+	case store.ErrNotNull:
+		return invalid("a required field is missing")
+	case store.ErrValueTooLong:
+		return invalid("a value does not fit its field")
+	}
+	return internalError(action, err)
 }

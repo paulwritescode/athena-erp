@@ -26,13 +26,17 @@ const (
 const (
 	// RecordServiceListRecordsProcedure is the procedure name of the RecordService's ListRecords RPC.
 	RecordServiceListRecordsProcedure = "/athena.v1.RecordService/ListRecords"
-	// RecordServicePlanRecordSaveProcedure is the procedure name of the RecordService's PlanRecordSave
-	// RPC.
-	RecordServicePlanRecordSaveProcedure = "/athena.v1.RecordService/PlanRecordSave"
-	// RecordServiceSaveRecordProcedure is the procedure name of the RecordService's SaveRecord RPC.
-	RecordServiceSaveRecordProcedure = "/athena.v1.RecordService/SaveRecord"
+	// RecordServiceGetRecordProcedure is the procedure name of the RecordService's GetRecord RPC.
+	RecordServiceGetRecordProcedure = "/athena.v1.RecordService/GetRecord"
+	// RecordServiceCreateRecordProcedure is the procedure name of the RecordService's CreateRecord RPC.
+	RecordServiceCreateRecordProcedure = "/athena.v1.RecordService/CreateRecord"
+	// RecordServiceUpdateRecordProcedure is the procedure name of the RecordService's UpdateRecord RPC.
+	RecordServiceUpdateRecordProcedure = "/athena.v1.RecordService/UpdateRecord"
 	// RecordServiceDeleteRecordProcedure is the procedure name of the RecordService's DeleteRecord RPC.
 	RecordServiceDeleteRecordProcedure = "/athena.v1.RecordService/DeleteRecord"
+	// RecordServiceListRecordHistoryProcedure is the procedure name of the RecordService's
+	// ListRecordHistory RPC.
+	RecordServiceListRecordHistoryProcedure = "/athena.v1.RecordService/ListRecordHistory"
 )
 
 var (
@@ -43,18 +47,25 @@ var (
 			Procedure:  RecordServiceListRecordsProcedure,
 		}
 	})
-	recordServicePlanRecordSaveSpec = sync.OnceValue(func() connect.Spec {
+	recordServiceGetRecordSpec = sync.OnceValue(func() connect.Spec {
 		return connect.Spec{
 			StreamType: connect.StreamTypeUnary,
-			Schema:     v1.File_athena_v1_records_proto.Services().ByName("RecordService").Methods().ByName("PlanRecordSave"),
-			Procedure:  RecordServicePlanRecordSaveProcedure,
+			Schema:     v1.File_athena_v1_records_proto.Services().ByName("RecordService").Methods().ByName("GetRecord"),
+			Procedure:  RecordServiceGetRecordProcedure,
 		}
 	})
-	recordServiceSaveRecordSpec = sync.OnceValue(func() connect.Spec {
+	recordServiceCreateRecordSpec = sync.OnceValue(func() connect.Spec {
 		return connect.Spec{
 			StreamType: connect.StreamTypeUnary,
-			Schema:     v1.File_athena_v1_records_proto.Services().ByName("RecordService").Methods().ByName("SaveRecord"),
-			Procedure:  RecordServiceSaveRecordProcedure,
+			Schema:     v1.File_athena_v1_records_proto.Services().ByName("RecordService").Methods().ByName("CreateRecord"),
+			Procedure:  RecordServiceCreateRecordProcedure,
+		}
+	})
+	recordServiceUpdateRecordSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_athena_v1_records_proto.Services().ByName("RecordService").Methods().ByName("UpdateRecord"),
+			Procedure:  RecordServiceUpdateRecordProcedure,
 		}
 	})
 	recordServiceDeleteRecordSpec = sync.OnceValue(func() connect.Spec {
@@ -64,18 +75,24 @@ var (
 			Procedure:  RecordServiceDeleteRecordProcedure,
 		}
 	})
+	recordServiceListRecordHistorySpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_athena_v1_records_proto.Services().ByName("RecordService").Methods().ByName("ListRecordHistory"),
+			Procedure:  RecordServiceListRecordHistoryProcedure,
+		}
+	})
 )
 
 // RecordServiceClient is a client for the athena.v1.RecordService service.
 type RecordServiceClient interface {
 	ListRecords(context.Context, *v1.ListRecordsRequest) (*v1.ListRecordsResponse, error)
-	// PlanRecordSave describes the table migration a save would run, without
-	// changing anything.
-	PlanRecordSave(context.Context, *v1.PlanRecordSaveRequest) (*v1.PlanRecordSaveResponse, error)
-	SaveRecord(context.Context, *v1.SaveRecordRequest) (*v1.SaveRecordResponse, error)
-	// DeleteRecord drops the Record's table with its entries and removes the
-	// definition. It is refused while other Records link to it.
+	GetRecord(context.Context, *v1.GetRecordRequest) (*v1.GetRecordResponse, error)
+	CreateRecord(context.Context, *v1.CreateRecordRequest) (*v1.CreateRecordResponse, error)
+	UpdateRecord(context.Context, *v1.UpdateRecordRequest) (*v1.UpdateRecordResponse, error)
 	DeleteRecord(context.Context, *v1.DeleteRecordRequest) (*v1.DeleteRecordResponse, error)
+	// ListRecordHistory returns a Record's changes, newest first.
+	ListRecordHistory(context.Context, *v1.ListRecordHistoryRequest) (*v1.ListRecordHistoryResponse, error)
 }
 
 // NewRecordServiceClient constructs a client for the athena.v1.RecordService service. Multiple
@@ -87,13 +104,12 @@ func NewRecordServiceClient(client *connect.Client) RecordServiceClient {
 // RecordServiceHandler is an implementation of the athena.v1.RecordService service.
 type RecordServiceHandler interface {
 	ListRecords(context.Context, *v1.ListRecordsRequest) (*v1.ListRecordsResponse, error)
-	// PlanRecordSave describes the table migration a save would run, without
-	// changing anything.
-	PlanRecordSave(context.Context, *v1.PlanRecordSaveRequest) (*v1.PlanRecordSaveResponse, error)
-	SaveRecord(context.Context, *v1.SaveRecordRequest) (*v1.SaveRecordResponse, error)
-	// DeleteRecord drops the Record's table with its entries and removes the
-	// definition. It is refused while other Records link to it.
+	GetRecord(context.Context, *v1.GetRecordRequest) (*v1.GetRecordResponse, error)
+	CreateRecord(context.Context, *v1.CreateRecordRequest) (*v1.CreateRecordResponse, error)
+	UpdateRecord(context.Context, *v1.UpdateRecordRequest) (*v1.UpdateRecordResponse, error)
 	DeleteRecord(context.Context, *v1.DeleteRecordRequest) (*v1.DeleteRecordResponse, error)
+	// ListRecordHistory returns a Record's changes, newest first.
+	ListRecordHistory(context.Context, *v1.ListRecordHistoryRequest) (*v1.ListRecordHistoryResponse, error)
 }
 
 // RegisterRecordServiceHandler registers svc as the athena.v1.RecordService implementation on
@@ -102,9 +118,11 @@ func RegisterRecordServiceHandler(server *connect.Server, svc RecordServiceHandl
 	adapter := recordServiceHandler{svc: svc}
 	server.Register(
 		connect.Method{Spec: recordServiceListRecordsSpec(), Handler: adapter.listRecords},
-		connect.Method{Spec: recordServicePlanRecordSaveSpec(), Handler: adapter.planRecordSave},
-		connect.Method{Spec: recordServiceSaveRecordSpec(), Handler: adapter.saveRecord},
+		connect.Method{Spec: recordServiceGetRecordSpec(), Handler: adapter.getRecord},
+		connect.Method{Spec: recordServiceCreateRecordSpec(), Handler: adapter.createRecord},
+		connect.Method{Spec: recordServiceUpdateRecordSpec(), Handler: adapter.updateRecord},
 		connect.Method{Spec: recordServiceDeleteRecordSpec(), Handler: adapter.deleteRecord},
+		connect.Method{Spec: recordServiceListRecordHistorySpec(), Handler: adapter.listRecordHistory},
 	)
 }
 
@@ -115,16 +133,24 @@ func (UnimplementedRecordServiceHandler) ListRecords(context.Context, *v1.ListRe
 	return nil, connect.NewError(connect.CodeUnimplemented, "athena.v1.RecordService.ListRecords is not implemented")
 }
 
-func (UnimplementedRecordServiceHandler) PlanRecordSave(context.Context, *v1.PlanRecordSaveRequest) (*v1.PlanRecordSaveResponse, error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, "athena.v1.RecordService.PlanRecordSave is not implemented")
+func (UnimplementedRecordServiceHandler) GetRecord(context.Context, *v1.GetRecordRequest) (*v1.GetRecordResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "athena.v1.RecordService.GetRecord is not implemented")
 }
 
-func (UnimplementedRecordServiceHandler) SaveRecord(context.Context, *v1.SaveRecordRequest) (*v1.SaveRecordResponse, error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, "athena.v1.RecordService.SaveRecord is not implemented")
+func (UnimplementedRecordServiceHandler) CreateRecord(context.Context, *v1.CreateRecordRequest) (*v1.CreateRecordResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "athena.v1.RecordService.CreateRecord is not implemented")
+}
+
+func (UnimplementedRecordServiceHandler) UpdateRecord(context.Context, *v1.UpdateRecordRequest) (*v1.UpdateRecordResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "athena.v1.RecordService.UpdateRecord is not implemented")
 }
 
 func (UnimplementedRecordServiceHandler) DeleteRecord(context.Context, *v1.DeleteRecordRequest) (*v1.DeleteRecordResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, "athena.v1.RecordService.DeleteRecord is not implemented")
+}
+
+func (UnimplementedRecordServiceHandler) ListRecordHistory(context.Context, *v1.ListRecordHistoryRequest) (*v1.ListRecordHistoryResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "athena.v1.RecordService.ListRecordHistory is not implemented")
 }
 
 type recordServiceClient struct {
@@ -139,17 +165,25 @@ func (c *recordServiceClient) ListRecords(ctx context.Context, req *v1.ListRecor
 	return &res, nil
 }
 
-func (c *recordServiceClient) PlanRecordSave(ctx context.Context, req *v1.PlanRecordSaveRequest) (*v1.PlanRecordSaveResponse, error) {
-	var res v1.PlanRecordSaveResponse
-	if err := c.client.CallUnary(ctx, recordServicePlanRecordSaveSpec(), req, &res); err != nil {
+func (c *recordServiceClient) GetRecord(ctx context.Context, req *v1.GetRecordRequest) (*v1.GetRecordResponse, error) {
+	var res v1.GetRecordResponse
+	if err := c.client.CallUnary(ctx, recordServiceGetRecordSpec(), req, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
 }
 
-func (c *recordServiceClient) SaveRecord(ctx context.Context, req *v1.SaveRecordRequest) (*v1.SaveRecordResponse, error) {
-	var res v1.SaveRecordResponse
-	if err := c.client.CallUnary(ctx, recordServiceSaveRecordSpec(), req, &res); err != nil {
+func (c *recordServiceClient) CreateRecord(ctx context.Context, req *v1.CreateRecordRequest) (*v1.CreateRecordResponse, error) {
+	var res v1.CreateRecordResponse
+	if err := c.client.CallUnary(ctx, recordServiceCreateRecordSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *recordServiceClient) UpdateRecord(ctx context.Context, req *v1.UpdateRecordRequest) (*v1.UpdateRecordResponse, error) {
+	var res v1.UpdateRecordResponse
+	if err := c.client.CallUnary(ctx, recordServiceUpdateRecordSpec(), req, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -158,6 +192,14 @@ func (c *recordServiceClient) SaveRecord(ctx context.Context, req *v1.SaveRecord
 func (c *recordServiceClient) DeleteRecord(ctx context.Context, req *v1.DeleteRecordRequest) (*v1.DeleteRecordResponse, error) {
 	var res v1.DeleteRecordResponse
 	if err := c.client.CallUnary(ctx, recordServiceDeleteRecordSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *recordServiceClient) ListRecordHistory(ctx context.Context, req *v1.ListRecordHistoryRequest) (*v1.ListRecordHistoryResponse, error) {
+	var res v1.ListRecordHistoryResponse
+	if err := c.client.CallUnary(ctx, recordServiceListRecordHistorySpec(), req, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -177,24 +219,36 @@ func (h recordServiceHandler) listRecords(ctx context.Context, _ connect.Spec, s
 	return stream.Send(res)
 }
 
-func (h recordServiceHandler) planRecordSave(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
-	var req v1.PlanRecordSaveRequest
+func (h recordServiceHandler) getRecord(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.GetRecordRequest
 	if err := stream.Receive(&req); err != nil {
 		return err
 	}
-	res, err := h.svc.PlanRecordSave(ctx, &req)
+	res, err := h.svc.GetRecord(ctx, &req)
 	if err != nil {
 		return err
 	}
 	return stream.Send(res)
 }
 
-func (h recordServiceHandler) saveRecord(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
-	var req v1.SaveRecordRequest
+func (h recordServiceHandler) createRecord(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.CreateRecordRequest
 	if err := stream.Receive(&req); err != nil {
 		return err
 	}
-	res, err := h.svc.SaveRecord(ctx, &req)
+	res, err := h.svc.CreateRecord(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h recordServiceHandler) updateRecord(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.UpdateRecordRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.UpdateRecord(ctx, &req)
 	if err != nil {
 		return err
 	}
@@ -207,6 +261,18 @@ func (h recordServiceHandler) deleteRecord(ctx context.Context, _ connect.Spec, 
 		return err
 	}
 	res, err := h.svc.DeleteRecord(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h recordServiceHandler) listRecordHistory(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.ListRecordHistoryRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.ListRecordHistory(ctx, &req)
 	if err != nil {
 		return err
 	}

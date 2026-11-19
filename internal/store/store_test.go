@@ -10,7 +10,7 @@ import (
 )
 
 func TestShortenIdentifierIsDeterministicAndBounded(t *testing.T) {
-	const postgresLimit = 63
+	const postgresLimit = GeneratedIdentLimit
 	long := "athena_record_" + strings.Repeat("a", 50)
 	a, b := ShortenIdentifier(long, postgresLimit), ShortenIdentifier(long, postgresLimit)
 	if a != b {
@@ -64,7 +64,7 @@ func TestMariaDBStatements(t *testing.T) {
 	if got := d.QuoteIdent("a`b"); got != "`a``b`" {
 		t.Errorf("QuoteIdent = %s", got)
 	}
-	create := d.CreateRecordTable("t", []Column{{Name: "name", Type: "VARCHAR(255)"}})
+	create := d.CreateRecordTypeTable("t", []Column{{Name: "name", Type: "VARCHAR(255)"}})
 	for _, want := range []string{"CREATE TABLE IF NOT EXISTS `t`", "`id` CHAR(36) NOT NULL PRIMARY KEY", "`revision` BIGINT NOT NULL DEFAULT 1", "ON UPDATE CURRENT_TIMESTAMP", "`name` VARCHAR(255) NULL"} {
 		if !strings.Contains(create, want) {
 			t.Errorf("create table lacks %q: %s", want, create)
@@ -79,6 +79,9 @@ func TestMariaDBStatements(t *testing.T) {
 		d.AddForeignKey("t", "fk", "c", "u"):                  "ALTER TABLE `t` ADD CONSTRAINT `fk` FOREIGN KEY (`c`) REFERENCES `u` (`id`) ON DELETE RESTRICT",
 		d.Upsert("t", []string{"k", "v"}, "k", []string{"v"}): "INSERT INTO `t` (`k`,`v`) VALUES (?,?) ON DUPLICATE KEY UPDATE `v` = VALUES(`v`)",
 		d.Upsert("t", []string{"k"}, "k", nil):                "INSERT INTO `t` (`k`) VALUES (?) ON DUPLICATE KEY UPDATE `k` = `k`",
+		d.RenameTable("t", "u"):                               "RENAME TABLE `t` TO `u`",
+		d.RenameColumn("t", "a", "b"):                         "ALTER TABLE `t` RENAME COLUMN `a` TO `b`",
+		d.RenameIndex("t", "i", "j"):                          "ALTER TABLE `t` RENAME INDEX `i` TO `j`",
 		d.AddRevisionColumn("t"):                              "ALTER TABLE `t` ADD COLUMN IF NOT EXISTS `revision` BIGINT NOT NULL DEFAULT 1 AFTER `id`",
 	}
 	for got, want := range checks {

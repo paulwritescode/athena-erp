@@ -1,6 +1,6 @@
 import type { Field } from './types'
 
-// Mirrors the server's checks in internal/server/entries.go (fieldArgument and
+// Mirrors the server's checks in internal/server/records.go (fieldArgument and
 // bindValues) so people see the same error before the request is sent. The
 // server still validates every write.
 const maxLength: Partial<Record<string, number>> = { Text: 255, Email: 320, Phone: 40, Select: 120, 'Long text': 65535 }
@@ -33,7 +33,7 @@ export function validateField(field: Field, text: string): string {
     case 'Date':
       return isCalendarDate(value) ? '' : 'Enter a date.'
     case 'Link':
-      return uuid.test(value) ? '' : `Enter the ID of a ${field.target_record ?? 'linked'} entry.`
+      return uuid.test(value) ? '' : `Enter the ID of a ${field.target_record_type ?? 'linked'} record.`
     default:
       return ''
   }

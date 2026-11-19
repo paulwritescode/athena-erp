@@ -61,9 +61,9 @@ type GetSystemInfoResponse struct {
 	state       protoimpl.MessageState `protogen:"open.v1"`
 	ProductName string                 `protobuf:"bytes,1,opt,name=product_name,json=productName,proto3" json:"product_name,omitempty"`
 	Version     string                 `protobuf:"bytes,2,opt,name=version,proto3" json:"version,omitempty"`
-	// Empty when the server runs without a project (athena serve).
-	ProjectName string `protobuf:"bytes,3,opt,name=project_name,json=projectName,proto3" json:"project_name,omitempty"`
-	ProjectSlug string `protobuf:"bytes,4,opt,name=project_slug,json=projectSlug,proto3" json:"project_slug,omitempty"`
+	// Empty when the server runs without a Workspace (athena serve).
+	WorkspaceName string `protobuf:"bytes,3,opt,name=workspace_name,json=workspaceName,proto3" json:"workspace_name,omitempty"`
+	WorkspaceSlug string `protobuf:"bytes,4,opt,name=workspace_slug,json=workspaceSlug,proto3" json:"workspace_slug,omitempty"`
 	// True when the server exports OpenTelemetry; the desk then sends its own
 	// traces to /otlp/v1/traces on the same origin.
 	TelemetryEnabled bool `protobuf:"varint,5,opt,name=telemetry_enabled,json=telemetryEnabled,proto3" json:"telemetry_enabled,omitempty"`
@@ -115,16 +115,16 @@ func (x *GetSystemInfoResponse) GetVersion() string {
 	return ""
 }
 
-func (x *GetSystemInfoResponse) GetProjectName() string {
+func (x *GetSystemInfoResponse) GetWorkspaceName() string {
 	if x != nil {
-		return x.ProjectName
+		return x.WorkspaceName
 	}
 	return ""
 }
 
-func (x *GetSystemInfoResponse) GetProjectSlug() string {
+func (x *GetSystemInfoResponse) GetWorkspaceSlug() string {
 	if x != nil {
-		return x.ProjectSlug
+		return x.WorkspaceSlug
 	}
 	return ""
 }
@@ -141,12 +141,12 @@ var File_athena_v1_system_proto protoreflect.FileDescriptor
 const file_athena_v1_system_proto_rawDesc = "" +
 	"\n" +
 	"\x16athena/v1/system.proto\x12\tathena.v1\"\x16\n" +
-	"\x14GetSystemInfoRequest\"\xc7\x01\n" +
+	"\x14GetSystemInfoRequest\"\xcf\x01\n" +
 	"\x15GetSystemInfoResponse\x12!\n" +
 	"\fproduct_name\x18\x01 \x01(\tR\vproductName\x12\x18\n" +
-	"\aversion\x18\x02 \x01(\tR\aversion\x12!\n" +
-	"\fproject_name\x18\x03 \x01(\tR\vprojectName\x12!\n" +
-	"\fproject_slug\x18\x04 \x01(\tR\vprojectSlug\x12+\n" +
+	"\aversion\x18\x02 \x01(\tR\aversion\x12%\n" +
+	"\x0eworkspace_name\x18\x03 \x01(\tR\rworkspaceName\x12%\n" +
+	"\x0eworkspace_slug\x18\x04 \x01(\tR\rworkspaceSlug\x12+\n" +
 	"\x11telemetry_enabled\x18\x05 \x01(\bR\x10telemetryEnabled2c\n" +
 	"\rSystemService\x12R\n" +
 	"\rGetSystemInfo\x12\x1f.athena.v1.GetSystemInfoRequest\x1a .athena.v1.GetSystemInfoResponseB#Z!athena-erp/gen/athena/v1;athenav1b\x06proto3"

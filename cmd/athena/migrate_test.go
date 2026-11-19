@@ -12,7 +12,7 @@ import (
 func TestMigrateCommand(t *testing.T) {
 	_, cfg := testdb.NewWithConfig(t)
 	t.Setenv("ATHENA_DATABASE_URL", cfg.FormatDSN())
-	t.Chdir(t.TempDir()) // no workspace here, so the DSN fallback applies
+	t.Chdir(t.TempDir()) // no home here, so the DSN fallback applies
 
 	run := func(args ...string) string {
 		t.Helper()
@@ -35,7 +35,7 @@ func TestMigrateCommand(t *testing.T) {
 	if out := run("up", "--to", "2"); !strings.Contains(out, "Applied 2 record_operations") || strings.Contains(out, "entry_history") {
 		t.Fatalf("up --to 2 = %q", out)
 	}
-	if out := run("up"); !strings.Contains(out, "Applied 4 entry_revisions") {
+	if out := run("up"); !strings.Contains(out, "Applied 5 vocabulary_rename") {
 		t.Fatalf("up = %q", out)
 	}
 	if out := run("up"); !strings.Contains(out, "No pending migrations") {
@@ -46,7 +46,7 @@ func TestMigrateCommand(t *testing.T) {
 	if err := json.Unmarshal([]byte(run("status", "--json")), &lines); err != nil {
 		t.Fatal(err)
 	}
-	if len(lines) != 4 || !lines[3].Applied || lines[3].AppliedAt == nil {
+	if len(lines) != 5 || !lines[4].Applied || lines[4].AppliedAt == nil {
 		t.Fatalf("json status = %+v", lines)
 	}
 	if strings.Contains(run("status", "--json"), cfg.Passwd) && cfg.Passwd != "" {

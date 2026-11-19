@@ -59,7 +59,7 @@ func schemaOf(t *testing.T, db *sql.DB) []string {
 	t.Helper()
 	rows, err := db.Query(`SELECT table_name, column_name, column_type, is_nullable, IFNULL(column_default, '-')
 		FROM information_schema.columns
-		WHERE table_schema = DATABASE() AND table_name LIKE 'athena\_%' AND table_name <> 'athena_migrations'
+		WHERE table_schema = DATABASE() AND (table_name LIKE 'athena\_%' OR table_name LIKE 'p\_%') AND table_name <> 'athena_migrations'
 		ORDER BY table_name, column_name`)
 	if err != nil {
 		t.Fatal(err)
@@ -109,7 +109,7 @@ func TestFreshAndPreVersionedDatabasesReachTheSameSchema(t *testing.T) {
 		if got[i] != want[i] {
 			t.Fatalf("schema differs at %d: old %q, fresh %q", i, got[i], want[i])
 		}
-		hasRevision = hasRevision || strings.HasPrefix(got[i], "athena_record_legacy.revision ")
+		hasRevision = hasRevision || strings.HasPrefix(got[i], "p_workspace__legacy.revision ")
 	}
 	if !hasRevision {
 		t.Fatal("legacy Record table did not gain its revision column")

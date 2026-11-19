@@ -1,5 +1,7 @@
 # ADR-0003: A Record definition maps to a MariaDB table
 
+> **Amended by [ADR-0008](adr-0008-vocabulary.md) and [ADR-0009](adr-0009-storage-shapes.md) (both Proposed).** This ADR keeps the vocabulary of its date: read "Record definition" as Record Type, "Record entry" as Record and "Module" as Pack. The table name `athena_record_<key>` is now `p_workspace__<key>`. See the Amendments section.
+
 - **Status:** Accepted
 - **Date:** 2026-11-17
 - **Decision owner:** Project owner
@@ -28,3 +30,8 @@ The accepted product direction also requires dashboard-authored Records to produ
 ## Revisit when
 
 Revisit the naming, DDL, or source-generation contract before adding Record-entry writes, production dashboard authoring, module installation, or a second SQL database.
+
+## Amendments
+
+- **ADR-0008 (Proposed):** the definition is called a Record Type and a row is called a Record. `EntryService` is now `RecordService`, and `RecordService` (definitions) is `RecordTypeService`. `PlanRecordSave` is `PlanRecordTypeSave`.
+- **ADR-0009 (Proposed):** a Record Type's table is `p_<pack>__<key>` (`p_workspace__<key>` for the Workspace's own Record Types) instead of `athena_record_<key>`, shortened at 63 bytes. System migration 5 renames existing tables.

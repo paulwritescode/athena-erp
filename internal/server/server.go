@@ -31,16 +31,16 @@ const (
 // Config selects what one server process serves.
 type Config struct {
 	Addr string
-	// Database is the driver config for the project database. Nil serves the
+	// Database is the driver config for the Workspace database. Nil serves the
 	// desk without a database.
 	Database *mysql.Config
-	// Project, when set, must match the athena_project row in Database.
-	Project *Project
-	Version string
+	// Workspace, when set, must match the athena_workspace row in Database.
+	Workspace *Workspace
+	Version   string
 }
 
-// Project is the identity a server process is bound to for its lifetime.
-type Project struct {
+// Workspace is the identity a server process is bound to for its lifetime.
+type Workspace struct {
 	ID   string
 	Name string
 	Slug string
@@ -50,8 +50,8 @@ type Project struct {
 func Serve(ctx context.Context, config Config) error {
 	addr := config.Addr
 	var attrs []attribute.KeyValue
-	if config.Project != nil {
-		attrs = append(attrs, attribute.String("athena.project.slug", config.Project.Slug), attribute.String("athena.project.id", config.Project.ID))
+	if config.Workspace != nil {
+		attrs = append(attrs, attribute.String("athena.workspace.slug", config.Workspace.Slug), attribute.String("athena.workspace.id", config.Workspace.ID))
 	}
 	tel, err := telemetry.Setup(ctx, config.Version, attrs...)
 	if err != nil {
@@ -69,7 +69,7 @@ func Serve(ctx context.Context, config Config) error {
 		if err != nil {
 			return fmt.Errorf("open MariaDB connection: %w", err)
 		}
-		// otelsql records statement text but never parameter values, so entry
+		// otelsql records statement text but never parameter values, so Record
 		// data stays out of traces.
 		dbAttrs := otelsql.WithAttributes(semconv.DBSystemNameMariaDB)
 		db = otelsql.OpenDB(connector, dbAttrs, otelsql.WithSpanOptions(otelsql.SpanOptions{OmitConnResetSession: true, OmitRows: true}))
@@ -85,8 +85,8 @@ func Serve(ctx context.Context, config Config) error {
 		if err != nil {
 			return fmt.Errorf("connect to MariaDB: %w", err)
 		}
-		if config.Project != nil {
-			if err := checkProject(ctx, db, *config.Project); err != nil {
+		if config.Workspace != nil {
+			if err := checkWorkspace(ctx, db, *config.Workspace); err != nil {
 				return err
 			}
 		}
@@ -94,7 +94,7 @@ func Serve(ctx context.Context, config Config) error {
 			return fmt.Errorf("apply system migrations: %w", err)
 		}
 		if err := resumeOperations(ctx, db); err != nil {
-			return fmt.Errorf("resume interrupted Record saves: %w", err)
+			return fmt.Errorf("resume interrupted Record Type saves: %w", err)
 		}
 		databaseStatus = "Connected"
 		log.Printf("MariaDB connected; metadata tables are ready")
@@ -115,8 +115,8 @@ func Serve(ctx context.Context, config Config) error {
 	}
 	rpcServer := connect.NewServer(interceptors...)
 	athenav1connect.RegisterSystemServiceHandler(rpcServer, systemService{config: config, telemetry: tel.Enabled()})
+	athenav1connect.RegisterRecordTypeServiceHandler(rpcServer, recordTypeService{db: db})
 	athenav1connect.RegisterRecordServiceHandler(rpcServer, recordService{db: db})
-	athenav1connect.RegisterEntryServiceHandler(rpcServer, entryService{db: db})
 	connecthttp.Mount(mux, rpcServer)
 
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
@@ -156,7 +156,7 @@ func Serve(ctx context.Context, config Config) error {
 }
 
 // utcConfig returns a copy of cfg with the session and driver pinned to UTC.
-// TIMESTAMP columns convert through the session time zone, so this keeps entry
+// TIMESTAMP columns convert through the session time zone, so this keeps Record
 // timestamps correct whatever the server's system zone is.
 func utcConfig(base *mysql.Config) *mysql.Config {
 	cfg := base.Clone()
@@ -176,23 +176,24 @@ type systemService struct {
 
 func (s systemService) GetSystemInfo(context.Context, *athenav1.GetSystemInfoRequest) (*athenav1.GetSystemInfoResponse, error) {
 	res := &athenav1.GetSystemInfoResponse{ProductName: "Athena ERP", Version: s.config.Version, TelemetryEnabled: s.telemetry}
-	if s.config.Project != nil {
-		res.ProjectName = s.config.Project.Name
-		res.ProjectSlug = s.config.Project.Slug
+	if s.config.Workspace != nil {
+		res.WorkspaceName = s.config.Workspace.Name
+		res.WorkspaceSlug = s.config.Workspace.Slug
 	}
 	return res, nil
 }
 
-// checkProject refuses to serve a database that belongs to another project,
-// which guards against a wrong database name or a restored backup mix-up.
-func checkProject(ctx context.Context, db *sql.DB, project Project) error {
-	var id string
-	err := db.QueryRowContext(ctx, `SELECT id FROM athena_project LIMIT 1`).Scan(&id)
+// checkWorkspace refuses to serve a database that belongs to another
+// Workspace, which guards against a wrong database name or a restored backup
+// mix-up. A database from before the vocabulary rename has no athena_workspace
+// table until migration 5 runs, so the identity is read from the legacy table.
+func checkWorkspace(ctx context.Context, db *sql.DB, workspace Workspace) error {
+	id, err := workspaceIdentity(ctx, db)
 	if err != nil {
-		return fmt.Errorf("database for project %q has no project identity (athena_project): %w", project.Slug, err)
+		return fmt.Errorf("database for workspace %q has no workspace identity (athena_workspace): %w", workspace.Slug, err)
 	}
-	if id != project.ID {
-		return fmt.Errorf("database belongs to project %s, but athena.yaml for %q has id %s; check the database name and backups", id, project.Slug, project.ID)
+	if id != workspace.ID {
+		return fmt.Errorf("database belongs to workspace %s, but athena.yaml for %q has id %s; check the database name and backups", id, workspace.Slug, workspace.ID)
 	}
 	return nil
 }

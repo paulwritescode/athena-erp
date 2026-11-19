@@ -2,108 +2,204 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	athenav1 "athena-erp/gen/athena/v1"
 	"connectrpc.com/connect/v2"
 )
 
-func TestSaveRecordCreatesTableAndChecksRevision(t *testing.T) {
-	ctx := context.Background()
-	records, _ := newServices(t)
-	revision := saveRecord(t, records, "customer", customerFields...)
-	if revision != 1 {
-		t.Fatalf("first revision = %d", revision)
-	}
-	var exists bool
-	if err := records.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'athena_record_customer')`).Scan(&exists); err != nil || !exists {
-		t.Fatalf("table was not provisioned: %v", err)
-	}
-
-	// A new Record whose key is taken is refused rather than overwriting it.
-	_, err := records.SaveRecord(ctx, &athenav1.SaveRecordRequest{Record: &athenav1.Record{Key: "customer", Label: "Again", Fields: customerFields}})
-	requireCode(t, err, connect.CodeAlreadyExists)
-
-	// An additive save at the current revision succeeds and bumps it.
-	withEmail := append([]*athenav1.RecordField{}, customerFields...)
-	withEmail = append(withEmail, &athenav1.RecordField{Key: "email", Label: "Email", Type: "Email"})
-	res, err := records.SaveRecord(ctx, &athenav1.SaveRecordRequest{Record: &athenav1.Record{Key: "customer", Label: "customer", Fields: withEmail}, ExpectedRevision: 1})
-	if err != nil || res.GetRecord().GetRevision() != 2 {
-		t.Fatalf("additive save: %v %v", res, err)
-	}
-
-	// A save from a stale tab still holding revision 1 is refused.
-	_, err = records.SaveRecord(ctx, &athenav1.SaveRecordRequest{Record: &athenav1.Record{Key: "customer", Label: "customer", Fields: withEmail}, ExpectedRevision: 1})
-	requireCode(t, err, connect.CodeAborted)
+var customerFields = []*athenav1.RecordTypeField{
+	{Key: "name", Label: "Name", Type: "Text", Required: true},
+	{Key: "balance", Label: "Balance", Type: "Currency"},
 }
 
-func TestSaveRecordRejectsInvalidDefinitions(t *testing.T) {
-	ctx := context.Background()
-	records, _ := newServices(t)
-	cases := map[string]*athenav1.Record{
-		"bad key":         {Key: "Bad Key", Label: "x"},
-		"reserved field":  {Key: "thing", Label: "x", Fields: []*athenav1.RecordField{{Key: "id", Label: "Id", Type: "Text"}}},
-		"unknown type":    {Key: "thing", Label: "x", Fields: []*athenav1.RecordField{{Key: "a", Label: "A", Type: "Blob"}}},
-		"link to nothing": {Key: "thing", Label: "x", Fields: []*athenav1.RecordField{{Key: "a", Label: "A", Type: "Link", TargetRecordKey: "ghost"}}},
+func newCustomer(t *testing.T, s recordService, name string) *athenav1.Record {
+	t.Helper()
+	res, err := s.CreateRecord(context.Background(), &athenav1.CreateRecordRequest{RecordTypeKey: "customer", Values: map[string]*athenav1.FieldValue{"name": text(name)}})
+	if err != nil {
+		t.Fatalf("create record: %v", err)
 	}
-	for name, record := range cases {
-		t.Run(name, func(t *testing.T) {
-			_, err := records.SaveRecord(ctx, &athenav1.SaveRecordRequest{Record: record})
-			requireCode(t, err, connect.CodeInvalidArgument)
-		})
-	}
+	return res.GetRecord()
 }
 
-func TestPlanAndSaveRequireConfirmationForFieldRemoval(t *testing.T) {
+func TestRecordCreateGetAndValidation(t *testing.T) {
 	ctx := context.Background()
-	records, entries := newServices(t)
-	saveRecord(t, records, "customer", customerFields...)
-	// Removing a field only needs confirmation when it holds values.
-	if _, err := entries.CreateEntry(ctx, &athenav1.CreateEntryRequest{RecordKey: "customer", Values: map[string]*athenav1.FieldValue{"name": text("Acme"), "balance": text("5")}}); err != nil {
+	recordTypes, records := newServices(t)
+	saveRecordType(t, recordTypes, "customer", customerFields...)
+
+	record := newCustomer(t, records, "Acme")
+	if record.GetRevision() != 1 || record.GetValues()["name"].GetStringValue() != "Acme" {
+		t.Fatalf("unexpected record: %v", record)
+	}
+	got, err := records.GetRecord(ctx, &athenav1.GetRecordRequest{RecordTypeKey: "customer", Id: record.GetId()})
+	if err != nil || got.GetRecord().GetId() != record.GetId() {
+		t.Fatalf("get record: %v", err)
+	}
+	if !got.GetRecord().GetValues()["balance"].GetNullValue() {
+		t.Fatal("an unset field reads back as null")
+	}
+
+	_, err = records.CreateRecord(ctx, &athenav1.CreateRecordRequest{RecordTypeKey: "customer", Values: map[string]*athenav1.FieldValue{}})
+	requireCode(t, err, connect.CodeInvalidArgument)
+	_, err = records.CreateRecord(ctx, &athenav1.CreateRecordRequest{RecordTypeKey: "customer", Values: map[string]*athenav1.FieldValue{"name": text("x"), "nope": text("y")}})
+	requireCode(t, err, connect.CodeInvalidArgument)
+	_, err = records.CreateRecord(ctx, &athenav1.CreateRecordRequest{RecordTypeKey: "missing", Values: map[string]*athenav1.FieldValue{}})
+	requireCode(t, err, connect.CodeNotFound)
+}
+
+func TestRecordDecimalKeepsExactValue(t *testing.T) {
+	ctx := context.Background()
+	recordTypes, records := newServices(t)
+	saveRecordType(t, recordTypes, "customer", customerFields...)
+	res, err := records.CreateRecord(ctx, &athenav1.CreateRecordRequest{RecordTypeKey: "customer", Values: map[string]*athenav1.FieldValue{"name": text("Acme"), "balance": text("0.100000")}})
+	if err != nil {
 		t.Fatal(err)
 	}
-	smaller := &athenav1.Record{Key: "customer", Label: "customer", Fields: customerFields[:1]}
-
-	plan, err := records.PlanRecordSave(ctx, &athenav1.PlanRecordSaveRequest{Record: smaller, ExpectedRevision: 1})
-	if err != nil || !plan.GetRequiresConfirmation() || len(plan.GetSteps()) != 1 || !plan.GetSteps()[0].GetDestructive() {
-		t.Fatalf("plan = %v, %v", plan, err)
-	}
-	_, err = records.SaveRecord(ctx, &athenav1.SaveRecordRequest{Record: smaller, ExpectedRevision: 1})
-	requireCode(t, err, connect.CodeFailedPrecondition)
-	if _, err := records.SaveRecord(ctx, &athenav1.SaveRecordRequest{Record: smaller, ExpectedRevision: 1, ConfirmDataLoss: true}); err != nil {
-		t.Fatalf("confirmed removal: %v", err)
+	if got := res.GetRecord().GetValues()["balance"].GetStringValue(); got != "0.1" {
+		t.Fatalf("balance = %q, want 0.1", got)
 	}
 }
 
-func TestDeleteRecordGuards(t *testing.T) {
+func TestRecordUpdateRejectsStaleRevision(t *testing.T) {
 	ctx := context.Background()
-	records, entries := newServices(t)
-	saveRecord(t, records, "customer", customerFields...)
-	linked := append([]*athenav1.RecordField{}, &athenav1.RecordField{Key: "customer", Label: "Customer", Type: "Link", TargetRecordKey: "customer"})
-	saveRecord(t, records, "invoice", linked...)
-	newCustomer(t, entries, "Acme")
+	recordTypes, records := newServices(t)
+	saveRecordType(t, recordTypes, "customer", customerFields...)
+	record := newCustomer(t, records, "Acme")
 
-	// Another Record links to customer.
-	_, err := records.DeleteRecord(ctx, &athenav1.DeleteRecordRequest{Key: "customer", ExpectedRevision: 1, DeleteEntries: true})
-	requireCode(t, err, connect.CodeFailedPrecondition)
-
-	// Stale revision.
-	_, err = records.DeleteRecord(ctx, &athenav1.DeleteRecordRequest{Key: "invoice", ExpectedRevision: 9})
+	update := func(revision int64, name string) (*athenav1.UpdateRecordResponse, error) {
+		return records.UpdateRecord(ctx, &athenav1.UpdateRecordRequest{RecordTypeKey: "customer", Id: record.GetId(), ExpectedRevision: revision, Values: map[string]*athenav1.FieldValue{"name": text(name)}})
+	}
+	first, err := update(1, "Acme Ltd")
+	if err != nil || first.GetRecord().GetRevision() != 2 {
+		t.Fatalf("first update: %v %v", first, err)
+	}
+	// A second writer still holding revision 1 must be refused and change nothing.
+	_, err = update(1, "Other")
 	requireCode(t, err, connect.CodeAborted)
-	_, err = records.DeleteRecord(ctx, &athenav1.DeleteRecordRequest{Key: "ghost", ExpectedRevision: 1})
-	requireCode(t, err, connect.CodeNotFound)
+	got, _ := records.GetRecord(ctx, &athenav1.GetRecordRequest{RecordTypeKey: "customer", Id: record.GetId()})
+	if got.GetRecord().GetValues()["name"].GetStringValue() != "Acme Ltd" || got.GetRecord().GetRevision() != 2 {
+		t.Fatalf("a refused update changed the record: %v", got.GetRecord())
+	}
+}
 
-	// Entries need explicit confirmation.
-	if _, err := records.DeleteRecord(ctx, &athenav1.DeleteRecordRequest{Key: "invoice", ExpectedRevision: 1}); err != nil {
-		t.Fatalf("delete an empty Record: %v", err)
+func TestRecordUnchangedUpdateKeepsRevisionAndWritesNoHistory(t *testing.T) {
+	ctx := context.Background()
+	recordTypes, records := newServices(t)
+	saveRecordType(t, recordTypes, "customer", customerFields...)
+	record := newCustomer(t, records, "Acme")
+	res, err := records.UpdateRecord(ctx, &athenav1.UpdateRecordRequest{RecordTypeKey: "customer", Id: record.GetId(), ExpectedRevision: 1, Values: map[string]*athenav1.FieldValue{"name": text("Acme")}})
+	if err != nil || res.GetRecord().GetRevision() != 1 {
+		t.Fatalf("unchanged update: %v %v", res, err)
 	}
-	_, err = records.DeleteRecord(ctx, &athenav1.DeleteRecordRequest{Key: "customer", ExpectedRevision: 1})
-	requireCode(t, err, connect.CodeFailedPrecondition)
-	if _, err := records.DeleteRecord(ctx, &athenav1.DeleteRecordRequest{Key: "customer", ExpectedRevision: 1, DeleteEntries: true}); err != nil {
-		t.Fatalf("delete with entries: %v", err)
+	history, err := records.ListRecordHistory(ctx, &athenav1.ListRecordHistoryRequest{RecordTypeKey: "customer", Id: record.GetId()})
+	if err != nil || len(history.GetEvents()) != 1 || history.GetEvents()[0].GetAction() != "created" {
+		t.Fatalf("history = %v, %v", history, err)
 	}
-	list, err := records.ListRecords(ctx, &athenav1.ListRecordsRequest{})
-	if err != nil || len(list.GetRecords()) != 0 {
-		t.Fatalf("records after delete: %v %v", list, err)
+}
+
+func TestRecordDeleteRejectsStaleRevision(t *testing.T) {
+	ctx := context.Background()
+	recordTypes, records := newServices(t)
+	saveRecordType(t, recordTypes, "customer", customerFields...)
+	record := newCustomer(t, records, "Acme")
+
+	_, err := records.DeleteRecord(ctx, &athenav1.DeleteRecordRequest{RecordTypeKey: "customer", Id: record.GetId(), ExpectedRevision: 7})
+	requireCode(t, err, connect.CodeAborted)
+	if _, err := records.DeleteRecord(ctx, &athenav1.DeleteRecordRequest{RecordTypeKey: "customer", Id: record.GetId(), ExpectedRevision: 1}); err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+	_, err = records.GetRecord(ctx, &athenav1.GetRecordRequest{RecordTypeKey: "customer", Id: record.GetId()})
+	requireCode(t, err, connect.CodeNotFound)
+	_, err = records.DeleteRecord(ctx, &athenav1.DeleteRecordRequest{RecordTypeKey: "customer", Id: record.GetId(), ExpectedRevision: 1})
+	requireCode(t, err, connect.CodeNotFound)
+}
+
+func TestRecordListPagesInIDOrderWithoutGaps(t *testing.T) {
+	ctx := context.Background()
+	recordTypes, records := newServices(t)
+	saveRecordType(t, recordTypes, "customer", customerFields...)
+	var created []string
+	for i := range 5 {
+		created = append(created, newCustomer(t, records, fmt.Sprintf("Customer %d", i)).GetId())
+	}
+
+	var listed []string
+	token := ""
+	for pages := 0; ; pages++ {
+		if pages > 5 {
+			t.Fatal("paging did not finish")
+		}
+		res, err := records.ListRecords(ctx, &athenav1.ListRecordsRequest{RecordTypeKey: "customer", PageSize: 2, PageToken: token})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, e := range res.GetRecords() {
+			listed = append(listed, e.GetId())
+		}
+		if token = res.GetNextPageToken(); token == "" {
+			break
+		}
+	}
+	if fmt.Sprint(listed) != fmt.Sprint(created) {
+		t.Fatalf("listed %v, want %v", listed, created)
+	}
+
+	// A token issued for one Record Type is refused for another.
+	saveRecordType(t, recordTypes, "supplier", customerFields...)
+	first, _ := records.ListRecords(ctx, &athenav1.ListRecordsRequest{RecordTypeKey: "customer", PageSize: 2})
+	_, err := records.ListRecords(ctx, &athenav1.ListRecordsRequest{RecordTypeKey: "supplier", PageToken: first.GetNextPageToken()})
+	requireCode(t, err, connect.CodeInvalidArgument)
+}
+
+func TestRecordHistoryRecordsEachChange(t *testing.T) {
+	ctx := context.Background()
+	recordTypes, records := newServices(t)
+	saveRecordType(t, recordTypes, "customer", customerFields...)
+	record := newCustomer(t, records, "Acme")
+	if _, err := records.UpdateRecord(ctx, &athenav1.UpdateRecordRequest{RecordTypeKey: "customer", Id: record.GetId(), ExpectedRevision: 1, Values: map[string]*athenav1.FieldValue{"name": text("Acme Ltd")}}); err != nil {
+		t.Fatal(err)
+	}
+	history, err := records.ListRecordHistory(ctx, &athenav1.ListRecordHistoryRequest{RecordTypeKey: "customer", Id: record.GetId()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	events := history.GetEvents()
+	if len(events) != 2 || events[0].GetAction() != "updated" || events[0].GetRevision() != 2 || fmt.Sprint(events[0].GetChangedFields()) != "[name]" || events[1].GetAction() != "created" {
+		t.Fatalf("events = %v", events)
+	}
+	if events[0].GetActor() != localActor {
+		t.Fatalf("actor = %q", events[0].GetActor())
+	}
+}
+
+// The change and its history row share one transaction: when the history write
+// fails, the change must not survive.
+func TestRecordChangeAndHistoryShareATransaction(t *testing.T) {
+	ctx := context.Background()
+	recordTypes, records := newServices(t)
+	saveRecordType(t, recordTypes, "customer", customerFields...)
+	record := newCustomer(t, records, "Acme")
+	if _, err := records.db.ExecContext(ctx, "DROP TABLE athena_record_history"); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := records.UpdateRecord(ctx, &athenav1.UpdateRecordRequest{RecordTypeKey: "customer", Id: record.GetId(), ExpectedRevision: 1, Values: map[string]*athenav1.FieldValue{"name": text("Changed")}})
+	requireCode(t, err, connect.CodeInternal)
+	_, err = records.DeleteRecord(ctx, &athenav1.DeleteRecordRequest{RecordTypeKey: "customer", Id: record.GetId(), ExpectedRevision: 1})
+	requireCode(t, err, connect.CodeInternal)
+	_, err = records.CreateRecord(ctx, &athenav1.CreateRecordRequest{RecordTypeKey: "customer", Values: map[string]*athenav1.FieldValue{"name": text("Second")}})
+	requireCode(t, err, connect.CodeInternal)
+
+	got, err := records.GetRecord(ctx, &athenav1.GetRecordRequest{RecordTypeKey: "customer", Id: record.GetId()})
+	if err != nil {
+		t.Fatalf("record should survive a failed delete: %v", err)
+	}
+	if got.GetRecord().GetRevision() != 1 || got.GetRecord().GetValues()["name"].GetStringValue() != "Acme" {
+		t.Fatalf("a failed history write left a change behind: %v", got.GetRecord())
+	}
+	list, _ := records.ListRecords(ctx, &athenav1.ListRecordsRequest{RecordTypeKey: "customer"})
+	if len(list.GetRecords()) != 1 {
+		t.Fatalf("a failed create left %d records", len(list.GetRecords()))
 	}
 }

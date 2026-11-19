@@ -10,13 +10,13 @@ import (
 	"connectrpc.com/connect/v2"
 )
 
-func newServices(t *testing.T) (recordService, entryService) {
+func newServices(t *testing.T) (recordTypeService, recordService) {
 	t.Helper()
 	db := testdb.New(t)
 	if _, err := store.Up(context.Background(), db, dialect, SystemMigrations(), store.UpOptions{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
-	return recordService{db: db}, entryService{db: db}
+	return recordTypeService{db: db}, recordService{db: db}
 }
 
 func text(v string) *athenav1.FieldValue {
@@ -33,12 +33,12 @@ func requireCode(t *testing.T, err error, want connect.Code) {
 	}
 }
 
-// saveRecord saves a new Record with the given fields and returns its revision.
-func saveRecord(t *testing.T, s recordService, key string, fields ...*athenav1.RecordField) int64 {
+// saveRecordType saves a new Record Type with the given fields and returns its revision.
+func saveRecordType(t *testing.T, s recordTypeService, key string, fields ...*athenav1.RecordTypeField) int64 {
 	t.Helper()
-	res, err := s.SaveRecord(context.Background(), &athenav1.SaveRecordRequest{Record: &athenav1.Record{Key: key, Label: key, Fields: fields}})
+	res, err := s.SaveRecordType(context.Background(), &athenav1.SaveRecordTypeRequest{RecordType: &athenav1.RecordType{Key: key, Label: key, Fields: fields}})
 	if err != nil {
-		t.Fatalf("save Record %s: %v", key, err)
+		t.Fatalf("save Record Type %s: %v", key, err)
 	}
-	return res.GetRecord().GetRevision()
+	return res.GetRecordType().GetRevision()
 }

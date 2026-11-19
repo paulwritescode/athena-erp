@@ -1,15 +1,15 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
 import { create } from '@bufbuild/protobuf'
-import { FieldValueSchema, type FieldValue } from '../gen/athena/v1/entries_pb'
+import { FieldValueSchema, type FieldValue } from '../gen/athena/v1/records_pb'
 import type { SaveAnswers, SavePlan } from '../api'
 import { validateField } from '../fieldRules'
-import type { Field, RecordDefinition } from '../types'
+import type { Field, RecordType } from '../types'
 import { Button } from '@/components/ui/button'
 import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 
 // plan is null when the dialog is closed.
-const props = defineProps<{ record: RecordDefinition; plan: SavePlan | null }>()
+const props = defineProps<{ recordType: RecordType; plan: SavePlan | null }>()
 const emit = defineEmits<{ confirm: [answers: SaveAnswers]; cancel: [] }>()
 
 const texts = reactive<Record<string, string>>({})
@@ -22,7 +22,7 @@ const touched = new Set<string>()
 const destructive = computed(() => props.plan?.steps.some((step) => step.destructive) ?? false)
 const backfillFields = computed<Field[]>(() => {
   const keys = new Set(props.plan?.steps.filter((step) => step.needsBackfill).map((step) => step.fieldKey) ?? [])
-  return props.record.fields.filter((field) => keys.has(field.name))
+  return props.recordType.fields.filter((field) => keys.has(field.name))
 })
 
 watch(() => props.plan, () => {
@@ -62,14 +62,14 @@ function inputType(field: Field) {
   <AlertDialog :open="plan !== null" @update:open="onOpenChange">
     <AlertDialogContent class="migration-dialog">
       <AlertDialogHeader>
-        <AlertDialogTitle>Review changes to {{ record.label }}</AlertDialogTitle>
-        <AlertDialogDescription>Saving changes the table for this Record and its existing entries.</AlertDialogDescription>
+        <AlertDialogTitle>Review changes to {{ recordType.label }}</AlertDialogTitle>
+        <AlertDialogDescription>Saving changes the table for this Record Type and its existing records.</AlertDialogDescription>
       </AlertDialogHeader>
       <ul class="migration-steps">
         <li v-for="step in plan?.steps ?? []" :key="`${step.kind}:${step.fieldKey}`" :class="{ 'is-destructive': step.destructive }">{{ step.description }}.</li>
       </ul>
       <div v-if="backfillFields.length > 0" class="migration-backfills">
-        <p class="migration-note">Fill-in value for entries without one</p>
+        <p class="migration-note">Fill-in value for records without one</p>
         <div v-for="field in backfillFields" :key="field.name" class="form-field" :class="{ 'is-invalid': errors[field.name] }">
           <label :for="`backfill-${field.name}`" class="form-label">{{ field.label }}</label>
           <label v-if="field.type === 'Checkbox'" class="checkbox-row"><input :id="`backfill-${field.name}`" v-model="checks[field.name]" type="checkbox" /><span>{{ checks[field.name] ? 'Yes' : 'No' }}</span></label>

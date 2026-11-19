@@ -28,7 +28,7 @@ type migrationLine struct {
 
 func migrateCommand(args []string, out io.Writer) error {
 	if len(args) == 0 || args[0] == "help" || args[0] == "--help" || args[0] == "-h" {
-		fmt.Fprintln(out, "usage: athena migrate status|up [--project slug] [--json]; up also takes [--to N] [--dry-run]")
+		fmt.Fprintln(out, "usage: athena migrate status|up [--workspace slug] [--json]; up also takes [--to N] [--dry-run]")
 		return nil
 	}
 	sub := args[0]
@@ -36,7 +36,7 @@ func migrateCommand(args []string, out io.Writer) error {
 		return fmt.Errorf("unknown migrate command %q; use status or up", sub)
 	}
 	flags := flag.NewFlagSet("migrate "+sub, flag.ContinueOnError)
-	slug := flags.String("project", "", "project slug, when running from the workspace directory")
+	slug := flags.String("workspace", "", "workspace slug, when running from the home directory")
 	asJSON := flags.Bool("json", false, "print JSON")
 	var target *int
 	var dryRun *bool
@@ -50,7 +50,7 @@ func migrateCommand(args []string, out io.Writer) error {
 	if flags.NArg() > 0 {
 		return fmt.Errorf("unexpected argument %q", flags.Arg(0))
 	}
-	cfg, project, err := migrationTarget(*slug)
+	cfg, workspace, err := migrationTarget(*slug)
 	if err != nil {
 		return err
 	}
@@ -59,7 +59,7 @@ func migrateCommand(args []string, out io.Writer) error {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
 	if sub == "status" {
-		states, err := server.MigrationStatus(ctx, cfg, project)
+		states, err := server.MigrationStatus(ctx, cfg, workspace)
 		if err != nil {
 			return err
 		}
@@ -83,7 +83,7 @@ func migrateCommand(args []string, out io.Writer) error {
 		}
 		return nil
 	}
-	applied, err := server.Migrate(ctx, cfg, project, server.MigrationOptions{Target: *target, DryRun: *dryRun})
+	applied, err := server.Migrate(ctx, cfg, workspace, server.MigrationOptions{Target: *target, DryRun: *dryRun})
 	if err != nil {
 		return err
 	}
@@ -108,12 +108,12 @@ func migrateCommand(args []string, out io.Writer) error {
 	return nil
 }
 
-// migrationTarget resolves the project like `run`, or falls back to
+// migrationTarget resolves the workspace like `run`, or falls back to
 // ATHENA_DATABASE_URL like `serve`. It never prints the DSN.
-func migrationTarget(slug string) (*mysql.Config, *server.Project, error) {
-	p, cfg, err := resolveProject(slug)
+func migrationTarget(slug string) (*mysql.Config, *server.Workspace, error) {
+	p, cfg, err := resolveWorkspace(slug)
 	if err == nil {
-		return cfg, &server.Project{ID: p.Manifest.ID, Name: p.Manifest.Name, Slug: p.Manifest.Slug}, nil
+		return cfg, &server.Workspace{ID: p.Manifest.ID, Name: p.Manifest.Name, Slug: p.Manifest.Slug}, nil
 	}
 	dsn := os.Getenv("ATHENA_DATABASE_URL")
 	if slug != "" || dsn == "" {
