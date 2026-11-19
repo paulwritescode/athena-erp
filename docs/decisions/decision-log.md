@@ -8,9 +8,10 @@ This is the canonical status of product and architecture choices. Keep [`AGENTS.
 | --- | --- | --- | --- |
 | ADR-0001 | One Go server serves the embedded frontend and API | Accepted | Vite builds static assets; Go serves them with ConnectRPC. Default address is port 3000. |
 | ADR-0002 | MariaDB is the first relational database | Accepted | PostgreSQL is a later adapter. See [ADR-0002](adr-0002-mariadb-first.md). |
-| ADR-0003 | A Record definition maps to one MariaDB table | Accepted | Go validates the schema and provisions the table. Record-entry CRUD is implemented through `EntryService`; safe versioned migrations remain incomplete. See [ADR-0003](adr-0003-record-table-model.md). |
+| ADR-0003 | A Record definition maps to one MariaDB table | Accepted | Go validates the schema and provisions the table. Record-entry CRUD is implemented through `EntryService`; versioned migrations cover platform tables only (ADR-0006); Record-table migrations remain incomplete. See [ADR-0003](adr-0003-record-table-model.md). |
 | ADR-0004 | One database per project on the workspace database server | Accepted | `athena new` creates `<workspace>/<slug>` and database `<slug>`, fixed at creation; `athena run` checks the project ID and holds a per-user lock. See [ADR-0004](adr-0004-project-per-database.md). |
 | ADR-0005 | Engine-specific SQL sits behind a `Dialect` interface in `internal/store` | Proposed 2026-11-19 | MariaDB is the only implementation and the only tested engine; no PostgreSQL code or support claim. See [ADR-0005](adr-0005-database-dialect-layer.md). |
+| ADR-0006 | Platform tables are created by numbered, idempotent system migrations recorded in `athena_migrations` | Accepted 2026-11-19 | Applied at start-up and by `athena migrate status/up`. Record-definition migrations, rollback and Module upgrades are not covered (O-003). See [ADR-0006](adr-0006-versioned-system-migrations.md). |
 | D-011 | OpenTelemetry for traces and metrics, viewed locally in Grafana (`grafana/otel-lgtm`) | Accepted 2026-11-18 | Optional: off unless `OTEL_EXPORTER_OTLP_ENDPOINT` is set. Server and browser both trace; browser spans go through the Athena origin. Production collector and retention are not chosen. |
 | D-002 | Vue 3 + TypeScript + Vite is the single frontend stack | Accepted | Do not introduce another frontend runtime. |
 | D-003 | ConnectRPC is the Go RPC library and Protobuf is the API contract | Accepted | Records, entries and system info all use ConnectRPC. The JSON `/api/records` endpoint was removed on 2026-11-17. |
@@ -30,7 +31,7 @@ This is the canonical status of product and architecture choices. Keep [`AGENTS.
 | --- | --- | --- |
 | O-001 | When should the PostgreSQL adapter be added? | MariaDB is the only active database target; wait for a concrete need and a dialect/migration design. |
 | O-002 | How do dashboard and codebase Record definitions synchronize? | Decide ownership, precedence, conflict detection, generated-file boundaries, and deployment behavior. |
-| O-003 | How are Record schema upgrades reviewed and applied? | A per-save planner handles add, remove, type-change and required-field backfills with confirmation (`PlanRecordSave`). Versioned migrations, rename detection and rollback are open; the roadmap's P2 design is approved but not yet implemented. |
+| O-003 | How are Record schema upgrades reviewed and applied? | A per-save planner handles add, remove, type-change and required-field backfills with confirmation (`PlanRecordSave`). System migrations are versioned (ADR-0006, accepted). Record-definition migrations, rename detection and rollback are still open. |
 | O-004 | Which relationship cardinalities are supported first? | Link fields currently represent a direct foreign-key reference. Module composition and join tables are not implemented. Define delete/update rules. |
 | O-005 | How are Modules versioned, installed, upgraded, and removed? | Modules must package Record definitions, relationships, rules, UI, dependencies, and migrations. |
 | O-006 | What is the tenancy model? | Not selected; do not assume one schema, database, or process per tenant. |

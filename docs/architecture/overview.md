@@ -88,7 +88,8 @@ See [Frontend theme and typography](frontend-theme-and-type.md) for the centrali
 | Module composer and relation/join table management | Product direction accepted; implementation pending |
 | Go Record source generation | Product direction accepted; implementation pending |
 | Starlark rules and safe execution | Product direction accepted; implementation pending |
-| Database dialect layer (`internal/store`) | Implemented for MariaDB only (proposed in ADR-0005): identifier quoting and hash shortening, type mapping, Record-table DDL, upsert, row lock, schema lock, catalogue lookups and error classification. The metadata tables in `server.go` `migrate` still use inline MariaDB DDL until P2 replaces them |
+| Database dialect layer (`internal/store`) | Implemented for MariaDB only (proposed in ADR-0005): identifier quoting and hash shortening, type mapping, Record-table DDL, upsert, row lock, schema lock, catalogue lookups and error classification. Platform-table DDL now lives in versioned system migrations |
+| System migrations (`internal/store/migrate.go`, `server.SystemMigrations`) | Implemented (ADR-0006, accepted): numbered idempotent steps recorded in `athena_migrations`, applied at start-up and by `athena migrate status/up [--to N] [--dry-run]`; refuses a database newer than the build. Record-definition migrations, renames, rollback and Module upgrades are not implemented |
 | PostgreSQL adapter | Later; not implemented and untested. The dialect interface exists so one can be added |
 
 See the [decision log](../decisions/decision-log.md) and [Record and Module model](record-and-module-model.md) for details and remaining design work.

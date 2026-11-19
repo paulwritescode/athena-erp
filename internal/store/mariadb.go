@@ -73,6 +73,10 @@ func (MariaDB) JSONType() string { return "JSON" }
 
 func (MariaDB) Now() string { return "CURRENT_TIMESTAMP" }
 
+func (d MariaDB) CreateMigrationsTable() string {
+	return fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (version INT NOT NULL PRIMARY KEY, name VARCHAR(100) NOT NULL, applied_at TIMESTAMP NOT NULL DEFAULT %s) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci", d.QuoteIdent(MigrationsTable), d.Now())
+}
+
 func (d MariaDB) CreateRecordTable(table string, columns []Column) string {
 	defs := []string{
 		d.QuoteIdent("id") + " CHAR(36) NOT NULL PRIMARY KEY",

@@ -26,7 +26,7 @@ Copy `.env.example` to `.env.local` and set `ATHENA_DATABASE_URL` to a Go MySQL-
 ATHENA_DATABASE_URL='athena_app:change-me@tcp(127.0.0.1:3306)/athena_erp?parseTime=true' make run
 ```
 
-Use a dedicated database and user for Athena. The password above is only an example; keep credentials in the ignored `.env.local`, never in a tracked file. On startup Athena creates metadata tables. Saving a Record definition creates its dedicated table and adds its field columns. A Link field requires a saved target Record and creates a foreign key. Each save is recorded in `athena_record_operations` and checked against the Record's revision, so a save from a stale tab is refused. A save interrupted by a crash is finished at the next startup. Adding optional fields and renaming labels save directly. Removing a field, changing its type or link target, or adding a required field to a table with entries is planned first (`RecordService.PlanRecordSave`) and needs `confirm_data_loss` and fill-in values where the plan asks for them. Versioned migrations and rollback are not implemented. A saved Record can be deleted with `RecordService.DeleteRecord`, which drops its table and entries through the same journal and revision check. It is refused while other Records link to it, and needs `delete_entries` when entries exist. The desk asks for confirmation first; an unsaved Record is just discarded. `make run` stops with an error if `ATHENA_DATABASE_URL` is unset or MariaDB is unreachable, so the served desk always has a database.
+Use a dedicated database and user for Athena. The password above is only an example; keep credentials in the ignored `.env.local`, never in a tracked file. On startup Athena applies pending system migrations, which create the metadata tables (`athena migrate status` lists them, `athena migrate up [--to N] [--dry-run]` applies them without starting the server; both take `--project slug` or fall back to `ATHENA_DATABASE_URL`, and `--json`; `--addr` does not apply because no server starts). Saving a Record definition creates its dedicated table and adds its field columns. A Link field requires a saved target Record and creates a foreign key. Each save is recorded in `athena_record_operations` and checked against the Record's revision, so a save from a stale tab is refused. A save interrupted by a crash is finished at the next startup. Adding optional fields and renaming labels save directly. Removing a field, changing its type or link target, or adding a required field to a table with entries is planned first (`RecordService.PlanRecordSave`) and needs `confirm_data_loss` and fill-in values where the plan asks for them. Record-definition migrations and rollback are not implemented. A saved Record can be deleted with `RecordService.DeleteRecord`, which drops its table and entries through the same journal and revision check. It is refused while other Records link to it, and needs `delete_entries` when entries exist. The desk asks for confirmation first; an unsaved Record is just discarded. `make run` stops with an error if `ATHENA_DATABASE_URL` is unset or MariaDB is unreachable, so the served desk always has a database.
 
 To stop the running server, or stop it and start again after a change:
 
@@ -79,6 +79,7 @@ cd acme_trading && athena run                       # or from the workspace: ath
 - The MariaDB user given to `athena init` must be able to create databases. Its login is saved as `ATHENA_SERVER_URL` in the workspace `.env.local` (owner-only).
 - The project slug, folder and database name come from the name at creation and never change. Renaming the project changes only `name` in `athena.yaml`.
 - A new project contains `athena.yaml`, `AGENTS.md`, `README.md`, `.gitignore`, `.env.example`, `records/` and `storage/uploads/`, and is a Git repository on `main` with no commits.
+- `athena migrate status` and `athena migrate up [--to N] [--dry-run]` show and apply system migrations for a project (or for `ATHENA_DATABASE_URL`) without starting the server.
 - `athena run` refuses a database whose recorded project ID differs from `athena.yaml`.
 - Only one Athena process runs at a time per user (`athena run`, `athena serve` and `make run`). A second launch reports the running project and exits.
 
@@ -106,7 +107,7 @@ MariaDB tests read `ATHENA_TEST_DATABASE_URL`, a DSN for a user who can create a
 cmd/athena/             CLI entry point (`athena init`, `new`, `run`, `serve`, `version`)
 internal/project/        workspaces, project creation, project resolution and the run lock
 internal/server/         Go HTTP/ConnectRPC server and MariaDB-backed Record schema
-internal/store/          Dialect interface and the MariaDB implementation; all engine-specific SQL for Records and entries lives here
+internal/store/          Dialect interface, the MariaDB implementation and the system migration runner; engine-specific SQL lives here
 internal/webui/          embedded frontend assets
 proto/athena/v1/         Protobuf API contract
 gen/                    generated Go API code

@@ -49,6 +49,8 @@ func run(args []string) error {
 		return runCommand(args[1:])
 	case "serve":
 		return serveCommand(args[1:])
+	case "migrate":
+		return migrateCommand(args[1:], os.Stdout)
 	case "version", "--version", "-v":
 		fmt.Println(version)
 		return nil
@@ -75,6 +77,12 @@ Usage:
       automatically; from the workspace pass --project.
   athena serve [--addr %s]
       Run against ATHENA_DATABASE_URL without a project (development).
+  athena migrate status [--project slug] [--json]
+      List the system migrations and whether the database has applied them.
+      Writes nothing. Without a project it uses ATHENA_DATABASE_URL.
+  athena migrate up [--project slug] [--to N] [--dry-run] [--json]
+      Apply pending system migrations. The server also applies them at start.
+      --to N stops after migration N; --dry-run lists them without applying.
   athena version
 `, version, defaultAddr, defaultAddr)
 }
@@ -181,15 +189,7 @@ func runCommand(args []string) error {
 	if ok, err := parse(flags, args); !ok {
 		return err
 	}
-	p, err := project.Resolve(".", *slug)
-	if err != nil {
-		return err
-	}
-	env, err := project.LoadEnv(filepath.Join(p.Root, ".env.local"), filepath.Join(p.Workspace, ".env.local"))
-	if err != nil {
-		return err
-	}
-	cfg, err := project.ServerConfig(env[project.ServerURLEnv], p.Manifest.Database.Name)
+	p, cfg, err := resolveProject(*slug)
 	if err != nil {
 		return err
 	}
@@ -207,6 +207,24 @@ func runCommand(args []string) error {
 		Project:  &server.Project{ID: p.Manifest.ID, Name: p.Manifest.Name, Slug: p.Manifest.Slug},
 		Version:  version,
 	})
+}
+
+// resolveProject finds a project and the database config its server login and
+// database name give.
+func resolveProject(slug string) (project.Project, *mysql.Config, error) {
+	p, err := project.Resolve(".", slug)
+	if err != nil {
+		return project.Project{}, nil, err
+	}
+	env, err := project.LoadEnv(filepath.Join(p.Root, ".env.local"), filepath.Join(p.Workspace, ".env.local"))
+	if err != nil {
+		return project.Project{}, nil, err
+	}
+	cfg, err := project.ServerConfig(env[project.ServerURLEnv], p.Manifest.Database.Name)
+	if err != nil {
+		return project.Project{}, nil, err
+	}
+	return p, cfg, nil
 }
 
 func serveCommand(args []string) error {

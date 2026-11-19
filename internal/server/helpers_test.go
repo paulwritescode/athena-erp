@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	athenav1 "athena-erp/gen/athena/v1"
+	"athena-erp/internal/store"
 	"athena-erp/internal/testdb"
 	"connectrpc.com/connect/v2"
 )
@@ -12,7 +13,7 @@ import (
 func newServices(t *testing.T) (recordService, entryService) {
 	t.Helper()
 	db := testdb.New(t)
-	if err := migrate(db); err != nil {
+	if _, err := store.Up(context.Background(), db, dialect, SystemMigrations(), store.UpOptions{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	return recordService{db: db}, entryService{db: db}

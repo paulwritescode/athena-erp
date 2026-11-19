@@ -63,6 +63,9 @@ type Dialect interface {
 	// CreateRecordTable creates a Record table with the system columns
 	// (id, revision, created_at, updated_at) followed by nullable columns.
 	CreateRecordTable(table string, columns []Column) string
+	// CreateMigrationsTable creates athena_migrations (version, name,
+	// applied_at) when it is missing.
+	CreateMigrationsTable() string
 	// AddRevisionColumn adds the revision column to a table that lacks it.
 	AddRevisionColumn(table string) string
 	// AddColumn adds a nullable column when it is missing.

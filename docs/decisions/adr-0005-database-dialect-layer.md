@@ -14,7 +14,7 @@ MariaDB SQL was written inline in the server: backtick quoting, `GET_LOCK`, `ADD
 - `store.MariaDB` is the only implementation. Behavior is unchanged: table names, statements and error messages are the same as before.
 - `ShortenIdentifier(name, limit)` keeps a name unchanged when it fits and otherwise ends it with `_` and 12 hex characters of its SHA-256, so the result is exactly `limit` bytes. MariaDB uses its own 64-byte limit so existing table names do not change. The invariant test checks the 63-byte limit of PostgreSQL.
 - MariaDB never reports a serialization failure separately from a deadlock, so `ErrSerializationFailure` exists for a later engine and MariaDB does not return it.
-- Not covered yet: the metadata tables in `server.go` (`migrate`) keep inline DDL until versioned migrations (P2) replace them. Pagination (`LIMIT ?`) is the same on both planned engines and is not abstracted.
+- The metadata-table DDL moved into versioned system migrations in P2 ([ADR-0006](adr-0006-versioned-system-migrations.md)); those statements are still MariaDB syntax. Pagination (`LIMIT ?`) is the same on both planned engines and is not abstracted.
 ## Consequences
 - Adding an engine means one new `Dialect` implementation plus its tests; nothing in this ADR claims PostgreSQL support, and PostgreSQL stays untested.
 - ADR-0002 is unchanged. Add a "superseded in part" note there only if this ADR is accepted.

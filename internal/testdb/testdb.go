@@ -28,6 +28,14 @@ const namePrefix = "test_athena_"
 // UTC session settings as the server.
 func New(t testing.TB) *sql.DB {
 	t.Helper()
+	db, _ := NewWithConfig(t)
+	return db
+}
+
+// NewWithConfig is New that also returns the driver config for the new
+// database, for code that opens its own connection (the CLI tests).
+func NewWithConfig(t testing.TB) (*sql.DB, *mysql.Config) {
+	t.Helper()
 	dsn := os.Getenv(EnvURL)
 	if dsn == "" {
 		t.Skipf("%s is not set; skipping the MariaDB test", EnvURL)
@@ -56,7 +64,7 @@ func New(t testing.TB) *sql.DB {
 	cfg.DBName = name
 	db := openDB(t, cfg)
 	t.Cleanup(func() { db.Close() })
-	return db
+	return db, cfg
 }
 
 func openDB(t testing.TB, cfg *mysql.Config) *sql.DB {
