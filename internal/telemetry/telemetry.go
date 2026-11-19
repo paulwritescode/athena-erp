@@ -115,9 +115,12 @@ func (t *Telemetry) BrowserTracesHandler() http.Handler {
 			r.Out.Host = target.Host
 			r.Out.Header.Del("Cookie")
 		},
+		// Telemetry is best effort: when the collector is down the spans are
+		// dropped and the browser gets 204, so the desk does not retry or log
+		// a failed request for every batch. The server logs once a minute.
 		ErrorHandler: func(w http.ResponseWriter, _ *http.Request, err error) {
-			reportError(fmt.Errorf("forward browser traces: %w", err))
-			w.WriteHeader(http.StatusBadGateway)
+			reportError(fmt.Errorf("forward browser traces (spans dropped): %w", err))
+			w.WriteHeader(http.StatusNoContent)
 		},
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

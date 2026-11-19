@@ -30,6 +30,7 @@ test: web-deps
 run: web-build
 	@set -a; if [ -f .env.local ]; then . ./.env.local; fi; set +a; \
 	if [ -z "$$ATHENA_DATABASE_URL" ]; then echo 'ATHENA_DATABASE_URL is not set. Copy .env.example to .env.local and set the MariaDB connection.' >&2; exit 1; fi; \
+	export ATHENA_FILES_DIR="$${ATHENA_FILES_DIR:-.athena/files}"; \
 	go run ./cmd/athena serve $(ARGS)
 
 stop:
