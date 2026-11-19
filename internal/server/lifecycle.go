@@ -13,6 +13,7 @@ import (
 
 	athenav1 "athena-erp/gen/athena/v1"
 	"athena-erp/internal/audit"
+	"athena-erp/internal/auth"
 	"athena-erp/internal/lifecycle"
 	"athena-erp/internal/store"
 
@@ -205,13 +206,23 @@ func (s recordService) transition(ctx context.Context, requestID string, action 
 	if err != nil {
 		return nil, err
 	}
+	p, err := accessFor(ctx)
+	if err != nil {
+		return nil, err
+	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, internalError(string(action)+" record", err)
 	}
 	defer func() { _ = tx.Rollback() }()
+	if err := authorizeRecord(ctx, tx, p, recordType, id, string(action)); err != nil {
+		return nil, err
+	}
 	current, err := loadRecord(ctx, tx, recordType, id, dialect.ForUpdate())
 	if err != nil {
+		return nil, err
+	}
+	if err := checkSeparateDuties(p, recordType, string(action), current); err != nil {
 		return nil, err
 	}
 	if current.GetRevision() != expected {
@@ -241,7 +252,7 @@ func (s recordService) transition(ctx context.Context, requestID string, action 
 		return nil, err
 	}
 	statement := fmt.Sprintf("UPDATE %s SET `docstate` = ?, `revision` = `revision` + 1, `modified_by` = ?, `def_version` = ?, `request_id` = ? WHERE `id` = ? AND `revision` = ?", dialect.QuoteIdent(recordTypeTableName(key)))
-	if _, err := tx.ExecContext(ctx, statement, int32(to), localActor, recordType.Revision, requestID, id, expected); err != nil {
+	if _, err := tx.ExecContext(ctx, statement, int32(to), actorName(ctx), recordType.Revision, requestID, id, expected); err != nil {
 		return nil, writeError(string(action)+" record", err)
 	}
 	changes := []audit.Change{{Field: "docstate", Old: ptr(fmt.Sprint(int32(from))), New: ptr(fmt.Sprint(int32(to)))}}
@@ -275,7 +286,12 @@ func (s recordService) transition(ctx context.Context, requestID string, action 
 		return nil, internalError(string(action)+" record", err)
 	}
 	s.fireAfter(ctx, steps, event)
-	return s.load(ctx, recordType, id)
+	record, err := s.load(ctx, recordType, id)
+	if err != nil {
+		return nil, err
+	}
+	maskRecord(hiddenFields(p, recordType), record)
+	return record, nil
 }
 
 func (s recordService) AmendRecord(ctx context.Context, req *athenav1.AmendRecordRequest) (res *athenav1.AmendRecordResponse, err error) {
@@ -288,11 +304,18 @@ func (s recordService) AmendRecord(ctx context.Context, req *athenav1.AmendRecor
 	if !recordType.Amendable {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, fmt.Sprintf("%s is not amendable", recordType.Label))
 	}
+	p, err := accessFor(ctx)
+	if err != nil {
+		return nil, err
+	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, internalError("amend record", err)
 	}
 	defer func() { _ = tx.Rollback() }()
+	if err := authorizeRecord(ctx, tx, p, recordType, req.GetId(), auth.ActionAmend); err != nil {
+		return nil, err
+	}
 	original, err := loadRecord(ctx, tx, recordType, req.GetId(), dialect.ForUpdate())
 	if err != nil {
 		return nil, err
@@ -326,7 +349,7 @@ func (s recordService) AmendRecord(ctx context.Context, req *athenav1.AmendRecor
 	if err != nil {
 		return nil, internalError("generate record ID", err)
 	}
-	system := map[string]any{"created_by": localActor, "modified_by": localActor, "def_version": recordType.Revision, "request_id": requestID, "owner": localActor, "docstate": int32(lifecycle.Draft), "name": newName, "amended_from": req.GetId()}
+	system := map[string]any{"created_by": actorName(ctx), "modified_by": actorName(ctx), "def_version": recordType.Revision, "request_id": requestID, "owner": actorName(ctx), "docstate": int32(lifecycle.Draft), "name": newName, "amended_from": req.GetId()}
 	if err := insertRow(ctx, tx, recordType, id.String(), system, columns, args); err != nil {
 		return nil, err
 	}
@@ -364,6 +387,7 @@ func (s recordService) AmendRecord(ctx context.Context, req *athenav1.AmendRecor
 	if err != nil {
 		return nil, err
 	}
+	maskRecord(hiddenFields(p, recordType), record)
 	return &athenav1.AmendRecordResponse{Record: record}, nil
 }
 
@@ -452,7 +476,7 @@ func copyChildRecords(ctx context.Context, tx *sql.Tx, parent recordTypeDefiniti
 			if err != nil {
 				return internalError("generate record ID", err)
 			}
-			system := map[string]any{"created_by": localActor, "modified_by": localActor, "def_version": child.Revision, "request_id": requestID, "parent_id": newParentID, "idx": row.GetIdx()}
+			system := map[string]any{"created_by": actorName(ctx), "modified_by": actorName(ctx), "def_version": child.Revision, "request_id": requestID, "parent_id": newParentID, "idx": row.GetIdx()}
 			if err := insertRow(ctx, tx, child, id.String(), system, columns, args); err != nil {
 				return err
 			}
@@ -726,7 +750,7 @@ func writeVersion(ctx context.Context, tx *sql.Tx, recordType recordTypeDefiniti
 		return internalError("write version", err)
 	}
 	if _, err := tx.ExecContext(ctx, "INSERT INTO athena_document_versions (id, record_type_name, record_id, `version`, revision, event, docstate, snapshot, diff, actor, request_id) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-		id.String(), recordType.Name, record.GetId(), version+1, record.GetRevision(), event, record.GetDocstate(), payload, diffPayload, localActor, requestID); err != nil {
+		id.String(), recordType.Name, record.GetId(), version+1, record.GetRevision(), event, record.GetDocstate(), payload, diffPayload, actorName(ctx), requestID); err != nil {
 		return internalError("write version", err)
 	}
 	return nil
@@ -762,7 +786,7 @@ func writeActivity(ctx context.Context, tx *sql.Tx, row activityRow) error {
 		related = row.related
 	}
 	if _, err := tx.ExecContext(ctx, "INSERT INTO athena_activity (id, record_type_name, record_id, event, actor, from_state, to_state, changed_fields, related_id, request_id) VALUES (?,?,?,?,?,?,?,?,?,?)",
-		id.String(), row.recordType, row.recordID, row.event, localActor, from, to, changed, related, row.requestID); err != nil {
+		id.String(), row.recordType, row.recordID, row.event, actorName(ctx), from, to, changed, related, row.requestID); err != nil {
 		return internalError("write activity", err)
 	}
 	return nil
@@ -770,6 +794,17 @@ func writeActivity(ctx context.Context, tx *sql.Tx, row activityRow) error {
 
 func (s recordService) ListRecordVersions(ctx context.Context, req *athenav1.ListRecordVersionsRequest) (*athenav1.ListRecordVersionsResponse, error) {
 	recordType, err := s.submittable(ctx, req.GetRecordTypeKey())
+	if err != nil {
+		return nil, err
+	}
+	p, err := accessFor(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := authorizeRecord(ctx, s.db, p, recordType, req.GetId(), auth.ActionAudit); err != nil {
+		return nil, err
+	}
+	hidden, childHidden, err := hiddenWithChildren(ctx, s.db, p, recordType)
 	if err != nil {
 		return nil, err
 	}
@@ -786,6 +821,11 @@ func (s recordService) ListRecordVersions(ctx context.Context, req *athenav1.Lis
 		if err := rows.Scan(&item.Version, &item.Revision, &item.Event, &item.Docstate, &snapshot, &diff, &item.Actor, &at); err != nil {
 			return nil, internalError("read versions", err)
 		}
+		if len(hidden) > 0 || len(childHidden) > 0 {
+			if snapshot, diff, err = maskVersion(snapshot, diff, hidden, childHidden); err != nil {
+				return nil, internalError("read versions", err)
+			}
+		}
 		item.Snapshot, item.Diff, item.At = string(snapshot), string(diff), at.UTC().Format(time.RFC3339)
 		res.Versions = append(res.Versions, &item)
 	}
@@ -798,6 +838,13 @@ func (s recordService) ListRecordVersions(ctx context.Context, req *athenav1.Lis
 func (s recordService) ListRecordActivity(ctx context.Context, req *athenav1.ListRecordActivityRequest) (*athenav1.ListRecordActivityResponse, error) {
 	recordType, err := s.submittable(ctx, req.GetRecordTypeKey())
 	if err != nil {
+		return nil, err
+	}
+	p, err := accessFor(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := authorizeRecord(ctx, s.db, p, recordType, req.GetId(), auth.ActionAudit); err != nil {
 		return nil, err
 	}
 	rows, err := s.db.QueryContext(ctx, "SELECT event, actor, from_state, to_state, changed_fields, related_id, created_at FROM athena_activity WHERE record_type_name = ? AND record_id = ? ORDER BY created_at DESC, id DESC LIMIT 200", recordType.Name, req.GetId())

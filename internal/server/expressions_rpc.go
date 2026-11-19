@@ -7,6 +7,7 @@ import (
 	"time"
 
 	athenav1 "athena-erp/gen/athena/v1"
+	"athena-erp/internal/auth"
 	"athena-erp/internal/expr"
 	"athena-erp/internal/types"
 )
@@ -54,15 +55,45 @@ func (s recordService) PreviewRecord(ctx context.Context, req *athenav1.PreviewR
 	if err != nil {
 		return nil, err
 	}
+	p, err := accessFor(ctx)
+	if err != nil {
+		return nil, err
+	}
+	hidden := hiddenFields(p, recordType)
+	if err := checkWritable(hidden, recordType, req.GetValues()); err != nil {
+		return nil, err
+	}
+	if req.GetId() != "" {
+		if err := authorizeRecord(ctx, s.db, p, recordType, req.GetId(), auth.ActionRead); err != nil {
+			return nil, err
+		}
+	}
 	res = &athenav1.PreviewRecordResponse{Computed: map[string]*athenav1.FieldValue{}}
 	if !recordType.hasExpressions() {
 		return res, nil
 	}
+	// Hidden fields still take part in the calculation, as they do on save,
+	// but their own results and states are left out of the response.
+	defer func() {
+		if res == nil {
+			return
+		}
+		for key := range hidden {
+			delete(res.Computed, key)
+		}
+		states := res.States[:0]
+		for _, state := range res.States {
+			if !hidden[state.GetKey()] {
+				states = append(states, state)
+			}
+		}
+		res.States = states
+	}()
 	plan, err := compilePlan(ctx, s.db, recordType, nil)
 	if err != nil {
 		return nil, err
 	}
-	values, system := map[string]any{}, newRecordSystemValues(recordType)
+	values, system := map[string]any{}, newRecordSystemValues(ctx, recordType)
 	var current *athenav1.Record
 	if req.GetId() != "" {
 		if current, err = s.load(ctx, recordType, req.GetId()); err != nil {
@@ -166,6 +197,18 @@ func (s recordService) EvaluateExpression(ctx context.Context, req *athenav1.Eva
 	recordType, err := s.recordType(ctx, req.GetRecordTypeKey())
 	if err != nil {
 		return nil, err
+	}
+	p, err := accessFor(ctx)
+	if err != nil {
+		return nil, err
+	}
+	// Fields above the caller's level are not in scope, so an expression
+	// cannot read them.
+	recordType = visibleDefinition(recordType, hiddenFields(p, recordType))
+	if req.GetId() != "" {
+		if err := authorizeRecord(ctx, s.db, p, recordType, req.GetId(), auth.ActionRead); err != nil {
+			return nil, err
+		}
 	}
 	environment, err := newExprEnvironment(ctx, s.db, recordType, nil)
 	if err != nil {

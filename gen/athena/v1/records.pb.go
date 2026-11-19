@@ -903,10 +903,13 @@ func (x *ListRecordHistoryRequest) GetId() string {
 // FieldChange is one field of an Audit Log row. Rows imported from the history
 // that predates the Audit Log name the field only.
 type FieldChange struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Field         string                 `protobuf:"bytes,1,opt,name=field,proto3" json:"field,omitempty"`
-	OldValue      *string                `protobuf:"bytes,2,opt,name=old_value,json=oldValue,proto3,oneof" json:"old_value,omitempty"`
-	NewValue      *string                `protobuf:"bytes,3,opt,name=new_value,json=newValue,proto3,oneof" json:"new_value,omitempty"`
+	state    protoimpl.MessageState `protogen:"open.v1"`
+	Field    string                 `protobuf:"bytes,1,opt,name=field,proto3" json:"field,omitempty"`
+	OldValue *string                `protobuf:"bytes,2,opt,name=old_value,json=oldValue,proto3,oneof" json:"old_value,omitempty"`
+	NewValue *string                `protobuf:"bytes,3,opt,name=new_value,json=newValue,proto3,oneof" json:"new_value,omitempty"`
+	// True when the field is above the caller's permission level: the values
+	// are withheld, only the field name is shown.
+	Masked        bool `protobuf:"varint,4,opt,name=masked,proto3" json:"masked,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -962,6 +965,13 @@ func (x *FieldChange) GetNewValue() string {
 	return ""
 }
 
+func (x *FieldChange) GetMasked() bool {
+	if x != nil {
+		return x.Masked
+	}
+	return false
+}
+
 // RecordEvent is one Audit Log row of a Record.
 type RecordEvent struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -971,7 +981,8 @@ type RecordEvent struct {
 	Revision int64 `protobuf:"varint,2,opt,name=revision,proto3" json:"revision,omitempty"`
 	// Keys of the fields whose values changed.
 	ChangedFields []string `protobuf:"bytes,3,rep,name=changed_fields,json=changedFields,proto3" json:"changed_fields,omitempty"`
-	// Who made the change. "Local administrator" until sign-in exists.
+	// Who made the change: a username, or "Local administrator" for a change
+	// made through the athena command line.
 	Actor string `protobuf:"bytes,4,opt,name=actor,proto3" json:"actor,omitempty"`
 	// RFC 3339 timestamp.
 	At string `protobuf:"bytes,5,opt,name=at,proto3" json:"at,omitempty"`
@@ -2486,11 +2497,12 @@ const file_athena_v1_records_proto_rawDesc = "" +
 	"\x14DeleteRecordResponse\"R\n" +
 	"\x18ListRecordHistoryRequest\x12&\n" +
 	"\x0frecord_type_key\x18\x01 \x01(\tR\rrecordTypeKey\x12\x0e\n" +
-	"\x02id\x18\x02 \x01(\tR\x02id\"\x83\x01\n" +
+	"\x02id\x18\x02 \x01(\tR\x02id\"\x9b\x01\n" +
 	"\vFieldChange\x12\x14\n" +
 	"\x05field\x18\x01 \x01(\tR\x05field\x12 \n" +
 	"\told_value\x18\x02 \x01(\tH\x00R\boldValue\x88\x01\x01\x12 \n" +
-	"\tnew_value\x18\x03 \x01(\tH\x01R\bnewValue\x88\x01\x01B\f\n" +
+	"\tnew_value\x18\x03 \x01(\tH\x01R\bnewValue\x88\x01\x01\x12\x16\n" +
+	"\x06masked\x18\x04 \x01(\bR\x06maskedB\f\n" +
 	"\n" +
 	"_old_valueB\f\n" +
 	"\n" +

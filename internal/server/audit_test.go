@@ -11,6 +11,7 @@ import (
 	athenav1 "athena-erp/gen/athena/v1"
 	"athena-erp/gen/athena/v1/athenav1connect"
 	"athena-erp/internal/audit"
+	"athena-erp/internal/auth"
 	"athena-erp/internal/lifecycle"
 
 	"connectrpc.com/connect/v2"
@@ -118,6 +119,8 @@ func TestAuditRowsCarryValuesAndOneRequestIDLinksEverything(t *testing.T) {
 	// One call, one request ID, on the Record, the Audit Log, the Document
 	// Version and the Activity Timeline.
 	callCtx := context.WithValue(ctx, requestKey{}, requestInfo{id: "0190a1b2-aaaa-7000-8000-000000000001", source: sourceAPI})
+	// An API call always carries the signed-in principal the gate loaded.
+	callCtx = auth.WithPrincipal(callCtx, &auth.Principal{UserID: "u", Username: "owner", Owner: true})
 	res, err := records.SubmitRecord(callCtx, &athenav1.SubmitRecordRequest{RecordTypeKey: "order", Id: order.GetId(), ExpectedRevision: 2})
 	if err != nil {
 		t.Fatal(err)

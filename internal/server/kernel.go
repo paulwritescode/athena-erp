@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"athena-erp/gen/athena/v1/athenav1connect"
+	"athena-erp/internal/auth"
 	"athena-erp/internal/lifecycle"
 	"athena-erp/internal/store"
 
@@ -19,6 +20,12 @@ type Kernel struct {
 	RecordTypes athenav1connect.RecordTypeServiceHandler
 	Records     athenav1connect.RecordServiceHandler
 	System      athenav1connect.SystemServiceHandler
+	// Auth is the AuthService handler. The CLI acts as the operator: it has
+	// no session, so it uses the user, Role and Access Log methods only.
+	Auth athenav1connect.AuthServiceHandler
+	// Users is the auth store, for what only the operator may do, such as
+	// creating an instance owner.
+	Users *auth.Service
 	// Hooks takes Go hooks for the lifecycle events (spec 5.2).
 	Hooks *lifecycle.Registry
 	db    *sql.DB
@@ -41,7 +48,8 @@ func OpenKernel(ctx context.Context, cfg *mysql.Config, workspace *Workspace) (*
 		return nil, fmt.Errorf("resume interrupted Record Type saves: %w", err)
 	}
 	hooks := lifecycle.NewRegistry()
-	return &Kernel{RecordTypes: recordTypeService{db: db}, Records: recordService{db: db, hooks: hooks}, System: systemService{db: db}, Hooks: hooks, db: db}, nil
+	users := &auth.Service{DB: db}
+	return &Kernel{RecordTypes: recordTypeService{db: db}, Records: recordService{db: db, hooks: hooks}, System: systemService{db: db}, Auth: authService{auth: users}, Users: users, Hooks: hooks, db: db}, nil
 }
 
 // Close releases the database connection.

@@ -157,6 +157,9 @@ message FieldChange {
   string field = 1;
   optional string old_value = 2;
   optional string new_value = 3;
+  // True when the field is above the caller's permission level: the values
+  // are withheld, only the field name is shown.
+  bool masked = 4;
 }
 // RecordEvent is one Audit Log row of a Record.
 message RecordEvent {
@@ -166,7 +169,8 @@ message RecordEvent {
   int64 revision = 2;
   // Keys of the fields whose values changed.
   repeated string changed_fields = 3;
-  // Who made the change. "Local administrator" until sign-in exists.
+  // Who made the change: a username, or "Local administrator" for a change
+  // made through the athena command line.
   string actor = 4;
   // RFC 3339 timestamp.
   string at = 5;

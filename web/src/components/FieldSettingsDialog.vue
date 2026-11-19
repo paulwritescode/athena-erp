@@ -57,7 +57,7 @@ function setExpression(name: ExpressionName, value: string | number) {
 function expressionProblem(name: ExpressionName): string {
   return validateExpressionText(props.field?.[name] ?? '')
 }
-function setNumber(name: 'max_length' | 'scale', value: string | number) {
+function setNumber(name: 'max_length' | 'scale' | 'permission_level', value: string | number) {
   if (!props.field) return
   const text = String(value).trim()
   if (text === '') delete props.field[name]
@@ -103,6 +103,8 @@ function onOpenChange(open: boolean) {
           <div class="settings-field"><Label for="fs-max">Maximum</Label><Input id="fs-max" :model-value="field.max ?? ''" :placeholder="type === 'Date' ? 'YYYY-MM-DD' : ''" @update:model-value="setText('max', $event)" /></div>
         </template>
         <div v-if="lengthLimited" class="settings-field"><Label for="fs-length">Maximum length</Label><Input id="fs-length" type="number" min="1" :model-value="field.max_length ?? ''" @update:model-value="setNumber('max_length', $event)" /></div>
+        <div class="settings-field"><Label for="fs-level">Permission level (0 to 9)</Label><Input id="fs-level" type="number" min="0" max="9" :model-value="field.permission_level ?? ''" placeholder="0" @update:model-value="setNumber('permission_level', $event)" /></div>
+        <p class="settings-note">Only people whose Grants reach this level see or change the field. Its old values are masked in the history for everyone else.</p>
         <div v-if="patterned" class="settings-field"><Label for="fs-pattern">Pattern (regular expression)</Label><Input id="fs-pattern" :model-value="field.pattern ?? ''" placeholder="[A-Z]{3}-[0-9]+" @update:model-value="setText('pattern', $event)" /></div>
       </div>
       <div class="settings-grid">

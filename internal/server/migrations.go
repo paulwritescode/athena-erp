@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	athenav1 "athena-erp/gen/athena/v1"
+	"athena-erp/internal/auth"
 	"athena-erp/internal/store"
 	"connectrpc.com/connect/v2"
 )
@@ -50,6 +51,9 @@ func (s migrationStep) proto() *athenav1.MigrationStep {
 func (s recordTypeService) PlanRecordTypeSave(ctx context.Context, req *athenav1.PlanRecordTypeSaveRequest) (*athenav1.PlanRecordTypeSaveResponse, error) {
 	if s.db == nil {
 		return nil, connect.NewError(connect.CodeUnavailable, "the database is not configured")
+	}
+	if _, err := requireSystem(ctx, auth.PermissionBuild); err != nil {
+		return nil, err
 	}
 	if req.GetRecordType() == nil {
 		return nil, invalid("record type is required")

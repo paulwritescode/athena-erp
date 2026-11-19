@@ -89,6 +89,10 @@ message RecordTypeField {
   // depends_on is a display hint: the desk hides the field while it is false.
   // The server does not enforce it.
   string depends_on = 25;
+  // Field permission level, 0 to 9. A user whose highest permission level on
+  // the Record Type is lower cannot see or change the field; their responses
+  // leave it out and the Audit Log masks its values.
+  int32 permission_level = 26;
 }
 
 message RecordType {
@@ -126,6 +130,16 @@ message RecordType {
   // Key of the field whose value labels a Record in pickers. Empty uses the
   // document name, then the first required text field.
   string label_field = 14;
+  // What the caller may do with this Record Type. Filled by ListRecordTypes;
+  // ignored on save.
+  RecordTypeAccess access = 15;
+}
+// RecordTypeAccess is the caller's Grants on one Record Type, merged.
+message RecordTypeAccess {
+  // Any of read, create, write, delete, submit, cancel, amend, audit.
+  repeated string actions = 1;
+  // The highest field permission level the caller has on the Record Type.
+  int32 permission_level = 2;
 }
 
 message ListRecordTypesRequest {}
@@ -144,6 +158,13 @@ message SaveRecordTypeRequest {
   // Values written into empty Records for fields that become required,
   // keyed by field key.
   map<string, FieldValue> backfills = 4;
+  // For a child Record Type: the new definition of its parent, saved in the
+  // same request right after the child, so a rollup formula over a new or
+  // changed child needs no second save. Its revision field is the parent
+  // revision the client edited; the parent must already be saved once. The
+  // parent save runs only when the child save succeeds; if the parent save
+  // then fails, the child stays saved and the error names the parent.
+  RecordType parent = 5;
 }
 
 message PlanRecordTypeSaveRequest {
@@ -174,6 +195,8 @@ message PlanRecordTypeSaveResponse {
 
 message SaveRecordTypeResponse {
   RecordType record_type = 1;
+  // The saved parent, when the request carried one.
+  RecordType parent = 2;
 }
 
 message DeleteRecordTypeRequest {

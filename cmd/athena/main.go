@@ -59,6 +59,12 @@ func run(args []string) error {
 		return recordsCommand(args[1:], os.Stdout)
 	case "expressions":
 		return expressionsCommand(args[1:], os.Stdout)
+	case "user":
+		return userCommand(args[1:], os.Stdout)
+	case "role":
+		return roleCommand(args[1:], os.Stdout)
+	case "access-log":
+		return accessLogCommand(args[1:], os.Stdout)
 	case "version", "--version", "-v":
 		fmt.Println(version)
 		return nil
@@ -107,6 +113,18 @@ Usage:
       Type-check an expression against a Record Type, evaluate it for one
       Record (--record id), or calculate formulas and field states for values
       that are not saved (--values). records list also takes --filter.
+  athena user create|list|set|reset-password <username> [--workspace slug] [--json]
+      Manage sign-in users. "create <username> --owner" creates an instance
+      owner, which the first start of the desk needs; owners hold every
+      permission and are created here only. Passwords (12 or more characters)
+      come from ATHENA_USER_PASSWORD or a prompt. set takes --roles a,b,
+      --disable, --enable, --unlock and --display-name.
+  athena role list|show|save|delete [name] [--workspace slug] [--json]
+      Manage Roles and their Grants. "save --file role.json" takes a JSON
+      Role: system permissions (build, access, audit) and Grants of actions
+      on a Record Type with a permission level and an optional row condition.
+  athena access-log [--event name] [--limit N] [--workspace slug] [--json]
+      Print sign-ins, failures, lockouts, denials and access changes.
   athena audit verify|anchor [--anchor seq:hash] [--workspace slug] [--json]
       verify checks the Audit Log hash chain from the first row to the last and
       prints the chain head. anchor verifies, then prints only "seq:hash" for a

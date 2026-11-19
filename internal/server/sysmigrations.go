@@ -119,6 +119,75 @@ func SystemMigrations() []store.Migration {
 		// counters back naming series (ADR-0012). Old history rows are kept
 		// as imported Audit Log rows.
 		{Version: 8, Name: "audit_log_and_numbering", Up: createAuditAndNumbering},
+		// Users, sessions, Roles, Grants and the Access Log (ADR-0014).
+		{Version: 9, Name: "users_sessions_and_grants", Up: execAll(
+			`CREATE TABLE IF NOT EXISTS athena_users (
+				id CHAR(36) NOT NULL PRIMARY KEY,
+				username VARCHAR(64) NOT NULL,
+				display_name VARCHAR(255) NOT NULL,
+				password_hash VARCHAR(255) NOT NULL,
+				is_owner TINYINT(1) NOT NULL DEFAULT 0,
+				disabled TINYINT(1) NOT NULL DEFAULT 0,
+				failed_attempts INT NOT NULL DEFAULT 0,
+				locked_until TIMESTAMP(3) NULL,
+				last_login_at TIMESTAMP(3) NULL,
+				created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+				updated_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+				UNIQUE KEY uq_users_username (username)
+			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+			`CREATE TABLE IF NOT EXISTS athena_roles (
+				id CHAR(36) NOT NULL PRIMARY KEY,
+				name VARCHAR(100) NOT NULL,
+				description VARCHAR(255) NOT NULL DEFAULT '',
+				system_permissions JSON NOT NULL,
+				created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+				UNIQUE KEY uq_roles_name (name)
+			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+			`CREATE TABLE IF NOT EXISTS athena_grants (
+				id CHAR(36) NOT NULL PRIMARY KEY,
+				role_id CHAR(36) NOT NULL,
+				record_type VARCHAR(140) NOT NULL,
+				actions JSON NOT NULL,
+				permission_level INT NOT NULL DEFAULT 0,
+				row_condition TEXT NULL,
+				separate_duties TINYINT(1) NOT NULL DEFAULT 0,
+				KEY idx_grants_role (role_id),
+				CONSTRAINT fk_grants_role FOREIGN KEY (role_id) REFERENCES athena_roles (id) ON DELETE CASCADE
+			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+			`CREATE TABLE IF NOT EXISTS athena_user_roles (
+				user_id CHAR(36) NOT NULL,
+				role_id CHAR(36) NOT NULL,
+				PRIMARY KEY (user_id, role_id),
+				CONSTRAINT fk_user_roles_user FOREIGN KEY (user_id) REFERENCES athena_users (id) ON DELETE CASCADE,
+				CONSTRAINT fk_user_roles_role FOREIGN KEY (role_id) REFERENCES athena_roles (id) ON DELETE CASCADE
+			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+			`CREATE TABLE IF NOT EXISTS athena_sessions (
+				id CHAR(36) NOT NULL PRIMARY KEY,
+				token_hash CHAR(64) NOT NULL,
+				user_id CHAR(36) NOT NULL,
+				created_at TIMESTAMP(3) NOT NULL,
+				last_seen_at TIMESTAMP(3) NOT NULL,
+				expires_at TIMESTAMP(3) NOT NULL,
+				revoked_at TIMESTAMP(3) NULL,
+				UNIQUE KEY uq_sessions_token (token_hash),
+				KEY idx_sessions_user (user_id),
+				CONSTRAINT fk_sessions_user FOREIGN KEY (user_id) REFERENCES athena_users (id) ON DELETE CASCADE
+			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+			`CREATE TABLE IF NOT EXISTS athena_access_log (
+				id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+				at TIMESTAMP(3) NOT NULL,
+				event VARCHAR(40) NOT NULL,
+				outcome VARCHAR(20) NOT NULL,
+				user_id CHAR(36) NULL,
+				username VARCHAR(64) NULL,
+				procedure_name VARCHAR(200) NULL,
+				record_type VARCHAR(140) NULL,
+				action VARCHAR(40) NULL,
+				request_id CHAR(36) NULL,
+				detail VARCHAR(255) NULL,
+				KEY idx_access_log_event (event, id)
+			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+		)},
 	}
 }
 

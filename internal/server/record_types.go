@@ -13,6 +13,7 @@ import (
 	"unicode/utf8"
 
 	athenav1 "athena-erp/gen/athena/v1"
+	"athena-erp/internal/auth"
 	"athena-erp/internal/store"
 	"connectrpc.com/connect/v2"
 	"github.com/google/uuid"
@@ -74,6 +75,9 @@ type recordTypeField struct {
 	ReadOnlyIf string `json:"read_only_if,omitempty"`
 	Validate   string `json:"validate,omitempty"`
 	DependsOn  string `json:"depends_on,omitempty"`
+	// PermissionLevel (0 to 9) hides the field from users whose Grants reach
+	// a lower level (ADR-0014).
+	PermissionLevel int `json:"permission_level,omitempty"`
 }
 
 // enumValue is one permanent choice of an Enum field.
@@ -137,6 +141,11 @@ func (s recordTypeService) ListRecordTypes(ctx context.Context, _ *athenav1.List
 	if s.db == nil {
 		return nil, connect.NewError(connect.CodeUnavailable, "the database is not configured")
 	}
+	p, err := accessFor(ctx)
+	if err != nil {
+		return nil, err
+	}
+	builder := p == nil || p.HasSystem(auth.PermissionBuild)
 	rows, err := s.db.QueryContext(ctx, `SELECT definition, revision FROM athena_record_types ORDER BY label`)
 	if err != nil {
 		return nil, internalError("list Record Types", err)
@@ -153,7 +162,24 @@ func (s recordTypeService) ListRecordTypes(ctx context.Context, _ *athenav1.List
 		if err := json.Unmarshal(payload, &recordType); err != nil {
 			return nil, internalError("decode Record Type", err)
 		}
-		res.RecordTypes = append(res.RecordTypes, recordTypeToProto(recordType, revision))
+		// A builder sees every Record Type with every field. Anyone else sees
+		// the Record Types a Grant lets them read, without the fields above
+		// their permission level.
+		if !builder {
+			if !p.CanAny(recordType.Name) {
+				continue
+			}
+			recordType = visibleDefinition(recordType, hiddenFields(p, recordType))
+		}
+		item := recordTypeToProto(recordType, revision)
+		access := &athenav1.RecordTypeAccess{PermissionLevel: int32(levelOf(p, recordType.Name))}
+		if p == nil {
+			access.Actions = auth.Actions
+		} else {
+			access.Actions = p.Actions(recordType.Name)
+		}
+		item.Access = access
+		res.RecordTypes = append(res.RecordTypes, item)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, internalError("list Record Types", err)
@@ -164,6 +190,9 @@ func (s recordTypeService) ListRecordTypes(ctx context.Context, _ *athenav1.List
 func (s recordTypeService) SaveRecordType(ctx context.Context, req *athenav1.SaveRecordTypeRequest) (*athenav1.SaveRecordTypeResponse, error) {
 	if s.db == nil {
 		return nil, connect.NewError(connect.CodeUnavailable, "the database is not configured")
+	}
+	if _, err := requireSystem(ctx, auth.PermissionBuild); err != nil {
+		return nil, err
 	}
 	if req.GetRecordType() == nil {
 		return nil, invalid("record type is required")
@@ -180,42 +209,72 @@ func (s recordTypeService) SaveRecordType(ctx context.Context, req *athenav1.Sav
 	}
 	defer unlock()
 
+	var parent *recordTypeDefinition
+	if req.GetParent() != nil {
+		definition := recordTypeFromProto(req.GetParent())
+		if recordType.kind() != kindChild || definition.Name != recordType.ParentRecordType {
+			return nil, invalid("parent must be the Record Type that owns this child Record Type")
+		}
+		// Check the parent's expressions against the child as it will be,
+		// before anything is saved.
+		if _, err := compilePlan(ctx, conn, definition, &recordType); err != nil {
+			return nil, invalid(fmt.Sprintf("%s: %s", definition.Label, connectMessage(err)))
+		}
+		parent = &definition
+	}
+	saved, err := saveOne(ctx, conn, recordType, req.GetExpectedRevision(), req.GetConfirmDataLoss(), req.GetBackfills())
+	if err != nil {
+		return nil, err
+	}
+	res := &athenav1.SaveRecordTypeResponse{RecordType: recordTypeToProto(recordType, saved)}
+	if parent != nil {
+		parentSaved, err := saveOne(ctx, conn, *parent, req.GetParent().GetRevision(), req.GetConfirmDataLoss(), nil)
+		if err != nil {
+			return nil, connect.NewError(connect.CodeOf(err), fmt.Sprintf("%s was saved, but %s was not: %s", recordType.Label, parent.Label, connectMessage(err)))
+		}
+		res.Parent = recordTypeToProto(*parent, parentSaved)
+	}
+	return res, nil
+}
+
+// saveOne validates, plans and runs the save of one Record Type on the
+// connection that holds the schema lock, and returns the new revision.
+func saveOne(ctx context.Context, conn sqlConn, recordType recordTypeDefinition, expected int64, confirm bool, backfills map[string]*athenav1.FieldValue) (int64, error) {
 	previous, revision, err := loadRecordType(ctx, conn, recordType.Name)
 	if err != nil {
-		return nil, internalError("load Record Type", err)
+		return 0, internalError("load Record Type", err)
 	}
-	if revision != req.GetExpectedRevision() {
-		if req.GetExpectedRevision() == 0 {
-			return nil, connect.NewError(connect.CodeAlreadyExists, fmt.Sprintf("a Record Type with the key %q already exists", recordType.Name))
+	if revision != expected {
+		if expected == 0 {
+			return 0, connect.NewError(connect.CodeAlreadyExists, fmt.Sprintf("a Record Type with the key %q already exists", recordType.Name))
 		}
-		return nil, connect.NewError(connect.CodeAborted, "this Record Type was saved somewhere else; reload it and try again")
+		return 0, connect.NewError(connect.CodeAborted, "this Record Type was saved somewhere else; reload it and try again")
 	}
 	if err := validateRecordType(ctx, conn, recordType, previous); err != nil {
-		return nil, err
+		return 0, err
 	}
 	steps, err := planMigration(ctx, conn, recordType, previous)
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
-	opts, err := checkPlan(steps, req.GetConfirmDataLoss(), req.GetBackfills())
+	opts, err := checkPlan(steps, confirm, backfills)
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
 	operationID, err := startOperation(ctx, conn, actionSave, recordType, revision, opts)
 	if err != nil {
-		return nil, internalError("record type save operation", err)
+		return 0, internalError("record type save operation", err)
 	}
 	log.Printf("record type save %s: %s", operationID, describeSteps(steps))
-	saved, err := runOperation(ctx, conn, operationID, recordType, revision, opts)
-	if err != nil {
-		return nil, err
-	}
-	return &athenav1.SaveRecordTypeResponse{RecordType: recordTypeToProto(recordType, saved)}, nil
+	return runOperation(ctx, conn, operationID, recordType, revision, opts)
 }
 
 func (s recordTypeService) DeleteRecordType(ctx context.Context, req *athenav1.DeleteRecordTypeRequest) (*athenav1.DeleteRecordTypeResponse, error) {
 	if s.db == nil {
 		return nil, connect.NewError(connect.CodeUnavailable, "the database is not configured")
+	}
+	if _, err := requireSystem(ctx, auth.PermissionBuild); err != nil {
+		return nil, err
 	}
 	conn, err := s.db.Conn(ctx)
 	if err != nil {
@@ -413,6 +472,9 @@ func validateRecordType(ctx context.Context, conn sqlConn, recordType recordType
 		}
 		if err := validateAttributes(field); err != nil {
 			return err
+		}
+		if field.PermissionLevel < 0 || field.PermissionLevel > auth.MaxPermissionLevel {
+			return invalid(fmt.Sprintf("%s: the permission level is 0 to %d", field.Label, auth.MaxPermissionLevel))
 		}
 		if field.Type == "Link" {
 			if field.TargetRecordType == "" {
@@ -657,7 +719,7 @@ func recordTypeFromProto(recordType *athenav1.RecordType) recordTypeDefinition {
 			Unique: field.GetUnique(), Default: field.GetDefaultValue(), Min: strings.TrimSpace(field.GetMin()), Max: strings.TrimSpace(field.GetMax()), Pattern: field.GetPattern(), MaxLength: int(field.GetMaxLength()),
 			ReadOnly: field.GetReadOnly(), SetOnce: field.GetSetOnce(), NoCopy: field.GetNoCopy(), AllowOnSubmit: field.GetAllowOnSubmit(), Index: field.GetIndex(), Currency: field.GetCurrency(), UoM: field.GetUom(),
 			Formula: strings.TrimSpace(field.GetFormula()), RequiredIf: strings.TrimSpace(field.GetRequiredIf()), ReadOnlyIf: strings.TrimSpace(field.GetReadOnlyIf()),
-			Validate: strings.TrimSpace(field.GetValidate()), DependsOn: strings.TrimSpace(field.GetDependsOn())}
+			Validate: strings.TrimSpace(field.GetValidate()), DependsOn: strings.TrimSpace(field.GetDependsOn()), PermissionLevel: int(field.GetPermissionLevel())}
 		if field.Scale != nil {
 			scale := int(field.GetScale())
 			out.Scale = &scale
@@ -677,7 +739,7 @@ func recordTypeToProto(recordType recordTypeDefinition, revision int64) *athenav
 		out := &athenav1.RecordTypeField{Key: field.Name, Label: field.Label, Type: field.Type, Required: field.Required, TargetRecordTypeKey: field.TargetRecordType,
 			Unique: field.Unique, DefaultValue: field.Default, Min: field.Min, Max: field.Max, Pattern: field.Pattern, MaxLength: int32(field.MaxLength),
 			ReadOnly: field.ReadOnly, SetOnce: field.SetOnce, NoCopy: field.NoCopy, AllowOnSubmit: field.AllowOnSubmit, Index: field.Index, Currency: field.Currency, Uom: field.UoM,
-			Formula: field.Formula, RequiredIf: field.RequiredIf, ReadOnlyIf: field.ReadOnlyIf, Validate: field.Validate, DependsOn: field.DependsOn}
+			Formula: field.Formula, RequiredIf: field.RequiredIf, ReadOnlyIf: field.ReadOnlyIf, Validate: field.Validate, DependsOn: field.DependsOn, PermissionLevel: int32(field.PermissionLevel)}
 		if field.Scale != nil {
 			scale := int32(*field.Scale)
 			out.Scale = &scale

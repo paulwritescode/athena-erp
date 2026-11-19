@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	athenav1 "athena-erp/gen/athena/v1"
+	"athena-erp/internal/auth"
 	"athena-erp/internal/lifecycle"
 
 	"github.com/google/uuid"
@@ -69,10 +70,23 @@ func (s recordService) LookupRecords(ctx context.Context, req *athenav1.LookupRe
 	if err != nil {
 		return nil, err
 	}
-	deleted, docstate := lookupStateColumns(recordType)
-	inner := fmt.Sprintf("SELECT `id`, %s AS `label`, %s AS `is_deleted`, %s AS `doc_state` FROM %s", labelExpression(recordType), deleted, docstate, dialect.QuoteIdent(recordTypeTableName(recordType.Name)))
-	var where []string
+	p, err := accessFor(ctx)
+	if err != nil {
+		return nil, err
+	}
+	scope, err := rowScopeFor(ctx, s.db, p, recordType, auth.ActionRead)
+	if err != nil {
+		return nil, err
+	}
 	var args []any
+	scopeWhere := ""
+	if !scope.unrestricted {
+		scopeWhere = " WHERE " + scope.where
+		args = append(args, scope.args...)
+	}
+	deleted, docstate := lookupStateColumns(recordType)
+	inner := fmt.Sprintf("SELECT `id`, %s AS `label`, %s AS `is_deleted`, %s AS `doc_state` FROM %s%s", labelExpression(visibleDefinition(recordType, hiddenFields(p, recordType))), deleted, docstate, dialect.QuoteIdent(recordTypeTableName(recordType.Name)), scopeWhere)
+	var where []string
 	limit := 0
 	if len(req.GetIds()) > 0 {
 		if len(req.GetIds()) > maxLookupSize {
@@ -84,7 +98,7 @@ func (s recordService) LookupRecords(ctx context.Context, req *athenav1.LookupRe
 			}
 			args = append(args, id)
 		}
-		where = append(where, "`id` IN ("+strings.TrimSuffix(strings.Repeat("?,", len(args)), ",")+")")
+		where = append(where, "`id` IN ("+strings.TrimSuffix(strings.Repeat("?,", len(req.GetIds())), ",")+")")
 	} else {
 		limit = int(req.GetPageSize())
 		if limit <= 0 {

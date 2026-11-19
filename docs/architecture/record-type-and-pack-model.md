@@ -71,7 +71,7 @@ The Starlark editor should use Record Type and field identifiers from the curren
 
 ## Current implementation boundary
 
-The current repository can store Record Types in MariaDB and provision a per-Record-Type table when a definition is saved. Link fields can add a foreign key when the target table exists. The desk builds Record Types and, in View, lists, creates, edits and deletes Records. There is no Pack composition API, Go source generator, Starlark runtime, Record Type migration ledger, authentication, or multi-tenant authorization. Platform tables use versioned system migrations (ADR-0006).
+The current repository can store Record Types in MariaDB and provision a per-Record-Type table when a definition is saved. Link fields can add a foreign key when the target table exists. The desk builds Record Types and, in View, lists, creates, edits and deletes Records. There is no Pack composition API, Go source generator, Starlark runtime, Record Type migration ledger, or multi-tenant authorization. Sign-in, sessions and Grants exist (ADR-0014, Proposed). Platform tables use versioned system migrations (ADR-0006).
 
 ## Open implementation decisions
 

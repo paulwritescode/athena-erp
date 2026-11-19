@@ -12,6 +12,7 @@ import (
 	athenav1 "athena-erp/gen/athena/v1"
 	"athena-erp/gen/athena/v1/athenav1connect"
 	"athena-erp/internal/audit"
+	"athena-erp/internal/auth"
 	"athena-erp/internal/store"
 	"athena-erp/internal/telemetry"
 	"athena-erp/internal/webui"
@@ -106,19 +107,15 @@ func Serve(ctx context.Context, config Config) error {
 	interceptors := []connect.ServerInterceptor{requestInterceptor()}
 	if tel.Enabled() {
 		// Trust the browser's traceparent so a desk click and its server work
-		// share one trace. Safe while the server is loopback-only and
-		// unauthenticated; revisit when remote access is enabled.
+		// share one trace. Safe while the server is loopback-only; revisit
+		// when remote access is enabled.
 		interceptor, err := otelconnect.NewServerInterceptor(otelconnect.WithTrustRemote())
 		if err != nil {
 			return fmt.Errorf("tracing interceptor: %w", err)
 		}
 		interceptors = append(interceptors, interceptor)
 	}
-	rpcServer := connect.NewServer(interceptors...)
-	athenav1connect.RegisterSystemServiceHandler(rpcServer, systemService{config: config, telemetry: tel.Enabled(), db: db})
-	athenav1connect.RegisterRecordTypeServiceHandler(rpcServer, recordTypeService{db: db})
-	athenav1connect.RegisterRecordServiceHandler(rpcServer, recordService{db: db})
-	connecthttp.Mount(mux, rpcServer)
+	mountRPC(mux, config, db, tel.Enabled(), interceptors)
 
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -130,7 +127,7 @@ func Serve(ctx context.Context, config Config) error {
 
 	srv := &http.Server{
 		Addr:              addr,
-		Handler:           mux,
+		Handler:           securityHeaders(mux),
 		ReadHeaderTimeout: readHeaderTimeout,
 	}
 
@@ -156,6 +153,23 @@ func Serve(ctx context.Context, config Config) error {
 	}
 }
 
+// mountRPC registers every ConnectRPC service on mux behind interceptors and
+// the permission gate. The gate runs last, so denials are traced and carry the
+// request ID. Without a database it refuses every call.
+func mountRPC(mux *http.ServeMux, config Config, db *sql.DB, telemetry bool, interceptors []connect.ServerInterceptor) {
+	var authSvc *auth.Service
+	if db != nil {
+		authSvc = &auth.Service{DB: db}
+	}
+	interceptors = append(interceptors, gateInterceptor(authSvc))
+	rpcServer := connect.NewServer(interceptors...)
+	athenav1connect.RegisterSystemServiceHandler(rpcServer, systemService{config: config, telemetry: telemetry, db: db})
+	athenav1connect.RegisterAuthServiceHandler(rpcServer, authService{auth: authSvc})
+	athenav1connect.RegisterRecordTypeServiceHandler(rpcServer, recordTypeService{db: db})
+	athenav1connect.RegisterRecordServiceHandler(rpcServer, recordService{db: db})
+	connecthttp.Mount(mux, rpcServer)
+}
+
 // utcConfig returns a copy of cfg with the session and driver pinned to UTC.
 // TIMESTAMP columns convert through the session time zone, so this keeps Record
 // timestamps correct whatever the server's system zone is.
@@ -179,6 +193,9 @@ type systemService struct {
 func (s systemService) VerifyAuditLog(ctx context.Context, req *athenav1.VerifyAuditLogRequest) (*athenav1.VerifyAuditLogResponse, error) {
 	if s.db == nil {
 		return nil, connect.NewError(connect.CodeUnavailable, "the database is not configured")
+	}
+	if _, err := requireSystem(ctx, auth.PermissionAudit); err != nil {
+		return nil, err
 	}
 	var anchor *audit.Anchor
 	if req.GetAnchor() != "" {

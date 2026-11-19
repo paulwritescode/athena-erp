@@ -1,13 +1,17 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { ConnectError } from '@connectrpc/connect'
-import { deleteRecordType, listRecordTypes, planRecordTypeSave, saveRecordType, systemClient, type SaveAnswers, type SavePlan } from './api'
+import { authClient, deleteRecordType, listRecordTypes, onSessionEnded, planRecordTypeSave, saveRecordType, setCsrfToken, systemClient, type SaveAnswers, type SavePlan } from './api'
+import type { SessionInfo } from './gen/athena/v1/auth_pb'
+import ChangePasswordDialog from './components/ChangePasswordDialog.vue'
+import SignInPage from './pages/SignInPage.vue'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import MigrationDialog from './components/MigrationDialog.vue'
 import { startBrowserTelemetry } from './telemetry'
 import { Button } from '@/components/ui/button'
 import { Toaster } from '@/components/ui/sonner'
 import { toast } from 'vue-sonner'
-import type { RecordType, Page } from './types'
+import type { RecordType, Page, SessionUser } from './types'
 import OverviewPage from './pages/OverviewPage.vue'
 import RecordTypesPage from './pages/RecordTypesPage.vue'
 import PacksPage from './pages/PacksPage.vue'
@@ -55,6 +59,62 @@ const currentRecordType = computed(() => recordTypes.value.find((item) => item.n
 const viewRecordTypes = computed(() => recordTypes.value.filter((item) => item.revision > 0))
 const viewRecordType = computed(() => viewRecordTypes.value.find((item) => item.name === selectedRecordType.value) ?? viewRecordTypes.value[0] ?? null)
 
+// Sign-in state. The desk shows the sign-in page until the server reports a
+// session; every call is checked again on the server.
+const authState = ref<'checking' | 'signed-out' | 'signed-in'>('checking')
+const hasUsers = ref(true)
+const user = ref<SessionUser | null>(null)
+const changingPassword = ref(false)
+// Build needs the build permission. Everyone else works in View only. Without
+// a database there is no session, and the desk keeps both modes.
+const canBuild = computed(() => (user.value ? user.value.systemPermissions.includes('build') : databaseState.value !== 'Connected'))
+watch(canBuild, (value) => { if (!value) mode.value = 'view' })
+
+function applySession(info: SessionInfo | undefined) {
+  if (info?.authenticated) {
+    setCsrfToken(info.csrfToken)
+    user.value = { username: info.username, displayName: info.displayName, owner: info.owner, systemPermissions: info.systemPermissions }
+    authState.value = 'signed-in'
+  } else {
+    setCsrfToken('')
+    user.value = null
+    recordTypes.value = []
+    authState.value = 'signed-out'
+  }
+}
+
+async function loadRecordTypes() {
+  try {
+    recordTypes.value = await listRecordTypes()
+  } catch (err) {
+    toast.error(err instanceof ConnectError ? `Could not load Record Types: ${err.rawMessage}` : 'Could not load Record Types.')
+  }
+}
+
+async function signedIn(info: SessionInfo) {
+  applySession(info)
+  toast.success(`Signed in as ${info.displayName || info.username}.`)
+  if (!canBuild.value) mode.value = 'view'
+  await loadRecordTypes()
+}
+
+async function signOut() {
+  try {
+    await authClient.logout({})
+  } catch (err) {
+    toast.error(err instanceof ConnectError ? `Could not sign out: ${err.rawMessage}` : 'Could not sign out.')
+    return
+  }
+  applySession(undefined)
+  toast.success('Signed out.')
+}
+
+onSessionEnded(() => {
+  if (authState.value !== 'signed-in') return
+  applySession(undefined)
+  toast.error('Your session has ended. Sign in again.')
+})
+
 watch([mode, page, selectedRecordType, recordRoute], writeLocation)
 watch(mode, (value) => { if (value === 'build') recordRoute.value = '' })
 
@@ -72,10 +132,23 @@ onMounted(async () => {
     const response = await fetch('/healthz')
     const health = await response.json() as { database?: string }
     databaseState.value = health.database ?? 'Not configured'
-    if (databaseState.value === 'Connected') {
-      recordTypes.value = await listRecordTypes()
-    }
   } catch { databaseState.value = 'Unavailable' }
+  if (databaseState.value === 'Connected') {
+    try {
+      const res = await authClient.getSession({})
+      hasUsers.value = res.hasUsers
+      applySession(res.session)
+      if (!canBuild.value) mode.value = 'view'
+      if (authState.value === 'signed-in') await loadRecordTypes()
+    } catch {
+      authState.value = 'signed-out'
+      toast.error('Could not check the session.')
+    }
+  } else {
+    // Without a database there are no users, so the desk opens as before
+    // and every call is refused by the server.
+    authState.value = 'signed-in'
+  }
   // The sidebar has no status line, so report a missing connection once here.
   if (apiState.value === 'error') toast.error('The Athena server is unavailable.')
   else if (databaseState.value !== 'Connected') toast.error(`Database: ${databaseState.value}. Changes stay in this browser session.`)
@@ -149,9 +222,13 @@ async function saveCurrentRecordType(complete?: (saved: boolean) => void) {
 async function commitSave(recordType: RecordType, answers: SaveAnswers | undefined, complete?: (saved: boolean) => void) {
   let saved = false
   try {
-    const result = await saveRecordType(recordType, answers)
-    recordType.revision = result.revision
-    toast.success(`${recordType.label} saved.`)
+    // A saved parent whose formulas read this child's fields is saved in the
+    // same request, so its rollup needs no second save.
+    const parent = recordType.kind === 'child' ? recordTypes.value.find((item) => item.name === recordType.parent_record_type && item.revision > 0 && item.fields.some((field) => field.formula?.includes(`doc.${recordType.name}.`))) : undefined
+    const result = await saveRecordType(recordType, answers, parent)
+    recordType.revision = result.saved.revision
+    if (parent && result.parent) parent.revision = result.parent.revision
+    toast.success(parent ? `${recordType.label} and ${parent.label} saved.` : `${recordType.label} saved.`)
     saved = true
   } catch (err) {
     saveError(err)
@@ -172,7 +249,8 @@ function cancelPendingSave() {
 </script>
 
 <template>
-  <div class="app-shell">
+  <SignInPage v-if="authState === 'signed-out'" :has-users="hasUsers" :workspace-name="workspaceName" @signed-in="signedIn" />
+  <div v-else-if="authState === 'signed-in'" class="app-shell">
     <aside class="sidebar">
       <a class="brand" href="#overview" @click.prevent="page = 'overview'; mode = 'build'">Athena<small v-if="workspaceName" class="brand-project">{{ workspaceName }}</small></a>
       <nav v-if="mode === 'build'" class="primary-nav" aria-label="Build">
@@ -185,7 +263,7 @@ function cancelPendingSave() {
       </nav>
     </aside>
     <main class="main-content">
-      <header class="topbar"><div class="topbar-actions"><div class="mode-switch" aria-label="Desk mode"><button :class="{ selected: mode === 'build' }" @click="mode = 'build'">Build</button><button :class="{ selected: mode === 'view' }" @click="mode = 'view'">View</button></div><Button variant="ghost" size="icon-sm" class="theme-toggle" :aria-label="isDark ? 'Switch to light theme' : 'Switch to dark theme'" :title="isDark ? 'Switch to light theme' : 'Switch to dark theme'" @click="toggleTheme"><span aria-hidden="true">{{ isDark ? '☼' : '◐' }}</span></Button></div></header>
+      <header class="topbar"><div class="topbar-actions"><div v-if="canBuild" class="mode-switch" aria-label="Desk mode"><button :class="{ selected: mode === 'build' }" @click="mode = 'build'">Build</button><button :class="{ selected: mode === 'view' }" @click="mode = 'view'">View</button></div><Button variant="ghost" size="icon-sm" class="theme-toggle" :aria-label="isDark ? 'Switch to light theme' : 'Switch to dark theme'" :title="isDark ? 'Switch to light theme' : 'Switch to dark theme'" @click="toggleTheme"><span aria-hidden="true">{{ isDark ? '☼' : '◐' }}</span></Button><DropdownMenu v-if="user"><DropdownMenuTrigger as-child><Button variant="ghost" size="sm" class="user-menu-trigger">{{ user.displayName || user.username }}</Button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuLabel class="user-menu-name">{{ user.displayName || user.username }}<small>{{ user.owner ? 'Instance owner' : user.username }}</small></DropdownMenuLabel><DropdownMenuSeparator /><DropdownMenuItem @select="changingPassword = true">Change password</DropdownMenuItem><DropdownMenuItem @select="signOut">Sign out</DropdownMenuItem></DropdownMenuContent></DropdownMenu></div></header>
       <OverviewPage v-if="mode === 'build' && page === 'overview'" :record-types="recordTypes" :database-state="databaseState" :api-state="apiState" @navigate="page = $event" @create-record-type="page = 'record-types'; addRecordType()" />
       <RecordTypesPage v-else-if="mode === 'build' && page === 'record-types'" :record-types="recordTypes" :current-record-type="currentRecordType" :database-state="databaseState" @select="selectedRecordType = $event" @add-record-type="addRecordType" @add-field="addField" @rename="renameRecordType" @delete="removeRecordType" @save="saveCurrentRecordType" @preview="mode = 'view'" />
       <PacksPage v-else-if="mode === 'build' && page === 'packs'" @open-record-types="page = 'record-types'" />
@@ -193,6 +271,7 @@ function cancelPendingSave() {
       <RecordsPage v-else v-model:record-id="recordRoute" :record-type="viewRecordType" :record-types="viewRecordTypes" @back="mode = 'build'" />
     </main>
     <MigrationDialog v-if="pendingSave" :record-type="pendingSave.recordType" :plan="pendingSave.plan" @confirm="confirmPendingSave" @cancel="cancelPendingSave" />
-    <Toaster position="bottom-right" :theme="isDark ? 'dark' : 'light'" />
+    <ChangePasswordDialog v-model:open="changingPassword" />
   </div>
+  <Toaster position="bottom-right" :theme="isDark ? 'dark' : 'light'" />
 </template>

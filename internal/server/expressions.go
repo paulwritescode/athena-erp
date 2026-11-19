@@ -584,8 +584,8 @@ func systemValues(record *athenav1.Record, d recordTypeDefinition) map[string]an
 }
 
 // newRecordSystemValues are the kernel values a Record about to be created has.
-func newRecordSystemValues(d recordTypeDefinition) map[string]any {
-	values := map[string]any{"revision": int64(0), "owner": localActor, "created_by": localActor, "modified_by": localActor}
+func newRecordSystemValues(ctx context.Context, d recordTypeDefinition) map[string]any {
+	values := map[string]any{"revision": int64(0), "owner": actorName(ctx), "created_by": actorName(ctx), "modified_by": actorName(ctx)}
 	if d.Submittable {
 		values["docstate"] = int64(0)
 	}
@@ -640,7 +640,7 @@ func applyExpressions(ctx context.Context, q querier, d recordTypeDefinition, cu
 		return nil, nil, nil, err
 	}
 	values := map[string]any{}
-	system := newRecordSystemValues(d)
+	system := newRecordSystemValues(ctx, d)
 	if current != nil {
 		if values, err = recordArgs(d, current); err != nil {
 			return nil, nil, nil, err

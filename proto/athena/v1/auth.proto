@@ -1,0 +1,168 @@
+syntax = "proto3";
+package athena.v1;
+option go_package = "athena-erp/gen/athena/v1;athenav1";
+// AuthService signs users in and out and manages users, Roles and Grants
+// (spec 21, ADR-0014). Login and GetSession are the only methods open to
+// callers who are not signed in. Every other method in every service is
+// denied unless the permission gate allows it.
+service AuthService {
+  // Login checks a username and password and starts a session. The session
+  // token travels only in an HttpOnly, SameSite=Strict cookie; the response
+  // carries the CSRF token the desk sends in X-CSRF-Token on later calls.
+  rpc Login(LoginRequest) returns (LoginResponse);
+  rpc Logout(LogoutRequest) returns (LogoutResponse);
+  // GetSession reports whether the caller is signed in. It never fails for a
+  // missing or expired session.
+  rpc GetSession(GetSessionRequest) returns (GetSessionResponse);
+  // ChangePassword sets the caller's own password and ends their other sessions.
+  rpc ChangePassword(ChangePasswordRequest) returns (ChangePasswordResponse);
+  // The methods below need the access permission.
+  rpc ListUsers(ListUsersRequest) returns (ListUsersResponse);
+  rpc CreateUser(CreateUserRequest) returns (CreateUserResponse);
+  rpc UpdateUser(UpdateUserRequest) returns (UpdateUserResponse);
+  // ResetPassword sets another user's password and ends their sessions.
+  rpc ResetPassword(ResetPasswordRequest) returns (ResetPasswordResponse);
+  rpc ListRoles(ListRolesRequest) returns (ListRolesResponse);
+  // SaveRole creates or replaces the Role with the given name and its Grants.
+  rpc SaveRole(SaveRoleRequest) returns (SaveRoleResponse);
+  rpc DeleteRole(DeleteRoleRequest) returns (DeleteRoleResponse);
+  // ListAccessLog reads the Access Log. It needs the audit permission.
+  rpc ListAccessLog(ListAccessLogRequest) returns (ListAccessLogResponse);
+}
+message LoginRequest {
+  string username = 1;
+  string password = 2;
+}
+message LoginResponse {
+  SessionInfo session = 1;
+}
+message LogoutRequest {}
+message LogoutResponse {}
+message GetSessionRequest {}
+message GetSessionResponse {
+  SessionInfo session = 1;
+  // False until the first user exists. The desk then tells the person to run
+  // "athena user create --owner" instead of showing a sign-in form.
+  bool has_users = 2;
+}
+// SessionInfo describes a signed-in user. It is empty when nobody is signed in.
+message SessionInfo {
+  bool authenticated = 1;
+  string username = 2;
+  string display_name = 3;
+  bool owner = 4;
+  // Any of build, access, audit.
+  repeated string system_permissions = 5;
+  // Send this in the X-CSRF-Token header on every call.
+  string csrf_token = 6;
+}
+message ChangePasswordRequest {
+  string current_password = 1;
+  string new_password = 2;
+}
+message ChangePasswordResponse {}
+message AccessUser {
+  string username = 1;
+  string display_name = 2;
+  bool owner = 3;
+  bool disabled = 4;
+  bool locked = 5;
+  // Names of the user's Roles.
+  repeated string roles = 6;
+  string last_login_at = 7;
+}
+message ListUsersRequest {}
+message ListUsersResponse {
+  repeated AccessUser users = 1;
+}
+message CreateUserRequest {
+  string username = 1;
+  string display_name = 2;
+  string password = 3;
+  repeated string roles = 4;
+}
+message CreateUserResponse {
+  AccessUser user = 1;
+}
+message UpdateUserRequest {
+  string username = 1;
+  // Each optional property is left alone when absent.
+  optional string display_name = 2;
+  optional bool disabled = 3;
+  // Replaces the user's Roles when present, even if empty.
+  optional RoleNames roles = 4;
+  // Clears a lockout.
+  bool unlock = 5;
+}
+message RoleNames {
+  repeated string names = 1;
+}
+message UpdateUserResponse {
+  AccessUser user = 1;
+}
+message ResetPasswordRequest {
+  string username = 1;
+  string new_password = 2;
+}
+message ResetPasswordResponse {}
+// Grant allows actions on one Record Type. Grants are additive; no Grant
+// means deny.
+message Grant {
+  // A Record Type key, or * for every Record Type.
+  string record_type_key = 1;
+  // read, create, write, delete, submit, cancel, amend or audit.
+  repeated string actions = 2;
+  // 0 to 9: the highest field permission level the Grant reaches.
+  int32 permission_level = 3;
+  // Expression a Record must satisfy for the Grant to apply, in the filter
+  // language of ListRecords. user.name stands for the signed-in username.
+  // Empty means every Record.
+  string condition = 4;
+  // Stops a user from submitting a Record they created.
+  bool separate_duties = 5;
+}
+message Role {
+  string name = 1;
+  string description = 2;
+  // Any of build, access, audit.
+  repeated string system_permissions = 3;
+  repeated Grant grants = 4;
+}
+message ListRolesRequest {}
+message ListRolesResponse {
+  repeated Role roles = 1;
+}
+message SaveRoleRequest {
+  Role role = 1;
+}
+message SaveRoleResponse {
+  Role role = 1;
+}
+message DeleteRoleRequest {
+  string name = 1;
+}
+message DeleteRoleResponse {}
+message ListAccessLogRequest {
+  int32 page_size = 1;
+  // Returns rows with a smaller ID, for paging back in time.
+  int64 before_id = 2;
+  // Optional event filter such as login_failed or denied.
+  string event = 3;
+}
+// AccessEvent is one Access Log row. It holds identifiers and outcome codes
+// only, never a password, a token or a Record value.
+message AccessEvent {
+  int64 id = 1;
+  string at = 2;
+  string event = 3;
+  string outcome = 4;
+  string username = 5;
+  string procedure = 6;
+  string record_type_key = 7;
+  string action = 8;
+  string request_id = 9;
+  string detail = 10;
+}
+message ListAccessLogResponse {
+  repeated AccessEvent events = 1;
+}

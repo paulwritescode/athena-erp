@@ -16,6 +16,7 @@ import (
 
 	athenav1 "athena-erp/gen/athena/v1"
 	"athena-erp/internal/audit"
+	"athena-erp/internal/auth"
 	"athena-erp/internal/lifecycle"
 	"athena-erp/internal/store"
 	"athena-erp/internal/types"
@@ -47,6 +48,15 @@ func (s recordService) ListRecords(ctx context.Context, req *athenav1.ListRecord
 	if err != nil {
 		return nil, err
 	}
+	p, err := accessFor(ctx)
+	if err != nil {
+		return nil, err
+	}
+	hidden := hiddenFields(p, recordType)
+	scope, err := rowScopeFor(ctx, s.db, p, recordType, auth.ActionRead)
+	if err != nil {
+		return nil, err
+	}
 	pageSize := int(req.GetPageSize())
 	if pageSize <= 0 {
 		pageSize = defaultPageSize
@@ -72,8 +82,12 @@ func (s recordService) ListRecords(ctx context.Context, req *athenav1.ListRecord
 	if live := liveClause(recordType); live != "" {
 		where += " AND " + live
 	}
+	if !scope.unrestricted {
+		where += " AND (" + scope.where + ")"
+		args = append(args, scope.args...)
+	}
 	if req.GetFilter() != "" {
-		predicate, err := filterPredicate(ctx, s.db, recordType, req.GetFilter())
+		predicate, err := filterPredicate(ctx, s.db, visibleDefinition(recordType, hidden), req.GetFilter())
 		if err != nil {
 			return nil, err
 		}
@@ -92,6 +106,7 @@ func (s recordService) ListRecords(ctx context.Context, req *athenav1.ListRecord
 		if err != nil {
 			return nil, internalError("read record", err)
 		}
+		maskRecord(hidden, record)
 		records = append(records, record)
 	}
 	if err := rows.Err(); err != nil {
@@ -111,14 +126,23 @@ func (s recordService) GetRecord(ctx context.Context, req *athenav1.GetRecordReq
 	if err != nil {
 		return nil, err
 	}
+	p, err := accessFor(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := authorizeRecord(ctx, s.db, p, recordType, req.GetId(), auth.ActionRead); err != nil {
+		return nil, err
+	}
 	record, err := s.load(ctx, recordType, req.GetId())
 	if err != nil {
 		return nil, err
 	}
+	maskRecord(hiddenFields(p, recordType), record)
 	return &athenav1.GetRecordResponse{Record: record}, nil
 }
 
-// localActor names who made a change until sign-in exists.
+// localActor names who made a change through the athena command line, which
+// opens the database directly and has no signed-in user.
 const localActor = "Local administrator"
 
 func (s recordService) CreateRecord(ctx context.Context, req *athenav1.CreateRecordRequest) (res *athenav1.CreateRecordResponse, err error) {
@@ -126,6 +150,14 @@ func (s recordService) CreateRecord(ctx context.Context, req *athenav1.CreateRec
 	defer func() { end(err) }()
 	recordType, err := s.recordType(ctx, req.GetRecordTypeKey())
 	if err != nil {
+		return nil, err
+	}
+	p, err := accessFor(ctx)
+	if err != nil {
+		return nil, err
+	}
+	hidden := hiddenFields(p, recordType)
+	if err := checkWritable(hidden, recordType, req.GetValues()); err != nil {
 		return nil, err
 	}
 	columns, args, err := bindValues(recordType, req.GetValues(), true)
@@ -144,7 +176,7 @@ func (s recordService) CreateRecord(ctx context.Context, req *athenav1.CreateRec
 		return nil, internalError("create record", err)
 	}
 	defer func() { _ = tx.Rollback() }()
-	system := map[string]any{"created_by": localActor, "modified_by": localActor, "def_version": recordType.Revision, "request_id": requestID, "owner": localActor, "docstate": int32(lifecycle.Draft), "name": id.String()}
+	system := map[string]any{"created_by": actorName(ctx), "modified_by": actorName(ctx), "def_version": recordType.Revision, "request_id": requestID, "owner": actorName(ctx), "docstate": int32(lifecycle.Draft), "name": id.String()}
 	switch recordType.kind() {
 	case kindSetting:
 		if err := requireNoRecord(ctx, tx, recordType); err != nil {
@@ -191,6 +223,10 @@ func (s recordService) CreateRecord(ctx context.Context, req *athenav1.CreateRec
 			return nil, err
 		}
 	}
+	// A Record the creator could not open under their own Grants is refused.
+	if err := authorizeRecord(ctx, tx, p, recordType, id.String(), auth.ActionCreate); err != nil {
+		return nil, connect.NewError(connect.CodePermissionDenied, "you do not have permission to create a record like this")
+	}
 	if err := auditCreated(ctx, tx, recordType, id.String(), changed); err != nil {
 		return nil, err
 	}
@@ -206,6 +242,7 @@ func (s recordService) CreateRecord(ctx context.Context, req *athenav1.CreateRec
 	if err != nil {
 		return nil, err
 	}
+	maskRecord(hidden, record)
 	return &athenav1.CreateRecordResponse{Record: record}, nil
 }
 
@@ -315,6 +352,14 @@ func (s recordService) UpdateRecord(ctx context.Context, req *athenav1.UpdateRec
 	if err != nil {
 		return nil, err
 	}
+	p, err := accessFor(ctx)
+	if err != nil {
+		return nil, err
+	}
+	hidden := hiddenFields(p, recordType)
+	if err := checkWritable(hidden, recordType, req.GetValues()); err != nil {
+		return nil, err
+	}
 	columns, args, err := bindValues(recordType, req.GetValues(), false)
 	if err != nil {
 		return nil, err
@@ -324,6 +369,9 @@ func (s recordService) UpdateRecord(ctx context.Context, req *athenav1.UpdateRec
 		return nil, internalError("update record", err)
 	}
 	defer func() { _ = tx.Rollback() }()
+	if err := authorizeRecord(ctx, tx, p, recordType, req.GetId(), auth.ActionWrite); err != nil {
+		return nil, err
+	}
 	current, err := loadRecord(ctx, tx, recordType, req.GetId(), dialect.ForUpdate())
 	if err != nil {
 		return nil, err
@@ -360,6 +408,7 @@ func (s recordService) UpdateRecord(ctx context.Context, req *athenav1.UpdateRec
 		changed = append(changed, key)
 	}
 	if len(changed) == 0 {
+		maskRecord(hidden, current)
 		return &athenav1.UpdateRecordResponse{Record: current}, nil
 	}
 	if recordType.kind() == kindChild {
@@ -391,7 +440,7 @@ func (s recordService) UpdateRecord(ctx context.Context, req *athenav1.UpdateRec
 	for _, kernel := range []struct {
 		column string
 		value  any
-	}{{"modified_by", localActor}, {"def_version", recordType.Revision}, {"request_id", requestID}} {
+	}{{"modified_by", actorName(ctx)}, {"def_version", recordType.Revision}, {"request_id", requestID}} {
 		assignments = append(assignments, dialect.QuoteIdent(kernel.column)+" = ?")
 		changedArgs = append(changedArgs, kernel.value)
 	}
@@ -424,6 +473,7 @@ func (s recordService) UpdateRecord(ctx context.Context, req *athenav1.UpdateRec
 	if err != nil {
 		return nil, err
 	}
+	maskRecord(hidden, record)
 	return &athenav1.UpdateRecordResponse{Record: record}, nil
 }
 
@@ -453,11 +503,18 @@ func (s recordService) DeleteRecord(ctx context.Context, req *athenav1.DeleteRec
 	if recordType.kind() == kindSetting {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, fmt.Sprintf("%s is a setting; edit it instead of deleting it", recordType.Label))
 	}
+	p, err := accessFor(ctx)
+	if err != nil {
+		return nil, err
+	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, internalError("delete record", err)
 	}
 	defer func() { _ = tx.Rollback() }()
+	if err := authorizeRecord(ctx, tx, p, recordType, req.GetId(), auth.ActionDelete); err != nil {
+		return nil, err
+	}
 	table := dialect.QuoteIdent(recordTypeTableName(recordType.Name))
 	var parentID string
 	switch recordType.kind() {
@@ -491,7 +548,7 @@ func (s recordService) DeleteRecord(ctx context.Context, req *athenav1.DeleteRec
 	args := []any{req.GetId(), req.GetExpectedRevision()}
 	if recordType.kind() == kindMaster {
 		statement = fmt.Sprintf("UPDATE %s SET `deleted_at` = %s, `revision` = `revision` + 1, `modified_by` = ?, `def_version` = ?, `request_id` = ? WHERE `id` = ? AND `revision` = ? AND `deleted_at` IS NULL", table, dialect.Now())
-		args = append([]any{localActor, recordType.Revision, requestID}, args...)
+		args = append([]any{actorName(ctx), recordType.Revision, requestID}, args...)
 	}
 	result, err := tx.ExecContext(ctx, statement, args...)
 	if err != nil {
@@ -547,6 +604,14 @@ func (s recordService) ListRecordHistory(ctx context.Context, req *athenav1.List
 	if err != nil {
 		return nil, err
 	}
+	p, err := accessFor(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := authorizeRecord(ctx, s.db, p, recordType, req.GetId(), auth.ActionAudit); err != nil {
+		return nil, err
+	}
+	hidden := hiddenFields(p, recordType)
 	rows, err := audit.Rows(ctx, s.db, recordType.Name, req.GetId(), 200)
 	if err != nil {
 		return nil, internalError("read history", err)
@@ -557,8 +622,8 @@ func (s recordService) ListRecordHistory(ctx context.Context, req *athenav1.List
 			RequestId: row.Entry.RequestID, Source: row.Entry.Source, Seq: row.Seq, Hash: row.Hash}
 		for _, change := range row.Entry.Changes {
 			event.ChangedFields = append(event.ChangedFields, change.Field)
-			event.Changes = append(event.Changes, &athenav1.FieldChange{Field: change.Field, OldValue: change.Old, NewValue: change.New})
 		}
+		event.Changes = maskChanges(hidden, row.Entry.Changes)
 		res.Events = append(res.Events, event)
 	}
 	if len(res.Events) > 0 {

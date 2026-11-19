@@ -20,6 +20,7 @@ This directory describes the product and the system as it exists and as decision
 - [ADR-0011: Document lifecycle](decisions/adr-0011-document-lifecycle.md) — proposed: draft, submitted, cancelled, amend, events, versions and the activity timeline.
 - [ADR-0012: Numbering and the audit chain](decisions/adr-0012-numbering-and-audit-chain.md) — proposed: naming series, gap-free counters, hash-chained Audit Log, request correlation and label lookups.
 - [ADR-0013: Expression language on cel-go](decisions/adr-0013-expression-language.md) — proposed: restricted CEL, exact decimal and money, formulas and rollups, field rules, SQL-translated filters
+- [ADR-0014: Local users, Argon2id, database sessions and Grants](decisions/adr-0014-authentication-and-grants.md) — proposed: sign-in, sessions, CSRF, Roles and Grants with permission levels and row conditions, the permission gate and the Access Log.
 - [ADR template](decisions/adr-template.md) — format for recording a consequential architecture decision.
 - [Project README](../README.md) — setup, run, build, and repository layout.
 

@@ -1,15 +1,45 @@
-import { createClient } from '@connectrpc/connect'
+import { createClient, type Interceptor } from '@connectrpc/connect'
 import { createConnectTransport } from '@connectrpc/connect-web'
 import { SystemService } from './gen/athena/v1/system_pb'
+import { AuthService } from './gen/athena/v1/auth_pb'
 import { RecordService, type FieldValue } from './gen/athena/v1/records_pb'
 import { RecordTypeService, RecordTypeSchema, type MigrationStep, type RecordType as RecordTypeMessage, type RecordTypeField as RecordTypeFieldMessage } from './gen/athena/v1/record_types_pb'
 import { create } from '@bufbuild/protobuf'
-import { ConnectError } from '@connectrpc/connect'
+import { Code, ConnectError } from '@connectrpc/connect'
 import type { Field, Kind, RecordType } from './types'
 
+// The session token lives in an HttpOnly cookie the browser sends by itself.
+// The CSRF token comes from the sign-in or session response and goes in a
+// header on every call, which a page on another site cannot do.
+let csrfToken = ''
+
+/** Sets the CSRF token sent with every call; '' after signing out. */
+export function setCsrfToken(token: string) {
+  csrfToken = token
+}
+
+let sessionEnded: () => void = () => {}
+
+/** Registers what happens when the server says the session has ended. */
+export function onSessionEnded(callback: () => void) {
+  sessionEnded = callback
+}
+
+const csrfInterceptor: Interceptor = (next) => async (req) => {
+  if (csrfToken) req.header.set('X-CSRF-Token', csrfToken)
+  try {
+    return await next(req)
+  } catch (err) {
+    // A failed sign-in is also Unauthenticated; only a signed-in desk reacts.
+    if (csrfToken && err instanceof ConnectError && err.code === Code.Unauthenticated) sessionEnded()
+    throw err
+  }
+}
+
 // All ConnectRPC calls go through these clients on the same origin as the desk.
-const transport = createConnectTransport({ baseUrl: window.location.origin })
+const transport = createConnectTransport({ baseUrl: window.location.origin, interceptors: [csrfInterceptor] })
 export const systemClient = createClient(SystemService, transport)
+export const authClient = createClient(AuthService, transport)
 export const recordClient = createClient(RecordService, transport)
 const recordTypeClient = createClient(RecordTypeService, transport)
 
@@ -41,6 +71,7 @@ function fieldFromMessage(field: RecordTypeFieldMessage): Field {
     ...(field.readOnlyIf ? { read_only_if: field.readOnlyIf } : {}),
     ...(field.validate ? { validate: field.validate } : {}),
     ...(field.dependsOn ? { depends_on: field.dependsOn } : {}),
+    ...(field.permissionLevel ? { permission_level: field.permissionLevel } : {}),
   }
 }
 
@@ -60,6 +91,7 @@ function fromMessage(recordType: RecordTypeMessage): RecordType {
     ...(recordType.allowManualName ? { allow_manual_name: true } : {}),
     ...(recordType.labelField ? { label_field: recordType.labelField } : {}),
     fields: recordType.fields.map(fieldFromMessage),
+    ...(recordType.access ? { access: { actions: recordType.access.actions, permission_level: recordType.access.permissionLevel } } : {}),
   }
 }
 
@@ -74,6 +106,7 @@ function toMessage(recordType: RecordType): RecordTypeMessage {
     key: recordType.name,
     label: recordType.label,
     description: recordType.description,
+    revision: BigInt(recordType.revision),
     kind: recordType.kind,
     class: recordType.kind === 'document' ? recordType.class ?? '' : '',
     parentRecordTypeKey: recordType.kind === 'child' ? recordType.parent_record_type ?? '' : '',
@@ -109,6 +142,7 @@ function toMessage(recordType: RecordType): RecordTypeMessage {
       readOnlyIf: field.read_only_if ?? '',
       validate: field.validate ?? '',
       dependsOn: field.depends_on ?? '',
+      permissionLevel: field.permission_level ?? 0,
     })),
   })
 }
@@ -126,14 +160,16 @@ export async function planRecordTypeSave(recordType: RecordType): Promise<SavePl
 export type SaveAnswers = { confirmDataLoss: boolean; backfills: { [key: string]: FieldValue } }
 
 /**
- * Saves a Record Type and returns it at its new revision. Throws ConnectError
+ * Saves a Record Type and returns it at its new revision. A child Record Type
+ * may bring its saved parent along, so a parent rollup over the child's
+ * fields is saved in the same request. Throws ConnectError
  * with code Aborted when someone else saved the Record Type first, and
  * FailedPrecondition when the plan needs answers that were not given.
  */
-export async function saveRecordType(recordType: RecordType, answers?: SaveAnswers): Promise<RecordType> {
-  const res = await recordTypeClient.saveRecordType({ recordType: toMessage(recordType), expectedRevision: BigInt(recordType.revision), confirmDataLoss: answers?.confirmDataLoss ?? false, backfills: answers?.backfills ?? {} })
+export async function saveRecordType(recordType: RecordType, answers?: SaveAnswers, parent?: RecordType): Promise<{ saved: RecordType; parent?: RecordType }> {
+  const res = await recordTypeClient.saveRecordType({ recordType: toMessage(recordType), expectedRevision: BigInt(recordType.revision), confirmDataLoss: answers?.confirmDataLoss ?? false, backfills: answers?.backfills ?? {}, ...(parent ? { parent: toMessage(parent) } : {}) })
   if (!res.recordType) throw new ConnectError('the server returned no Record Type')
-  return fromMessage(res.recordType)
+  return { saved: fromMessage(res.recordType), ...(res.parent ? { parent: fromMessage(res.parent) } : {}) }
 }
 
 /**

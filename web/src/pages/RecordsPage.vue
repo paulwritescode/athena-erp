@@ -111,7 +111,8 @@ watch(() => [props.recordId, props.recordType?.name] as const, async ([id]) => {
 
 async function loadHistory(record: RecordMessage) {
   const recordType = props.recordType
-  if (!recordType) return
+  // Reading the history needs the audit action, so skip it rather than show an error.
+  if (!recordType || !can('audit')) return
   try {
     const res = await recordClient.listRecordHistory({ recordTypeKey: recordType.name, id: record.id })
     if (editing.value !== 'new' && editing.value?.id === record.id) history.value = res.events
@@ -138,6 +139,7 @@ function describe(event: RecordEvent) {
 // from before the Audit Log name the field only.
 function describeChange(change: FieldChange): string {
   const name = labels.value.get(change.field) ?? (change.field === 'docstate' ? 'Status' : change.field === 'name' ? 'Name' : change.field)
+  if (change.masked) return `${name}: hidden at your permission level`
   if (change.oldValue === undefined && change.newValue === undefined) return name
   const show = (value: string | undefined) => (value === undefined || value === '' ? 'empty' : change.field === 'docstate' ? stateLabels[Number(value)] ?? value : value)
   return `${name}: ${show(change.oldValue)} → ${show(change.newValue)}`
@@ -200,7 +202,12 @@ function targetLabel(field: Field): string {
 }
 const allowsManualName = computed(() => props.recordType?.allow_manual_name === true && props.recordType.submittable === true)
 // A Setting holds one record, so creating is offered only while it is empty.
-const canCreate = computed(() => !isSetting.value || (records.value.length === 0 && !loading.value && !loadError.value))
+// can reports whether the signed-in user's Grants allow an action here. The
+// server checks again on every call; this only hides what would be refused.
+function can(action: string): boolean {
+  return props.recordType?.access?.actions.includes(action) ?? true
+}
+const canCreate = computed(() => can('create') && (!isSetting.value || (records.value.length === 0 && !loading.value && !loadError.value)))
 
 function fieldLabel(field: Field): string {
   if (field.type === 'Money' && field.currency) return `${field.label} (${field.currency})`

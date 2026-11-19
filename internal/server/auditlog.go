@@ -15,7 +15,7 @@ func writeAudit(ctx context.Context, tx *sql.Tx, recordTypeName, recordID string
 	requestID, source := requestFrom(ctx)
 	_, err := audit.Append(ctx, tx, dialect, audit.Entry{
 		RecordType: recordTypeName, RecordID: recordID, Revision: revision, Action: action,
-		Changes: changes, Actor: localActor, Source: source, RequestID: requestID,
+		Changes: changes, Actor: actorName(ctx), Source: source, RequestID: requestID,
 	})
 	if err != nil {
 		return internalError("write audit log", err)

@@ -46,7 +46,7 @@ func TestMigrateCommand(t *testing.T) {
 	if err := json.Unmarshal([]byte(run("status", "--json")), &lines); err != nil {
 		t.Fatal(err)
 	}
-	if len(lines) != 8 || !lines[7].Applied || lines[7].AppliedAt == nil {
+	if len(lines) != 9 || !lines[8].Applied || lines[8].AppliedAt == nil {
 		t.Fatalf("json status = %+v", lines)
 	}
 	if strings.Contains(run("status", "--json"), cfg.Passwd) && cfg.Passwd != "" {

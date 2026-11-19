@@ -293,3 +293,12 @@ body,.app-shell,.main-content,.page-content{background:var(--background);color:v
 .audit-changes{margin:4px 0 0;padding-left:16px;list-style:disc;font-size:var(--type-body-sm-size);color:var(--muted-foreground)}
 
 .entries-filter{display:flex;align-items:center;gap:8px;margin-bottom:12px}.entries-filter>input{max-width:420px}
+.sign-in{display:grid;place-items:center;min-height:100vh;padding:24px;background:var(--background)}
+.sign-in-card{width:100%;max-width:380px}
+.sign-in-title{font-family:var(--font-display);font-size:var(--type-title-md-size);font-weight:500}
+.sign-in-form{display:grid;gap:16px}
+.sign-in-submit{width:100%}
+.sign-in-setup{display:grid;gap:10px;font-size:var(--type-body-sm-size);color:var(--muted-foreground)}
+.sign-in-setup code{padding:8px 10px;border-radius:var(--radius-md);background:var(--secondary);color:var(--foreground);font-size:var(--type-caption-size)}
+.user-menu-name{display:grid;gap:2px}
+.user-menu-name small{font-size:var(--type-caption-size);color:var(--muted-foreground);font-weight:400}
