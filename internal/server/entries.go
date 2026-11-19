@@ -28,6 +28,10 @@ const (
 // decimalPattern matches the DECIMAL(18,6) column: up to 12 integer digits and 6 fraction digits.
 var decimalPattern = regexp.MustCompile(`^-?[0-9]{1,12}(\.[0-9]{1,6})?$`)
 
+// emailDomainDot requires a dot in the domain, which mail.ParseAddress allows
+// to be missing. It mirrors the email pattern in web/src/fieldRules.ts.
+var emailDomainDot = regexp.MustCompile(`^[^\s@]+@[^\s@]+\.[^\s@]+$`)
+
 // entryService implements athena.v1.EntryService over the Record tables.
 // It has no authentication yet, so the server must stay bound to loopback.
 type entryService struct {
@@ -498,7 +502,7 @@ func fieldArgument(field recordField, value *athenav1.FieldValue) (any, error) {
 	}
 	switch field.Type {
 	case "Email":
-		if address, err := mail.ParseAddress(text); err != nil || address.Address != text {
+		if address, err := mail.ParseAddress(text); err != nil || address.Address != text || !emailDomainDot.MatchString(text) {
 			return nil, invalid(fmt.Sprintf("%s must be an email address", field.Label))
 		}
 	case "Number", "Currency":

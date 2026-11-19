@@ -10,6 +10,7 @@
   {"name": "select over limit", "type": "Select", "required": false, "value": "{repeat:a:121}", "valid": false},
   {"name": "email ok", "type": "Email", "required": false, "value": "name@example.com", "valid": true},
   {"name": "email without at", "type": "Email", "required": false, "value": "name.example.com", "valid": false},
+  {"name": "email without domain dot", "type": "Email", "required": false, "value": "name@example", "valid": false},
   {"name": "email with display name", "type": "Email", "required": false, "value": "Name <name@example.com>", "valid": false},
   {"name": "number integer", "type": "Number", "required": false, "value": "42", "valid": true},
   {"name": "number negative decimal", "type": "Number", "required": false, "value": "-12.5", "valid": true},
