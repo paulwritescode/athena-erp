@@ -7,8 +7,7 @@ import (
 	"regexp"
 
 	"athena-erp/internal/store"
-
-	"github.com/go-sql-driver/mysql"
+	"athena-erp/internal/workspace"
 )
 
 // SystemMigrations is the ordered list of system migrations. Versions are
@@ -225,6 +224,271 @@ func SystemMigrations() []store.Migration {
 		// Starlark Rules, their versions and the Rule Run log (ADR-0016). The
 		// unused first athena_rules table is kept as athena_rules_legacy.
 		{Version: 11, Name: "starlark_rules", Up: createRules},
+		// Access model v2 (ADR-0017): single-use challenges, Role
+		// assignments with Scope and dates, user state, and the granular
+		// access permissions. Existing Role links are copied to
+		// assignments, enabled users become active, disabled users become
+		// suspended, and the old `access` permission becomes the granular
+		// ones except ownership, so nobody gains or loses sign-in.
+		{Version: 12, Name: "access_model", Up: accessModel},
+		// Ledger foundation (ADR-0022): kernel-owned masters for companies,
+		// dimensions, periods, currencies, accounts, determination and
+		// Settings. No rows are seeded: jurisdiction, chart and tax stay
+		// open for the sponsor.
+		{Version: 13, Name: "ledger_foundation", Up: execAll(
+			`CREATE TABLE IF NOT EXISTS athena_companies (
+				name VARCHAR(140) NOT NULL PRIMARY KEY,
+				label VARCHAR(255) NOT NULL,
+				base_currency VARCHAR(10) NULL,
+				disabled TINYINT(1) NOT NULL DEFAULT 0,
+				revision BIGINT NOT NULL DEFAULT 1,
+				created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+			`CREATE TABLE IF NOT EXISTS athena_branches (
+				name VARCHAR(140) NOT NULL PRIMARY KEY,
+				label VARCHAR(255) NOT NULL,
+				company_name VARCHAR(140) NOT NULL,
+				parent_name VARCHAR(140) NULL,
+				is_group TINYINT(1) NOT NULL DEFAULT 0,
+				disabled TINYINT(1) NOT NULL DEFAULT 0,
+				revision BIGINT NOT NULL DEFAULT 1,
+				created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+				KEY idx_branches_company (company_name)
+			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+			`CREATE TABLE IF NOT EXISTS athena_departments (
+				name VARCHAR(140) NOT NULL PRIMARY KEY,
+				label VARCHAR(255) NOT NULL,
+				company_name VARCHAR(140) NOT NULL,
+				branch_name VARCHAR(140) NULL,
+				parent_name VARCHAR(140) NULL,
+				is_group TINYINT(1) NOT NULL DEFAULT 0,
+				disabled TINYINT(1) NOT NULL DEFAULT 0,
+				revision BIGINT NOT NULL DEFAULT 1,
+				created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+				KEY idx_departments_company (company_name)
+			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+			`CREATE TABLE IF NOT EXISTS athena_cost_centres (
+				name VARCHAR(140) NOT NULL PRIMARY KEY,
+				label VARCHAR(255) NOT NULL,
+				company_name VARCHAR(140) NOT NULL,
+				parent_name VARCHAR(140) NULL,
+				is_group TINYINT(1) NOT NULL DEFAULT 0,
+				disabled TINYINT(1) NOT NULL DEFAULT 0,
+				revision BIGINT NOT NULL DEFAULT 1,
+				created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+				KEY idx_cost_centres_company (company_name)
+			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+			`CREATE TABLE IF NOT EXISTS athena_dimensions (
+				name VARCHAR(140) NOT NULL PRIMARY KEY,
+				label VARCHAR(255) NOT NULL,
+				members JSON NOT NULL,
+				mandatory_for JSON NOT NULL,
+				valid_from DATE NULL,
+				valid_to DATE NULL,
+				disabled TINYINT(1) NOT NULL DEFAULT 0,
+				revision BIGINT NOT NULL DEFAULT 1,
+				created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+			`CREATE TABLE IF NOT EXISTS athena_fiscal_years (
+				name VARCHAR(140) NOT NULL PRIMARY KEY,
+				label VARCHAR(255) NOT NULL,
+				company_name VARCHAR(140) NOT NULL,
+				start_date DATE NOT NULL,
+				end_date DATE NOT NULL,
+				disabled TINYINT(1) NOT NULL DEFAULT 0,
+				revision BIGINT NOT NULL DEFAULT 1,
+				created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+				KEY idx_fiscal_years_company (company_name)
+			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+			`CREATE TABLE IF NOT EXISTS athena_periods (
+				company_name VARCHAR(140) NOT NULL,
+				book VARCHAR(40) NOT NULL DEFAULT 'main',
+				name VARCHAR(140) NOT NULL,
+				label VARCHAR(255) NOT NULL,
+				fiscal_year_name VARCHAR(140) NULL,
+				start_date DATE NOT NULL,
+				end_date DATE NOT NULL,
+				status VARCHAR(20) NOT NULL DEFAULT 'open',
+				status_actor VARCHAR(255) NULL,
+				status_at TIMESTAMP NULL,
+				revision BIGINT NOT NULL DEFAULT 1,
+				created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+				PRIMARY KEY (company_name, book, name),
+				KEY idx_periods_dates (company_name, book, start_date)
+			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+			`CREATE TABLE IF NOT EXISTS athena_currencies (
+				code VARCHAR(10) NOT NULL PRIMARY KEY,
+				label VARCHAR(255) NOT NULL,
+				minor_exponent INT NOT NULL DEFAULT 2,
+				disabled TINYINT(1) NOT NULL DEFAULT 0,
+				revision BIGINT NOT NULL DEFAULT 1,
+				created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+			`CREATE TABLE IF NOT EXISTS athena_exchange_rates (
+				from_code VARCHAR(10) NOT NULL,
+				to_code VARCHAR(10) NOT NULL,
+				rate_type VARCHAR(40) NOT NULL,
+				source VARCHAR(40) NOT NULL,
+				effective_at DATETIME(3) NOT NULL,
+				rate DECIMAL(30,12) NOT NULL,
+				created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				PRIMARY KEY (from_code, to_code, rate_type, source, effective_at)
+			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+			`CREATE TABLE IF NOT EXISTS athena_account_types (
+				name VARCHAR(140) NOT NULL PRIMARY KEY,
+				label VARCHAR(255) NOT NULL,
+				normal_balance VARCHAR(10) NOT NULL
+			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+			`CREATE TABLE IF NOT EXISTS athena_accounts (
+				name VARCHAR(140) NOT NULL PRIMARY KEY,
+				label VARCHAR(255) NOT NULL,
+				account_type VARCHAR(140) NOT NULL,
+				parent_name VARCHAR(140) NULL,
+				is_group TINYINT(1) NOT NULL DEFAULT 0,
+				class VARCHAR(40) NULL,
+				control_role VARCHAR(40) NULL,
+				company_name VARCHAR(140) NULL,
+				disabled TINYINT(1) NOT NULL DEFAULT 0,
+				revision BIGINT NOT NULL DEFAULT 1,
+				created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+				KEY idx_accounts_parent (parent_name),
+				KEY idx_accounts_company (company_name)
+			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+			`CREATE TABLE IF NOT EXISTS athena_account_determinations (
+				id CHAR(36) NOT NULL PRIMARY KEY,
+				label VARCHAR(255) NOT NULL,
+				account_name VARCHAR(140) NOT NULL,
+				match_json JSON NOT NULL,
+				disabled TINYINT(1) NOT NULL DEFAULT 0,
+				revision BIGINT NOT NULL DEFAULT 1,
+				created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+				KEY idx_determinations_account (account_name)
+			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+			`CREATE TABLE IF NOT EXISTS athena_settings (
+				owner_pack VARCHAR(140) NOT NULL,
+				setting_type VARCHAR(140) NOT NULL,
+				label VARCHAR(255) NOT NULL,
+				value_kind VARCHAR(10) NOT NULL,
+				list_rule VARCHAR(10) NULL,
+				revision BIGINT NOT NULL DEFAULT 1,
+				created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+				PRIMARY KEY (owner_pack, setting_type)
+			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+			`CREATE TABLE IF NOT EXISTS athena_setting_values (
+				owner_pack VARCHAR(140) NOT NULL,
+				setting_type VARCHAR(140) NOT NULL,
+				scope_chain VARCHAR(255) NOT NULL DEFAULT '',
+				effective_from DATETIME(3) NOT NULL,
+				revision BIGINT NOT NULL,
+				value_json JSON NOT NULL,
+				status VARCHAR(10) NOT NULL DEFAULT 'draft',
+				published_by VARCHAR(255) NULL,
+				created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				PRIMARY KEY (owner_pack, setting_type, scope_chain, effective_from, revision)
+			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+		)},
+		// Posting engine (ADR-0023): idempotency operations, posting groups
+		// with one row per voucher revision, event and book, the posting log
+		// (failed attempts included), the general ledger, running account
+		// balances and a minimal outbox the event bus (G8) extends.
+		{Version: 14, Name: "posting_engine", Up: execAll(
+			`CREATE TABLE IF NOT EXISTS athena_operations (
+				id CHAR(36) NOT NULL PRIMARY KEY,
+				workspace VARCHAR(140) NULL,
+				actor VARCHAR(255) NOT NULL,
+				command VARCHAR(40) NOT NULL,
+				operation_id VARCHAR(140) NOT NULL,
+				payload_hash CHAR(64) NOT NULL,
+				result_json JSON NOT NULL,
+				created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				UNIQUE KEY uq_operations_replay (actor, command, operation_id)
+			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+			`CREATE TABLE IF NOT EXISTS athena_posting_groups (
+				id CHAR(36) NOT NULL PRIMARY KEY,
+				voucher_type VARCHAR(140) NOT NULL,
+				voucher_id CHAR(36) NOT NULL,
+				voucher_revision BIGINT NOT NULL,
+				event VARCHAR(40) NOT NULL,
+				book VARCHAR(40) NOT NULL,
+				operation_id VARCHAR(140) NOT NULL,
+				created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				UNIQUE KEY uq_posting_groups_once (voucher_type, voucher_id, voucher_revision, event, book)
+			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+			`CREATE TABLE IF NOT EXISTS athena_posting_log (
+				id CHAR(36) NOT NULL PRIMARY KEY,
+				voucher_type VARCHAR(140) NOT NULL,
+				voucher_id CHAR(36) NOT NULL,
+				voucher_revision BIGINT NOT NULL,
+				event VARCHAR(40) NOT NULL,
+				book VARCHAR(40) NOT NULL,
+				operation_id VARCHAR(140) NOT NULL,
+				outcome VARCHAR(20) NOT NULL,
+				code VARCHAR(40) NOT NULL DEFAULT '',
+				message VARCHAR(600) NOT NULL DEFAULT '',
+				plan_hash CHAR(64) NOT NULL DEFAULT '',
+				actor VARCHAR(255) NOT NULL,
+				request_id CHAR(36) NULL,
+				created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				KEY idx_posting_log_voucher (voucher_type, voucher_id),
+				KEY idx_posting_log_operation (operation_id)
+			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+			`CREATE TABLE IF NOT EXISTS l_gl (
+				id CHAR(36) NOT NULL PRIMARY KEY,
+				company_name VARCHAR(140) NOT NULL,
+				book VARCHAR(40) NOT NULL,
+				account_name VARCHAR(140) NOT NULL,
+				period_name VARCHAR(140) NOT NULL,
+				posting_date DATE NOT NULL,
+				debit_base DECIMAL(28,6) NOT NULL DEFAULT 0,
+				credit_base DECIMAL(28,6) NOT NULL DEFAULT 0,
+				txn_currency VARCHAR(10) NULL,
+				txn_debit DECIMAL(28,6) NOT NULL DEFAULT 0,
+				txn_credit DECIMAL(28,6) NOT NULL DEFAULT 0,
+				quantity DECIMAL(28,6) NULL,
+				quantity_uom VARCHAR(20) NULL,
+				dimensions JSON NOT NULL,
+				voucher_type VARCHAR(140) NOT NULL,
+				voucher_id CHAR(36) NOT NULL,
+				voucher_revision BIGINT NOT NULL,
+				event VARCHAR(40) NOT NULL,
+				posting_group_id CHAR(36) NOT NULL,
+				is_reversal TINYINT(1) NOT NULL DEFAULT 0,
+				reversed_row_id CHAR(36) NULL,
+				created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				KEY idx_gl_account (company_name, book, account_name),
+				KEY idx_gl_voucher (voucher_type, voucher_id),
+				KEY idx_gl_group (posting_group_id),
+				KEY idx_gl_period (company_name, book, period_name)
+			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+			`CREATE TABLE IF NOT EXISTS athena_balance_account (
+				company_name VARCHAR(140) NOT NULL,
+				book VARCHAR(40) NOT NULL,
+				account_name VARCHAR(140) NOT NULL,
+				base_currency VARCHAR(10) NOT NULL,
+				debit_total DECIMAL(28,6) NOT NULL DEFAULT 0,
+				credit_total DECIMAL(28,6) NOT NULL DEFAULT 0,
+				updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+				PRIMARY KEY (company_name, book, account_name)
+			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+			`CREATE TABLE IF NOT EXISTS athena_outbox (
+				id CHAR(36) NOT NULL PRIMARY KEY,
+				event_type VARCHAR(140) NOT NULL,
+				payload JSON NOT NULL,
+				created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				KEY idx_outbox_type (event_type)
+			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+		)},
 	}
 }
 
@@ -291,8 +555,8 @@ type MigrationOptions struct {
 // MigrationStatus reports each system migration and whether the database has
 // applied it. It writes nothing. When workspace is set, the database must
 // belong to it.
-func MigrationStatus(ctx context.Context, cfg *mysql.Config, workspace *Workspace) ([]store.MigrationState, error) {
-	db, err := openMigrationDB(ctx, cfg, workspace)
+func MigrationStatus(ctx context.Context, endpoint *workspace.DBEndpoint, svc *Workspace) ([]store.MigrationState, error) {
+	db, err := openMigrationDB(ctx, endpoint, svc)
 	if err != nil {
 		return nil, err
 	}
@@ -302,8 +566,8 @@ func MigrationStatus(ctx context.Context, cfg *mysql.Config, workspace *Workspac
 
 // Migrate applies pending system migrations the way the server does at
 // start-up and returns the ones it applied (or would apply with DryRun).
-func Migrate(ctx context.Context, cfg *mysql.Config, workspace *Workspace, opts MigrationOptions) ([]store.Migration, error) {
-	db, err := openMigrationDB(ctx, cfg, workspace)
+func Migrate(ctx context.Context, endpoint *workspace.DBEndpoint, svc *Workspace, opts MigrationOptions) ([]store.Migration, error) {
+	db, err := openMigrationDB(ctx, endpoint, svc)
 	if err != nil {
 		return nil, err
 	}
@@ -311,23 +575,84 @@ func Migrate(ctx context.Context, cfg *mysql.Config, workspace *Workspace, opts 
 	return store.Up(ctx, db, dialect, SystemMigrations(), store.UpOptions{Target: opts.Target, DryRun: opts.DryRun})
 }
 
-func openMigrationDB(ctx context.Context, cfg *mysql.Config, workspace *Workspace) (*sql.DB, error) {
-	connector, err := mysql.NewConnector(utcConfig(cfg))
+func openMigrationDB(ctx context.Context, endpoint *workspace.DBEndpoint, svc *Workspace) (*sql.DB, error) {
+	dialect = dialectFor(endpoint.Driver)
+	driverName := "MariaDB"
+	if endpoint.Driver == workspace.DriverPostgres {
+		driverName = "PostgreSQL"
+	}
+	connector, err := endpointConnector(endpoint)
 	if err != nil {
-		return nil, fmt.Errorf("open MariaDB connection: %w", err)
+		return nil, err
 	}
 	db := sql.OpenDB(connector)
 	if err := db.PingContext(ctx); err != nil {
 		db.Close()
-		return nil, fmt.Errorf("connect to MariaDB: %w", err)
+		return nil, fmt.Errorf("connect to %s: %w", driverName, err)
 	}
-	if workspace != nil {
-		if err := checkWorkspace(ctx, db, *workspace); err != nil {
+	if svc != nil {
+		if err := checkWorkspace(ctx, db, *svc); err != nil {
 			db.Close()
 			return nil, err
 		}
 	}
 	return db, nil
+}
+
+// accessModel moves the access tables to model v2. New columns arrive
+// nullable where existing rows need a backfill, then turn NOT NULL. The
+// old athena_user_roles links stay: code reads them until G1.5 switches to
+// assignments, and they remain the rollback source.
+func accessModel(ctx context.Context, x store.Execer) error {
+	return execAll(
+		`CREATE TABLE IF NOT EXISTS athena_challenges (
+			id CHAR(36) NOT NULL PRIMARY KEY,
+			user_id CHAR(36) NOT NULL,
+			purpose VARCHAR(20) NOT NULL,
+			digest CHAR(64) NOT NULL,
+			generation INT NOT NULL,
+			expires_at TIMESTAMP(3) NOT NULL,
+			consumed_at TIMESTAMP(3) NULL,
+			attempts INT NOT NULL DEFAULT 0,
+			created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+			UNIQUE KEY uq_challenges_digest (digest),
+			KEY idx_challenges_user (user_id),
+			CONSTRAINT fk_challenges_user FOREIGN KEY (user_id) REFERENCES athena_users (id) ON DELETE CASCADE
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+		`CREATE TABLE IF NOT EXISTS athena_role_assignments (
+			id CHAR(36) NOT NULL PRIMARY KEY,
+			user_id CHAR(36) NOT NULL,
+			role_id CHAR(36) NOT NULL,
+			scope JSON NOT NULL,
+			active_from DATE NULL,
+			expires_at DATE NULL,
+			revision BIGINT NOT NULL DEFAULT 1,
+			created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+			updated_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+			KEY idx_role_assignments_user (user_id),
+			KEY idx_role_assignments_role (role_id),
+			CONSTRAINT fk_role_assignments_user FOREIGN KEY (user_id) REFERENCES athena_users (id) ON DELETE CASCADE,
+			CONSTRAINT fk_role_assignments_role FOREIGN KEY (role_id) REFERENCES athena_roles (id) ON DELETE CASCADE
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+		`ALTER TABLE athena_users ADD COLUMN IF NOT EXISTS state VARCHAR(20) NULL`,
+		`UPDATE athena_users SET state = IF(disabled = 1, 'suspended', 'active') WHERE state IS NULL`,
+		`ALTER TABLE athena_users MODIFY COLUMN state VARCHAR(20) NOT NULL DEFAULT 'active'`,
+		`ALTER TABLE athena_users ADD COLUMN IF NOT EXISTS generation INT NOT NULL DEFAULT 0`,
+		`ALTER TABLE athena_users ADD COLUMN IF NOT EXISTS invite_delivery VARCHAR(20) NOT NULL DEFAULT 'manual'`,
+		`ALTER TABLE athena_users MODIFY COLUMN password_hash VARCHAR(255) NULL`,
+		`ALTER TABLE athena_roles ADD COLUMN IF NOT EXISTS requires_scope JSON NULL`,
+		`UPDATE athena_roles SET requires_scope = '[]' WHERE requires_scope IS NULL`,
+		`ALTER TABLE athena_roles MODIFY COLUMN requires_scope JSON NOT NULL`,
+		"ALTER TABLE athena_roles ADD COLUMN IF NOT EXISTS `system` TINYINT(1) NOT NULL DEFAULT 0",
+		`UPDATE athena_roles SET system_permissions = REPLACE(system_permissions, '"access"', '"access:assign", "access:explore", "access:recover", "access:roles", "access:sessions", "access:users"')
+			WHERE system_permissions LIKE '%"access"%'`,
+		`ALTER TABLE athena_sessions ADD COLUMN IF NOT EXISTS device VARCHAR(128) NULL`,
+		`ALTER TABLE athena_sessions ADD COLUMN IF NOT EXISTS address_digest CHAR(64) NULL`,
+		`INSERT INTO athena_role_assignments (id, user_id, role_id, scope, active_from, expires_at, revision)
+			SELECT UUID(), ur.user_id, ur.role_id, '{}', NULL, NULL, 1 FROM athena_user_roles ur
+			WHERE NOT EXISTS (SELECT 1 FROM athena_role_assignments a
+				WHERE a.user_id = ur.user_id AND a.role_id = ur.role_id AND a.active_from IS NULL AND a.expires_at IS NULL)`,
+	)(ctx, x)
 }
 
 // createRules gives Starlark Rules their tables. The first athena_rules table

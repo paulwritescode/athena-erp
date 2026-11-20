@@ -5,6 +5,13 @@ All notable changes to Athena are recorded here. The format follows [Keep a Chan
 ## [Unreleased]
 
 ### Added
+- Posting engine schema (G6 task 6.1, ADR-0023, Proposed): migration 14 with operations, posting groups, posting log, general ledger rows, account balances and the outbox. Backdating window and book policy stay OPEN.
+- Ledger masters (G5, ADR-0022, Proposed): companies, branches, departments, cost centres, dimensions, financial years and periods with soft and hard close, currencies and exchange rates, account types and tree accounts, determination mappings and Settings with draft generations. `LedgerService`, `athena ledger`, the Ledger setup page and migration 13.
+- Atomic save of a parent and child Record Type as one journaled group with compensation (G4, ADR-0021, Proposed).
+- Starlark memory, row and cascade limits on saved runs and simulations (G3, ADR-0020, Proposed).
+- PostgreSQL dialect, implemented but untested (G2, ADR-0019, Proposed).
+- Access model v2 (G1, ADR-0017, Proposed): invite-only users with single-use Challenges, scoped and dated Role Assignments, granular access permissions, a last-owner guard, the Permission Explorer, session management and the Users & Roles page. The workspace root `administrator` (ADR-0018, Accepted).
+- Design system (Proposed) in `docs/design/athena-design-system.md`, steering in `.kiro/steering/athena-design.md`, and the beta task list in `.kiro/specs/athena-beta/tasks.md`.
 - Starlark Rules host (P9, ADR-0016, Proposed): validation, derivation, guard and transform Rules run on document events with step, time, read and write limits, no floats, and reads and writes only through Go host functions that apply Grants, row scope and field levels. Includes `RuleService`, Rule versions, simulate with diff, a Rule Run log, `athena rules`, the Rules page, and migration 11. Not production-ready: there is no memory limit.
 - Sign-in error states: no users, wrong password, locked, disabled, database down, server down, CSRF. Wrong password and unknown user stay indistinguishable.
 - Workspace files service, `athena files` CLI and Files page (P8a, ADR-0015).

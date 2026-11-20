@@ -286,7 +286,9 @@ type SessionInfo struct {
 	Username      string                 `protobuf:"bytes,2,opt,name=username,proto3" json:"username,omitempty"`
 	DisplayName   string                 `protobuf:"bytes,3,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
 	Owner         bool                   `protobuf:"varint,4,opt,name=owner,proto3" json:"owner,omitempty"`
-	// Any of build, access, audit, files:read, files:write.
+	// Any of build, audit, files:read, files:write, rules:read, rules:write,
+	// access:ownership, access:users, access:roles, access:assign,
+	// access:recover, access:sessions, access:explore.
 	SystemPermissions []string `protobuf:"bytes,5,rep,name=system_permissions,json=systemPermissions,proto3" json:"system_permissions,omitempty"`
 	// Send this in the X-CSRF-Token header on every call.
 	CsrfToken     string `protobuf:"bytes,6,opt,name=csrf_token,json=csrfToken,proto3" json:"csrf_token,omitempty"`
@@ -462,8 +464,10 @@ type AccessUser struct {
 	Disabled    bool                   `protobuf:"varint,4,opt,name=disabled,proto3" json:"disabled,omitempty"`
 	Locked      bool                   `protobuf:"varint,5,opt,name=locked,proto3" json:"locked,omitempty"`
 	// Names of the user's Roles.
-	Roles         []string `protobuf:"bytes,6,rep,name=roles,proto3" json:"roles,omitempty"`
-	LastLoginAt   string   `protobuf:"bytes,7,opt,name=last_login_at,json=lastLoginAt,proto3" json:"last_login_at,omitempty"`
+	Roles       []string `protobuf:"bytes,6,rep,name=roles,proto3" json:"roles,omitempty"`
+	LastLoginAt string   `protobuf:"bytes,7,opt,name=last_login_at,json=lastLoginAt,proto3" json:"last_login_at,omitempty"`
+	// invited, active, reset_required or suspended.
+	State         string `protobuf:"bytes,8,opt,name=state,proto3" json:"state,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -543,6 +547,13 @@ func (x *AccessUser) GetRoles() []string {
 func (x *AccessUser) GetLastLoginAt() string {
 	if x != nil {
 		return x.LastLoginAt
+	}
+	return ""
+}
+
+func (x *AccessUser) GetState() string {
+	if x != nil {
+		return x.State
 	}
 	return ""
 }
@@ -627,11 +638,439 @@ func (x *ListUsersResponse) GetUsers() []*AccessUser {
 	return nil
 }
 
+type InviteUserRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Username      string                 `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
+	DisplayName   string                 `protobuf:"bytes,2,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	Roles         []string               `protobuf:"bytes,3,rep,name=roles,proto3" json:"roles,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *InviteUserRequest) Reset() {
+	*x = InviteUserRequest{}
+	mi := &file_athena_v1_auth_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *InviteUserRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*InviteUserRequest) ProtoMessage() {}
+
+func (x *InviteUserRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_auth_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use InviteUserRequest.ProtoReflect.Descriptor instead.
+func (*InviteUserRequest) Descriptor() ([]byte, []int) {
+	return file_athena_v1_auth_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *InviteUserRequest) GetUsername() string {
+	if x != nil {
+		return x.Username
+	}
+	return ""
+}
+
+func (x *InviteUserRequest) GetDisplayName() string {
+	if x != nil {
+		return x.DisplayName
+	}
+	return ""
+}
+
+func (x *InviteUserRequest) GetRoles() []string {
+	if x != nil {
+		return x.Roles
+	}
+	return nil
+}
+
+type InviteUserResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	User  *AccessUser            `protobuf:"bytes,1,opt,name=user,proto3" json:"user,omitempty"`
+	// The single-use first-login Challenge, shown once.
+	Challenge     string `protobuf:"bytes,2,opt,name=challenge,proto3" json:"challenge,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *InviteUserResponse) Reset() {
+	*x = InviteUserResponse{}
+	mi := &file_athena_v1_auth_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *InviteUserResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*InviteUserResponse) ProtoMessage() {}
+
+func (x *InviteUserResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_auth_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use InviteUserResponse.ProtoReflect.Descriptor instead.
+func (*InviteUserResponse) Descriptor() ([]byte, []int) {
+	return file_athena_v1_auth_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *InviteUserResponse) GetUser() *AccessUser {
+	if x != nil {
+		return x.User
+	}
+	return nil
+}
+
+func (x *InviteUserResponse) GetChallenge() string {
+	if x != nil {
+		return x.Challenge
+	}
+	return ""
+}
+
+type CompleteChallengeRequest struct {
+	state    protoimpl.MessageState `protogen:"open.v1"`
+	Username string                 `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
+	// first_login or reset.
+	Purpose       string `protobuf:"bytes,2,opt,name=purpose,proto3" json:"purpose,omitempty"`
+	Challenge     string `protobuf:"bytes,3,opt,name=challenge,proto3" json:"challenge,omitempty"`
+	NewPassword   string `protobuf:"bytes,4,opt,name=new_password,json=newPassword,proto3" json:"new_password,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CompleteChallengeRequest) Reset() {
+	*x = CompleteChallengeRequest{}
+	mi := &file_athena_v1_auth_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CompleteChallengeRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CompleteChallengeRequest) ProtoMessage() {}
+
+func (x *CompleteChallengeRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_auth_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CompleteChallengeRequest.ProtoReflect.Descriptor instead.
+func (*CompleteChallengeRequest) Descriptor() ([]byte, []int) {
+	return file_athena_v1_auth_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *CompleteChallengeRequest) GetUsername() string {
+	if x != nil {
+		return x.Username
+	}
+	return ""
+}
+
+func (x *CompleteChallengeRequest) GetPurpose() string {
+	if x != nil {
+		return x.Purpose
+	}
+	return ""
+}
+
+func (x *CompleteChallengeRequest) GetChallenge() string {
+	if x != nil {
+		return x.Challenge
+	}
+	return ""
+}
+
+func (x *CompleteChallengeRequest) GetNewPassword() string {
+	if x != nil {
+		return x.NewPassword
+	}
+	return ""
+}
+
+type CompleteChallengeResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Session       *SessionInfo           `protobuf:"bytes,1,opt,name=session,proto3" json:"session,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CompleteChallengeResponse) Reset() {
+	*x = CompleteChallengeResponse{}
+	mi := &file_athena_v1_auth_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CompleteChallengeResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CompleteChallengeResponse) ProtoMessage() {}
+
+func (x *CompleteChallengeResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_auth_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CompleteChallengeResponse.ProtoReflect.Descriptor instead.
+func (*CompleteChallengeResponse) Descriptor() ([]byte, []int) {
+	return file_athena_v1_auth_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *CompleteChallengeResponse) GetSession() *SessionInfo {
+	if x != nil {
+		return x.Session
+	}
+	return nil
+}
+
+type ResendInviteRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Username      string                 `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ResendInviteRequest) Reset() {
+	*x = ResendInviteRequest{}
+	mi := &file_athena_v1_auth_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ResendInviteRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ResendInviteRequest) ProtoMessage() {}
+
+func (x *ResendInviteRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_auth_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ResendInviteRequest.ProtoReflect.Descriptor instead.
+func (*ResendInviteRequest) Descriptor() ([]byte, []int) {
+	return file_athena_v1_auth_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *ResendInviteRequest) GetUsername() string {
+	if x != nil {
+		return x.Username
+	}
+	return ""
+}
+
+type ResendInviteResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	User  *AccessUser            `protobuf:"bytes,1,opt,name=user,proto3" json:"user,omitempty"`
+	// The single-use first-login Challenge, shown once.
+	Challenge     string `protobuf:"bytes,2,opt,name=challenge,proto3" json:"challenge,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ResendInviteResponse) Reset() {
+	*x = ResendInviteResponse{}
+	mi := &file_athena_v1_auth_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ResendInviteResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ResendInviteResponse) ProtoMessage() {}
+
+func (x *ResendInviteResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_auth_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ResendInviteResponse.ProtoReflect.Descriptor instead.
+func (*ResendInviteResponse) Descriptor() ([]byte, []int) {
+	return file_athena_v1_auth_proto_rawDescGZIP(), []int{17}
+}
+
+func (x *ResendInviteResponse) GetUser() *AccessUser {
+	if x != nil {
+		return x.User
+	}
+	return nil
+}
+
+func (x *ResendInviteResponse) GetChallenge() string {
+	if x != nil {
+		return x.Challenge
+	}
+	return ""
+}
+
+type StartResetRequest struct {
+	state    protoimpl.MessageState `protogen:"open.v1"`
+	Username string                 `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
+	// The caller's own password, proving a privileged recovery.
+	ActorPassword string `protobuf:"bytes,2,opt,name=actor_password,json=actorPassword,proto3" json:"actor_password,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StartResetRequest) Reset() {
+	*x = StartResetRequest{}
+	mi := &file_athena_v1_auth_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StartResetRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StartResetRequest) ProtoMessage() {}
+
+func (x *StartResetRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_auth_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StartResetRequest.ProtoReflect.Descriptor instead.
+func (*StartResetRequest) Descriptor() ([]byte, []int) {
+	return file_athena_v1_auth_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *StartResetRequest) GetUsername() string {
+	if x != nil {
+		return x.Username
+	}
+	return ""
+}
+
+func (x *StartResetRequest) GetActorPassword() string {
+	if x != nil {
+		return x.ActorPassword
+	}
+	return ""
+}
+
+type StartResetResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	User  *AccessUser            `protobuf:"bytes,1,opt,name=user,proto3" json:"user,omitempty"`
+	// The single-use reset Challenge, shown once.
+	Challenge     string `protobuf:"bytes,2,opt,name=challenge,proto3" json:"challenge,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StartResetResponse) Reset() {
+	*x = StartResetResponse{}
+	mi := &file_athena_v1_auth_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StartResetResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StartResetResponse) ProtoMessage() {}
+
+func (x *StartResetResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_auth_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StartResetResponse.ProtoReflect.Descriptor instead.
+func (*StartResetResponse) Descriptor() ([]byte, []int) {
+	return file_athena_v1_auth_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *StartResetResponse) GetUser() *AccessUser {
+	if x != nil {
+		return x.User
+	}
+	return nil
+}
+
+func (x *StartResetResponse) GetChallenge() string {
+	if x != nil {
+		return x.Challenge
+	}
+	return ""
+}
+
 type CreateUserRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Username      string                 `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
 	DisplayName   string                 `protobuf:"bytes,2,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
-	Password      string                 `protobuf:"bytes,3,opt,name=password,proto3" json:"password,omitempty"`
 	Roles         []string               `protobuf:"bytes,4,rep,name=roles,proto3" json:"roles,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -639,7 +1078,7 @@ type CreateUserRequest struct {
 
 func (x *CreateUserRequest) Reset() {
 	*x = CreateUserRequest{}
-	mi := &file_athena_v1_auth_proto_msgTypes[12]
+	mi := &file_athena_v1_auth_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -651,7 +1090,7 @@ func (x *CreateUserRequest) String() string {
 func (*CreateUserRequest) ProtoMessage() {}
 
 func (x *CreateUserRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_auth_proto_msgTypes[12]
+	mi := &file_athena_v1_auth_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -664,7 +1103,7 @@ func (x *CreateUserRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateUserRequest.ProtoReflect.Descriptor instead.
 func (*CreateUserRequest) Descriptor() ([]byte, []int) {
-	return file_athena_v1_auth_proto_rawDescGZIP(), []int{12}
+	return file_athena_v1_auth_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *CreateUserRequest) GetUsername() string {
@@ -677,13 +1116,6 @@ func (x *CreateUserRequest) GetUsername() string {
 func (x *CreateUserRequest) GetDisplayName() string {
 	if x != nil {
 		return x.DisplayName
-	}
-	return ""
-}
-
-func (x *CreateUserRequest) GetPassword() string {
-	if x != nil {
-		return x.Password
 	}
 	return ""
 }
@@ -704,7 +1136,7 @@ type CreateUserResponse struct {
 
 func (x *CreateUserResponse) Reset() {
 	*x = CreateUserResponse{}
-	mi := &file_athena_v1_auth_proto_msgTypes[13]
+	mi := &file_athena_v1_auth_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -716,7 +1148,7 @@ func (x *CreateUserResponse) String() string {
 func (*CreateUserResponse) ProtoMessage() {}
 
 func (x *CreateUserResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_auth_proto_msgTypes[13]
+	mi := &file_athena_v1_auth_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -729,7 +1161,7 @@ func (x *CreateUserResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateUserResponse.ProtoReflect.Descriptor instead.
 func (*CreateUserResponse) Descriptor() ([]byte, []int) {
-	return file_athena_v1_auth_proto_rawDescGZIP(), []int{13}
+	return file_athena_v1_auth_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *CreateUserResponse) GetUser() *AccessUser {
@@ -755,7 +1187,7 @@ type UpdateUserRequest struct {
 
 func (x *UpdateUserRequest) Reset() {
 	*x = UpdateUserRequest{}
-	mi := &file_athena_v1_auth_proto_msgTypes[14]
+	mi := &file_athena_v1_auth_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -767,7 +1199,7 @@ func (x *UpdateUserRequest) String() string {
 func (*UpdateUserRequest) ProtoMessage() {}
 
 func (x *UpdateUserRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_auth_proto_msgTypes[14]
+	mi := &file_athena_v1_auth_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -780,7 +1212,7 @@ func (x *UpdateUserRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateUserRequest.ProtoReflect.Descriptor instead.
 func (*UpdateUserRequest) Descriptor() ([]byte, []int) {
-	return file_athena_v1_auth_proto_rawDescGZIP(), []int{14}
+	return file_athena_v1_auth_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *UpdateUserRequest) GetUsername() string {
@@ -827,7 +1259,7 @@ type RoleNames struct {
 
 func (x *RoleNames) Reset() {
 	*x = RoleNames{}
-	mi := &file_athena_v1_auth_proto_msgTypes[15]
+	mi := &file_athena_v1_auth_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -839,7 +1271,7 @@ func (x *RoleNames) String() string {
 func (*RoleNames) ProtoMessage() {}
 
 func (x *RoleNames) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_auth_proto_msgTypes[15]
+	mi := &file_athena_v1_auth_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -852,7 +1284,7 @@ func (x *RoleNames) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RoleNames.ProtoReflect.Descriptor instead.
 func (*RoleNames) Descriptor() ([]byte, []int) {
-	return file_athena_v1_auth_proto_rawDescGZIP(), []int{15}
+	return file_athena_v1_auth_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *RoleNames) GetNames() []string {
@@ -871,7 +1303,7 @@ type UpdateUserResponse struct {
 
 func (x *UpdateUserResponse) Reset() {
 	*x = UpdateUserResponse{}
-	mi := &file_athena_v1_auth_proto_msgTypes[16]
+	mi := &file_athena_v1_auth_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -883,7 +1315,7 @@ func (x *UpdateUserResponse) String() string {
 func (*UpdateUserResponse) ProtoMessage() {}
 
 func (x *UpdateUserResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_auth_proto_msgTypes[16]
+	mi := &file_athena_v1_auth_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -896,7 +1328,7 @@ func (x *UpdateUserResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateUserResponse.ProtoReflect.Descriptor instead.
 func (*UpdateUserResponse) Descriptor() ([]byte, []int) {
-	return file_athena_v1_auth_proto_rawDescGZIP(), []int{16}
+	return file_athena_v1_auth_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *UpdateUserResponse) GetUser() *AccessUser {
@@ -909,14 +1341,13 @@ func (x *UpdateUserResponse) GetUser() *AccessUser {
 type ResetPasswordRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Username      string                 `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
-	NewPassword   string                 `protobuf:"bytes,2,opt,name=new_password,json=newPassword,proto3" json:"new_password,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ResetPasswordRequest) Reset() {
 	*x = ResetPasswordRequest{}
-	mi := &file_athena_v1_auth_proto_msgTypes[17]
+	mi := &file_athena_v1_auth_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -928,7 +1359,7 @@ func (x *ResetPasswordRequest) String() string {
 func (*ResetPasswordRequest) ProtoMessage() {}
 
 func (x *ResetPasswordRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_auth_proto_msgTypes[17]
+	mi := &file_athena_v1_auth_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -941,19 +1372,12 @@ func (x *ResetPasswordRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResetPasswordRequest.ProtoReflect.Descriptor instead.
 func (*ResetPasswordRequest) Descriptor() ([]byte, []int) {
-	return file_athena_v1_auth_proto_rawDescGZIP(), []int{17}
+	return file_athena_v1_auth_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *ResetPasswordRequest) GetUsername() string {
 	if x != nil {
 		return x.Username
-	}
-	return ""
-}
-
-func (x *ResetPasswordRequest) GetNewPassword() string {
-	if x != nil {
-		return x.NewPassword
 	}
 	return ""
 }
@@ -966,7 +1390,7 @@ type ResetPasswordResponse struct {
 
 func (x *ResetPasswordResponse) Reset() {
 	*x = ResetPasswordResponse{}
-	mi := &file_athena_v1_auth_proto_msgTypes[18]
+	mi := &file_athena_v1_auth_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -978,7 +1402,7 @@ func (x *ResetPasswordResponse) String() string {
 func (*ResetPasswordResponse) ProtoMessage() {}
 
 func (x *ResetPasswordResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_auth_proto_msgTypes[18]
+	mi := &file_athena_v1_auth_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -991,7 +1415,1164 @@ func (x *ResetPasswordResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResetPasswordResponse.ProtoReflect.Descriptor instead.
 func (*ResetPasswordResponse) Descriptor() ([]byte, []int) {
-	return file_athena_v1_auth_proto_rawDescGZIP(), []int{18}
+	return file_athena_v1_auth_proto_rawDescGZIP(), []int{26}
+}
+
+// ScopeValues holds the allowed values of one Scope dimension.
+type ScopeValues struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Values        []string               `protobuf:"bytes,1,rep,name=values,proto3" json:"values,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ScopeValues) Reset() {
+	*x = ScopeValues{}
+	mi := &file_athena_v1_auth_proto_msgTypes[27]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ScopeValues) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ScopeValues) ProtoMessage() {}
+
+func (x *ScopeValues) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_auth_proto_msgTypes[27]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ScopeValues.ProtoReflect.Descriptor instead.
+func (*ScopeValues) Descriptor() ([]byte, []int) {
+	return file_athena_v1_auth_proto_rawDescGZIP(), []int{27}
+}
+
+func (x *ScopeValues) GetValues() []string {
+	if x != nil {
+		return x.Values
+	}
+	return nil
+}
+
+// Assignment is one Role given to one user with its own Scope and dates.
+type Assignment struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Id    string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Role  string                 `protobuf:"bytes,2,opt,name=role,proto3" json:"role,omitempty"`
+	// Dimension name to allowed values. Empty means every row.
+	Scope map[string]*ScopeValues `protobuf:"bytes,3,rep,name=scope,proto3" json:"scope,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	// Whole days, YYYY-MM-DD. Empty means unbounded.
+	ActiveFrom    string `protobuf:"bytes,4,opt,name=active_from,json=activeFrom,proto3" json:"active_from,omitempty"`
+	ExpiresAt     string `protobuf:"bytes,5,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
+	Revision      int64  `protobuf:"varint,6,opt,name=revision,proto3" json:"revision,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Assignment) Reset() {
+	*x = Assignment{}
+	mi := &file_athena_v1_auth_proto_msgTypes[28]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Assignment) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Assignment) ProtoMessage() {}
+
+func (x *Assignment) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_auth_proto_msgTypes[28]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Assignment.ProtoReflect.Descriptor instead.
+func (*Assignment) Descriptor() ([]byte, []int) {
+	return file_athena_v1_auth_proto_rawDescGZIP(), []int{28}
+}
+
+func (x *Assignment) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *Assignment) GetRole() string {
+	if x != nil {
+		return x.Role
+	}
+	return ""
+}
+
+func (x *Assignment) GetScope() map[string]*ScopeValues {
+	if x != nil {
+		return x.Scope
+	}
+	return nil
+}
+
+func (x *Assignment) GetActiveFrom() string {
+	if x != nil {
+		return x.ActiveFrom
+	}
+	return ""
+}
+
+func (x *Assignment) GetExpiresAt() string {
+	if x != nil {
+		return x.ExpiresAt
+	}
+	return ""
+}
+
+func (x *Assignment) GetRevision() int64 {
+	if x != nil {
+		return x.Revision
+	}
+	return 0
+}
+
+type ListAssignmentsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Username      string                 `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListAssignmentsRequest) Reset() {
+	*x = ListAssignmentsRequest{}
+	mi := &file_athena_v1_auth_proto_msgTypes[29]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListAssignmentsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListAssignmentsRequest) ProtoMessage() {}
+
+func (x *ListAssignmentsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_auth_proto_msgTypes[29]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListAssignmentsRequest.ProtoReflect.Descriptor instead.
+func (*ListAssignmentsRequest) Descriptor() ([]byte, []int) {
+	return file_athena_v1_auth_proto_rawDescGZIP(), []int{29}
+}
+
+func (x *ListAssignmentsRequest) GetUsername() string {
+	if x != nil {
+		return x.Username
+	}
+	return ""
+}
+
+type ListAssignmentsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Assignments   []*Assignment          `protobuf:"bytes,1,rep,name=assignments,proto3" json:"assignments,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListAssignmentsResponse) Reset() {
+	*x = ListAssignmentsResponse{}
+	mi := &file_athena_v1_auth_proto_msgTypes[30]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListAssignmentsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListAssignmentsResponse) ProtoMessage() {}
+
+func (x *ListAssignmentsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_auth_proto_msgTypes[30]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListAssignmentsResponse.ProtoReflect.Descriptor instead.
+func (*ListAssignmentsResponse) Descriptor() ([]byte, []int) {
+	return file_athena_v1_auth_proto_rawDescGZIP(), []int{30}
+}
+
+func (x *ListAssignmentsResponse) GetAssignments() []*Assignment {
+	if x != nil {
+		return x.Assignments
+	}
+	return nil
+}
+
+type SaveAssignmentRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Username      string                 `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
+	Assignment    *Assignment            `protobuf:"bytes,2,opt,name=assignment,proto3" json:"assignment,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SaveAssignmentRequest) Reset() {
+	*x = SaveAssignmentRequest{}
+	mi := &file_athena_v1_auth_proto_msgTypes[31]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SaveAssignmentRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SaveAssignmentRequest) ProtoMessage() {}
+
+func (x *SaveAssignmentRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_auth_proto_msgTypes[31]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SaveAssignmentRequest.ProtoReflect.Descriptor instead.
+func (*SaveAssignmentRequest) Descriptor() ([]byte, []int) {
+	return file_athena_v1_auth_proto_rawDescGZIP(), []int{31}
+}
+
+func (x *SaveAssignmentRequest) GetUsername() string {
+	if x != nil {
+		return x.Username
+	}
+	return ""
+}
+
+func (x *SaveAssignmentRequest) GetAssignment() *Assignment {
+	if x != nil {
+		return x.Assignment
+	}
+	return nil
+}
+
+type SaveAssignmentResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Assignment    *Assignment            `protobuf:"bytes,1,opt,name=assignment,proto3" json:"assignment,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SaveAssignmentResponse) Reset() {
+	*x = SaveAssignmentResponse{}
+	mi := &file_athena_v1_auth_proto_msgTypes[32]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SaveAssignmentResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SaveAssignmentResponse) ProtoMessage() {}
+
+func (x *SaveAssignmentResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_auth_proto_msgTypes[32]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SaveAssignmentResponse.ProtoReflect.Descriptor instead.
+func (*SaveAssignmentResponse) Descriptor() ([]byte, []int) {
+	return file_athena_v1_auth_proto_rawDescGZIP(), []int{32}
+}
+
+func (x *SaveAssignmentResponse) GetAssignment() *Assignment {
+	if x != nil {
+		return x.Assignment
+	}
+	return nil
+}
+
+type RevokeAssignmentRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RevokeAssignmentRequest) Reset() {
+	*x = RevokeAssignmentRequest{}
+	mi := &file_athena_v1_auth_proto_msgTypes[33]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RevokeAssignmentRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RevokeAssignmentRequest) ProtoMessage() {}
+
+func (x *RevokeAssignmentRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_auth_proto_msgTypes[33]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RevokeAssignmentRequest.ProtoReflect.Descriptor instead.
+func (*RevokeAssignmentRequest) Descriptor() ([]byte, []int) {
+	return file_athena_v1_auth_proto_rawDescGZIP(), []int{33}
+}
+
+func (x *RevokeAssignmentRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+type RevokeAssignmentResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RevokeAssignmentResponse) Reset() {
+	*x = RevokeAssignmentResponse{}
+	mi := &file_athena_v1_auth_proto_msgTypes[34]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RevokeAssignmentResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RevokeAssignmentResponse) ProtoMessage() {}
+
+func (x *RevokeAssignmentResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_auth_proto_msgTypes[34]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RevokeAssignmentResponse.ProtoReflect.Descriptor instead.
+func (*RevokeAssignmentResponse) Descriptor() ([]byte, []int) {
+	return file_athena_v1_auth_proto_rawDescGZIP(), []int{34}
+}
+
+type ExplainAccessRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Username      string                 `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
+	Action        string                 `protobuf:"bytes,2,opt,name=action,proto3" json:"action,omitempty"`
+	RecordTypeKey string                 `protobuf:"bytes,3,opt,name=record_type_key,json=recordTypeKey,proto3" json:"record_type_key,omitempty"`
+	// When set, row conditions and Scopes are tested against this Record.
+	RecordId      string `protobuf:"bytes,4,opt,name=record_id,json=recordId,proto3" json:"record_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ExplainAccessRequest) Reset() {
+	*x = ExplainAccessRequest{}
+	mi := &file_athena_v1_auth_proto_msgTypes[35]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ExplainAccessRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ExplainAccessRequest) ProtoMessage() {}
+
+func (x *ExplainAccessRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_auth_proto_msgTypes[35]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ExplainAccessRequest.ProtoReflect.Descriptor instead.
+func (*ExplainAccessRequest) Descriptor() ([]byte, []int) {
+	return file_athena_v1_auth_proto_rawDescGZIP(), []int{35}
+}
+
+func (x *ExplainAccessRequest) GetUsername() string {
+	if x != nil {
+		return x.Username
+	}
+	return ""
+}
+
+func (x *ExplainAccessRequest) GetAction() string {
+	if x != nil {
+		return x.Action
+	}
+	return ""
+}
+
+func (x *ExplainAccessRequest) GetRecordTypeKey() string {
+	if x != nil {
+		return x.RecordTypeKey
+	}
+	return ""
+}
+
+func (x *ExplainAccessRequest) GetRecordId() string {
+	if x != nil {
+		return x.RecordId
+	}
+	return ""
+}
+
+// AssignmentExplanation reports why one Assignment allows an action or why
+// it fails. Reasons are fixed phrases such as "no covering Grant",
+// "outside dates", "Scope misses the required company" or "row condition
+// false".
+type AssignmentExplanation struct {
+	state                  protoimpl.MessageState `protogen:"open.v1"`
+	AssignmentId           string                 `protobuf:"bytes,1,opt,name=assignment_id,json=assignmentId,proto3" json:"assignment_id,omitempty"`
+	Role                   string                 `protobuf:"bytes,2,opt,name=role,proto3" json:"role,omitempty"`
+	Matched                bool                   `protobuf:"varint,3,opt,name=matched,proto3" json:"matched,omitempty"`
+	Reasons                []string               `protobuf:"bytes,4,rep,name=reasons,proto3" json:"reasons,omitempty"`
+	SeparateDutiesConflict bool                   `protobuf:"varint,5,opt,name=separate_duties_conflict,json=separateDutiesConflict,proto3" json:"separate_duties_conflict,omitempty"`
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
+}
+
+func (x *AssignmentExplanation) Reset() {
+	*x = AssignmentExplanation{}
+	mi := &file_athena_v1_auth_proto_msgTypes[36]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AssignmentExplanation) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AssignmentExplanation) ProtoMessage() {}
+
+func (x *AssignmentExplanation) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_auth_proto_msgTypes[36]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AssignmentExplanation.ProtoReflect.Descriptor instead.
+func (*AssignmentExplanation) Descriptor() ([]byte, []int) {
+	return file_athena_v1_auth_proto_rawDescGZIP(), []int{36}
+}
+
+func (x *AssignmentExplanation) GetAssignmentId() string {
+	if x != nil {
+		return x.AssignmentId
+	}
+	return ""
+}
+
+func (x *AssignmentExplanation) GetRole() string {
+	if x != nil {
+		return x.Role
+	}
+	return ""
+}
+
+func (x *AssignmentExplanation) GetMatched() bool {
+	if x != nil {
+		return x.Matched
+	}
+	return false
+}
+
+func (x *AssignmentExplanation) GetReasons() []string {
+	if x != nil {
+		return x.Reasons
+	}
+	return nil
+}
+
+func (x *AssignmentExplanation) GetSeparateDutiesConflict() bool {
+	if x != nil {
+		return x.SeparateDutiesConflict
+	}
+	return false
+}
+
+type ExplainAccessResponse struct {
+	state         protoimpl.MessageState   `protogen:"open.v1"`
+	Allowed       bool                     `protobuf:"varint,1,opt,name=allowed,proto3" json:"allowed,omitempty"`
+	Assignments   []*AssignmentExplanation `protobuf:"bytes,2,rep,name=assignments,proto3" json:"assignments,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ExplainAccessResponse) Reset() {
+	*x = ExplainAccessResponse{}
+	mi := &file_athena_v1_auth_proto_msgTypes[37]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ExplainAccessResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ExplainAccessResponse) ProtoMessage() {}
+
+func (x *ExplainAccessResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_auth_proto_msgTypes[37]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ExplainAccessResponse.ProtoReflect.Descriptor instead.
+func (*ExplainAccessResponse) Descriptor() ([]byte, []int) {
+	return file_athena_v1_auth_proto_rawDescGZIP(), []int{37}
+}
+
+func (x *ExplainAccessResponse) GetAllowed() bool {
+	if x != nil {
+		return x.Allowed
+	}
+	return false
+}
+
+func (x *ExplainAccessResponse) GetAssignments() []*AssignmentExplanation {
+	if x != nil {
+		return x.Assignments
+	}
+	return nil
+}
+
+// Session is one signed-in session.
+type Session struct {
+	state      protoimpl.MessageState `protogen:"open.v1"`
+	Id         string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	CreatedAt  string                 `protobuf:"bytes,2,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	LastSeenAt string                 `protobuf:"bytes,3,opt,name=last_seen_at,json=lastSeenAt,proto3" json:"last_seen_at,omitempty"`
+	ExpiresAt  string                 `protobuf:"bytes,4,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
+	Device     string                 `protobuf:"bytes,5,opt,name=device,proto3" json:"device,omitempty"`
+	// True for the session making the call.
+	Current       bool `protobuf:"varint,6,opt,name=current,proto3" json:"current,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Session) Reset() {
+	*x = Session{}
+	mi := &file_athena_v1_auth_proto_msgTypes[38]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Session) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Session) ProtoMessage() {}
+
+func (x *Session) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_auth_proto_msgTypes[38]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Session.ProtoReflect.Descriptor instead.
+func (*Session) Descriptor() ([]byte, []int) {
+	return file_athena_v1_auth_proto_rawDescGZIP(), []int{38}
+}
+
+func (x *Session) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *Session) GetCreatedAt() string {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return ""
+}
+
+func (x *Session) GetLastSeenAt() string {
+	if x != nil {
+		return x.LastSeenAt
+	}
+	return ""
+}
+
+func (x *Session) GetExpiresAt() string {
+	if x != nil {
+		return x.ExpiresAt
+	}
+	return ""
+}
+
+func (x *Session) GetDevice() string {
+	if x != nil {
+		return x.Device
+	}
+	return ""
+}
+
+func (x *Session) GetCurrent() bool {
+	if x != nil {
+		return x.Current
+	}
+	return false
+}
+
+type ListSessionsRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Empty lists the caller's own sessions.
+	Username      string `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListSessionsRequest) Reset() {
+	*x = ListSessionsRequest{}
+	mi := &file_athena_v1_auth_proto_msgTypes[39]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListSessionsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListSessionsRequest) ProtoMessage() {}
+
+func (x *ListSessionsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_auth_proto_msgTypes[39]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListSessionsRequest.ProtoReflect.Descriptor instead.
+func (*ListSessionsRequest) Descriptor() ([]byte, []int) {
+	return file_athena_v1_auth_proto_rawDescGZIP(), []int{39}
+}
+
+func (x *ListSessionsRequest) GetUsername() string {
+	if x != nil {
+		return x.Username
+	}
+	return ""
+}
+
+type ListSessionsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Sessions      []*Session             `protobuf:"bytes,1,rep,name=sessions,proto3" json:"sessions,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListSessionsResponse) Reset() {
+	*x = ListSessionsResponse{}
+	mi := &file_athena_v1_auth_proto_msgTypes[40]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListSessionsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListSessionsResponse) ProtoMessage() {}
+
+func (x *ListSessionsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_auth_proto_msgTypes[40]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListSessionsResponse.ProtoReflect.Descriptor instead.
+func (*ListSessionsResponse) Descriptor() ([]byte, []int) {
+	return file_athena_v1_auth_proto_rawDescGZIP(), []int{40}
+}
+
+func (x *ListSessionsResponse) GetSessions() []*Session {
+	if x != nil {
+		return x.Sessions
+	}
+	return nil
+}
+
+type RevokeSessionRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RevokeSessionRequest) Reset() {
+	*x = RevokeSessionRequest{}
+	mi := &file_athena_v1_auth_proto_msgTypes[41]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RevokeSessionRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RevokeSessionRequest) ProtoMessage() {}
+
+func (x *RevokeSessionRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_auth_proto_msgTypes[41]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RevokeSessionRequest.ProtoReflect.Descriptor instead.
+func (*RevokeSessionRequest) Descriptor() ([]byte, []int) {
+	return file_athena_v1_auth_proto_rawDescGZIP(), []int{41}
+}
+
+func (x *RevokeSessionRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+type RevokeSessionResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RevokeSessionResponse) Reset() {
+	*x = RevokeSessionResponse{}
+	mi := &file_athena_v1_auth_proto_msgTypes[42]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RevokeSessionResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RevokeSessionResponse) ProtoMessage() {}
+
+func (x *RevokeSessionResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_auth_proto_msgTypes[42]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RevokeSessionResponse.ProtoReflect.Descriptor instead.
+func (*RevokeSessionResponse) Descriptor() ([]byte, []int) {
+	return file_athena_v1_auth_proto_rawDescGZIP(), []int{42}
+}
+
+type TransferOwnershipRequest struct {
+	state    protoimpl.MessageState `protogen:"open.v1"`
+	Username string                 `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
+	// The caller's own password, proving a privileged ownership change.
+	ActorPassword string `protobuf:"bytes,2,opt,name=actor_password,json=actorPassword,proto3" json:"actor_password,omitempty"`
+	// Also end the caller's own ownership Assignments.
+	Relinquish    bool `protobuf:"varint,3,opt,name=relinquish,proto3" json:"relinquish,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TransferOwnershipRequest) Reset() {
+	*x = TransferOwnershipRequest{}
+	mi := &file_athena_v1_auth_proto_msgTypes[43]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TransferOwnershipRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TransferOwnershipRequest) ProtoMessage() {}
+
+func (x *TransferOwnershipRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_auth_proto_msgTypes[43]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TransferOwnershipRequest.ProtoReflect.Descriptor instead.
+func (*TransferOwnershipRequest) Descriptor() ([]byte, []int) {
+	return file_athena_v1_auth_proto_rawDescGZIP(), []int{43}
+}
+
+func (x *TransferOwnershipRequest) GetUsername() string {
+	if x != nil {
+		return x.Username
+	}
+	return ""
+}
+
+func (x *TransferOwnershipRequest) GetActorPassword() string {
+	if x != nil {
+		return x.ActorPassword
+	}
+	return ""
+}
+
+func (x *TransferOwnershipRequest) GetRelinquish() bool {
+	if x != nil {
+		return x.Relinquish
+	}
+	return false
+}
+
+type TransferOwnershipResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	User          *AccessUser            `protobuf:"bytes,1,opt,name=user,proto3" json:"user,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TransferOwnershipResponse) Reset() {
+	*x = TransferOwnershipResponse{}
+	mi := &file_athena_v1_auth_proto_msgTypes[44]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TransferOwnershipResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TransferOwnershipResponse) ProtoMessage() {}
+
+func (x *TransferOwnershipResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_auth_proto_msgTypes[44]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TransferOwnershipResponse.ProtoReflect.Descriptor instead.
+func (*TransferOwnershipResponse) Descriptor() ([]byte, []int) {
+	return file_athena_v1_auth_proto_rawDescGZIP(), []int{44}
+}
+
+func (x *TransferOwnershipResponse) GetUser() *AccessUser {
+	if x != nil {
+		return x.User
+	}
+	return nil
+}
+
+type ListRoleHoldersRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Role          string                 `protobuf:"bytes,1,opt,name=role,proto3" json:"role,omitempty"`
+	RecordTypeKey string                 `protobuf:"bytes,2,opt,name=record_type_key,json=recordTypeKey,proto3" json:"record_type_key,omitempty"`
+	Action        string                 `protobuf:"bytes,3,opt,name=action,proto3" json:"action,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListRoleHoldersRequest) Reset() {
+	*x = ListRoleHoldersRequest{}
+	mi := &file_athena_v1_auth_proto_msgTypes[45]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListRoleHoldersRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListRoleHoldersRequest) ProtoMessage() {}
+
+func (x *ListRoleHoldersRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_auth_proto_msgTypes[45]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListRoleHoldersRequest.ProtoReflect.Descriptor instead.
+func (*ListRoleHoldersRequest) Descriptor() ([]byte, []int) {
+	return file_athena_v1_auth_proto_rawDescGZIP(), []int{45}
+}
+
+func (x *ListRoleHoldersRequest) GetRole() string {
+	if x != nil {
+		return x.Role
+	}
+	return ""
+}
+
+func (x *ListRoleHoldersRequest) GetRecordTypeKey() string {
+	if x != nil {
+		return x.RecordTypeKey
+	}
+	return ""
+}
+
+func (x *ListRoleHoldersRequest) GetAction() string {
+	if x != nil {
+		return x.Action
+	}
+	return ""
+}
+
+// RoleHolder is one user whose Assignment of the Role covers the action.
+// Usable means the dates cover today and the Scope satisfies the Role; row
+// conditions and Scope matching still apply per Record.
+type RoleHolder struct {
+	state         protoimpl.MessageState  `protogen:"open.v1"`
+	Username      string                  `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
+	DisplayName   string                  `protobuf:"bytes,2,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	State         string                  `protobuf:"bytes,3,opt,name=state,proto3" json:"state,omitempty"`
+	Usable        bool                    `protobuf:"varint,4,opt,name=usable,proto3" json:"usable,omitempty"`
+	Scope         map[string]*ScopeValues `protobuf:"bytes,5,rep,name=scope,proto3" json:"scope,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	ActiveFrom    string                  `protobuf:"bytes,6,opt,name=active_from,json=activeFrom,proto3" json:"active_from,omitempty"`
+	ExpiresAt     string                  `protobuf:"bytes,7,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RoleHolder) Reset() {
+	*x = RoleHolder{}
+	mi := &file_athena_v1_auth_proto_msgTypes[46]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RoleHolder) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RoleHolder) ProtoMessage() {}
+
+func (x *RoleHolder) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_auth_proto_msgTypes[46]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RoleHolder.ProtoReflect.Descriptor instead.
+func (*RoleHolder) Descriptor() ([]byte, []int) {
+	return file_athena_v1_auth_proto_rawDescGZIP(), []int{46}
+}
+
+func (x *RoleHolder) GetUsername() string {
+	if x != nil {
+		return x.Username
+	}
+	return ""
+}
+
+func (x *RoleHolder) GetDisplayName() string {
+	if x != nil {
+		return x.DisplayName
+	}
+	return ""
+}
+
+func (x *RoleHolder) GetState() string {
+	if x != nil {
+		return x.State
+	}
+	return ""
+}
+
+func (x *RoleHolder) GetUsable() bool {
+	if x != nil {
+		return x.Usable
+	}
+	return false
+}
+
+func (x *RoleHolder) GetScope() map[string]*ScopeValues {
+	if x != nil {
+		return x.Scope
+	}
+	return nil
+}
+
+func (x *RoleHolder) GetActiveFrom() string {
+	if x != nil {
+		return x.ActiveFrom
+	}
+	return ""
+}
+
+func (x *RoleHolder) GetExpiresAt() string {
+	if x != nil {
+		return x.ExpiresAt
+	}
+	return ""
+}
+
+type ListRoleHoldersResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Holders       []*RoleHolder          `protobuf:"bytes,1,rep,name=holders,proto3" json:"holders,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListRoleHoldersResponse) Reset() {
+	*x = ListRoleHoldersResponse{}
+	mi := &file_athena_v1_auth_proto_msgTypes[47]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListRoleHoldersResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListRoleHoldersResponse) ProtoMessage() {}
+
+func (x *ListRoleHoldersResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_auth_proto_msgTypes[47]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListRoleHoldersResponse.ProtoReflect.Descriptor instead.
+func (*ListRoleHoldersResponse) Descriptor() ([]byte, []int) {
+	return file_athena_v1_auth_proto_rawDescGZIP(), []int{47}
+}
+
+func (x *ListRoleHoldersResponse) GetHolders() []*RoleHolder {
+	if x != nil {
+		return x.Holders
+	}
+	return nil
 }
 
 // Grant allows actions on one Record Type. Grants are additive; no Grant
@@ -1016,7 +2597,7 @@ type Grant struct {
 
 func (x *Grant) Reset() {
 	*x = Grant{}
-	mi := &file_athena_v1_auth_proto_msgTypes[19]
+	mi := &file_athena_v1_auth_proto_msgTypes[48]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1028,7 +2609,7 @@ func (x *Grant) String() string {
 func (*Grant) ProtoMessage() {}
 
 func (x *Grant) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_auth_proto_msgTypes[19]
+	mi := &file_athena_v1_auth_proto_msgTypes[48]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1041,7 +2622,7 @@ func (x *Grant) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Grant.ProtoReflect.Descriptor instead.
 func (*Grant) Descriptor() ([]byte, []int) {
-	return file_athena_v1_auth_proto_rawDescGZIP(), []int{19}
+	return file_athena_v1_auth_proto_rawDescGZIP(), []int{48}
 }
 
 func (x *Grant) GetRecordTypeKey() string {
@@ -1083,7 +2664,9 @@ type Role struct {
 	state       protoimpl.MessageState `protogen:"open.v1"`
 	Name        string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	Description string                 `protobuf:"bytes,2,opt,name=description,proto3" json:"description,omitempty"`
-	// Any of build, access, audit, files:read, files:write.
+	// Any of build, audit, files:read, files:write, rules:read, rules:write,
+	// access:ownership, access:users, access:roles, access:assign,
+	// access:recover, access:sessions, access:explore.
 	SystemPermissions []string `protobuf:"bytes,3,rep,name=system_permissions,json=systemPermissions,proto3" json:"system_permissions,omitempty"`
 	Grants            []*Grant `protobuf:"bytes,4,rep,name=grants,proto3" json:"grants,omitempty"`
 	unknownFields     protoimpl.UnknownFields
@@ -1092,7 +2675,7 @@ type Role struct {
 
 func (x *Role) Reset() {
 	*x = Role{}
-	mi := &file_athena_v1_auth_proto_msgTypes[20]
+	mi := &file_athena_v1_auth_proto_msgTypes[49]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1104,7 +2687,7 @@ func (x *Role) String() string {
 func (*Role) ProtoMessage() {}
 
 func (x *Role) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_auth_proto_msgTypes[20]
+	mi := &file_athena_v1_auth_proto_msgTypes[49]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1117,7 +2700,7 @@ func (x *Role) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Role.ProtoReflect.Descriptor instead.
 func (*Role) Descriptor() ([]byte, []int) {
-	return file_athena_v1_auth_proto_rawDescGZIP(), []int{20}
+	return file_athena_v1_auth_proto_rawDescGZIP(), []int{49}
 }
 
 func (x *Role) GetName() string {
@@ -1156,7 +2739,7 @@ type ListRolesRequest struct {
 
 func (x *ListRolesRequest) Reset() {
 	*x = ListRolesRequest{}
-	mi := &file_athena_v1_auth_proto_msgTypes[21]
+	mi := &file_athena_v1_auth_proto_msgTypes[50]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1168,7 +2751,7 @@ func (x *ListRolesRequest) String() string {
 func (*ListRolesRequest) ProtoMessage() {}
 
 func (x *ListRolesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_auth_proto_msgTypes[21]
+	mi := &file_athena_v1_auth_proto_msgTypes[50]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1181,7 +2764,7 @@ func (x *ListRolesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListRolesRequest.ProtoReflect.Descriptor instead.
 func (*ListRolesRequest) Descriptor() ([]byte, []int) {
-	return file_athena_v1_auth_proto_rawDescGZIP(), []int{21}
+	return file_athena_v1_auth_proto_rawDescGZIP(), []int{50}
 }
 
 type ListRolesResponse struct {
@@ -1193,7 +2776,7 @@ type ListRolesResponse struct {
 
 func (x *ListRolesResponse) Reset() {
 	*x = ListRolesResponse{}
-	mi := &file_athena_v1_auth_proto_msgTypes[22]
+	mi := &file_athena_v1_auth_proto_msgTypes[51]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1205,7 +2788,7 @@ func (x *ListRolesResponse) String() string {
 func (*ListRolesResponse) ProtoMessage() {}
 
 func (x *ListRolesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_auth_proto_msgTypes[22]
+	mi := &file_athena_v1_auth_proto_msgTypes[51]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1218,7 +2801,7 @@ func (x *ListRolesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListRolesResponse.ProtoReflect.Descriptor instead.
 func (*ListRolesResponse) Descriptor() ([]byte, []int) {
-	return file_athena_v1_auth_proto_rawDescGZIP(), []int{22}
+	return file_athena_v1_auth_proto_rawDescGZIP(), []int{51}
 }
 
 func (x *ListRolesResponse) GetRoles() []*Role {
@@ -1237,7 +2820,7 @@ type SaveRoleRequest struct {
 
 func (x *SaveRoleRequest) Reset() {
 	*x = SaveRoleRequest{}
-	mi := &file_athena_v1_auth_proto_msgTypes[23]
+	mi := &file_athena_v1_auth_proto_msgTypes[52]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1249,7 +2832,7 @@ func (x *SaveRoleRequest) String() string {
 func (*SaveRoleRequest) ProtoMessage() {}
 
 func (x *SaveRoleRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_auth_proto_msgTypes[23]
+	mi := &file_athena_v1_auth_proto_msgTypes[52]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1262,7 +2845,7 @@ func (x *SaveRoleRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SaveRoleRequest.ProtoReflect.Descriptor instead.
 func (*SaveRoleRequest) Descriptor() ([]byte, []int) {
-	return file_athena_v1_auth_proto_rawDescGZIP(), []int{23}
+	return file_athena_v1_auth_proto_rawDescGZIP(), []int{52}
 }
 
 func (x *SaveRoleRequest) GetRole() *Role {
@@ -1281,7 +2864,7 @@ type SaveRoleResponse struct {
 
 func (x *SaveRoleResponse) Reset() {
 	*x = SaveRoleResponse{}
-	mi := &file_athena_v1_auth_proto_msgTypes[24]
+	mi := &file_athena_v1_auth_proto_msgTypes[53]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1293,7 +2876,7 @@ func (x *SaveRoleResponse) String() string {
 func (*SaveRoleResponse) ProtoMessage() {}
 
 func (x *SaveRoleResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_auth_proto_msgTypes[24]
+	mi := &file_athena_v1_auth_proto_msgTypes[53]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1306,7 +2889,7 @@ func (x *SaveRoleResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SaveRoleResponse.ProtoReflect.Descriptor instead.
 func (*SaveRoleResponse) Descriptor() ([]byte, []int) {
-	return file_athena_v1_auth_proto_rawDescGZIP(), []int{24}
+	return file_athena_v1_auth_proto_rawDescGZIP(), []int{53}
 }
 
 func (x *SaveRoleResponse) GetRole() *Role {
@@ -1325,7 +2908,7 @@ type DeleteRoleRequest struct {
 
 func (x *DeleteRoleRequest) Reset() {
 	*x = DeleteRoleRequest{}
-	mi := &file_athena_v1_auth_proto_msgTypes[25]
+	mi := &file_athena_v1_auth_proto_msgTypes[54]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1337,7 +2920,7 @@ func (x *DeleteRoleRequest) String() string {
 func (*DeleteRoleRequest) ProtoMessage() {}
 
 func (x *DeleteRoleRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_auth_proto_msgTypes[25]
+	mi := &file_athena_v1_auth_proto_msgTypes[54]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1350,7 +2933,7 @@ func (x *DeleteRoleRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteRoleRequest.ProtoReflect.Descriptor instead.
 func (*DeleteRoleRequest) Descriptor() ([]byte, []int) {
-	return file_athena_v1_auth_proto_rawDescGZIP(), []int{25}
+	return file_athena_v1_auth_proto_rawDescGZIP(), []int{54}
 }
 
 func (x *DeleteRoleRequest) GetName() string {
@@ -1368,7 +2951,7 @@ type DeleteRoleResponse struct {
 
 func (x *DeleteRoleResponse) Reset() {
 	*x = DeleteRoleResponse{}
-	mi := &file_athena_v1_auth_proto_msgTypes[26]
+	mi := &file_athena_v1_auth_proto_msgTypes[55]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1380,7 +2963,7 @@ func (x *DeleteRoleResponse) String() string {
 func (*DeleteRoleResponse) ProtoMessage() {}
 
 func (x *DeleteRoleResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_auth_proto_msgTypes[26]
+	mi := &file_athena_v1_auth_proto_msgTypes[55]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1393,7 +2976,7 @@ func (x *DeleteRoleResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteRoleResponse.ProtoReflect.Descriptor instead.
 func (*DeleteRoleResponse) Descriptor() ([]byte, []int) {
-	return file_athena_v1_auth_proto_rawDescGZIP(), []int{26}
+	return file_athena_v1_auth_proto_rawDescGZIP(), []int{55}
 }
 
 type ListAccessLogRequest struct {
@@ -1409,7 +2992,7 @@ type ListAccessLogRequest struct {
 
 func (x *ListAccessLogRequest) Reset() {
 	*x = ListAccessLogRequest{}
-	mi := &file_athena_v1_auth_proto_msgTypes[27]
+	mi := &file_athena_v1_auth_proto_msgTypes[56]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1421,7 +3004,7 @@ func (x *ListAccessLogRequest) String() string {
 func (*ListAccessLogRequest) ProtoMessage() {}
 
 func (x *ListAccessLogRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_auth_proto_msgTypes[27]
+	mi := &file_athena_v1_auth_proto_msgTypes[56]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1434,7 +3017,7 @@ func (x *ListAccessLogRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListAccessLogRequest.ProtoReflect.Descriptor instead.
 func (*ListAccessLogRequest) Descriptor() ([]byte, []int) {
-	return file_athena_v1_auth_proto_rawDescGZIP(), []int{27}
+	return file_athena_v1_auth_proto_rawDescGZIP(), []int{56}
 }
 
 func (x *ListAccessLogRequest) GetPageSize() int32 {
@@ -1478,7 +3061,7 @@ type AccessEvent struct {
 
 func (x *AccessEvent) Reset() {
 	*x = AccessEvent{}
-	mi := &file_athena_v1_auth_proto_msgTypes[28]
+	mi := &file_athena_v1_auth_proto_msgTypes[57]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1490,7 +3073,7 @@ func (x *AccessEvent) String() string {
 func (*AccessEvent) ProtoMessage() {}
 
 func (x *AccessEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_auth_proto_msgTypes[28]
+	mi := &file_athena_v1_auth_proto_msgTypes[57]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1503,7 +3086,7 @@ func (x *AccessEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AccessEvent.ProtoReflect.Descriptor instead.
 func (*AccessEvent) Descriptor() ([]byte, []int) {
-	return file_athena_v1_auth_proto_rawDescGZIP(), []int{28}
+	return file_athena_v1_auth_proto_rawDescGZIP(), []int{57}
 }
 
 func (x *AccessEvent) GetId() int64 {
@@ -1585,7 +3168,7 @@ type ListAccessLogResponse struct {
 
 func (x *ListAccessLogResponse) Reset() {
 	*x = ListAccessLogResponse{}
-	mi := &file_athena_v1_auth_proto_msgTypes[29]
+	mi := &file_athena_v1_auth_proto_msgTypes[58]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1597,7 +3180,7 @@ func (x *ListAccessLogResponse) String() string {
 func (*ListAccessLogResponse) ProtoMessage() {}
 
 func (x *ListAccessLogResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_auth_proto_msgTypes[29]
+	mi := &file_athena_v1_auth_proto_msgTypes[58]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1610,7 +3193,7 @@ func (x *ListAccessLogResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListAccessLogResponse.ProtoReflect.Descriptor instead.
 func (*ListAccessLogResponse) Descriptor() ([]byte, []int) {
-	return file_athena_v1_auth_proto_rawDescGZIP(), []int{29}
+	return file_athena_v1_auth_proto_rawDescGZIP(), []int{58}
 }
 
 func (x *ListAccessLogResponse) GetEvents() []*AccessEvent {
@@ -1635,7 +3218,7 @@ type AuthFailure struct {
 
 func (x *AuthFailure) Reset() {
 	*x = AuthFailure{}
-	mi := &file_athena_v1_auth_proto_msgTypes[30]
+	mi := &file_athena_v1_auth_proto_msgTypes[59]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1647,7 +3230,7 @@ func (x *AuthFailure) String() string {
 func (*AuthFailure) ProtoMessage() {}
 
 func (x *AuthFailure) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_auth_proto_msgTypes[30]
+	mi := &file_athena_v1_auth_proto_msgTypes[59]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1660,7 +3243,7 @@ func (x *AuthFailure) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AuthFailure.ProtoReflect.Descriptor instead.
 func (*AuthFailure) Descriptor() ([]byte, []int) {
-	return file_athena_v1_auth_proto_rawDescGZIP(), []int{30}
+	return file_athena_v1_auth_proto_rawDescGZIP(), []int{59}
 }
 
 func (x *AuthFailure) GetReason() string {
@@ -1704,7 +3287,7 @@ const file_athena_v1_auth_proto_rawDesc = "" +
 	"\x15ChangePasswordRequest\x12)\n" +
 	"\x10current_password\x18\x01 \x01(\tR\x0fcurrentPassword\x12!\n" +
 	"\fnew_password\x18\x02 \x01(\tR\vnewPassword\"\x18\n" +
-	"\x16ChangePasswordResponse\"\xcf\x01\n" +
+	"\x16ChangePasswordResponse\"\xe5\x01\n" +
 	"\n" +
 	"AccessUser\x12\x1a\n" +
 	"\busername\x18\x01 \x01(\tR\busername\x12!\n" +
@@ -1713,15 +3296,40 @@ const file_athena_v1_auth_proto_rawDesc = "" +
 	"\bdisabled\x18\x04 \x01(\bR\bdisabled\x12\x16\n" +
 	"\x06locked\x18\x05 \x01(\bR\x06locked\x12\x14\n" +
 	"\x05roles\x18\x06 \x03(\tR\x05roles\x12\"\n" +
-	"\rlast_login_at\x18\a \x01(\tR\vlastLoginAt\"\x12\n" +
+	"\rlast_login_at\x18\a \x01(\tR\vlastLoginAt\x12\x14\n" +
+	"\x05state\x18\b \x01(\tR\x05state\"\x12\n" +
 	"\x10ListUsersRequest\"@\n" +
 	"\x11ListUsersResponse\x12+\n" +
-	"\x05users\x18\x01 \x03(\v2\x15.athena.v1.AccessUserR\x05users\"\x84\x01\n" +
+	"\x05users\x18\x01 \x03(\v2\x15.athena.v1.AccessUserR\x05users\"h\n" +
+	"\x11InviteUserRequest\x12\x1a\n" +
+	"\busername\x18\x01 \x01(\tR\busername\x12!\n" +
+	"\fdisplay_name\x18\x02 \x01(\tR\vdisplayName\x12\x14\n" +
+	"\x05roles\x18\x03 \x03(\tR\x05roles\"]\n" +
+	"\x12InviteUserResponse\x12)\n" +
+	"\x04user\x18\x01 \x01(\v2\x15.athena.v1.AccessUserR\x04user\x12\x1c\n" +
+	"\tchallenge\x18\x02 \x01(\tR\tchallenge\"\x91\x01\n" +
+	"\x18CompleteChallengeRequest\x12\x1a\n" +
+	"\busername\x18\x01 \x01(\tR\busername\x12\x18\n" +
+	"\apurpose\x18\x02 \x01(\tR\apurpose\x12\x1c\n" +
+	"\tchallenge\x18\x03 \x01(\tR\tchallenge\x12!\n" +
+	"\fnew_password\x18\x04 \x01(\tR\vnewPassword\"M\n" +
+	"\x19CompleteChallengeResponse\x120\n" +
+	"\asession\x18\x01 \x01(\v2\x16.athena.v1.SessionInfoR\asession\"1\n" +
+	"\x13ResendInviteRequest\x12\x1a\n" +
+	"\busername\x18\x01 \x01(\tR\busername\"_\n" +
+	"\x14ResendInviteResponse\x12)\n" +
+	"\x04user\x18\x01 \x01(\v2\x15.athena.v1.AccessUserR\x04user\x12\x1c\n" +
+	"\tchallenge\x18\x02 \x01(\tR\tchallenge\"V\n" +
+	"\x11StartResetRequest\x12\x1a\n" +
+	"\busername\x18\x01 \x01(\tR\busername\x12%\n" +
+	"\x0eactor_password\x18\x02 \x01(\tR\ractorPassword\"]\n" +
+	"\x12StartResetResponse\x12)\n" +
+	"\x04user\x18\x01 \x01(\v2\x15.athena.v1.AccessUserR\x04user\x12\x1c\n" +
+	"\tchallenge\x18\x02 \x01(\tR\tchallenge\"x\n" +
 	"\x11CreateUserRequest\x12\x1a\n" +
 	"\busername\x18\x01 \x01(\tR\busername\x12!\n" +
-	"\fdisplay_name\x18\x02 \x01(\tR\vdisplayName\x12\x1a\n" +
-	"\bpassword\x18\x03 \x01(\tR\bpassword\x12\x14\n" +
-	"\x05roles\x18\x04 \x03(\tR\x05roles\"?\n" +
+	"\fdisplay_name\x18\x02 \x01(\tR\vdisplayName\x12\x14\n" +
+	"\x05roles\x18\x04 \x03(\tR\x05rolesJ\x04\b\x03\x10\x04R\bpassword\"?\n" +
 	"\x12CreateUserResponse\x12)\n" +
 	"\x04user\x18\x01 \x01(\v2\x15.athena.v1.AccessUserR\x04user\"\xe9\x01\n" +
 	"\x11UpdateUserRequest\x12\x1a\n" +
@@ -1736,11 +3344,102 @@ const file_athena_v1_auth_proto_rawDesc = "" +
 	"\tRoleNames\x12\x14\n" +
 	"\x05names\x18\x01 \x03(\tR\x05names\"?\n" +
 	"\x12UpdateUserResponse\x12)\n" +
-	"\x04user\x18\x01 \x01(\v2\x15.athena.v1.AccessUserR\x04user\"U\n" +
+	"\x04user\x18\x01 \x01(\v2\x15.athena.v1.AccessUserR\x04user\"F\n" +
 	"\x14ResetPasswordRequest\x12\x1a\n" +
+	"\busername\x18\x01 \x01(\tR\busernameJ\x04\b\x02\x10\x03R\fnew_password\"\x17\n" +
+	"\x15ResetPasswordResponse\"%\n" +
+	"\vScopeValues\x12\x16\n" +
+	"\x06values\x18\x01 \x03(\tR\x06values\"\x96\x02\n" +
+	"\n" +
+	"Assignment\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
+	"\x04role\x18\x02 \x01(\tR\x04role\x126\n" +
+	"\x05scope\x18\x03 \x03(\v2 .athena.v1.Assignment.ScopeEntryR\x05scope\x12\x1f\n" +
+	"\vactive_from\x18\x04 \x01(\tR\n" +
+	"activeFrom\x12\x1d\n" +
+	"\n" +
+	"expires_at\x18\x05 \x01(\tR\texpiresAt\x12\x1a\n" +
+	"\brevision\x18\x06 \x01(\x03R\brevision\x1aP\n" +
+	"\n" +
+	"ScopeEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12,\n" +
+	"\x05value\x18\x02 \x01(\v2\x16.athena.v1.ScopeValuesR\x05value:\x028\x01\"4\n" +
+	"\x16ListAssignmentsRequest\x12\x1a\n" +
+	"\busername\x18\x01 \x01(\tR\busername\"R\n" +
+	"\x17ListAssignmentsResponse\x127\n" +
+	"\vassignments\x18\x01 \x03(\v2\x15.athena.v1.AssignmentR\vassignments\"j\n" +
+	"\x15SaveAssignmentRequest\x12\x1a\n" +
+	"\busername\x18\x01 \x01(\tR\busername\x125\n" +
+	"\n" +
+	"assignment\x18\x02 \x01(\v2\x15.athena.v1.AssignmentR\n" +
+	"assignment\"O\n" +
+	"\x16SaveAssignmentResponse\x125\n" +
+	"\n" +
+	"assignment\x18\x01 \x01(\v2\x15.athena.v1.AssignmentR\n" +
+	"assignment\")\n" +
+	"\x17RevokeAssignmentRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\"\x1a\n" +
+	"\x18RevokeAssignmentResponse\"\x8f\x01\n" +
+	"\x14ExplainAccessRequest\x12\x1a\n" +
+	"\busername\x18\x01 \x01(\tR\busername\x12\x16\n" +
+	"\x06action\x18\x02 \x01(\tR\x06action\x12&\n" +
+	"\x0frecord_type_key\x18\x03 \x01(\tR\rrecordTypeKey\x12\x1b\n" +
+	"\trecord_id\x18\x04 \x01(\tR\brecordId\"\xbe\x01\n" +
+	"\x15AssignmentExplanation\x12#\n" +
+	"\rassignment_id\x18\x01 \x01(\tR\fassignmentId\x12\x12\n" +
+	"\x04role\x18\x02 \x01(\tR\x04role\x12\x18\n" +
+	"\amatched\x18\x03 \x01(\bR\amatched\x12\x18\n" +
+	"\areasons\x18\x04 \x03(\tR\areasons\x128\n" +
+	"\x18separate_duties_conflict\x18\x05 \x01(\bR\x16separateDutiesConflict\"u\n" +
+	"\x15ExplainAccessResponse\x12\x18\n" +
+	"\aallowed\x18\x01 \x01(\bR\aallowed\x12B\n" +
+	"\vassignments\x18\x02 \x03(\v2 .athena.v1.AssignmentExplanationR\vassignments\"\xab\x01\n" +
+	"\aSession\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1d\n" +
+	"\n" +
+	"created_at\x18\x02 \x01(\tR\tcreatedAt\x12 \n" +
+	"\flast_seen_at\x18\x03 \x01(\tR\n" +
+	"lastSeenAt\x12\x1d\n" +
+	"\n" +
+	"expires_at\x18\x04 \x01(\tR\texpiresAt\x12\x16\n" +
+	"\x06device\x18\x05 \x01(\tR\x06device\x12\x18\n" +
+	"\acurrent\x18\x06 \x01(\bR\acurrent\"1\n" +
+	"\x13ListSessionsRequest\x12\x1a\n" +
+	"\busername\x18\x01 \x01(\tR\busername\"F\n" +
+	"\x14ListSessionsResponse\x12.\n" +
+	"\bsessions\x18\x01 \x03(\v2\x12.athena.v1.SessionR\bsessions\"&\n" +
+	"\x14RevokeSessionRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\"\x17\n" +
+	"\x15RevokeSessionResponse\"}\n" +
+	"\x18TransferOwnershipRequest\x12\x1a\n" +
+	"\busername\x18\x01 \x01(\tR\busername\x12%\n" +
+	"\x0eactor_password\x18\x02 \x01(\tR\ractorPassword\x12\x1e\n" +
+	"\n" +
+	"relinquish\x18\x03 \x01(\bR\n" +
+	"relinquish\"F\n" +
+	"\x19TransferOwnershipResponse\x12)\n" +
+	"\x04user\x18\x01 \x01(\v2\x15.athena.v1.AccessUserR\x04user\"l\n" +
+	"\x16ListRoleHoldersRequest\x12\x12\n" +
+	"\x04role\x18\x01 \x01(\tR\x04role\x12&\n" +
+	"\x0frecord_type_key\x18\x02 \x01(\tR\rrecordTypeKey\x12\x16\n" +
+	"\x06action\x18\x03 \x01(\tR\x06action\"\xc3\x02\n" +
+	"\n" +
+	"RoleHolder\x12\x1a\n" +
 	"\busername\x18\x01 \x01(\tR\busername\x12!\n" +
-	"\fnew_password\x18\x02 \x01(\tR\vnewPassword\"\x17\n" +
-	"\x15ResetPasswordResponse\"\xbb\x01\n" +
+	"\fdisplay_name\x18\x02 \x01(\tR\vdisplayName\x12\x14\n" +
+	"\x05state\x18\x03 \x01(\tR\x05state\x12\x16\n" +
+	"\x06usable\x18\x04 \x01(\bR\x06usable\x126\n" +
+	"\x05scope\x18\x05 \x03(\v2 .athena.v1.RoleHolder.ScopeEntryR\x05scope\x12\x1f\n" +
+	"\vactive_from\x18\x06 \x01(\tR\n" +
+	"activeFrom\x12\x1d\n" +
+	"\n" +
+	"expires_at\x18\a \x01(\tR\texpiresAt\x1aP\n" +
+	"\n" +
+	"ScopeEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12,\n" +
+	"\x05value\x18\x02 \x01(\v2\x16.athena.v1.ScopeValuesR\x05value:\x028\x01\"J\n" +
+	"\x17ListRoleHoldersResponse\x12/\n" +
+	"\aholders\x18\x01 \x03(\v2\x15.athena.v1.RoleHolderR\aholders\"\xbb\x01\n" +
 	"\x05Grant\x12&\n" +
 	"\x0frecord_type_key\x18\x01 \x01(\tR\rrecordTypeKey\x12\x18\n" +
 	"\aactions\x18\x02 \x03(\tR\aactions\x12)\n" +
@@ -1784,13 +3483,19 @@ const file_athena_v1_auth_proto_rawDesc = "" +
 	"\vAuthFailure\x12\x16\n" +
 	"\x06reason\x18\x01 \x01(\tR\x06reason\x12\x1d\n" +
 	"\n" +
-	"unlocks_at\x18\x02 \x01(\tR\tunlocksAt2\x88\a\n" +
+	"unlocks_at\x18\x02 \x01(\tR\tunlocksAt2\x90\x0f\n" +
 	"\vAuthService\x12:\n" +
 	"\x05Login\x12\x17.athena.v1.LoginRequest\x1a\x18.athena.v1.LoginResponse\x12=\n" +
 	"\x06Logout\x12\x18.athena.v1.LogoutRequest\x1a\x19.athena.v1.LogoutResponse\x12I\n" +
 	"\n" +
 	"GetSession\x12\x1c.athena.v1.GetSessionRequest\x1a\x1d.athena.v1.GetSessionResponse\x12U\n" +
-	"\x0eChangePassword\x12 .athena.v1.ChangePasswordRequest\x1a!.athena.v1.ChangePasswordResponse\x12F\n" +
+	"\x0eChangePassword\x12 .athena.v1.ChangePasswordRequest\x1a!.athena.v1.ChangePasswordResponse\x12I\n" +
+	"\n" +
+	"InviteUser\x12\x1c.athena.v1.InviteUserRequest\x1a\x1d.athena.v1.InviteUserResponse\x12^\n" +
+	"\x11CompleteChallenge\x12#.athena.v1.CompleteChallengeRequest\x1a$.athena.v1.CompleteChallengeResponse\x12O\n" +
+	"\fResendInvite\x12\x1e.athena.v1.ResendInviteRequest\x1a\x1f.athena.v1.ResendInviteResponse\x12I\n" +
+	"\n" +
+	"StartReset\x12\x1c.athena.v1.StartResetRequest\x1a\x1d.athena.v1.StartResetResponse\x12F\n" +
 	"\tListUsers\x12\x1b.athena.v1.ListUsersRequest\x1a\x1c.athena.v1.ListUsersResponse\x12I\n" +
 	"\n" +
 	"CreateUser\x12\x1c.athena.v1.CreateUserRequest\x1a\x1d.athena.v1.CreateUserResponse\x12I\n" +
@@ -1800,7 +3505,15 @@ const file_athena_v1_auth_proto_rawDesc = "" +
 	"\tListRoles\x12\x1b.athena.v1.ListRolesRequest\x1a\x1c.athena.v1.ListRolesResponse\x12C\n" +
 	"\bSaveRole\x12\x1a.athena.v1.SaveRoleRequest\x1a\x1b.athena.v1.SaveRoleResponse\x12I\n" +
 	"\n" +
-	"DeleteRole\x12\x1c.athena.v1.DeleteRoleRequest\x1a\x1d.athena.v1.DeleteRoleResponse\x12R\n" +
+	"DeleteRole\x12\x1c.athena.v1.DeleteRoleRequest\x1a\x1d.athena.v1.DeleteRoleResponse\x12X\n" +
+	"\x0fListAssignments\x12!.athena.v1.ListAssignmentsRequest\x1a\".athena.v1.ListAssignmentsResponse\x12U\n" +
+	"\x0eSaveAssignment\x12 .athena.v1.SaveAssignmentRequest\x1a!.athena.v1.SaveAssignmentResponse\x12[\n" +
+	"\x10RevokeAssignment\x12\".athena.v1.RevokeAssignmentRequest\x1a#.athena.v1.RevokeAssignmentResponse\x12R\n" +
+	"\rExplainAccess\x12\x1f.athena.v1.ExplainAccessRequest\x1a .athena.v1.ExplainAccessResponse\x12O\n" +
+	"\fListSessions\x12\x1e.athena.v1.ListSessionsRequest\x1a\x1f.athena.v1.ListSessionsResponse\x12R\n" +
+	"\rRevokeSession\x12\x1f.athena.v1.RevokeSessionRequest\x1a .athena.v1.RevokeSessionResponse\x12^\n" +
+	"\x11TransferOwnership\x12#.athena.v1.TransferOwnershipRequest\x1a$.athena.v1.TransferOwnershipResponse\x12X\n" +
+	"\x0fListRoleHolders\x12!.athena.v1.ListRoleHoldersRequest\x1a\".athena.v1.ListRoleHoldersResponse\x12R\n" +
 	"\rListAccessLog\x12\x1f.athena.v1.ListAccessLogRequest\x1a .athena.v1.ListAccessLogResponseB#Z!athena-erp/gen/athena/v1;athenav1b\x06proto3"
 
 var (
@@ -1815,81 +3528,151 @@ func file_athena_v1_auth_proto_rawDescGZIP() []byte {
 	return file_athena_v1_auth_proto_rawDescData
 }
 
-var file_athena_v1_auth_proto_msgTypes = make([]protoimpl.MessageInfo, 31)
+var file_athena_v1_auth_proto_msgTypes = make([]protoimpl.MessageInfo, 62)
 var file_athena_v1_auth_proto_goTypes = []any{
-	(*LoginRequest)(nil),           // 0: athena.v1.LoginRequest
-	(*LoginResponse)(nil),          // 1: athena.v1.LoginResponse
-	(*LogoutRequest)(nil),          // 2: athena.v1.LogoutRequest
-	(*LogoutResponse)(nil),         // 3: athena.v1.LogoutResponse
-	(*GetSessionRequest)(nil),      // 4: athena.v1.GetSessionRequest
-	(*GetSessionResponse)(nil),     // 5: athena.v1.GetSessionResponse
-	(*SessionInfo)(nil),            // 6: athena.v1.SessionInfo
-	(*ChangePasswordRequest)(nil),  // 7: athena.v1.ChangePasswordRequest
-	(*ChangePasswordResponse)(nil), // 8: athena.v1.ChangePasswordResponse
-	(*AccessUser)(nil),             // 9: athena.v1.AccessUser
-	(*ListUsersRequest)(nil),       // 10: athena.v1.ListUsersRequest
-	(*ListUsersResponse)(nil),      // 11: athena.v1.ListUsersResponse
-	(*CreateUserRequest)(nil),      // 12: athena.v1.CreateUserRequest
-	(*CreateUserResponse)(nil),     // 13: athena.v1.CreateUserResponse
-	(*UpdateUserRequest)(nil),      // 14: athena.v1.UpdateUserRequest
-	(*RoleNames)(nil),              // 15: athena.v1.RoleNames
-	(*UpdateUserResponse)(nil),     // 16: athena.v1.UpdateUserResponse
-	(*ResetPasswordRequest)(nil),   // 17: athena.v1.ResetPasswordRequest
-	(*ResetPasswordResponse)(nil),  // 18: athena.v1.ResetPasswordResponse
-	(*Grant)(nil),                  // 19: athena.v1.Grant
-	(*Role)(nil),                   // 20: athena.v1.Role
-	(*ListRolesRequest)(nil),       // 21: athena.v1.ListRolesRequest
-	(*ListRolesResponse)(nil),      // 22: athena.v1.ListRolesResponse
-	(*SaveRoleRequest)(nil),        // 23: athena.v1.SaveRoleRequest
-	(*SaveRoleResponse)(nil),       // 24: athena.v1.SaveRoleResponse
-	(*DeleteRoleRequest)(nil),      // 25: athena.v1.DeleteRoleRequest
-	(*DeleteRoleResponse)(nil),     // 26: athena.v1.DeleteRoleResponse
-	(*ListAccessLogRequest)(nil),   // 27: athena.v1.ListAccessLogRequest
-	(*AccessEvent)(nil),            // 28: athena.v1.AccessEvent
-	(*ListAccessLogResponse)(nil),  // 29: athena.v1.ListAccessLogResponse
-	(*AuthFailure)(nil),            // 30: athena.v1.AuthFailure
+	(*LoginRequest)(nil),              // 0: athena.v1.LoginRequest
+	(*LoginResponse)(nil),             // 1: athena.v1.LoginResponse
+	(*LogoutRequest)(nil),             // 2: athena.v1.LogoutRequest
+	(*LogoutResponse)(nil),            // 3: athena.v1.LogoutResponse
+	(*GetSessionRequest)(nil),         // 4: athena.v1.GetSessionRequest
+	(*GetSessionResponse)(nil),        // 5: athena.v1.GetSessionResponse
+	(*SessionInfo)(nil),               // 6: athena.v1.SessionInfo
+	(*ChangePasswordRequest)(nil),     // 7: athena.v1.ChangePasswordRequest
+	(*ChangePasswordResponse)(nil),    // 8: athena.v1.ChangePasswordResponse
+	(*AccessUser)(nil),                // 9: athena.v1.AccessUser
+	(*ListUsersRequest)(nil),          // 10: athena.v1.ListUsersRequest
+	(*ListUsersResponse)(nil),         // 11: athena.v1.ListUsersResponse
+	(*InviteUserRequest)(nil),         // 12: athena.v1.InviteUserRequest
+	(*InviteUserResponse)(nil),        // 13: athena.v1.InviteUserResponse
+	(*CompleteChallengeRequest)(nil),  // 14: athena.v1.CompleteChallengeRequest
+	(*CompleteChallengeResponse)(nil), // 15: athena.v1.CompleteChallengeResponse
+	(*ResendInviteRequest)(nil),       // 16: athena.v1.ResendInviteRequest
+	(*ResendInviteResponse)(nil),      // 17: athena.v1.ResendInviteResponse
+	(*StartResetRequest)(nil),         // 18: athena.v1.StartResetRequest
+	(*StartResetResponse)(nil),        // 19: athena.v1.StartResetResponse
+	(*CreateUserRequest)(nil),         // 20: athena.v1.CreateUserRequest
+	(*CreateUserResponse)(nil),        // 21: athena.v1.CreateUserResponse
+	(*UpdateUserRequest)(nil),         // 22: athena.v1.UpdateUserRequest
+	(*RoleNames)(nil),                 // 23: athena.v1.RoleNames
+	(*UpdateUserResponse)(nil),        // 24: athena.v1.UpdateUserResponse
+	(*ResetPasswordRequest)(nil),      // 25: athena.v1.ResetPasswordRequest
+	(*ResetPasswordResponse)(nil),     // 26: athena.v1.ResetPasswordResponse
+	(*ScopeValues)(nil),               // 27: athena.v1.ScopeValues
+	(*Assignment)(nil),                // 28: athena.v1.Assignment
+	(*ListAssignmentsRequest)(nil),    // 29: athena.v1.ListAssignmentsRequest
+	(*ListAssignmentsResponse)(nil),   // 30: athena.v1.ListAssignmentsResponse
+	(*SaveAssignmentRequest)(nil),     // 31: athena.v1.SaveAssignmentRequest
+	(*SaveAssignmentResponse)(nil),    // 32: athena.v1.SaveAssignmentResponse
+	(*RevokeAssignmentRequest)(nil),   // 33: athena.v1.RevokeAssignmentRequest
+	(*RevokeAssignmentResponse)(nil),  // 34: athena.v1.RevokeAssignmentResponse
+	(*ExplainAccessRequest)(nil),      // 35: athena.v1.ExplainAccessRequest
+	(*AssignmentExplanation)(nil),     // 36: athena.v1.AssignmentExplanation
+	(*ExplainAccessResponse)(nil),     // 37: athena.v1.ExplainAccessResponse
+	(*Session)(nil),                   // 38: athena.v1.Session
+	(*ListSessionsRequest)(nil),       // 39: athena.v1.ListSessionsRequest
+	(*ListSessionsResponse)(nil),      // 40: athena.v1.ListSessionsResponse
+	(*RevokeSessionRequest)(nil),      // 41: athena.v1.RevokeSessionRequest
+	(*RevokeSessionResponse)(nil),     // 42: athena.v1.RevokeSessionResponse
+	(*TransferOwnershipRequest)(nil),  // 43: athena.v1.TransferOwnershipRequest
+	(*TransferOwnershipResponse)(nil), // 44: athena.v1.TransferOwnershipResponse
+	(*ListRoleHoldersRequest)(nil),    // 45: athena.v1.ListRoleHoldersRequest
+	(*RoleHolder)(nil),                // 46: athena.v1.RoleHolder
+	(*ListRoleHoldersResponse)(nil),   // 47: athena.v1.ListRoleHoldersResponse
+	(*Grant)(nil),                     // 48: athena.v1.Grant
+	(*Role)(nil),                      // 49: athena.v1.Role
+	(*ListRolesRequest)(nil),          // 50: athena.v1.ListRolesRequest
+	(*ListRolesResponse)(nil),         // 51: athena.v1.ListRolesResponse
+	(*SaveRoleRequest)(nil),           // 52: athena.v1.SaveRoleRequest
+	(*SaveRoleResponse)(nil),          // 53: athena.v1.SaveRoleResponse
+	(*DeleteRoleRequest)(nil),         // 54: athena.v1.DeleteRoleRequest
+	(*DeleteRoleResponse)(nil),        // 55: athena.v1.DeleteRoleResponse
+	(*ListAccessLogRequest)(nil),      // 56: athena.v1.ListAccessLogRequest
+	(*AccessEvent)(nil),               // 57: athena.v1.AccessEvent
+	(*ListAccessLogResponse)(nil),     // 58: athena.v1.ListAccessLogResponse
+	(*AuthFailure)(nil),               // 59: athena.v1.AuthFailure
+	nil,                               // 60: athena.v1.Assignment.ScopeEntry
+	nil,                               // 61: athena.v1.RoleHolder.ScopeEntry
 }
 var file_athena_v1_auth_proto_depIdxs = []int32{
 	6,  // 0: athena.v1.LoginResponse.session:type_name -> athena.v1.SessionInfo
 	6,  // 1: athena.v1.GetSessionResponse.session:type_name -> athena.v1.SessionInfo
 	9,  // 2: athena.v1.ListUsersResponse.users:type_name -> athena.v1.AccessUser
-	9,  // 3: athena.v1.CreateUserResponse.user:type_name -> athena.v1.AccessUser
-	15, // 4: athena.v1.UpdateUserRequest.roles:type_name -> athena.v1.RoleNames
-	9,  // 5: athena.v1.UpdateUserResponse.user:type_name -> athena.v1.AccessUser
-	19, // 6: athena.v1.Role.grants:type_name -> athena.v1.Grant
-	20, // 7: athena.v1.ListRolesResponse.roles:type_name -> athena.v1.Role
-	20, // 8: athena.v1.SaveRoleRequest.role:type_name -> athena.v1.Role
-	20, // 9: athena.v1.SaveRoleResponse.role:type_name -> athena.v1.Role
-	28, // 10: athena.v1.ListAccessLogResponse.events:type_name -> athena.v1.AccessEvent
-	0,  // 11: athena.v1.AuthService.Login:input_type -> athena.v1.LoginRequest
-	2,  // 12: athena.v1.AuthService.Logout:input_type -> athena.v1.LogoutRequest
-	4,  // 13: athena.v1.AuthService.GetSession:input_type -> athena.v1.GetSessionRequest
-	7,  // 14: athena.v1.AuthService.ChangePassword:input_type -> athena.v1.ChangePasswordRequest
-	10, // 15: athena.v1.AuthService.ListUsers:input_type -> athena.v1.ListUsersRequest
-	12, // 16: athena.v1.AuthService.CreateUser:input_type -> athena.v1.CreateUserRequest
-	14, // 17: athena.v1.AuthService.UpdateUser:input_type -> athena.v1.UpdateUserRequest
-	17, // 18: athena.v1.AuthService.ResetPassword:input_type -> athena.v1.ResetPasswordRequest
-	21, // 19: athena.v1.AuthService.ListRoles:input_type -> athena.v1.ListRolesRequest
-	23, // 20: athena.v1.AuthService.SaveRole:input_type -> athena.v1.SaveRoleRequest
-	25, // 21: athena.v1.AuthService.DeleteRole:input_type -> athena.v1.DeleteRoleRequest
-	27, // 22: athena.v1.AuthService.ListAccessLog:input_type -> athena.v1.ListAccessLogRequest
-	1,  // 23: athena.v1.AuthService.Login:output_type -> athena.v1.LoginResponse
-	3,  // 24: athena.v1.AuthService.Logout:output_type -> athena.v1.LogoutResponse
-	5,  // 25: athena.v1.AuthService.GetSession:output_type -> athena.v1.GetSessionResponse
-	8,  // 26: athena.v1.AuthService.ChangePassword:output_type -> athena.v1.ChangePasswordResponse
-	11, // 27: athena.v1.AuthService.ListUsers:output_type -> athena.v1.ListUsersResponse
-	13, // 28: athena.v1.AuthService.CreateUser:output_type -> athena.v1.CreateUserResponse
-	16, // 29: athena.v1.AuthService.UpdateUser:output_type -> athena.v1.UpdateUserResponse
-	18, // 30: athena.v1.AuthService.ResetPassword:output_type -> athena.v1.ResetPasswordResponse
-	22, // 31: athena.v1.AuthService.ListRoles:output_type -> athena.v1.ListRolesResponse
-	24, // 32: athena.v1.AuthService.SaveRole:output_type -> athena.v1.SaveRoleResponse
-	26, // 33: athena.v1.AuthService.DeleteRole:output_type -> athena.v1.DeleteRoleResponse
-	29, // 34: athena.v1.AuthService.ListAccessLog:output_type -> athena.v1.ListAccessLogResponse
-	23, // [23:35] is the sub-list for method output_type
-	11, // [11:23] is the sub-list for method input_type
-	11, // [11:11] is the sub-list for extension type_name
-	11, // [11:11] is the sub-list for extension extendee
-	0,  // [0:11] is the sub-list for field type_name
+	9,  // 3: athena.v1.InviteUserResponse.user:type_name -> athena.v1.AccessUser
+	6,  // 4: athena.v1.CompleteChallengeResponse.session:type_name -> athena.v1.SessionInfo
+	9,  // 5: athena.v1.ResendInviteResponse.user:type_name -> athena.v1.AccessUser
+	9,  // 6: athena.v1.StartResetResponse.user:type_name -> athena.v1.AccessUser
+	9,  // 7: athena.v1.CreateUserResponse.user:type_name -> athena.v1.AccessUser
+	23, // 8: athena.v1.UpdateUserRequest.roles:type_name -> athena.v1.RoleNames
+	9,  // 9: athena.v1.UpdateUserResponse.user:type_name -> athena.v1.AccessUser
+	60, // 10: athena.v1.Assignment.scope:type_name -> athena.v1.Assignment.ScopeEntry
+	28, // 11: athena.v1.ListAssignmentsResponse.assignments:type_name -> athena.v1.Assignment
+	28, // 12: athena.v1.SaveAssignmentRequest.assignment:type_name -> athena.v1.Assignment
+	28, // 13: athena.v1.SaveAssignmentResponse.assignment:type_name -> athena.v1.Assignment
+	36, // 14: athena.v1.ExplainAccessResponse.assignments:type_name -> athena.v1.AssignmentExplanation
+	38, // 15: athena.v1.ListSessionsResponse.sessions:type_name -> athena.v1.Session
+	9,  // 16: athena.v1.TransferOwnershipResponse.user:type_name -> athena.v1.AccessUser
+	61, // 17: athena.v1.RoleHolder.scope:type_name -> athena.v1.RoleHolder.ScopeEntry
+	46, // 18: athena.v1.ListRoleHoldersResponse.holders:type_name -> athena.v1.RoleHolder
+	48, // 19: athena.v1.Role.grants:type_name -> athena.v1.Grant
+	49, // 20: athena.v1.ListRolesResponse.roles:type_name -> athena.v1.Role
+	49, // 21: athena.v1.SaveRoleRequest.role:type_name -> athena.v1.Role
+	49, // 22: athena.v1.SaveRoleResponse.role:type_name -> athena.v1.Role
+	57, // 23: athena.v1.ListAccessLogResponse.events:type_name -> athena.v1.AccessEvent
+	27, // 24: athena.v1.Assignment.ScopeEntry.value:type_name -> athena.v1.ScopeValues
+	27, // 25: athena.v1.RoleHolder.ScopeEntry.value:type_name -> athena.v1.ScopeValues
+	0,  // 26: athena.v1.AuthService.Login:input_type -> athena.v1.LoginRequest
+	2,  // 27: athena.v1.AuthService.Logout:input_type -> athena.v1.LogoutRequest
+	4,  // 28: athena.v1.AuthService.GetSession:input_type -> athena.v1.GetSessionRequest
+	7,  // 29: athena.v1.AuthService.ChangePassword:input_type -> athena.v1.ChangePasswordRequest
+	12, // 30: athena.v1.AuthService.InviteUser:input_type -> athena.v1.InviteUserRequest
+	14, // 31: athena.v1.AuthService.CompleteChallenge:input_type -> athena.v1.CompleteChallengeRequest
+	16, // 32: athena.v1.AuthService.ResendInvite:input_type -> athena.v1.ResendInviteRequest
+	18, // 33: athena.v1.AuthService.StartReset:input_type -> athena.v1.StartResetRequest
+	10, // 34: athena.v1.AuthService.ListUsers:input_type -> athena.v1.ListUsersRequest
+	20, // 35: athena.v1.AuthService.CreateUser:input_type -> athena.v1.CreateUserRequest
+	22, // 36: athena.v1.AuthService.UpdateUser:input_type -> athena.v1.UpdateUserRequest
+	25, // 37: athena.v1.AuthService.ResetPassword:input_type -> athena.v1.ResetPasswordRequest
+	50, // 38: athena.v1.AuthService.ListRoles:input_type -> athena.v1.ListRolesRequest
+	52, // 39: athena.v1.AuthService.SaveRole:input_type -> athena.v1.SaveRoleRequest
+	54, // 40: athena.v1.AuthService.DeleteRole:input_type -> athena.v1.DeleteRoleRequest
+	29, // 41: athena.v1.AuthService.ListAssignments:input_type -> athena.v1.ListAssignmentsRequest
+	31, // 42: athena.v1.AuthService.SaveAssignment:input_type -> athena.v1.SaveAssignmentRequest
+	33, // 43: athena.v1.AuthService.RevokeAssignment:input_type -> athena.v1.RevokeAssignmentRequest
+	35, // 44: athena.v1.AuthService.ExplainAccess:input_type -> athena.v1.ExplainAccessRequest
+	39, // 45: athena.v1.AuthService.ListSessions:input_type -> athena.v1.ListSessionsRequest
+	41, // 46: athena.v1.AuthService.RevokeSession:input_type -> athena.v1.RevokeSessionRequest
+	43, // 47: athena.v1.AuthService.TransferOwnership:input_type -> athena.v1.TransferOwnershipRequest
+	45, // 48: athena.v1.AuthService.ListRoleHolders:input_type -> athena.v1.ListRoleHoldersRequest
+	56, // 49: athena.v1.AuthService.ListAccessLog:input_type -> athena.v1.ListAccessLogRequest
+	1,  // 50: athena.v1.AuthService.Login:output_type -> athena.v1.LoginResponse
+	3,  // 51: athena.v1.AuthService.Logout:output_type -> athena.v1.LogoutResponse
+	5,  // 52: athena.v1.AuthService.GetSession:output_type -> athena.v1.GetSessionResponse
+	8,  // 53: athena.v1.AuthService.ChangePassword:output_type -> athena.v1.ChangePasswordResponse
+	13, // 54: athena.v1.AuthService.InviteUser:output_type -> athena.v1.InviteUserResponse
+	15, // 55: athena.v1.AuthService.CompleteChallenge:output_type -> athena.v1.CompleteChallengeResponse
+	17, // 56: athena.v1.AuthService.ResendInvite:output_type -> athena.v1.ResendInviteResponse
+	19, // 57: athena.v1.AuthService.StartReset:output_type -> athena.v1.StartResetResponse
+	11, // 58: athena.v1.AuthService.ListUsers:output_type -> athena.v1.ListUsersResponse
+	21, // 59: athena.v1.AuthService.CreateUser:output_type -> athena.v1.CreateUserResponse
+	24, // 60: athena.v1.AuthService.UpdateUser:output_type -> athena.v1.UpdateUserResponse
+	26, // 61: athena.v1.AuthService.ResetPassword:output_type -> athena.v1.ResetPasswordResponse
+	51, // 62: athena.v1.AuthService.ListRoles:output_type -> athena.v1.ListRolesResponse
+	53, // 63: athena.v1.AuthService.SaveRole:output_type -> athena.v1.SaveRoleResponse
+	55, // 64: athena.v1.AuthService.DeleteRole:output_type -> athena.v1.DeleteRoleResponse
+	30, // 65: athena.v1.AuthService.ListAssignments:output_type -> athena.v1.ListAssignmentsResponse
+	32, // 66: athena.v1.AuthService.SaveAssignment:output_type -> athena.v1.SaveAssignmentResponse
+	34, // 67: athena.v1.AuthService.RevokeAssignment:output_type -> athena.v1.RevokeAssignmentResponse
+	37, // 68: athena.v1.AuthService.ExplainAccess:output_type -> athena.v1.ExplainAccessResponse
+	40, // 69: athena.v1.AuthService.ListSessions:output_type -> athena.v1.ListSessionsResponse
+	42, // 70: athena.v1.AuthService.RevokeSession:output_type -> athena.v1.RevokeSessionResponse
+	44, // 71: athena.v1.AuthService.TransferOwnership:output_type -> athena.v1.TransferOwnershipResponse
+	47, // 72: athena.v1.AuthService.ListRoleHolders:output_type -> athena.v1.ListRoleHoldersResponse
+	58, // 73: athena.v1.AuthService.ListAccessLog:output_type -> athena.v1.ListAccessLogResponse
+	50, // [50:74] is the sub-list for method output_type
+	26, // [26:50] is the sub-list for method input_type
+	26, // [26:26] is the sub-list for extension type_name
+	26, // [26:26] is the sub-list for extension extendee
+	0,  // [0:26] is the sub-list for field type_name
 }
 
 func init() { file_athena_v1_auth_proto_init() }
@@ -1897,14 +3680,14 @@ func file_athena_v1_auth_proto_init() {
 	if File_athena_v1_auth_proto != nil {
 		return
 	}
-	file_athena_v1_auth_proto_msgTypes[14].OneofWrappers = []any{}
+	file_athena_v1_auth_proto_msgTypes[22].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_athena_v1_auth_proto_rawDesc), len(file_athena_v1_auth_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   31,
+			NumMessages:   62,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"athena-erp/internal/server"
 	"athena-erp/internal/testdb"
 )
 
@@ -46,7 +47,10 @@ func TestMigrateCommand(t *testing.T) {
 	if err := json.Unmarshal([]byte(run("status", "--json")), &lines); err != nil {
 		t.Fatal(err)
 	}
-	if len(lines) != 11 || !lines[10].Applied || lines[10].AppliedAt == nil {
+	migrations := server.SystemMigrations()
+	last := lines[len(lines)-1]
+	want := migrations[len(migrations)-1]
+	if len(lines) != len(migrations) || !last.Applied || last.AppliedAt == nil || last.Name != want.Name || last.Version != want.Version {
 		t.Fatalf("json status = %+v", lines)
 	}
 	if strings.Contains(run("status", "--json"), cfg.Passwd) && cfg.Passwd != "" {

@@ -293,6 +293,10 @@ body,.app-shell,.main-content,.page-content{background:var(--background);color:v
 .audit-changes{margin:4px 0 0;padding-left:16px;list-style:disc;font-size:var(--type-body-sm-size);color:var(--muted-foreground)}
 
 .entries-filter{display:flex;align-items:center;gap:8px;margin-bottom:12px}.entries-filter>input{max-width:420px}
+/* Ledger setup: one card per section with even spacing. */
+.ledger-stack{display:grid;gap:24px;margin-top:16px}
+.ledger-actions{display:flex;align-items:center;gap:8px;margin-top:16px}
+.ledger-select{height:36px;padding:0 32px 0 12px;background-color:transparent;color:var(--foreground);border:1px solid var(--input);border-radius:var(--radius-md);font-size:var(--type-body-sm-size);appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238a8a93' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;cursor:pointer}
 .sign-in{display:grid;place-items:center;min-height:100vh;padding:24px;background:var(--background)}
 .sign-in-card{width:100%;max-width:380px}
 .sign-in-title{font-family:var(--font-display);font-size:var(--type-title-md-size);font-weight:500}
@@ -324,3 +328,25 @@ body,.app-shell,.main-content,.page-content{background:var(--background);color:v
 .files-problem{color:var(--destructive);font-size:var(--type-caption-size)}
 .files-picker{display:none}
 @media(max-width:760px){.files-layout{grid-template-columns:1fr}.files-tree{max-height:240px}}
+.access-assignments,.access-grants,.access-verdicts,.access-diff,.access-holders{list-style:none;margin:12px 0 0;padding:0;display:grid;gap:8px}
+.access-holders li{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.access-letter{padding-left:8px;padding-right:8px;min-width:0}
+.access-assignment,.access-verdicts li{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.access-assignment .toolbar-actions{margin-left:auto}
+.access-grants li{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:var(--type-body-sm-size)}
+.access-split{display:flex;gap:16px;align-items:flex-start}
+.access-main{flex:1;min-width:0}
+.access-drawer{width:400px;flex:none;position:sticky;top:16px;max-height:calc(100vh - 32px);overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--card);padding:14px 16px;box-shadow:var(--shadow-md)}
+.access-drawer-actions{display:flex;flex-wrap:wrap;margin-top:10px}
+.access-tab-actions{margin-bottom:10px}
+.access-section{border:0;margin:14px 0 0;padding:0;display:grid;gap:10px}
+.access-section>legend{font-weight:600;font-size:var(--type-body-sm-size);padding:0;margin-bottom:2px}
+.access-scope-row{display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:end}
+.access-permissions{display:grid;grid-template-columns:1fr 1fr;gap:6px 12px;max-height:220px;overflow:auto}
+.access-permission{display:flex;align-items:center;gap:8px;font-size:var(--type-body-sm-size);cursor:pointer}
+@media(max-width:1100px){.access-split{flex-direction:column}.access-drawer{width:100%}}
+.access-challenge{display:block;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--secondary);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;word-break:break-all}
+.access-diff li{font-size:var(--type-body-sm-size)}
+.session-user{min-width:200px}
+.explore-form{flex-wrap:wrap}
+.complete-toggle{display:flex;gap:6px;margin-bottom:12px}

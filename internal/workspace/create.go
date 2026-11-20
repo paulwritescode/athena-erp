@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/go-sql-driver/mysql"
 	"github.com/google/uuid"
 	"gopkg.in/yaml.v3"
 )
@@ -44,20 +43,6 @@ func InitHome(dir, serverURL string) error {
 	return nil
 }
 
-// ServerConfig parses the home server DSN and returns the driver config
-// for the given database name. Pass "" for a server-level connection.
-func ServerConfig(serverURL, database string) (*mysql.Config, error) {
-	if serverURL == "" {
-		return nil, fmt.Errorf("%s is not set; run athena init or set it in the home .env.local", ServerURLEnv)
-	}
-	cfg, err := mysql.ParseDSN(serverURL)
-	if err != nil {
-		return nil, fmt.Errorf("parse %s: %w", ServerURLEnv, err)
-	}
-	cfg.DBName = database
-	return cfg, nil
-}
-
 // CreateResult describes a created workspace.
 type CreateResult struct {
 	Root     string
@@ -82,7 +67,8 @@ func Create(ctx context.Context, home, name, serverURL, coreVersion string) (Cre
 	if err := ValidateSlug(slug); err != nil {
 		return CreateResult{}, fmt.Errorf("%w (from name %q)", err, name)
 	}
-	if _, err := LoadHome(home); err != nil {
+	loaded, err := LoadHome(home)
+	if err != nil {
 		return CreateResult{}, err
 	}
 	final := filepath.Join(home, slug)
@@ -95,7 +81,7 @@ func Create(ctx context.Context, home, name, serverURL, coreVersion string) (Cre
 	if err != nil {
 		return CreateResult{}, fmt.Errorf("stage workspace files: %w", err)
 	}
-	if err := createDatabase(ctx, serverURL, manifest); err != nil {
+	if err := createDatabase(ctx, loaded.Database.Driver, serverURL, manifest); err != nil {
 		return CreateResult{}, err
 	}
 	if err := os.Rename(staging, final); err != nil {
@@ -168,12 +154,15 @@ func stageFiles(staging, name, slug, coreVersion string) (Manifest, error) {
 // createDatabase creates the workspace database and its athena_workspace row.
 // An existing database is accepted only if it already carries this workspace's
 // ID, or is empty (left by an interrupted run of this same creation).
-func createDatabase(ctx context.Context, serverURL string, manifest Manifest) error {
-	cfg, err := ServerConfig(serverURL, "")
+func createDatabase(ctx context.Context, driver, serverURL string, manifest Manifest) error {
+	if driver == DriverPostgres {
+		return createPostgresDatabase(ctx, serverURL, manifest)
+	}
+	endpoint, err := ParseEndpoint(DriverMariaDB, serverURL, "")
 	if err != nil {
 		return err
 	}
-	connector, err := mysql.NewConnector(cfg)
+	connector, err := endpoint.Connector()
 	if err != nil {
 		return err
 	}
@@ -214,6 +203,82 @@ func createDatabase(ctx context.Context, serverURL string, manifest Manifest) er
 	}
 	_, err = db.ExecContext(ctx, statements[1], manifest.ID, manifest.Slug)
 	return err
+}
+
+// createPostgresDatabase provisions the workspace database on PostgreSQL with
+// the same accept rules as the MariaDB path. The server-level connection uses
+// the postgres maintenance database; a second connection writes the identity
+// table inside the new database, because PostgreSQL has no cross-database
+// tables. The name passed ValidateSlug, so it is safe inside quotes.
+func createPostgresDatabase(ctx context.Context, serverURL string, manifest Manifest) error {
+	maintenance, err := ParseEndpoint(DriverPostgres, serverURL, "postgres")
+	if err != nil {
+		return err
+	}
+	mconnector, err := maintenance.Connector()
+	if err != nil {
+		return err
+	}
+	mdb := sql.OpenDB(mconnector)
+	defer mdb.Close()
+	if err := mdb.PingContext(ctx); err != nil {
+		return fmt.Errorf("connect to the database server: %w", err)
+	}
+	name := manifest.Database.Name
+	var existing int
+	if err := mdb.QueryRowContext(ctx, `SELECT COUNT(*) FROM pg_database WHERE datname = $1`, name).Scan(&existing); err != nil {
+		return err
+	}
+	if existing > 0 {
+		var tables int
+		if err := mdb.QueryRowContext(ctx, `SELECT COUNT(*) FROM information_schema.tables WHERE table_catalog = $1 AND table_schema NOT IN ('pg_catalog', 'information_schema')`, name).Scan(&tables); err != nil {
+			return err
+		}
+		if tables > 0 {
+			id, err := postgresWorkspaceID(ctx, serverURL, name)
+			if err != nil || id != manifest.ID {
+				return fmt.Errorf("database %q already exists and does not belong to this new workspace; choose another name", name)
+			}
+			return nil
+		}
+	} else {
+		if _, err := mdb.ExecContext(ctx, fmt.Sprintf(`CREATE DATABASE "%s"`, name)); err != nil {
+			return fmt.Errorf("create database %q: %w", name, err)
+		}
+	}
+	target, err := ParseEndpoint(DriverPostgres, serverURL, name)
+	if err != nil {
+		return err
+	}
+	tconnector, err := target.Connector()
+	if err != nil {
+		return err
+	}
+	tdb := sql.OpenDB(tconnector)
+	defer tdb.Close()
+	if _, err := tdb.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS athena_workspace (id CHAR(36) NOT NULL PRIMARY KEY, slug VARCHAR(48) NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now())`); err != nil {
+		return err
+	}
+	_, err = tdb.ExecContext(ctx, `INSERT INTO athena_workspace (id, slug) VALUES ($1, $2) ON CONFLICT (id) DO NOTHING`, manifest.ID, manifest.Slug)
+	return err
+}
+
+// postgresWorkspaceID reads the workspace ID recorded in a PostgreSQL
+// workspace database over its own connection.
+func postgresWorkspaceID(ctx context.Context, serverURL, database string) (string, error) {
+	target, err := ParseEndpoint(DriverPostgres, serverURL, database)
+	if err != nil {
+		return "", err
+	}
+	connector, err := target.Connector()
+	if err != nil {
+		return "", err
+	}
+	db := sql.OpenDB(connector)
+	defer db.Close()
+	var id string
+	err = db.QueryRowContext(ctx, `SELECT id FROM athena_workspace LIMIT 1`).Scan(&id)
+	return id, err
 }
 
 // WorkspaceID returns the workspace ID recorded in a workspace database.

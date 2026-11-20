@@ -1,4 +1,4 @@
-.PHONY: test generate web-deps web-build build run stop restart telemetry telemetry-stop clean
+.PHONY: test bruno-test generate web-deps web-build build run stop restart telemetry telemetry-stop clean
 
 ADDR ?= 127.0.0.1:3000
 
@@ -26,7 +26,25 @@ build: web-build
 test: web-deps
 	@set -a; if [ -f .env.local ]; then . ./.env.local; fi; set +a; \
 	export ATHENA_TEST_DATABASE_URL="$${ATHENA_TEST_DATABASE_URL:-$$ATHENA_DATABASE_URL}"; \
-	go test ./... && CI=true pnpm --dir web run test
+	go test -timeout 20m ./... && CI=true pnpm --dir web run test
+
+# Black-box ConnectRPC checks. Athena must already be running and the Bruno
+# CLI must be installed (`pnpm add --global @usebruno/cli`). The password is
+# passed only to the runner and never stored in the collection.
+BRUNO ?= bru
+BRUNO_COLLECTION ?= $(CURDIR)/bruno/athena-api
+BRUNO_REPORT ?= /tmp/athena-bruno-junit.xml
+
+bruno-test:
+	@if ! command -v $(firstword $(BRUNO)) >/dev/null 2>&1; then echo 'Bruno CLI not found. Install it with: pnpm add --global @usebruno/cli' >&2; exit 1; fi
+	@if [ -z "$${ATHENA_BRUNO_PASSWORD:-}" ]; then echo 'ATHENA_BRUNO_PASSWORD is required; it is never written to disk.' >&2; exit 1; fi
+	@curl --fail --silent --show-error "$${ATHENA_BRUNO_BASE_URL:-http://127.0.0.1:3000}/healthz" >/dev/null
+	@cd "$(BRUNO_COLLECTION)" && $(BRUNO) run --env local \
+		--env-var "baseUrl=$${ATHENA_BRUNO_BASE_URL:-http://127.0.0.1:3000}" \
+		--env-var "username=$${ATHENA_BRUNO_USERNAME:-administrator}" \
+		--env-var "password=$${ATHENA_BRUNO_PASSWORD}" \
+		--reporter-junit $(BRUNO_REPORT) \
+		--reporter-skip-body
 run: web-build
 	@set -a; if [ -f .env.local ]; then . ./.env.local; fi; set +a; \
 	if [ -z "$$ATHENA_DATABASE_URL" ]; then echo 'ATHENA_DATABASE_URL is not set. Copy .env.example to .env.local and set the MariaDB connection.' >&2; exit 1; fi; \

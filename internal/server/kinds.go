@@ -21,6 +21,18 @@ const (
 	kindSetting  = "setting"
 )
 
+// refuseKernelKind rejects writes to kernel-owned kinds. Ledger rows are
+// written by their owning service (LedgerService for ledger tables), never
+// through RecordService. No such definition can exist yet: validateKind
+// refuses these kinds from the API, and kernel-owned ledger masters live in
+// athena_ tables outside Record Types (internal/ledger).
+func refuseKernelKind(kind string) error {
+	if kernelKinds[kind] {
+		return invalid(fmt.Sprintf("the kind %q belongs to the kernel and cannot be written here", kind))
+	}
+	return nil
+}
+
 var (
 	kernelKinds     = map[string]bool{"ledger": true, "balance": true, "log": true, "snapshot": true, "meta": true}
 	documentClasses = map[string]bool{"posting": true, "non_posting": true, "work": true, "batch": true}

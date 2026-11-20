@@ -125,7 +125,12 @@ func (s *session) cookie() string {
 
 func (f *accessFixture) user(t *testing.T, username string, roles ...string) {
 	t.Helper()
-	if _, err := f.users.CreateUser(context.Background(), username, "", testPassword, false); err != nil {
+	ctx := context.Background()
+	user, challenge, err := f.users.CreateUser(ctx, username, "", false, newRequestID())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.users.CompleteChallenge(ctx, user.Username, auth.ChallengePurposeFirstLogin, challenge, testPassword, newRequestID()); err != nil {
 		t.Fatal(err)
 	}
 	f.assign(t, username, roles...)
@@ -439,7 +444,7 @@ func TestRoleChangeTakesEffectOnTheNextCall(t *testing.T) {
 
 func TestLogoutEndsTheSessionAndDisablingEndsAllSessions(t *testing.T) {
 	f := newAccessFixture(t)
-	f.role(t, "admin", []string{auth.PermissionAccess})
+	f.role(t, "admin", []string{auth.PermissionAccessUsers})
 	f.user(t, "carol", "admin")
 	b, other := f.browser(t), f.browser(t)
 	b.login(t, "carol")
@@ -533,12 +538,19 @@ func TestPasswordChangeAndResetEndSessions(t *testing.T) {
 		t.Fatalf("after ChangePassword: current alive = %v (want true), other alive = %v (want false)", alive(current.Token), alive(other.Token))
 	}
 
-	const reset = "a reset long passphrase"
-	if _, err := svc.ResetPassword(ctx, "gina", reset); err != nil {
+	_, resetToken, err := svc.StartReset(ctx, "gina", "", newRequestID())
+	if err != nil {
 		t.Fatal(err)
 	}
 	if alive(current.Token) {
-		t.Fatal("ResetPassword left a session alive")
+		t.Fatal("StartReset left a session alive")
+	}
+	const reset = "a reset long passphrase"
+	if _, err := svc.CompleteChallenge(ctx, "gina", auth.ChallengePurposeReset, resetToken, reset, newRequestID()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.Login(ctx, "gina", reset, newRequestID()); err != nil {
+		t.Fatalf("sign-in after a reset: %v", err)
 	}
 }
 

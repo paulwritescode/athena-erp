@@ -3,9 +3,12 @@ package server
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 
+	"athena-erp/internal/auth"
 	"athena-erp/internal/store"
 	"athena-erp/internal/testdb"
 )
@@ -123,5 +126,167 @@ func TestFreshAndPreVersionedDatabasesReachTheSameSchema(t *testing.T) {
 func TestSystemMigrationsAreValid(t *testing.T) {
 	if err := store.ValidateMigrations(SystemMigrations()); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// TestAccessModelMigrationPreservesAccess builds a database the way the
+// current build leaves it (migrations 1 to 11), adds users, a Role and a
+// session, upgrades to migration 12 and checks that nobody gains or loses
+// sign-in: enabled users stay active, the disabled user stays refused, Role
+// links are copied to assignments, and the old `access` permission becomes
+// the granular access permissions.
+func TestAccessModelMigrationPreservesAccess(t *testing.T) {
+	ctx := context.Background()
+	db := testdb.New(t)
+	if _, err := store.Up(ctx, db, dialect, SystemMigrations(), store.UpOptions{Target: 11}); err != nil {
+		t.Fatal(err)
+	}
+	const password = "correct horse battery staple"
+	hash, err := auth.HashPassword(password)
+	if err != nil {
+		t.Fatal(err)
+	}
+	exec := func(query string, args ...any) {
+		t.Helper()
+		if _, err := db.ExecContext(ctx, query, args...); err != nil {
+			t.Fatalf("%s: %v", query, err)
+		}
+	}
+	exec(`INSERT INTO athena_users (id, username, display_name, password_hash, is_owner) VALUES
+		('11111111-1111-1111-1111-111111111111', 'ada', 'Ada', ?, 1)`, hash)
+	exec(`INSERT INTO athena_users (id, username, display_name, password_hash) VALUES
+		('22222222-2222-2222-2222-222222222222', 'carol', 'Carol', ?)`, hash)
+	exec(`INSERT INTO athena_users (id, username, display_name, password_hash, disabled) VALUES
+		('33333333-3333-3333-3333-333333333333', 'bob', 'Bob', ?, 1)`, hash)
+	exec(`INSERT INTO athena_roles (id, name, description, system_permissions) VALUES
+		('44444444-4444-4444-4444-444444444444', 'clerk', '', '["access"]')`)
+	exec(`INSERT INTO athena_grants (id, role_id, record_type, actions, permission_level) VALUES
+		('55555555-5555-5555-5555-555555555555', '44444444-4444-4444-4444-444444444444', 'customer', '["read","write"]', 0)`)
+	exec(`INSERT INTO athena_user_roles (user_id, role_id) VALUES
+		('22222222-2222-2222-2222-222222222222', '44444444-4444-4444-4444-444444444444')`)
+	exec(`INSERT INTO athena_sessions (id, token_hash, user_id, created_at, last_seen_at, expires_at) VALUES
+		('66666666-6666-6666-6666-666666666666', '00', '22222222-2222-2222-2222-222222222222', UTC_TIMESTAMP(3), UTC_TIMESTAMP(3), UTC_TIMESTAMP(3) + INTERVAL 7 DAY)`)
+
+	if _, err := store.Up(ctx, db, dialect, SystemMigrations(), store.UpOptions{}); err != nil {
+		t.Fatal(err)
+	}
+
+	states := map[string]string{}
+	rows, err := db.QueryContext(ctx, `SELECT username, state, generation, invite_delivery FROM athena_users`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for rows.Next() {
+		var username, state string
+		var generation int
+		var delivery string
+		if err := rows.Scan(&username, &state, &generation, &delivery); err != nil {
+			rows.Close()
+			t.Fatal(err)
+		}
+		states[username] = state
+		if generation != 0 {
+			t.Errorf("user %s has generation %d, want 0", username, generation)
+		}
+		if delivery != "manual" {
+			t.Errorf("user %s has invite delivery %q, want manual", username, delivery)
+		}
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if states["ada"] != "active" || states["carol"] != "active" {
+		t.Errorf("enabled users became %v, want active", states)
+	}
+	if states["bob"] != "suspended" {
+		t.Errorf("disabled user bob became %q, want suspended", states["bob"])
+	}
+
+	var userID, roleID, scope string
+	var activeFrom, expiresAt sql.NullString
+	var revision int64
+	if err := db.QueryRowContext(ctx, `SELECT user_id, role_id, CAST(scope AS CHAR), active_from, expires_at, revision FROM athena_role_assignments`).Scan(&userID, &roleID, &scope, &activeFrom, &expiresAt, &revision); err != nil {
+		t.Fatalf("copied assignment: %v", err)
+	}
+	if userID != "22222222-2222-2222-2222-222222222222" || roleID != "44444444-4444-4444-4444-444444444444" {
+		t.Errorf("assignment copied for %s/%s, want carol/clerk", userID, roleID)
+	}
+	if scope != "{}" || activeFrom.Valid || expiresAt.Valid {
+		t.Errorf("assignment has scope %q from %v to %v, want empty scope and no dates", scope, activeFrom, expiresAt)
+	}
+	var assignmentCount, linkCount int
+	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM athena_role_assignments`).Scan(&assignmentCount); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM athena_user_roles`).Scan(&linkCount); err != nil {
+		t.Fatal(err)
+	}
+	if assignmentCount != 1 || linkCount != 1 {
+		t.Errorf("assignments %d and old links %d, want one of each", assignmentCount, linkCount)
+	}
+
+	var requiresScope string
+	var system bool
+	if err := db.QueryRowContext(ctx, "SELECT CAST(requires_scope AS CHAR), `system` FROM athena_roles").Scan(&requiresScope, &system); err != nil {
+		t.Fatal(err)
+	}
+	if requiresScope != "[]" || system {
+		t.Errorf("Role has scope requirement %q system %v, want [] and false", requiresScope, system)
+	}
+	var permissionsPayload string
+	if err := db.QueryRowContext(ctx, `SELECT CAST(system_permissions AS CHAR) FROM athena_roles`).Scan(&permissionsPayload); err != nil {
+		t.Fatal(err)
+	}
+	var permissions []string
+	if err := json.Unmarshal([]byte(permissionsPayload), &permissions); err != nil {
+		t.Fatal(err)
+	}
+	held := map[string]bool{}
+	for _, p := range permissions {
+		held[p] = true
+	}
+	for _, want := range []string{"access:assign", "access:explore", "access:recover", "access:roles", "access:sessions", "access:users"} {
+		if !held[want] {
+			t.Errorf("migrated Role lacks %s (has %v)", want, permissions)
+		}
+	}
+	if held["access"] || held["access:ownership"] {
+		t.Errorf("migrated Role holds %v, want no plain access and no ownership", permissions)
+	}
+
+	var nullable string
+	if err := db.QueryRowContext(ctx, `SELECT IS_NULLABLE FROM information_schema.columns
+		WHERE table_schema = DATABASE() AND table_name = 'athena_users' AND column_name = 'password_hash'`).Scan(&nullable); err != nil {
+		t.Fatal(err)
+	}
+	if nullable != "YES" {
+		t.Error("password_hash stayed NOT NULL, want nullable for invited users")
+	}
+	var challenges int
+	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM athena_challenges`).Scan(&challenges); err != nil {
+		t.Fatalf("challenges table: %v", err)
+	}
+	var device, address sql.NullString
+	if err := db.QueryRowContext(ctx, `SELECT device, address_digest FROM athena_sessions`).Scan(&device, &address); err != nil {
+		t.Fatalf("session device columns: %v", err)
+	}
+	if device.Valid || address.Valid {
+		t.Errorf("old session gained device %v address %v, want NULL", device, address)
+	}
+
+	service := &auth.Service{DB: db}
+	if _, err := service.Login(ctx, "ada", password, "test-request"); err != nil {
+		t.Errorf("owner sign-in after upgrade: %v", err)
+	}
+	got, err := service.Login(ctx, "carol", password, "test-request")
+	if err != nil {
+		t.Fatalf("clerk sign-in after upgrade: %v", err)
+	}
+	if !got.Principal.Can("customer", "write") {
+		t.Error("clerk lost the customer write Grant in the upgrade")
+	}
+	if _, err := service.Login(ctx, "bob", password, "test-request"); !errors.Is(err, auth.ErrDisabled) {
+		t.Errorf("disabled user sign-in after upgrade: %v, want ErrDisabled", err)
 	}
 }

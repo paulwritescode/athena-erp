@@ -1,0 +1,33 @@
+meta {
+  name: 06 - Verify audit log
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{baseUrl}}/athena.v1.SystemService/VerifyAuditLog
+  body: json
+  auth: none
+}
+
+headers {
+  content-type: application/json
+  accept: application/json
+  X-CSRF-Token: {{csrfToken}}
+}
+
+body:json {
+  {}
+}
+
+tests {
+  test("passes the audit permission gate and verifies the chain", function() {
+    expect(res.status).to.equal(200);
+    expect(res.body.ok).to.equal(true);
+    // Connect JSON encodes protobuf int64 values as decimal strings.
+    // A fresh workspace may omit the proto3 default of zero.
+    if (res.body.rowsChecked !== undefined) {
+      expect(res.body.rowsChecked).to.match(/^\d+$/);
+    }
+  });
+}

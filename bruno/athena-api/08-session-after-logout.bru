@@ -1,0 +1,27 @@
+meta {
+  name: 08 - Session after logout
+  type: http
+  seq: 8
+}
+
+post {
+  url: {{baseUrl}}/athena.v1.AuthService/GetSession
+  body: json
+  auth: none
+}
+
+headers {
+  content-type: application/json
+  accept: application/json
+}
+
+body:json {
+  {}
+}
+
+tests {
+  test("does not keep the session after logout", function() {
+    expect(res.status).to.equal(200);
+    expect(res.body.session.authenticated).to.not.equal(true);
+  });
+}

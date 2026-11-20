@@ -4,13 +4,13 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
 
 	"athena-erp/gen/athena/v1/athenav1connect"
 	"athena-erp/internal/auth"
 	"athena-erp/internal/lifecycle"
 	"athena-erp/internal/store"
-
-	"github.com/go-sql-driver/mysql"
+	"athena-erp/internal/workspace"
 )
 
 // Kernel gives the CLI the same Record Type and Record services the
@@ -39,8 +39,8 @@ type Kernel struct {
 // OpenKernel connects to the Workspace database and applies pending system
 // migrations, as Serve does at start-up. When workspace is set, the database
 // must belong to it. Close the Kernel when done.
-func OpenKernel(ctx context.Context, cfg *mysql.Config, workspace *Workspace) (*Kernel, error) {
-	db, err := openMigrationDB(ctx, cfg, workspace)
+func OpenKernel(ctx context.Context, endpoint *workspace.DBEndpoint, svc *Workspace) (*Kernel, error) {
+	db, err := openMigrationDB(ctx, endpoint, svc)
 	if err != nil {
 		return nil, err
 	}
@@ -52,10 +52,22 @@ func OpenKernel(ctx context.Context, cfg *mysql.Config, workspace *Workspace) (*
 		db.Close()
 		return nil, fmt.Errorf("resume interrupted Record Type saves: %w", err)
 	}
-	files := newFileService(workspace, db)
+	users := &auth.Service{DB: db}
+	if err := users.EnsureSystemRoles(ctx); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("seed system roles: %w", err)
+	}
+	// The generated password, if any, goes to the process log (stderr), so
+	// command output stays clean for scripts and --json.
+	if generated, err := users.EnsureRoot(ctx, endpoint.Password()); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("seed root administrator: %w", err)
+	} else if generated != "" {
+		log.Printf("Administrator account created with a generated password, shown once: %s", generated)
+	}
+	files := newFileService(svc, db)
 	hooks := lifecycle.NewRegistry()
 	registerRules(hooks, db)
-	users := &auth.Service{DB: db}
 	return &Kernel{RecordTypes: recordTypeService{db: db}, Records: recordService{db: db, hooks: hooks}, System: systemService{db: db}, Auth: authService{auth: users}, Users: users, Files: files, Rules: newRuleService(db), Hooks: hooks, db: db}, nil
 }
 

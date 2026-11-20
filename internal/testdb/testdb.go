@@ -36,6 +36,45 @@ func New(t testing.TB) *sql.DB {
 // database, for code that opens its own connection (the CLI tests).
 func NewWithConfig(t testing.TB) (*sql.DB, *mysql.Config) {
 	t.Helper()
+	db, cfg, adminDB, name := create(t)
+	t.Cleanup(func() {
+		if _, err := adminDB.Exec("DROP DATABASE IF EXISTS `" + name + "`"); err != nil {
+			t.Errorf("drop test database %s: %v", name, err)
+		}
+		adminDB.Close()
+	})
+	t.Cleanup(func() { db.Close() })
+	return db, cfg
+}
+
+// NewScoped is New for tests that create many databases in one run, such as
+// one per property-test iteration. It returns the connection and a cleanup
+// func that drops the database and closes its connections immediately; call
+// it when the iteration ends so connections do not pile up to the server
+// limit. A backstop registered with t.Cleanup drops leftovers at test end,
+// so iterations that fail midway still clean up.
+func NewScoped(t testing.TB) (*sql.DB, func()) {
+	t.Helper()
+	db, _, adminDB, name := create(t)
+	cleaned := false
+	cleanup := func() {
+		if cleaned {
+			return
+		}
+		cleaned = true
+		_, _ = adminDB.Exec("DROP DATABASE IF EXISTS `" + name + "`")
+		db.Close()
+		adminDB.Close()
+	}
+	t.Cleanup(cleanup)
+	return db, cleanup
+}
+
+// create makes one throwaway database and returns a connection to it with
+// the driver config, the admin connection and the database name. The caller
+// registers the cleanup.
+func create(t testing.TB) (db *sql.DB, cfg *mysql.Config, adminDB *sql.DB, name string) {
+	t.Helper()
 	dsn := os.Getenv(EnvURL)
 	if dsn == "" {
 		t.Skipf("%s is not set; skipping the MariaDB test", EnvURL)
@@ -44,27 +83,20 @@ func NewWithConfig(t testing.TB) (*sql.DB, *mysql.Config) {
 	if err != nil {
 		t.Fatalf("parse %s: %v", EnvURL, err)
 	}
-	name := namePrefix + strings.ReplaceAll(uuid.NewString(), "-", "")[:16]
+	name = namePrefix + strings.ReplaceAll(uuid.NewString(), "-", "")[:16]
 
 	admin := cfg.Clone()
 	admin.DBName = ""
-	adminDB := openDB(t, admin)
+	adminDB = openDB(t, admin)
 	if _, err := adminDB.Exec("CREATE DATABASE `" + name + "` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"); err != nil {
 		adminDB.Close()
 		t.Fatalf("create test database: %v", err)
 	}
-	t.Cleanup(func() {
-		if _, err := adminDB.Exec("DROP DATABASE IF EXISTS `" + name + "`"); err != nil {
-			t.Errorf("drop test database %s: %v", name, err)
-		}
-		adminDB.Close()
-	})
 
 	cfg = cfg.Clone()
 	cfg.DBName = name
-	db := openDB(t, cfg)
-	t.Cleanup(func() { db.Close() })
-	return db, cfg
+	db = openDB(t, cfg)
+	return db, cfg, adminDB, name
 }
 
 func openDB(t testing.TB, cfg *mysql.Config) *sql.DB {

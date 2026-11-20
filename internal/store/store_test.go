@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/go-sql-driver/mysql"
+	"pgregory.net/rapid"
 )
 
 func TestShortenIdentifierIsDeterministicAndBounded(t *testing.T) {
@@ -26,6 +27,45 @@ func TestShortenIdentifierIsDeterministicAndBounded(t *testing.T) {
 	if got := ShortenIdentifier("athena_record_orders", postgresLimit); got != "athena_record_orders" {
 		t.Fatalf("short name changed to %q", got)
 	}
+}
+
+// TestShortenIdentProperty checks Property 4 over drawn names: shortening is
+// deterministic, bounded by each engine's limit, leaves short names alone,
+// and keeps distinct inputs distinct at the 63-byte generation limit both
+// engines share.
+//
+// Feature: athena-batch-2, Property 4: Identifier shortening.
+func TestShortenIdentProperty(t *testing.T) {
+	dialects := map[string]Dialect{"mariadb": MariaDB{}, "postgres": PostgreSQL{}}
+	rapid.Check(t, func(t *rapid.T) {
+		x := string(rapid.SliceOfN(rapid.Byte(), 0, 100).Draw(t, "first"))
+		y := string(rapid.SliceOfN(rapid.Byte(), 0, 100).Draw(t, "second"))
+		if x == y {
+			return
+		}
+		a, b := ShortenIdentifier(x, GeneratedIdentLimit), ShortenIdentifier(y, GeneratedIdentLimit)
+		if len(a) > GeneratedIdentLimit || len(b) > GeneratedIdentLimit {
+			t.Fatalf("lengths %d, %d exceed %d", len(a), len(b), GeneratedIdentLimit)
+		}
+		if ShortenIdentifier(x, GeneratedIdentLimit) != a {
+			t.Fatal("shortening is not deterministic")
+		}
+		if a == b {
+			t.Fatalf("distinct inputs %q and %q collide into %q", x, y, a)
+		}
+		for name, dialect := range dialects {
+			s := dialect.ShortenIdent(x)
+			if len(s) > dialect.MaxIdentLength() {
+				t.Fatalf("%s length %d exceeds %d", name, len(s), dialect.MaxIdentLength())
+			}
+			if dialect.ShortenIdent(x) != s {
+				t.Fatalf("%s shortening is not deterministic", name)
+			}
+			if len(x) <= dialect.MaxIdentLength() && s != x {
+				t.Fatalf("%s changed a short name to %q", name, s)
+			}
+		}
+	})
 }
 
 func TestMariaDBShortenUsesItsOwnLimit(t *testing.T) {

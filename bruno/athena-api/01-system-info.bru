@@ -1,0 +1,31 @@
+meta {
+  name: 01 - Get system info
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/athena.v1.SystemService/GetSystemInfo
+  body: json
+  auth: none
+}
+
+headers {
+  content-type: application/json
+  accept: application/json
+}
+
+body:json {
+  {}
+}
+
+tests {
+  test("returns a successful ConnectRPC response", function() {
+    expect(res.status).to.equal(200);
+  });
+
+  test("identifies the Athena product", function() {
+    expect(res.body.productName).to.equal("Athena ERP");
+    expect(res.body).to.have.property("version");
+  });
+}

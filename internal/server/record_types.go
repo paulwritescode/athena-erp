@@ -102,14 +102,32 @@ var reservedColumns = map[string]bool{"id": true, "revision": true, "created_at"
 // Operation actions and states in athena_record_type_operations.
 const (
 	actionSave         = "save"
+	actionSaveGroup    = "save_group"
 	actionDelete       = "delete"
 	operationPending   = "pending"
 	operationCompleted = "completed"
 	operationFailed    = "failed"
 )
 
-// dialect generates every engine-specific statement. MariaDB is the only
-// implementation.
+// saveGroup journals an atomic pair save: a child and its parent, applied both
+// or neither. MariaDB commits each DDL statement on its own, so there is no
+// single transaction; instead the group records everything compensation needs
+// (the previous child definition, both revisions) and the member operation IDs
+// so resume never runs a member as a lone save.
+type saveGroup struct {
+	Child          recordTypeDefinition  `json:"child"`
+	ChildExpected  int64                 `json:"child_expected"`
+	ChildPrevious  *recordTypeDefinition `json:"child_previous,omitempty"`
+	ChildOp        string                `json:"child_op"`
+	ParentName     string                `json:"parent_name"`
+	ParentExpected int64                 `json:"parent_expected"`
+	ParentOp       string                `json:"parent_op"`
+}
+
+// dialect generates every engine-specific statement. Each process sets it once
+// from the endpoint driver when it opens the database (Serve, OpenKernel,
+// openMigrationDB); tests must not flip it concurrently. PostgreSQL is
+// implemented but untested and claims no parity.
 var dialect store.Dialect = store.MariaDB{}
 
 // workspacePack is the reserved Pack name for Record Types authored in the
@@ -209,64 +227,153 @@ func (s recordTypeService) SaveRecordType(ctx context.Context, req *athenav1.Sav
 	}
 	defer unlock()
 
-	var parent *recordTypeDefinition
 	if req.GetParent() != nil {
-		definition := recordTypeFromProto(req.GetParent())
-		if recordType.kind() != kindChild || definition.Name != recordType.ParentRecordType {
-			return nil, invalid("parent must be the Record Type that owns this child Record Type")
-		}
-		// Check the parent's expressions against the child as it will be,
-		// before anything is saved.
-		if _, err := compilePlan(ctx, conn, definition, &recordType); err != nil {
-			return nil, invalid(fmt.Sprintf("%s: %s", definition.Label, connectMessage(err)))
-		}
-		parent = &definition
+		return s.savePair(ctx, conn, recordType, req)
 	}
 	saved, err := saveOne(ctx, conn, recordType, req.GetExpectedRevision(), req.GetConfirmDataLoss(), req.GetBackfills())
 	if err != nil {
 		return nil, err
 	}
-	res := &athenav1.SaveRecordTypeResponse{RecordType: recordTypeToProto(recordType, saved)}
-	if parent != nil {
-		parentSaved, err := saveOne(ctx, conn, *parent, req.GetParent().GetRevision(), req.GetConfirmDataLoss(), nil)
-		if err != nil {
-			return nil, connect.NewError(connect.CodeOf(err), fmt.Sprintf("%s was saved, but %s was not: %s", recordType.Label, parent.Label, connectMessage(err)))
-		}
-		res.Parent = recordTypeToProto(*parent, parentSaved)
+	return &athenav1.SaveRecordTypeResponse{RecordType: recordTypeToProto(recordType, saved)}, nil
+}
+
+// savePair saves a child and its parent both or neither. Both members are
+// validated and planned before the group is journaled, so a bad parent never
+// starts the child; if the parent then fails, the child is compensated.
+func (s recordTypeService) savePair(ctx context.Context, conn sqlConn, recordType recordTypeDefinition, req *athenav1.SaveRecordTypeRequest) (*athenav1.SaveRecordTypeResponse, error) {
+	parent := recordTypeFromProto(req.GetParent())
+	if recordType.kind() != kindChild || parent.Name != recordType.ParentRecordType {
+		return nil, invalid("parent must be the Record Type that owns this child Record Type")
 	}
-	return res, nil
+	// Check the parent's expressions against the child as it will be,
+	// before anything is saved.
+	if _, err := compilePlan(ctx, conn, parent, &recordType); err != nil {
+		return nil, invalid(fmt.Sprintf("%s: %s", parent.Label, connectMessage(err)))
+	}
+	child, err := prepareOne(ctx, conn, recordType, req.GetExpectedRevision(), req.GetConfirmDataLoss(), req.GetBackfills())
+	if err != nil {
+		return nil, err
+	}
+	// The parent prepares after the child commits: its validation reads the
+	// child's saved definition. The revision is checked now so the journal
+	// never records a parent the client did not see.
+	if _, revision, err := loadRecordType(ctx, conn, parent.Name); err != nil {
+		return nil, internalError("load Record Type", err)
+	} else if revision != req.GetParent().GetRevision() {
+		return nil, connect.NewError(connect.CodeAborted, "this Record Type was saved somewhere else; reload it and try again")
+	}
+	childOp, err := uuid.NewV7()
+	if err != nil {
+		return nil, internalError("record type save operation", err)
+	}
+	parentOp, err := uuid.NewV7()
+	if err != nil {
+		return nil, internalError("record type save operation", err)
+	}
+	group := saveGroup{
+		Child: child.recordType, ChildExpected: child.revision, ChildPrevious: child.previous, ChildOp: childOp.String(),
+		ParentName: parent.Name, ParentExpected: req.GetParent().GetRevision(), ParentOp: parentOp.String(),
+	}
+	groupID, err := startGroup(ctx, conn, group)
+	if err != nil {
+		return nil, internalError("record type save group", err)
+	}
+	saved, _, err := commitOne(ctx, conn, child, childOp.String())
+	if err != nil {
+		failGroup(conn, groupID, "child", err)
+		return nil, err
+	}
+	if _, err := conn.ExecContext(ctx, `UPDATE athena_record_type_operations SET last_step = 'child_saved' WHERE id = ?`, groupID); err != nil {
+		failGroup(conn, groupID, "child_saved", err)
+		return nil, internalError("record type save group", err)
+	}
+	parentPrepared, err := prepareOne(ctx, conn, parent, req.GetParent().GetRevision(), req.GetConfirmDataLoss(), nil)
+	if err != nil {
+		return nil, s.abandonPair(ctx, conn, groupID, group, recordType.Label, parent.Label, err)
+	}
+	parentSaved, _, err := commitOne(ctx, conn, parentPrepared, parentOp.String())
+	if err != nil {
+		return nil, s.abandonPair(ctx, conn, groupID, group, recordType.Label, parent.Label, err)
+	}
+	if _, err := conn.ExecContext(ctx, `UPDATE athena_record_type_operations SET status = ?, last_step = 'completed' WHERE id = ?`, operationCompleted, groupID); err != nil {
+		return nil, internalError("record type save group", err)
+	}
+	return &athenav1.SaveRecordTypeResponse{RecordType: recordTypeToProto(recordType, saved), Parent: recordTypeToProto(parent, parentSaved)}, nil
+}
+
+// abandonPair compensates the child after the parent failed to prepare or
+// commit, and reports what happened to each member.
+func (s recordTypeService) abandonPair(ctx context.Context, conn sqlConn, groupID string, group saveGroup, childLabel, parentLabel string, cause error) error {
+	if cerr := compensateChildSave(ctx, conn, group); cerr != nil {
+		failGroup(conn, groupID, "compensation_failed", cerr)
+		return connect.NewError(connect.CodeOf(cause), fmt.Sprintf("%s was not saved, and rolling back %s failed: %s; the child save stands and needs an operator", parentLabel, childLabel, connectMessage(cerr)))
+	}
+	failGroup(conn, groupID, "compensated", cause)
+	return connect.NewError(connect.CodeOf(cause), fmt.Sprintf("%s was not saved, so %s was rolled back: %s", parentLabel, childLabel, connectMessage(cause)))
+}
+
+// preparedSave is one member validated and planned, ready to journal and run.
+type preparedSave struct {
+	recordType recordTypeDefinition
+	previous   *recordTypeDefinition
+	revision   int64
+	opts       saveOptions
+	steps      []migrationStep
 }
 
 // saveOne validates, plans and runs the save of one Record Type on the
 // connection that holds the schema lock, and returns the new revision.
 func saveOne(ctx context.Context, conn sqlConn, recordType recordTypeDefinition, expected int64, confirm bool, backfills map[string]*athenav1.FieldValue) (int64, error) {
+	prepared, err := prepareOne(ctx, conn, recordType, expected, confirm, backfills)
+	if err != nil {
+		return 0, err
+	}
+	saved, _, err := commitOne(ctx, conn, prepared, "")
+	return saved, err
+}
+
+// prepareOne checks the revision, validates and plans without writing.
+func prepareOne(ctx context.Context, conn sqlConn, recordType recordTypeDefinition, expected int64, confirm bool, backfills map[string]*athenav1.FieldValue) (preparedSave, error) {
 	previous, revision, err := loadRecordType(ctx, conn, recordType.Name)
 	if err != nil {
-		return 0, internalError("load Record Type", err)
+		return preparedSave{}, internalError("load Record Type", err)
 	}
 	if revision != expected {
 		if expected == 0 {
-			return 0, connect.NewError(connect.CodeAlreadyExists, fmt.Sprintf("a Record Type with the key %q already exists", recordType.Name))
+			return preparedSave{}, connect.NewError(connect.CodeAlreadyExists, fmt.Sprintf("a Record Type with the key %q already exists", recordType.Name))
 		}
-		return 0, connect.NewError(connect.CodeAborted, "this Record Type was saved somewhere else; reload it and try again")
+		return preparedSave{}, connect.NewError(connect.CodeAborted, "this Record Type was saved somewhere else; reload it and try again")
 	}
 	if err := validateRecordType(ctx, conn, recordType, previous); err != nil {
-		return 0, err
+		return preparedSave{}, err
 	}
 	steps, err := planMigration(ctx, conn, recordType, previous)
 	if err != nil {
-		return 0, err
+		return preparedSave{}, err
 	}
 	opts, err := checkPlan(steps, confirm, backfills)
 	if err != nil {
-		return 0, err
+		return preparedSave{}, err
 	}
-	operationID, err := startOperation(ctx, conn, actionSave, recordType, revision, opts)
-	if err != nil {
-		return 0, internalError("record type save operation", err)
+	return preparedSave{recordType: recordType, previous: previous, revision: revision, opts: opts, steps: steps}, nil
+}
+
+// commitOne journals a save operation and runs it, returning the new revision
+// and the operation ID. An empty operation ID generates one.
+func commitOne(ctx context.Context, conn sqlConn, prepared preparedSave, operationID string) (int64, string, error) {
+	if operationID == "" {
+		id, err := uuid.NewV7()
+		if err != nil {
+			return 0, "", internalError("record type save operation", err)
+		}
+		operationID = id.String()
 	}
-	log.Printf("record type save %s: %s", operationID, describeSteps(steps))
-	return runOperation(ctx, conn, operationID, recordType, revision, opts)
+	if err := startOperationWithID(ctx, conn, operationID, actionSave, prepared.recordType, prepared.revision, prepared.opts); err != nil {
+		return 0, "", internalError("record type save operation", err)
+	}
+	log.Printf("record type save %s: %s", operationID, describeSteps(prepared.steps))
+	saved, err := runOperation(ctx, conn, operationID, prepared.recordType, prepared.revision, prepared.opts)
+	return saved, operationID, err
 }
 
 func (s recordTypeService) DeleteRecordType(ctx context.Context, req *athenav1.DeleteRecordTypeRequest) (*athenav1.DeleteRecordTypeResponse, error) {
@@ -500,17 +607,96 @@ func startOperation(ctx context.Context, conn sqlConn, action string, recordType
 	if err != nil {
 		return "", err
 	}
+	return id.String(), startOperationWithID(ctx, conn, id.String(), action, recordType, expected, opts)
+}
+
+// startOperationWithID journals under a caller-chosen ID, for group members
+// whose IDs are recorded in the group before they run.
+func startOperationWithID(ctx context.Context, conn sqlConn, id, action string, recordType recordTypeDefinition, expected int64, opts saveOptions) error {
 	payload, err := json.Marshal(recordType)
 	if err != nil {
-		return "", err
+		return err
 	}
 	options, err := json.Marshal(opts)
 	if err != nil {
-		return "", err
+		return err
 	}
 	_, err = conn.ExecContext(ctx, `INSERT INTO athena_record_type_operations (id, record_type_name, action, expected_revision, definition, options, status, last_step) VALUES (?,?,?,?,?,?,?,'planned')`,
-		id.String(), recordType.Name, action, expected, payload, options, operationPending)
+		id, recordType.Name, action, expected, payload, options, operationPending)
+	return err
+}
+
+// startGroup journals a pair save before either member runs.
+func startGroup(ctx context.Context, conn sqlConn, group saveGroup) (string, error) {
+	id, err := uuid.NewV7()
+	if err != nil {
+		return "", err
+	}
+	payload, err := json.Marshal(group)
+	if err != nil {
+		return "", err
+	}
+	_, err = conn.ExecContext(ctx, `INSERT INTO athena_record_type_operations (id, record_type_name, action, expected_revision, definition, status, last_step) VALUES (?,?,?,?,?,?,'planned')`,
+		id.String(), group.Child.Name, actionSaveGroup, group.ChildExpected, payload, operationPending)
 	return id.String(), err
+}
+
+// failGroup marks a group failed with its cause.
+func failGroup(conn sqlConn, id, step string, cause error) {
+	failOperation(conn, id, step, cause)
+}
+
+// compensateChildSave undoes a committed child save after its parent failed.
+// A new child loses its table and metadata row; an updated child gets its
+// previous definition and revision back with its schema migrated back. Every
+// statement repeats safely, so a crash during compensation resumes it. When
+// the child never committed, or someone else saved past it, there is nothing
+// safe to undo.
+func compensateChildSave(ctx context.Context, conn sqlConn, group saveGroup) error {
+	current, revision, err := loadRecordType(ctx, conn, group.Child.Name)
+	if err != nil {
+		return err
+	}
+	if revision == group.ChildExpected {
+		return nil
+	}
+	if revision != group.ChildExpected+1 {
+		return fmt.Errorf("%s is at revision %d, past the rolled-back save; leaving it for an operator", group.Child.Label, revision)
+	}
+	table := recordTypeTableName(group.Child.Name)
+	if group.ChildPrevious == nil {
+		var count int64
+		if err := conn.QueryRowContext(ctx, `SELECT COUNT(*) FROM `+dialect.QuoteIdent(table)).Scan(&count); err != nil {
+			return err
+		}
+		if count > 0 {
+			return fmt.Errorf("%s holds %d Records written after its save; leaving it for an operator", group.Child.Label, count)
+		}
+		if _, err := conn.ExecContext(ctx, dialect.DropTable(table)); err != nil {
+			return err
+		}
+		if _, err := conn.ExecContext(ctx, `DELETE FROM athena_record_types WHERE name = ? AND revision = ?`, group.Child.Name, revision); err != nil {
+			return err
+		}
+		return nil
+	}
+	prior := *group.ChildPrevious
+	if err := applySchema(ctx, conn, prior, current, saveOptions{ConfirmDataLoss: true}); err != nil {
+		return err
+	}
+	payload, err := json.Marshal(prior)
+	if err != nil {
+		return err
+	}
+	result, err := conn.ExecContext(ctx, `UPDATE athena_record_types SET label = ?, definition = ?, revision = ? WHERE name = ? AND revision = ?`,
+		prior.Label, payload, group.ChildExpected, group.Child.Name, revision)
+	if err != nil {
+		return err
+	}
+	if affected, _ := result.RowsAffected(); affected == 0 {
+		return fmt.Errorf("%s changed during rollback; leaving it for an operator", group.Child.Label)
+	}
+	return nil
 }
 
 // runOperation applies the schema, then activates the definition with a
@@ -586,10 +772,12 @@ type pendingOperation struct {
 	options    saveOptions
 	expected   int64
 	recordType recordTypeDefinition
+	group      *saveGroup
 }
 
 // resumeOperations finishes saves interrupted by a crash or restart. An
 // operation whose Record Type has since moved to another revision is marked failed.
+// A pending group rolls its pair back: members never resume as lone saves.
 func resumeOperations(ctx context.Context, db *sql.DB) error {
 	conn, err := db.Conn(ctx)
 	if err != nil {
@@ -605,26 +793,100 @@ func resumeOperations(ctx context.Context, db *sql.DB) error {
 	if err != nil {
 		return err
 	}
+	members := map[string]bool{}
 	for _, op := range operations {
-		_, revision, err := loadRecordType(ctx, conn, op.recordType.Name)
-		if err != nil {
+		if op.group != nil {
+			members[op.group.ChildOp] = true
+			members[op.group.ParentOp] = true
+		}
+	}
+	for _, op := range operations {
+		if op.group == nil {
+			if members[op.id] {
+				continue
+			}
+			if err := resumeSingle(ctx, conn, op); err != nil {
+				return err
+			}
+			continue
+		}
+		if err := resumeGroup(ctx, conn, op.id, *op.group); err != nil {
 			return err
 		}
-		if revision != op.expected {
-			failOperation(conn, op.id, "resume", fmt.Errorf("record type is at revision %d, operation expected %d", revision, op.expected))
-			log.Printf("record type save %s: superseded, not resumed", op.id)
-			continue
-		}
-		run := runOperation
-		if op.action == actionDelete {
-			run = runDelete
-		}
-		if _, err := run(ctx, conn, op.id, op.recordType, op.expected, op.options); err != nil {
-			log.Printf("record type save %s: resume failed: %v", op.id, err)
-			continue
-		}
-		log.Printf("record type %s %s: resumed and completed %q", op.action, op.id, op.recordType.Name)
 	}
+	return nil
+}
+
+func resumeSingle(ctx context.Context, conn sqlConn, op pendingOperation) error {
+	_, revision, err := loadRecordType(ctx, conn, op.recordType.Name)
+	if err != nil {
+		return err
+	}
+	if revision != op.expected {
+		failOperation(conn, op.id, "resume", fmt.Errorf("record type is at revision %d, operation expected %d", revision, op.expected))
+		log.Printf("record type save %s: superseded, not resumed", op.id)
+		return nil
+	}
+	run := runOperation
+	if op.action == actionDelete {
+		run = runDelete
+	}
+	if _, err := run(ctx, conn, op.id, op.recordType, op.expected, op.options); err != nil {
+		log.Printf("record type save %s: resume failed: %v", op.id, err)
+		return nil
+	}
+	log.Printf("record type %s %s: resumed and completed %q", op.action, op.id, op.recordType.Name)
+	return nil
+}
+
+// resumeGroup settles a pair save interrupted by a crash. Both members landed
+// means only the group mark is missing; anything else rolls the child back.
+// A member that moved on without the group is left for an operator.
+func resumeGroup(ctx context.Context, conn sqlConn, id string, group saveGroup) error {
+	_, childRevision, err := loadRecordType(ctx, conn, group.Child.Name)
+	if err != nil {
+		return err
+	}
+	_, parentRevision, err := loadRecordType(ctx, conn, group.ParentName)
+	if err != nil {
+		return err
+	}
+	markMembers := func(step string, cause error) {
+		for _, member := range []string{group.ChildOp, group.ParentOp} {
+			failOperation(conn, member, step, cause)
+		}
+	}
+	if childRevision == group.ChildExpected+1 && parentRevision == group.ParentExpected+1 {
+		if _, err := conn.ExecContext(ctx, `UPDATE athena_record_type_operations SET status = ?, last_step = 'completed' WHERE id = ?`, operationCompleted, id); err != nil {
+			return err
+		}
+		log.Printf("record type group %s: both members had landed; marked completed", id)
+		return nil
+	}
+	if childRevision > group.ChildExpected+1 || parentRevision > group.ParentExpected+1 {
+		cause := fmt.Errorf("a member moved on without the group; leaving it for an operator")
+		failGroup(conn, id, "superseded", cause)
+		markMembers("superseded", cause)
+		log.Printf("record type group %s: superseded, not resumed", id)
+		return nil
+	}
+	if parentRevision == group.ParentExpected+1 {
+		cause := fmt.Errorf("the parent saved without the child; leaving it for an operator")
+		failGroup(conn, id, "unexpected", cause)
+		markMembers("unexpected", cause)
+		log.Printf("record type group %s: parent without child, not resumed", id)
+		return nil
+	}
+	if err := compensateChildSave(ctx, conn, group); err != nil {
+		failGroup(conn, id, "compensation_failed", err)
+		markMembers("compensation_failed", err)
+		log.Printf("record type group %s: compensation failed: %v", id, err)
+		return nil
+	}
+	cause := fmt.Errorf("rolled back after a restart before the pair completed")
+	failGroup(conn, id, "compensated", cause)
+	markMembers("compensated", cause)
+	log.Printf("record type group %s: child rolled back", id)
 	return nil
 }
 
@@ -640,6 +902,15 @@ func pendingOperations(ctx context.Context, conn sqlConn) ([]pendingOperation, e
 		var payload, options []byte
 		if err := rows.Scan(&op.id, &op.action, &op.expected, &payload, &options); err != nil {
 			return nil, err
+		}
+		if op.action == actionSaveGroup {
+			var group saveGroup
+			if err := json.Unmarshal(payload, &group); err != nil {
+				return nil, err
+			}
+			op.group = &group
+			operations = append(operations, op)
+			continue
 		}
 		if err := json.Unmarshal(options, &op.options); err != nil {
 			return nil, err

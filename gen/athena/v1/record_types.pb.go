@@ -688,8 +688,8 @@ type SaveRecordTypeRequest struct {
 	// same request right after the child, so a rollup formula over a new or
 	// changed child needs no second save. Its revision field is the parent
 	// revision the client edited; the parent must already be saved once. The
-	// parent save runs only when the child save succeeds; if the parent save
-	// then fails, the child stays saved and the error names the parent.
+	// pair is atomic: if the parent save fails, the child is rolled back and
+	// the error names the parent.
 	Parent        *RecordType `protobuf:"bytes,5,opt,name=parent,proto3" json:"parent,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

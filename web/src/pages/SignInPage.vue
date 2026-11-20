@@ -3,7 +3,7 @@ import { computed, ref } from 'vue'
 import { authClient } from '../api'
 import { classify, describeFailure, type Failure } from '../apiErrors'
 import type { SessionInfo } from '../gen/athena/v1/auth_pb'
-import { signInProblems, type SignInProblems } from '../signInRules'
+import { challengeProblems, type ChallengeProblems, signInProblems, type SignInProblems } from '../signInRules'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -19,12 +19,23 @@ import { toast } from 'vue-sonner'
 // is not reachable. note explains why the person is back here.
 const props = defineProps<{ hasUsers: boolean; workspaceName: string; pageState: Failure | null; note: string; checking: boolean }>()
 const emit = defineEmits<{ signedIn: [session: SessionInfo]; recheck: [] }>()
-const ownerCommand = 'athena user create <username> --owner'
+const ownerCommand = 'athena user invite <username> --owner'
 const username = ref('')
 const password = ref('')
 const busy = ref(false)
 const problems = ref<SignInProblems>({})
 const formState = ref<Failure | null>(null)
+
+// First login and password reset share one completion screen: the user proves
+// the one-time challenge and chooses their own password, then signs straight
+// in. Purpose selects which Challenge completes.
+const screen = ref<'signin' | 'complete'>('signin')
+const purpose = ref<'first_login' | 'reset'>('first_login')
+const challengeUsername = ref('')
+const challenge = ref('')
+const newPassword = ref('')
+const confirmPassword = ref('')
+const challengeIssues = ref<ChallengeProblems>({})
 
 const showForm = computed(() => props.hasUsers && props.pageState === null)
 
@@ -60,6 +71,35 @@ async function signIn() {
     busy.value = false
   }
 }
+
+function validateChallenge() {
+  challengeIssues.value = challengeProblems(challengeUsername.value, challenge.value, newPassword.value, confirmPassword.value)
+  return Object.keys(challengeIssues.value).length === 0
+}
+
+async function complete() {
+  if (!validateChallenge()) return
+  busy.value = true
+  try {
+    const res = await authClient.completeChallenge({
+      username: challengeUsername.value.trim(),
+      purpose: purpose.value,
+      challenge: challenge.value.trim(),
+      newPassword: newPassword.value,
+    })
+    newPassword.value = ''
+    confirmPassword.value = ''
+    if (res.session) emit('signedIn', res.session)
+  } catch (err) {
+    const failure = classify(err, { signIn: true, username: challengeUsername.value.trim().toLowerCase() })
+    newPassword.value = ''
+    confirmPassword.value = ''
+    if (failure.persistent) formState.value = failure
+    else toast.error(failure.kind === 'unexpected' ? describeFailure(failure) : failure.message)
+  } finally {
+    busy.value = false
+  }
+}
 </script>
 <template>
   <main class="sign-in">
@@ -76,14 +116,14 @@ async function signIn() {
         </div>
         <div v-else-if="!hasUsers" class="sign-in-setup">
           <strong>No users yet</strong>
-          <p>Create the instance owner on the server, then check again:</p>
+          <p>Create the instance owner on the server, then choose a password with the shown challenge on the First login screen:</p>
           <code>{{ ownerCommand }}</code>
           <div class="toolbar-actions">
             <Button variant="outline" @click="copyCommand">Copy command</Button>
             <Button :disabled="checking" @click="emit('recheck')">{{ checking ? 'Checking…' : 'Check again' }}</Button>
           </div>
         </div>
-        <form v-if="showForm" class="sign-in-form" novalidate @submit.prevent="signIn">
+        <form v-if="showForm && screen === 'signin'" class="sign-in-form" novalidate @submit.prevent="signIn">
           <p v-if="note" class="sign-in-state" role="status">{{ note }}</p>
           <div v-if="formState" class="sign-in-state is-error" role="alert">
             <strong>{{ formState.kind === 'locked' ? 'Account locked' : formState.kind === 'disabled' ? 'Account disabled' : formState.kind === 'database' ? 'Database not connected' : 'Server unreachable' }}</strong>
@@ -100,6 +140,35 @@ async function signIn() {
             <small v-if="problems.password" id="sign-in-password-problem" class="files-problem">{{ problems.password }}</small>
           </div>
           <Button type="submit" class="sign-in-submit" :disabled="busy">{{ busy ? 'Signing in…' : 'Sign in' }}</Button>
+          <Button type="button" variant="link" :disabled="busy" @click="screen = 'complete'">Have an invite or reset code? First login</Button>
+        </form>
+        <form v-if="showForm && screen === 'complete'" class="sign-in-form" novalidate @submit.prevent="complete">
+          <div class="complete-toggle" role="group" aria-label="Challenge purpose">
+            <Button type="button" :variant="purpose === 'first_login' ? 'secondary' : 'ghost'" size="sm" :disabled="busy" @click="purpose = 'first_login'">First login</Button>
+            <Button type="button" :variant="purpose === 'reset' ? 'secondary' : 'ghost'" size="sm" :disabled="busy" @click="purpose = 'reset'">Password reset</Button>
+          </div>
+          <div class="settings-field">
+            <Label for="complete-username">Username</Label>
+            <Input id="complete-username" v-model="challengeUsername" autocomplete="username" :disabled="busy" @input="challengeIssues.username = undefined" />
+            <small v-if="challengeIssues.username" class="files-problem">{{ challengeIssues.username }}</small>
+          </div>
+          <div class="settings-field">
+            <Label for="complete-challenge">{{ purpose === 'reset' ? 'Reset code' : 'Invite code' }}</Label>
+            <Input id="complete-challenge" v-model="challenge" autocomplete="off" spellcheck="false" :disabled="busy" @input="challengeIssues.challenge = undefined" />
+            <small v-if="challengeIssues.challenge" class="files-problem">{{ challengeIssues.challenge }}</small>
+          </div>
+          <div class="settings-field">
+            <Label for="complete-password">New password</Label>
+            <Input id="complete-password" v-model="newPassword" type="password" autocomplete="new-password" :disabled="busy" @input="challengeIssues.password = undefined" />
+            <small v-if="challengeIssues.password" class="files-problem">{{ challengeIssues.password }}</small>
+          </div>
+          <div class="settings-field">
+            <Label for="complete-confirm">Repeat the password</Label>
+            <Input id="complete-confirm" v-model="confirmPassword" type="password" autocomplete="new-password" :disabled="busy" @input="challengeIssues.confirm = undefined" />
+            <small v-if="challengeIssues.confirm" class="files-problem">{{ challengeIssues.confirm }}</small>
+          </div>
+          <Button type="submit" class="sign-in-submit" :disabled="busy">{{ busy ? 'Signing in…' : 'Choose password and sign in' }}</Button>
+          <Button type="button" variant="link" :disabled="busy" @click="screen = 'signin'">Back to sign in</Button>
         </form>
       </CardContent>
     </Card>

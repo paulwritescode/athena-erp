@@ -3,6 +3,7 @@ package rules
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -10,6 +11,7 @@ import (
 	"athena-erp/internal/types"
 
 	"go.starlark.net/starlark"
+	"pgregory.net/rapid"
 )
 
 type fakeHost struct {
@@ -116,7 +118,8 @@ func TestStepAndTimeLimits(t *testing.T) {
 	if out.Status != Errored || out.Code != CodeStepLimit {
 		t.Fatalf("runaway rule: %+v", out)
 	}
-	slow := Limits{MaxSteps: 1 << 40, Timeout: 20 * time.Millisecond, MaxReads: 10, MaxWrites: 10, MaxMessages: 10}
+	slow := DefaultLimits
+	slow.MaxSteps, slow.Timeout = 1<<40, 20*time.Millisecond
 	out = loop.Run(context.Background(), input(nil), &fakeHost{}, slow)
 	if out.Status != Errored || out.Code != CodeTimeLimit {
 		t.Fatalf("slow rule: %+v", out)
@@ -142,7 +145,7 @@ func TestFloatsAreRejected(t *testing.T) {
 	if out := p.Run(context.Background(), input(nil), &fakeHost{}, DefaultLimits); out.Status != OK {
 		t.Fatalf("integer decimal: %+v", out)
 	}
-	if _, err := toGo(floatValue(1.5)); !errors.Is(err, ErrFloat) {
+	if _, err := (&state{limits: DefaultLimits, outcome: &Outcome{}}).toGo(floatValue(1.5)); !errors.Is(err, ErrFloat) {
 		t.Fatalf("toGo float = %v", err)
 	}
 }
@@ -243,7 +246,7 @@ def validate(doc, ctx):
 	}
 	tight := DefaultLimits
 	tight.MaxReads = 2
-	if out := read.Run(context.Background(), input(nil), host, tight); out.Code != CodeLimit {
+	if out := read.Run(context.Background(), input(nil), host, tight); out.Code != CodeRowLimit {
 		t.Fatalf("read limit: %+v", out)
 	}
 }
@@ -279,16 +282,207 @@ func TestCascadeStack(t *testing.T) {
 	var s Stack
 	var err error
 	for _, name := range []string{"a", "b", "c"} {
-		if s, err = s.Enter(name); err != nil {
+		if s, err = s.Enter(name, MaxCascadeDepth); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if _, err := s.Enter("a"); !errors.Is(err, ErrCycle) {
+	if _, err := s.Enter("a", MaxCascadeDepth); !errors.Is(err, ErrCycle) {
 		t.Fatalf("cycle = %v", err)
 	}
-	if _, err := s.Enter("d"); !errors.Is(err, ErrDepth) {
+	if _, err := s.Enter("d", MaxCascadeDepth); !errors.Is(err, ErrDepth) {
 		t.Fatalf("depth = %v", err)
+	}
+	if _, err := (Stack{}).Enter("a", 0); !errors.Is(err, ErrDepth) {
+		t.Fatalf("zero depth = %v", err)
 	}
 }
 
 func floatValue(f float64) starlark.Value { return starlark.Float(f) }
+
+func TestRepeatIsRejectedAtSaveTime(t *testing.T) {
+	sources := []string{
+		"def validate(doc, ctx):\n    x = [0] * 1000000000\n",
+		"def validate(doc, ctx):\n    x = \"ab\" * 1000000\n",
+		"def validate(doc, ctx):\n    x = (1,) * 1000000\n",
+		"def validate(doc, ctx):\n    x = ([0]) * 1000000\n",
+	}
+	for _, source := range sources {
+		_, err := Compile(Validation, source, Refs{})
+		var srcErr *SourceError
+		if !errors.As(err, &srcErr) || srcErr.Line != 2 || !strings.Contains(srcErr.Msg, "repeating") {
+			t.Fatalf("source %q: err = %v", source, err)
+		}
+	}
+	// Numeric multiplication is unaffected.
+	p := compile(t, Validation, "def validate(doc, ctx):\n    require(doc.qty * 2 == decimal(\"6\"), \"no\")\n")
+	out := p.Run(context.Background(), input(map[string]any{"qty": types.MustDecimal("3")}), &fakeHost{}, DefaultLimits)
+	if out.Status != OK {
+		t.Fatalf("numeric multiply: %+v", out)
+	}
+}
+
+func TestRepeatThroughAVariableStopsBeforeAllocation(t *testing.T) {
+	// 10000000000 is past the interpreter's pre-allocation repeat guard, so
+	// this runs without allocating; 1000000000 would allocate 16 GB, which
+	// is why literal repeats never reach a run.
+	p := compile(t, Validation, "def validate(doc, ctx):\n    x = [0]\n    y = x * 10000000000\n")
+	out := p.Run(context.Background(), input(nil), &fakeHost{}, DefaultLimits)
+	if out.Status != Errored || out.Code != CodeMemoryLimit {
+		t.Fatalf("variable repeat: %+v", out)
+	}
+}
+
+func TestDecimalSquaringStops(t *testing.T) {
+	seed := strings.Repeat("9", 65)
+	p := compile(t, Derivation, "def derive(doc, ctx):\n    d = decimal(\""+seed+"\")\n    d = d * d\n    set(\"total\", d * d)\n")
+	out := p.Run(context.Background(), input(nil), &fakeHost{}, DefaultLimits)
+	if out.Status != Errored || out.Code != CodeMemoryLimit {
+		t.Fatalf("squaring: %+v", out)
+	}
+}
+
+func TestOversizedTextStopsAtTheBoundary(t *testing.T) {
+	big := strings.Repeat("y", DefaultLimits.MaxValueLen+1)
+	p := compile(t, Derivation, "def derive(doc, ctx):\n    set(\"note\", doc.big)\n")
+	out := p.Run(context.Background(), input(map[string]any{"big": big}), &fakeHost{}, DefaultLimits)
+	if out.Status != Errored || out.Code != CodeMemoryLimit {
+		t.Fatalf("oversized set: %+v", out)
+	}
+}
+
+func TestFindPastTheRowCapStops(t *testing.T) {
+	host := &fakeHost{records: map[string]Row{}}
+	// fakeHost.Find ignores limit, like a misbehaving host would.
+	for i := 0; i < DefaultLimits.MaxRows+5; i++ {
+		host.records["item/"+strings.Repeat("x", i+1)] = Row{Values: map[string]any{"n": int64(i)}}
+	}
+	p := compile(t, Validation, "def validate(doc, ctx):\n    rows = find(\"item\")\n")
+	out := p.Run(context.Background(), input(nil), host, DefaultLimits)
+	if out.Status != Errored || out.Code != CodeRowLimit {
+		t.Fatalf("row cap: %+v", out)
+	}
+}
+
+func TestValuesCapStops(t *testing.T) {
+	tight := DefaultLimits
+	tight.MaxValues = 3
+	p := compile(t, Validation, "def validate(doc, ctx):\n    decimal(\"1\")\n    decimal(\"2\")\n    decimal(\"3\")\n")
+	out := p.Run(context.Background(), input(nil), &fakeHost{}, tight)
+	if out.Status != Errored || out.Code != CodeMemoryLimit {
+		t.Fatalf("values cap: %+v", out)
+	}
+	out = p.Run(context.Background(), input(nil), &fakeHost{}, DefaultLimits)
+	if out.Status != OK || out.Values != 4 {
+		t.Fatalf("values count: %+v", out)
+	}
+}
+
+func TestGiantIntegerStops(t *testing.T) {
+	p := compile(t, Validation, "def validate(doc, ctx):\n    decimal("+strings.Repeat("9", 100)+")\n")
+	out := p.Run(context.Background(), input(nil), &fakeHost{}, DefaultLimits)
+	if out.Status != Errored || out.Code != CodeMemoryLimit {
+		t.Fatalf("giant integer: %+v", out)
+	}
+}
+
+// TestResourceCapsProperty checks Property 5 over drawn caps and workloads: a
+// value past MaxValueLen or MaxValues stops with memory_limit, rows past
+// MaxRows stop with row_limit, anything within caps runs, the Values count is
+// exact, and Stack.Enter admits exactly maxDepth distinct names.
+//
+// Feature: athena-batch-2, Property 5: Resource caps.
+func TestResourceCapsProperty(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		switch rapid.IntRange(0, 2).Draw(t, "case") {
+		case 0: // one value length against MaxValueLen
+			maxLen := rapid.IntRange(1, 50).Draw(t, "maxLen")
+			length := rapid.IntRange(0, maxLen+5).Draw(t, "length")
+			limits := DefaultLimits
+			limits.MaxValueLen = maxLen
+			p, err := Compile(Derivation, "def derive(doc, ctx):\n    set(\"f\", \""+strings.Repeat("a", length)+"\")\n", Refs{})
+			if err != nil {
+				t.Fatalf("compile: %v", err)
+			}
+			out := p.Run(context.Background(), input(nil), &fakeHost{}, limits)
+			if length > maxLen {
+				if out.Status != Errored || out.Code != CodeMemoryLimit {
+					t.Fatalf("len %d over %d: %+v", length, maxLen, out)
+				}
+				return
+			}
+			if out.Status != OK || out.Values != 2 {
+				t.Fatalf("len %d within %d: %+v", length, maxLen, out)
+			}
+		case 1: // set calls against MaxValues
+			maxVals := rapid.IntRange(1, 30).Draw(t, "maxVals")
+			n := rapid.IntRange(1, 8).Draw(t, "sets")
+			limits := DefaultLimits
+			limits.MaxValues = maxVals
+			var body strings.Builder
+			body.WriteString("def derive(doc, ctx):\n")
+			for i := 0; i < n; i++ {
+				fmt.Fprintf(&body, "    set(\"f%d\", \"v\")\n", i)
+			}
+			p, err := Compile(Derivation, body.String(), Refs{})
+			if err != nil {
+				t.Fatalf("compile: %v", err)
+			}
+			out := p.Run(context.Background(), input(nil), &fakeHost{}, limits)
+			if 1+n > maxVals {
+				if out.Status != Errored || out.Code != CodeMemoryLimit {
+					t.Fatalf("%d sets over %d: %+v", n, maxVals, out)
+				}
+				return
+			}
+			if out.Status != OK || out.Values != 1+n {
+				t.Fatalf("%d sets within %d: %+v", n, maxVals, out)
+			}
+		default: // host rows against MaxRows
+			maxRows := rapid.IntRange(1, 20).Draw(t, "maxRows")
+			r := rapid.IntRange(0, maxRows+3).Draw(t, "rows")
+			limits := DefaultLimits
+			limits.MaxRows, limits.MaxReads = maxRows, 1000
+			host := &fakeHost{records: map[string]Row{}}
+			for i := 0; i < r; i++ {
+				host.records["item/"+strings.Repeat("y", i+1)] = Row{Values: map[string]any{"n": int64(i)}}
+			}
+			p, err := Compile(Derivation, "def derive(doc, ctx):\n    find(\"item\")\n", Refs{})
+			if err != nil {
+				t.Fatalf("compile: %v", err)
+			}
+			out := p.Run(context.Background(), input(nil), host, limits)
+			if r > maxRows {
+				if out.Status != Errored || out.Code != CodeRowLimit {
+					t.Fatalf("%d rows over %d: %+v", r, maxRows, out)
+				}
+				return
+			}
+			if out.Status != OK || out.Values != 1+1+r*2 {
+				t.Fatalf("%d rows within %d: %+v", r, maxRows, out)
+			}
+		}
+	})
+}
+
+// TestCascadeDepthProperty checks the cascade half of Property 5: Enter admits
+// exactly maxDepth distinct names and always refuses a running one.
+func TestCascadeDepthProperty(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		maxDepth := rapid.IntRange(0, 6).Draw(t, "maxDepth")
+		depth := rapid.IntRange(0, 6).Draw(t, "depth")
+		var s Stack
+		var err error
+		for i := 0; i < depth && err == nil; i++ {
+			s, err = s.Enter(fmt.Sprintf("rule%d", i), maxDepth)
+		}
+		if depth <= maxDepth && err != nil {
+			t.Fatalf("depth %d within %d: %v", depth, maxDepth, err)
+		}
+		if depth > maxDepth && !errors.Is(err, ErrDepth) {
+			t.Fatalf("depth %d over %d: %v", depth, maxDepth, err)
+		}
+		if _, err := s.Enter("rule0", maxDepth); depth > 0 && maxDepth > 0 && !errors.Is(err, ErrCycle) {
+			t.Fatalf("re-enter running rule: %v", err)
+		}
+	})
+}

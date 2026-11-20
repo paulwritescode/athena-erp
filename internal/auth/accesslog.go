@@ -23,6 +23,15 @@ const (
 	EventUserUpdated     = "user_updated"
 	EventRoleSaved       = "role_saved"
 	EventRoleDeleted     = "role_deleted"
+	// Challenge events record invite and reset delivery and completion. The
+	// detail names the purpose and the outcome only; the Challenge value
+	// itself never reaches the log (ADR-0017).
+	EventInviteCreated     = "invite_created"
+	EventInviteResent      = "invite_resent"
+	EventResetStarted      = "reset_started"
+	EventChallengeIssued   = "challenge_issued"
+	EventChallengeComplete = "challenge_completed"
+	EventChallengeFailed   = "challenge_failed"
 )
 
 // Outcomes of a logged event.

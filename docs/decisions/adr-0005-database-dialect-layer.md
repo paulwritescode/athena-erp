@@ -1,8 +1,11 @@
 # ADR-0005: Database dialect layer
+
+> **Amended by [ADR-0019](adr-0019-postgresql-adapter.md) (Proposed).** `store.PostgreSQL` now implements `Dialect`, but it is untested; MariaDB stays the only tested engine and the only implementation with callers in the query layer.
+
 - **Status:** Proposed
 - **Date:** 2026-11-19
 - **Decision owner:** not assigned (awaiting project owner review)
-- **Related decisions:** ADR-0002, ADR-0003, O-001
+- **Related decisions:** ADR-0002, ADR-0003, ADR-0019, O-001
 ## Context
 MariaDB SQL was written inline in the server: backtick quoting, `GET_LOCK`, `ADD COLUMN IF NOT EXISTS`, `information_schema` lookups, MySQL error numbers, and regex and date functions in the data-loss checks. The kernel specification (section 20) asks for engine-specific SQL behind an interface because a second engine is planned. The project owner decided on 2026-11-18 not to test PostgreSQL for now.
 ## Options considered

@@ -2,7 +2,7 @@
 
 Athena is a reusable ERP platform core built with Go, ConnectRPC, MariaDB, and a Vue 3 + TypeScript + Vite control desk. It is not preconfigured for a particular industry. Record Types and Packs will be installed or authored on top of the core.
 
-The admin desk has separate **Build** and **View** modes. Build contains Overview, Record Types, Packs, Rules, and Files. A Record Type describes a database table; a Record is a row. A Pack bundles Record Types and their relationships into an installable capability. A Workspace is a database plus its installed Packs and data. Vocabulary follows [ADR-0008](docs/decisions/adr-0008-vocabulary.md) (Proposed).
+The admin desk has separate **Build** and **View** modes. Build contains Overview, Record Types, Packs, Rules, Files, and Access (shown with `access:users` or `access:roles`). A Record Type describes a database table; a Record is a row. A Pack bundles Record Types and their relationships into an installable capability. A Workspace is a database plus its installed Packs and data. Vocabulary follows [ADR-0008](docs/decisions/adr-0008-vocabulary.md) (Proposed).
 
 ## Documentation
 
@@ -18,13 +18,13 @@ Requirements: Go 1.26+, Node.js 20.19+, pnpm 11.22.0, and MariaDB. `make run` re
 make run
 ```
 
-The Vue app is built into embedded assets, then one Go process serves the UI and API at <http://localhost:3000>. The server binds to loopback by default: sign-in and Grants exist (ADR-0014, Proposed) but are not yet reviewed for use beyond the local machine. The same-origin health endpoint is `GET /healthz`.
+The Vue app is built into embedded assets, then one Go process serves the UI and API at <http://localhost:3000>. The server binds to loopback by default: sign-in with invites and scoped Grants exist (ADR-0014 amended by ADR-0017, both Proposed) but are not yet reviewed for use beyond the local machine. The same-origin health endpoint is `GET /healthz`.
 
-The desk opens on a sign-in page. Create the first user, an instance owner who holds every permission, on the command line (the password is read from `ATHENA_USER_PASSWORD` or prompted for, and needs at least 12 characters):
+The desk opens on a sign-in page. The first boot creates the workspace root `administrator`, whose password is the database password from setup (a random one, printed once, when that password is unusable); sign in as `administrator`, rotate the credential with change password, then invite owners and users from the Users & Roles page. The command line keeps a guarded owner bootstrap as emergency recovery:
 
 ```sh
 set -a; . ./.env.local; set +a
-go run ./cmd/athena user create admin --owner     # or: bin/athena user create admin --owner --workspace <slug>
+go run ./cmd/athena user invite admin --owner     # or: bin/athena user invite admin --owner --workspace <slug>
 ```
 
 Copy `.env.example` to `.env.local` and set `ATHENA_DATABASE_URL` to a Go MySQL-driver DSN. `make run` loads this ignored, local-only file automatically:
@@ -83,11 +83,12 @@ cd ~/athena
 cd acme_trading && athena run                       # or from the home: athena run --workspace acme_trading
 ```
 
-- The MariaDB user given to `athena init` must be able to create databases. Its login is saved as `ATHENA_SERVER_URL` in the home `.env.local` (owner-only). A home that still has `athena-workspace.yaml` from an earlier build has the file renamed to `athena-home.yaml` the first time a command finds it.
+- The MariaDB user given to `athena init` must be able to create databases. Its login is saved as `ATHENA_SERVER_URL` in the home `.env.local` (owner-only). A home that still has `athena-workspace.yaml` from an earlier build has the file renamed to `athena-home.yaml` the first time a command finds it. `athena new --driver` must match the home driver; `postgres` is implemented but untested ([ADR-0019](docs/decisions/adr-0019-postgresql-adapter.md), Proposed), claims no parity, and a postgres workspace does not boot yet.
 - The Workspace slug, folder and database name come from the name at creation and never change. Renaming the Workspace changes only `name` in `athena.yaml`.
 - A new Workspace contains `athena.yaml`, `AGENTS.md`, `README.md`, `.gitignore`, `.env.example`, `record_types/` and `storage/uploads/`, and is a Git repository on `main` with no commits.
 - `athena record-types list|show|save|delete` and `athena records list|lookup|create|delete|submit|cancel|amend|versions|activity|history`, `athena expressions check|eval|preview` and `athena audit verify|anchor` use the same kernel code as the desk (`--workspace slug` or `ATHENA_DATABASE_URL`, `--json`; `--addr` does not apply because no server starts). `record-types save --file def.json` takes a JSON RecordType (kind, class, parent, fields and attributes), `--dry-run` prints the plan and `--confirm-data-loss` allows steps that delete values. `records submit|cancel|amend <record-type> <id> --revision N` run the document lifecycle of a submittable document; `versions` and `activity` print its snapshots and timeline. `records lookup <record-type> [text]` finds Records by display label as the desk pickers do, `records create --name` sets a manual document name where the Record Type allows it, `records history` prints a Record's Audit Log rows with old and new values, `records list --filter 'doc.total > dec("100")'` keeps the Records for which an expression is true, `expressions check <record-type> <expression>` type-checks one (and says whether a filter can run in the database), `expressions eval ... --record id` evaluates it for a Record, `expressions preview <record-type> --values '{...}'` calculates formulas and field states for unsaved values, and `audit verify [--anchor seq:hash]` checks the Audit Log hash chain and prints its head (exit status is non-zero when it is broken). Run `athena help` for every flag.
-- `athena user create|list|set|reset-password`, `athena role list|show|save|delete` and `athena access-log` manage sign-in (`--workspace slug` or `ATHENA_DATABASE_URL`, `--json`). `user create <name> --owner` creates an instance owner, which only the command line can do; `user set <name> --roles a,b` replaces a user's Roles, `--disable` ends their sessions, `--unlock` clears a lockout after five failed sign-ins. `role save --file role.json` takes a JSON Role such as `{"name":"Clerk","systemPermissions":["build"],"grants":[{"recordTypeKey":"invoice","actions":["read","create","write"],"permissionLevel":1,"condition":"doc.owner == user.name"}]}`. Grants are additive and nothing is allowed without one. `access-log [--event denied]` prints sign-ins, failures, lockouts, denials and access changes. The command line acts as the operator: it applies no Grants and records changes as "Local administrator".
+- `athena ledger company|period|currency|account|determination|setting` manages the kernel's ledger masters (`--workspace slug` or `ATHENA_DATABASE_URL`, `--json`): companies, periods with soft/hard close and reopen, currencies with immutable exchange rates, account types and tree accounts, determination mappings with specificity resolution, and Settings with draft generations, prospective publish and diff preview. The desk has the same surface on the Ledger setup page with a readiness view.
+- `athena user invite|list|set|resend|reset|suspend|reactivate|sessions`, `athena role list|show|save|delete|assign|revoke|explain` and `athena access-log` manage sign-in (`--workspace slug` or `ATHENA_DATABASE_URL`, `--json`). Users are invite-only: `user invite` prints a one-time challenge, shown once, and the user chooses their own password with it; administrators never set passwords for others. `user invite <name> --owner` creates an instance owner, which only the command line can do; owners hold permissions through the Instance Owner Role, like everyone else. `user set <name> --roles a,b` replaces a user's Roles, `--disable` ends their sessions, `--unlock` clears a lockout after five failed sign-ins. `role assign <user> <role> [--scope company=acme] [--from date] [--to date]` gives one Role with its own Scope and dates; `role explain` shows which Assignment allows an action or why each one fails. `role save --file role.json` takes a JSON Role such as `{"name":"Clerk","systemPermissions":["build"],"grants":[{"recordTypeKey":"invoice","actions":["read","create","write"],"permissionLevel":1,"condition":"doc.owner == user.name"}]}`. Whole matching Assignments union and nothing is allowed without one. `access-log [--event denied]` prints sign-ins, failures, lockouts, denials and access changes. The command line acts as the operator: it applies no Grants and records changes as "Local administrator".
 - `athena migrate status` and `athena migrate up [--to N] [--dry-run]` show and apply system migrations for a Workspace (or for `ATHENA_DATABASE_URL`) without starting the server.
 - `athena run` refuses a database whose recorded Workspace ID differs from `athena.yaml`.
 - Only one Athena process runs at a time per user (`athena run`, `athena serve` and `make run`). A second launch reports the running Workspace and exits.
@@ -102,16 +103,23 @@ cd acme_trading && athena run                       # or from the home: athena r
 make test                                   # Go tests, then Vitest
 go test ./...                               # Go only; MariaDB tests skip when no test database is set
 CI=true pnpm --dir web run test             # Vitest only
+ATHENA_BRUNO_PASSWORD='...' make bruno-test # Bruno black-box API checks; Athena must be running
 ```
 
-MariaDB tests read `ATHENA_TEST_DATABASE_URL`, a DSN for a user who can create and drop databases named `test_athena_*` (MariaDB grants this to every user by default). `make test` falls back to `ATHENA_DATABASE_URL` from `.env.local`. Each test creates its own empty database and drops it afterwards, so your Workspace data is never touched. The field-rule cases in `internal/server/testdata/field_rules.json` run in both Go and Vitest.
+The Bruno collection lives in [`bruno/athena-api`](bruno/athena-api), with
+instructions in [`docs/testing/bruno.md`](docs/testing/bruno.md). It tests the
+running ConnectRPC boundary, cookie/CSRF session flow, permission gate and
+audit verification without changing business data. Bruno's desktop app and
+CLI are separate; install the CLI once with `pnpm add --global @usebruno/cli`.
+
+MariaDB tests read `ATHENA_TEST_DATABASE_URL`, a DSN for a user who can create and drop databases named `test_athena_*` (MariaDB grants this to every user by default). `make test` falls back to `ATHENA_DATABASE_URL` from `.env.local`. Each test creates its own empty database and drops it afterwards, so your Workspace data is never touched. MariaDB is the only tested database; PostgreSQL is implemented but untested ([ADR-0019](docs/decisions/adr-0019-postgresql-adapter.md), Proposed). The field-rule cases in `internal/server/testdata/field_rules.json` run in both Go and Vitest.
 
 ## Current limits
 
 - Records can be listed, created, edited and deleted through `athena.v1.RecordService` and the View page. Each Record has a UUIDv7 `id` and a `revision`; a stale `expected_revision` returns `aborted`. Each change is appended to the hash-chained Audit Log (`athena_audit_log`) and shown on the Record page with its old and new values; every call carries one `X-Request-Id` that is stored on the Record and its audit rows. Changes made in the desk are attributed to the signed-in user; changes made with the command line to "Local administrator".
 - Pack composition, relationship/join-table management, and Pack installation are not implemented.
 - Go source generation for dashboard-created Record Types is an accepted product direction but is not implemented. Where generated source goes is proposed in ADR-0015. Starlark Rules run (ADR-0016, Proposed) but are not production-ready: they have step and time limits and no memory limit. The Files page stores `rules/*.star` text; the Rule that runs is the one saved through the Rules page or `athena rules save`.
-- Local sign-in, database sessions, Roles and Grants are implemented (ADR-0014, Proposed). OIDC, multi-factor sign-in, TLS and a desk page for users and Roles are not. Keep the server on loopback; do not expose it to an untrusted network.
+- Local sign-in with invite-only users, single-use challenges, scoped dated Role assignments, granular access permissions and a transactional last-owner guard are implemented (ADR-0014 amended by ADR-0017, both Proposed), with a Users & Roles desk page and first-login completion. Owners hold no permission outside their Roles; each workspace has one root `administrator` from setup that bypasses all gates (ADR-0018, Accepted). OIDC, multi-factor sign-in and TLS are not implemented. Keep the server on loopback; do not expose it to an untrusted network.
 - PostgreSQL support is planned for later; MariaDB is the only current database target.
 
 ## Repository layout

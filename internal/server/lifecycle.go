@@ -206,6 +206,9 @@ func (s recordService) transition(ctx context.Context, requestID string, action 
 	if err != nil {
 		return nil, err
 	}
+	if err := refuseKernelKind(recordType.kind()); err != nil {
+		return nil, err
+	}
 	p, err := accessFor(ctx)
 	if err != nil {
 		return nil, err
@@ -302,6 +305,9 @@ func (s recordService) AmendRecord(ctx context.Context, req *athenav1.AmendRecor
 	defer func() { end(err) }()
 	recordType, err := s.submittable(ctx, req.GetRecordTypeKey())
 	if err != nil {
+		return nil, err
+	}
+	if err := refuseKernelKind(recordType.kind()); err != nil {
 		return nil, err
 	}
 	if !recordType.Amendable {

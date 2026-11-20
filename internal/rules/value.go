@@ -14,6 +14,33 @@ import (
 // ErrFloat is returned for any float a Rule produces or passes to the host.
 var ErrFloat = errors.New("floats are not allowed; use decimal(\"1.5\") or an integer")
 
+// maxIntBits bounds the integers converted to text or decimals. 256 bits hold
+// 78 digits, past the 65 decimals accept, so nothing convertible is refused
+// and a giant integer fails before its text is ever built.
+const maxIntBits = 256
+
+// intTooLarge reports an integer no decimal can hold.
+func intTooLarge(v starlark.Int) bool { return v.BigInt().BitLen() > maxIntBits }
+
+// maxDecimalDigits bounds the digits of a multiplied decimal. Products stay
+// exact; repeated squaring stops instead of doubling past memory.
+const maxDecimalDigits = 2 * types.MaxDigits
+
+// decimalTooBig reports a decimal with more digits than intermediates need.
+func decimalTooBig(d types.Decimal) bool {
+	text := d.String()
+	n := 0
+	for i := 0; i < len(text); i++ {
+		if c := text[i]; c >= '0' && c <= '9' {
+			n++
+			if n > maxDecimalDigits {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // decimalValue is an exact decimal in Starlark. Only +, -, * and comparisons
 // with another decimal or an integer exist; division is the div builtin, so no
 // binary fraction can appear.
@@ -25,12 +52,16 @@ func (decimalValue) Freeze()                {}
 func (v decimalValue) Truth() starlark.Bool { return v.d.Sign() != 0 }
 func (decimalValue) Hash() (uint32, error)  { return 0, errors.New("unhashable type: decimal") }
 
-// asDecimal reads a decimal or an integer.
+// asDecimal reads a decimal or an integer. Integers past maxIntBits fail
+// without building their text; callers report the size with intTooLarge.
 func asDecimal(v starlark.Value) (types.Decimal, bool) {
 	switch v := v.(type) {
 	case decimalValue:
 		return v.d, true
 	case starlark.Int:
+		if intTooLarge(v) {
+			return types.Decimal{}, false
+		}
 		d, err := types.ParseDecimal(v.String())
 		return d, err == nil
 	}
@@ -40,6 +71,9 @@ func asDecimal(v starlark.Value) (types.Decimal, bool) {
 func (v decimalValue) Binary(op syntax.Token, y starlark.Value, side starlark.Side) (starlark.Value, error) {
 	if m, ok := y.(moneyValue); ok && op == syntax.STAR {
 		return m.times(v.d)
+	}
+	if i, ok := y.(starlark.Int); ok && intTooLarge(i) {
+		return nil, &HostError{Code: CodeMemoryLimit, Err: errors.New("the integer is too large to use as a decimal")}
 	}
 	other, ok := asDecimal(y)
 	if !ok {
@@ -55,7 +89,11 @@ func (v decimalValue) Binary(op syntax.Token, y starlark.Value, side starlark.Si
 	case syntax.MINUS:
 		return decimalValue{l.Sub(r)}, nil
 	case syntax.STAR:
-		return decimalValue{l.Mul(r)}, nil
+		product := l.Mul(r)
+		if decimalTooBig(product) {
+			return nil, &HostError{Code: CodeMemoryLimit, Err: fmt.Errorf("the product has more than %d digits", maxDecimalDigits)}
+		}
+		return decimalValue{product}, nil
 	}
 	return nil, nil
 }
@@ -146,6 +184,9 @@ func (v moneyValue) Binary(op syntax.Token, y starlark.Value, side starlark.Side
 		return moneyValue{sum}, nil
 	}
 	if op == syntax.STAR {
+		if i, ok := y.(starlark.Int); ok && intTooLarge(i) {
+			return nil, &HostError{Code: CodeMemoryLimit, Err: errors.New("the integer is too large to use as a decimal")}
+		}
 		if factor, ok := asDecimal(y); ok {
 			return v.times(factor)
 		}
@@ -242,16 +283,23 @@ func toStarlark(value any) (starlark.Value, error) {
 }
 
 // toGo converts what a Rule passes to the host. Integers become decimals, so
-// the host sees one numeric type; floats are refused.
-func toGo(value starlark.Value) (any, error) {
+// the host sees one numeric type; floats are refused. Text past the length
+// cap and integers past maxIntBits stop the run instead of reaching the host.
+func (s *state) toGo(value starlark.Value) (any, error) {
 	switch v := value.(type) {
 	case starlark.NoneType:
 		return nil, nil
 	case starlark.Bool:
 		return bool(v), nil
 	case starlark.String:
+		if err := s.checkLen("the text", len(v)); err != nil {
+			return nil, err
+		}
 		return string(v), nil
 	case starlark.Int:
+		if intTooLarge(v) {
+			return nil, &HostError{Code: CodeMemoryLimit, Err: errors.New("the integer is too large to store")}
+		}
 		d, err := types.ParseDecimal(v.String())
 		if err != nil {
 			return nil, fmt.Errorf("the integer %s is too large", v)

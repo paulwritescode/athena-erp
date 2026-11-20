@@ -460,3 +460,16 @@ func TestKernelSpansNeverCarryRecordValues(t *testing.T) {
 		t.Fatalf("outcomes = %v", outcomes)
 	}
 }
+
+func TestRefuseKernelKind(t *testing.T) {
+	for _, kind := range []string{"ledger", "balance", "log", "snapshot", "meta"} {
+		if err := refuseKernelKind(kind); err == nil {
+			t.Fatalf("kind %q was not refused", kind)
+		}
+	}
+	for _, kind := range []string{kindMaster, kindDocument, kindChild, kindSetting} {
+		if err := refuseKernelKind(kind); err != nil {
+			t.Fatalf("kind %q: %v", kind, err)
+		}
+	}
+}

@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -110,21 +111,23 @@ type rowScope struct {
 	args         []any
 }
 
-// rowScopeFor compiles the row conditions of every Grant that allows action.
-// A condition that no longer compiles (a field was removed) allows nothing, so
-// a stale Grant fails closed.
+// rowScopeFor compiles one disjunct per whole Assignment that allows action:
+// the Grant's row condition together with the Assignment's Scope. A disjunct
+// that no longer compiles (a field was removed) allows nothing, so a stale
+// Grant fails closed.
 func rowScopeFor(ctx context.Context, q querier, p *auth.Principal, d recordTypeDefinition, action string) (rowScope, error) {
 	if p == nil {
 		return rowScope{unrestricted: true}, nil
 	}
-	conditions, unrestricted := p.Scope(d.Name, action)
+	disjuncts, unrestricted := p.Scope(d.Name, action)
 	if unrestricted {
 		return rowScope{unrestricted: true}, nil
 	}
 	var parts []string
 	var args []any
-	for _, condition := range conditions {
-		predicate, err := filterPredicate(ctx, q, d, bindUser(condition, p.Username))
+	for _, disjunct := range disjuncts {
+		source := andExpr(bindUser(disjunct.Condition, p.Username), disjunct.Scope.Expression())
+		predicate, err := filterPredicate(ctx, q, d, source)
 		if err != nil {
 			continue
 		}
@@ -135,6 +138,18 @@ func rowScopeFor(ctx context.Context, q querier, p *auth.Principal, d recordType
 		return rowScope{where: "1 = 0"}, nil
 	}
 	return rowScope{where: "(" + strings.Join(parts, ") OR (") + ")", args: args}, nil
+}
+
+// andExpr conjoins two filter expressions, either of which may be empty.
+func andExpr(condition, scope string) string {
+	condition, scope = strings.TrimSpace(condition), strings.TrimSpace(scope)
+	if condition == "" {
+		return scope
+	}
+	if scope == "" || scope == "true" {
+		return condition
+	}
+	return "(" + condition + ") && (" + scope + ")"
 }
 
 // authorizeRecord checks that p may take action on one existing Record. A
@@ -165,6 +180,21 @@ func authorizeRecord(ctx context.Context, q querier, p *auth.Principal, d record
 			}
 			return connect.NewError(connect.CodePermissionDenied, fmt.Sprintf("you do not have permission to %s this record", action))
 		}
+	}
+	return nil
+}
+
+// authorizeProposed rechecks an updated Record after its new values are
+// written in the transaction: the proposed row must satisfy the Assignments
+// too, so moving a Record out of scope is refused. A miss is always a
+// denial, never a missing Record: the row exists, the change is refused.
+func authorizeProposed(ctx context.Context, q querier, p *auth.Principal, d recordTypeDefinition, id, action string) error {
+	if err := authorizeRecord(ctx, q, p, d, id, action); err != nil {
+		var ce *connect.Error
+		if errors.As(err, &ce) && (ce.Code() == connect.CodeNotFound || ce.Code() == connect.CodePermissionDenied) {
+			return connect.NewError(connect.CodePermissionDenied, "you do not have permission to change this record this way")
+		}
+		return err
 	}
 	return nil
 }

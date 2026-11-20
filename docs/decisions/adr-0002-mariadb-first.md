@@ -1,6 +1,8 @@
 # ADR-0002: Use MariaDB as the first relational database
 
 > **Vocabulary:** this ADR keeps the terms of its date. [ADR-0008](adr-0008-vocabulary.md) (Proposed) renames Record definition to Record Type, Record entry to Record and Module to Pack.
+>
+> **Amended in part by [ADR-0019](adr-0019-postgresql-adapter.md) (Proposed).** A PostgreSQL adapter exists (dialect, driver wiring, provisioning) but is untested and claims no parity; MariaDB stays the only active target.
 
 - **Status:** Accepted
 - **Date:** 2026-11-17

@@ -1,0 +1,44 @@
+meta {
+  name: 03 - Sign in
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/athena.v1.AuthService/Login
+  body: json
+  auth: none
+}
+
+headers {
+  content-type: application/json
+  accept: application/json
+}
+
+body:json {
+  {
+    "username": "{{username}}",
+    "password": "{{password}}"
+  }
+}
+
+vars:pre-request {
+  password: 74fdd471be62652ab073332c8957538e
+}
+
+script:post-response {
+  bru.setVar("csrfToken", res.body.session.csrfToken);
+}
+
+tests {
+  test("signs in successfully", function() {
+    expect(res.status).to.equal(200);
+    expect(res.body.session.authenticated).to.equal(true);
+    expect(res.body.session.username).to.be.a("string").and.not.empty;
+  });
+  
+  test("returns a CSRF token without exposing the session token", function() {
+    expect(res.body.session.csrfToken).to.be.a("string").and.not.empty;
+    expect(res.headers["set-cookie"]).to.be.an("array").and.not.empty;
+  });
+}

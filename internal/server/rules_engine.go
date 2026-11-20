@@ -176,7 +176,7 @@ func (r ruleRun) execute(ctx context.Context) (rules.Outcome, error) {
 	defer span.End()
 	requestID, _ := requestFrom(ctx)
 	stack, _ := ctx.Value(ruleStackKey{}).(rules.Stack)
-	stack, stackErr := stack.Enter(r.rule.Key)
+	stack, stackErr := stack.Enter(r.rule.Key, rules.DefaultLimits.MaxCascadeDepth)
 	ctx = context.WithValue(ctx, ruleStackKey{}, stack)
 
 	source := r.rule.Source
@@ -193,7 +193,7 @@ func (r ruleRun) execute(ctx context.Context) (rules.Outcome, error) {
 	p, accessErr := accessFor(ctx)
 	switch {
 	case stackErr != nil:
-		out = rules.Outcome{Status: rules.Errored, Code: "cascade", Message: stackErr.Error()}
+		out = rules.Outcome{Status: rules.Errored, Code: rules.CodeCascadeLimit, Message: stackErr.Error()}
 	case compileErr != nil:
 		out = rules.Outcome{Status: rules.Errored, Code: "compile", Message: compileErr.Error()}
 	case accessErr != nil:
@@ -211,6 +211,7 @@ func (r ruleRun) execute(ctx context.Context) (rules.Outcome, error) {
 		attribute.String("athena.event", r.event), attribute.String("athena.request_id", requestID),
 		attribute.String("athena.outcome", string(out.Status)), attribute.String("athena.outcome_code", out.Code),
 		attribute.Int64("athena.steps", int64(out.Steps)), attribute.Int("athena.reads", out.Reads),
+		attribute.Int("athena.values", out.Values),
 		attribute.Int("athena.writes", len(out.Writes)), attribute.Int64("athena.duration_micros", out.Duration.Microseconds()),
 	)
 	if out.Status != rules.OK {
@@ -472,7 +473,12 @@ func (h *ruleHost) Get(recordType, id string) (rules.Row, bool, error) {
 }
 
 // Find lists Records equal to the filters inside the acting user's read scope.
+// It clamps limit to the row cap even though the Rule layer already does, so
+// the SQL never asks for more than a run may hold.
 func (h *ruleHost) Find(recordType string, filters map[string]any, limit int) ([]rules.Row, error) {
+	if limit > rules.DefaultLimits.MaxRows {
+		limit = rules.DefaultLimits.MaxRows
+	}
 	def, err := h.readable(recordType)
 	if err != nil {
 		return nil, err

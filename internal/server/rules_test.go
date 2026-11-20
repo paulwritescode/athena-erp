@@ -440,6 +440,65 @@ func TestRuleCascadeIsBounded(t *testing.T) {
 	}
 }
 
+func TestCascadeLimitCodeIsRecorded(t *testing.T) {
+	f := newRuleFixture(t)
+	f.save(t, "qty_positive", "validation", "validate", positiveQty, 1)
+	engine := ruleEngine{db: f.db}
+	tx, err := f.db.BeginTx(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback()
+	doc := &lifecycle.Document{Values: map[string]any{"qty": "1"}, System: map[string]any{}}
+	ctx := context.WithValue(context.Background(), ruleStackKey{}, rules.Stack{"qty_positive"})
+	err = engine.hook(ctx, &lifecycle.Event{Name: lifecycle.Validate, RecordType: "invoice", RecordID: "x", Tx: tx, Doc: doc})
+	if err == nil || !strings.Contains(err.Error(), rules.CodeCascadeLimit) {
+		t.Fatalf("cascade error: %v", err)
+	}
+	runs := f.runs(t, &athenav1.ListRuleRunsRequest{RuleKey: "qty_positive"})
+	if len(runs) != 1 || runs[0].GetOutcome() != "error" || runs[0].GetCode() != rules.CodeCascadeLimit {
+		t.Fatalf("cascade runs = %v", runs)
+	}
+}
+
+func TestSimulateAppliesTheSameCaps(t *testing.T) {
+	f := newRuleFixture(t)
+	draft := &athenav1.RuleDefinition{Key: "big_repeat", Label: "Big repeat", RuleType: "validation", RecordTypeKey: "invoice", Event: "validate", Source: "def validate(doc, ctx):\n    x = [0]\n    y = x * 10000000000\n"}
+	res, err := f.rules.SimulateRule(context.Background(), &athenav1.SimulateRuleRequest{Definition: draft, Values: map[string]*athenav1.FieldValue{"qty": text("2")}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.GetOutcome() != "error" || res.GetCode() != rules.CodeMemoryLimit {
+		t.Fatalf("simulation = %v", res)
+	}
+	runs := f.runs(t, &athenav1.ListRuleRunsRequest{RuleKey: "big_repeat"})
+	if len(runs) != 1 || !runs[0].GetDryRun() || runs[0].GetCode() != rules.CodeMemoryLimit {
+		t.Fatalf("simulation runs = %v", runs)
+	}
+}
+
+func TestSavedRunRowLimitIsRecorded(t *testing.T) {
+	old := rules.DefaultLimits
+	rules.DefaultLimits.MaxReads = 2
+	defer func() { rules.DefaultLimits = old }()
+	f := newRuleFixture(t)
+	for _, name := range []string{"Acme", "Globex"} {
+		if _, err := create(t, f.records, "customer", map[string]*athenav1.FieldValue{"name": text(name)}); err != nil {
+			t.Fatalf("customer %s: %v", name, err)
+		}
+	}
+	f.save(t, "read_twice", "validation", "validate", "def validate(doc, ctx):\n    find(\"customer\")\n    find(\"customer\")\n", 1)
+	_, err := f.invoice(t, map[string]*athenav1.FieldValue{"qty": text("3")})
+	requireCode(t, err, connect.CodeFailedPrecondition)
+	if !strings.Contains(connectMessage(err), rules.CodeRowLimit) {
+		t.Fatalf("row limit error: %v", err)
+	}
+	runs := f.runs(t, &athenav1.ListRuleRunsRequest{RuleKey: "read_twice"})
+	if len(runs) != 1 || runs[0].GetCode() != rules.CodeRowLimit {
+		t.Fatalf("row limit runs = %v", runs)
+	}
+}
+
 func TestRuleSpansAndLogsCarryNoValues(t *testing.T) {
 	f := newRuleFixture(t)
 	exporter := tracetest.NewInMemoryExporter()

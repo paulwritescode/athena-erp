@@ -1,0 +1,526 @@
+syntax = "proto3";
+
+package athena.v1;
+
+option go_package = "athena-erp/gen/athena/v1;athenav1";
+
+// LedgerService owns the kernel's ledger masters (ADR-0022, Proposed):
+// companies, branches, departments, cost centres, dimensions, fiscal years,
+// periods, currencies, exchange rates, account types, accounts, determination
+// mappings and Settings. Reading needs the ledger:read system permission;
+// saving needs ledger:write. Nothing is seeded: jurisdiction, chart and tax
+// stay open for the sponsor.
+service LedgerService {
+  rpc SaveCompany(SaveCompanyRequest) returns (SaveCompanyResponse);
+  rpc ListCompanies(ListCompaniesRequest) returns (ListCompaniesResponse);
+  rpc SaveBranch(SaveBranchRequest) returns (SaveBranchResponse);
+  rpc ListBranches(ListBranchesRequest) returns (ListBranchesResponse);
+  rpc SaveDepartment(SaveDepartmentRequest) returns (SaveDepartmentResponse);
+  rpc ListDepartments(ListDepartmentsRequest) returns (ListDepartmentsResponse);
+  rpc SaveCostCentre(SaveCostCentreRequest) returns (SaveCostCentreResponse);
+  rpc ListCostCentres(ListCostCentresRequest) returns (ListCostCentresResponse);
+  rpc SaveDimension(SaveDimensionRequest) returns (SaveDimensionResponse);
+  rpc ListDimensions(ListDimensionsRequest) returns (ListDimensionsResponse);
+  rpc SaveFiscalYear(SaveFiscalYearRequest) returns (SaveFiscalYearResponse);
+  rpc ListFiscalYears(ListFiscalYearsRequest) returns (ListFiscalYearsResponse);
+  rpc SavePeriod(SavePeriodRequest) returns (SavePeriodResponse);
+  rpc SetPeriodStatus(SetPeriodStatusRequest) returns (SetPeriodStatusResponse);
+  rpc ListPeriods(ListPeriodsRequest) returns (ListPeriodsResponse);
+  rpc SaveCurrency(SaveCurrencyRequest) returns (SaveCurrencyResponse);
+  rpc ListCurrencies(ListCurrenciesRequest) returns (ListCurrenciesResponse);
+  rpc SaveRate(SaveRateRequest) returns (SaveRateResponse);
+  rpc GetRate(GetRateRequest) returns (GetRateResponse);
+  rpc SaveAccountType(SaveAccountTypeRequest) returns (SaveAccountTypeResponse);
+  rpc ListAccountTypes(ListAccountTypesRequest) returns (ListAccountTypesResponse);
+  rpc SaveAccount(SaveAccountRequest) returns (SaveAccountResponse);
+  rpc ListAccounts(ListAccountsRequest) returns (ListAccountsResponse);
+  rpc SaveDetermination(SaveDeterminationRequest) returns (SaveDeterminationResponse);
+  rpc ListDeterminations(ListDeterminationsRequest) returns (ListDeterminationsResponse);
+  rpc ResolveAccount(ResolveAccountRequest) returns (ResolveAccountResponse);
+  rpc SaveSetting(SaveSettingRequest) returns (SaveSettingResponse);
+  rpc ListSettings(ListSettingsRequest) returns (ListSettingsResponse);
+  rpc SaveSettingValue(SaveSettingValueRequest) returns (SaveSettingValueResponse);
+  rpc PublishSettingValue(PublishSettingValueRequest) returns (PublishSettingValueResponse);
+  rpc DiscardSettingValue(DiscardSettingValueRequest) returns (DiscardSettingValueResponse);
+  rpc ListSettingValues(ListSettingValuesRequest) returns (ListSettingValuesResponse);
+  rpc ResolveSetting(ResolveSettingRequest) returns (ResolveSettingResponse);
+  rpc PreviewSettingChange(PreviewSettingChangeRequest) returns (PreviewSettingChangeResponse);
+  rpc GetReadiness(GetReadinessRequest) returns (GetReadinessResponse);
+}
+
+// Company tops one organisation tree.
+message Company {
+  string name = 1;
+  string label = 2;
+  string base_currency = 3;
+  bool disabled = 4;
+  int64 revision = 5;
+}
+
+message SaveCompanyRequest {
+  Company company = 1;
+  // The revision the client edited. Zero creates a company.
+  int64 expected_revision = 2;
+}
+
+message SaveCompanyResponse {
+  Company company = 1;
+}
+
+message ListCompaniesRequest {}
+
+message ListCompaniesResponse {
+  repeated Company companies = 1;
+}
+
+// Branch belongs to one company and nests for grouping.
+message Branch {
+  string name = 1;
+  string label = 2;
+  string company = 3;
+  string parent = 4;
+  bool is_group = 5;
+  bool disabled = 6;
+  int64 revision = 7;
+}
+
+message SaveBranchRequest {
+  Branch branch = 1;
+  int64 expected_revision = 2;
+}
+
+message SaveBranchResponse {
+  Branch branch = 1;
+}
+
+message ListBranchesRequest {
+  string company = 1;
+}
+
+message ListBranchesResponse {
+  repeated Branch branches = 1;
+}
+
+// Department belongs to one company and optionally one branch, and nests.
+message Department {
+  string name = 1;
+  string label = 2;
+  string company = 3;
+  string branch = 4;
+  string parent = 5;
+  bool is_group = 6;
+  bool disabled = 7;
+  int64 revision = 8;
+}
+
+message SaveDepartmentRequest {
+  Department department = 1;
+  int64 expected_revision = 2;
+}
+
+message SaveDepartmentResponse {
+  Department department = 1;
+}
+
+message ListDepartmentsRequest {
+  string company = 1;
+}
+
+message ListDepartmentsResponse {
+  repeated Department departments = 1;
+}
+
+// CostCentre belongs to one company and nests.
+message CostCentre {
+  string name = 1;
+  string label = 2;
+  string company = 3;
+  string parent = 4;
+  bool is_group = 5;
+  bool disabled = 6;
+  int64 revision = 7;
+}
+
+message SaveCostCentreRequest {
+  CostCentre cost_centre = 1;
+  int64 expected_revision = 2;
+}
+
+message SaveCostCentreResponse {
+  CostCentre cost_centre = 1;
+}
+
+message ListCostCentresRequest {
+  string company = 1;
+}
+
+message ListCostCentresResponse {
+  repeated CostCentre cost_centres = 1;
+}
+
+// DimensionDefinition names one analysis axis with its permitted members,
+// the accounts that require it, and the dates it applies to.
+message DimensionDefinition {
+  string name = 1;
+  string label = 2;
+  repeated string members = 3;
+  repeated string mandatory_for = 4;
+  string valid_from = 5;
+  string valid_to = 6;
+  bool disabled = 7;
+  int64 revision = 8;
+}
+
+message SaveDimensionRequest {
+  DimensionDefinition dimension = 1;
+  int64 expected_revision = 2;
+}
+
+message SaveDimensionResponse {
+  DimensionDefinition dimension = 1;
+}
+
+message ListDimensionsRequest {}
+
+message ListDimensionsResponse {
+  repeated DimensionDefinition dimensions = 1;
+}
+
+// FiscalYear groups the periods of one company.
+message FiscalYear {
+  string name = 1;
+  string label = 2;
+  string company = 3;
+  string start_date = 4;
+  string end_date = 5;
+  bool disabled = 6;
+  int64 revision = 7;
+}
+
+message SaveFiscalYearRequest {
+  FiscalYear fiscal_year = 1;
+  int64 expected_revision = 2;
+}
+
+message SaveFiscalYearResponse {
+  FiscalYear fiscal_year = 1;
+}
+
+message ListFiscalYearsRequest {
+  string company = 1;
+}
+
+message ListFiscalYearsResponse {
+  repeated FiscalYear fiscal_years = 1;
+}
+
+// Period is one posting window. Dates are inclusive YYYY-MM-DD; status is
+// open, soft_closed or hard_closed.
+message Period {
+  string company = 1;
+  string book = 2;
+  string name = 3;
+  string label = 4;
+  string fiscal_year = 5;
+  string start_date = 6;
+  string end_date = 7;
+  string status = 8;
+  int64 revision = 9;
+}
+
+message SavePeriodRequest {
+  Period period = 1;
+  int64 expected_revision = 2;
+}
+
+message SavePeriodResponse {
+  Period period = 1;
+}
+
+message SetPeriodStatusRequest {
+  string company = 1;
+  string book = 2;
+  string name = 3;
+  string status = 4;
+  int64 expected_revision = 5;
+}
+
+message SetPeriodStatusResponse {
+  Period period = 1;
+}
+
+message ListPeriodsRequest {
+  string company = 1;
+  string book = 2;
+}
+
+message ListPeriodsResponse {
+  repeated Period periods = 1;
+}
+
+// Currency is a code with its minor-unit exponent.
+message Currency {
+  string code = 1;
+  string label = 2;
+  int32 exponent = 3;
+  bool disabled = 4;
+  int64 revision = 5;
+}
+
+message SaveCurrencyRequest {
+  Currency currency = 1;
+  int64 expected_revision = 2;
+}
+
+message SaveCurrencyResponse {
+  Currency currency = 1;
+}
+
+message ListCurrenciesRequest {}
+
+message ListCurrenciesResponse {
+  repeated Currency currencies = 1;
+}
+
+// ExchangeRate converts one unit of from_code to rate units of to_code from
+// its effective instant (RFC 3339). Rates are never updated.
+message ExchangeRate {
+  string from_code = 1;
+  string to_code = 2;
+  string rate_type = 3;
+  string source = 4;
+  string effective_at = 5;
+  string rate = 6;
+}
+
+message SaveRateRequest {
+  ExchangeRate rate = 1;
+}
+
+message SaveRateResponse {
+  ExchangeRate rate = 1;
+}
+
+message GetRateRequest {
+  string from_code = 1;
+  string to_code = 2;
+  string rate_type = 3;
+  // Empty accepts every source and fails when they disagree.
+  string source = 4;
+  string at = 5;
+}
+
+message GetRateResponse {
+  string rate = 1;
+}
+
+// AccountType names one account family with its normal balance side.
+message AccountType {
+  string name = 1;
+  string label = 2;
+  string normal_balance = 3;
+}
+
+message SaveAccountTypeRequest {
+  AccountType account_type = 1;
+}
+
+message SaveAccountTypeResponse {
+  AccountType account_type = 1;
+}
+
+message ListAccountTypesRequest {}
+
+message ListAccountTypesResponse {
+  repeated AccountType account_types = 1;
+}
+
+// Account is one chart node. Groups organise the tree; only leaves post.
+// An empty company means every company.
+message Account {
+  string name = 1;
+  string label = 2;
+  string type = 3;
+  string parent = 4;
+  bool is_group = 5;
+  string class = 6;
+  string control_role = 7;
+  string company = 8;
+  bool disabled = 9;
+  int64 revision = 10;
+}
+
+message SaveAccountRequest {
+  Account account = 1;
+  int64 expected_revision = 2;
+}
+
+message SaveAccountResponse {
+  Account account = 1;
+}
+
+message ListAccountsRequest {
+  string company = 1;
+}
+
+message ListAccountsResponse {
+  repeated Account accounts = 1;
+}
+
+// Determination maps a posting context to an account. Match holds
+// dimension-name to value pairs; more pairs win, and equal winners fail.
+message Determination {
+  string id = 1;
+  string label = 2;
+  string account = 3;
+  map<string, string> match = 4;
+  bool disabled = 5;
+  int64 revision = 6;
+}
+
+message SaveDeterminationRequest {
+  Determination determination = 1;
+  int64 expected_revision = 2;
+}
+
+message SaveDeterminationResponse {
+  Determination determination = 1;
+}
+
+message ListDeterminationsRequest {}
+
+message ListDeterminationsResponse {
+  repeated Determination determinations = 1;
+}
+
+message ResolveAccountRequest {
+  map<string, string> context = 1;
+}
+
+message ResolveAccountResponse {
+  Determination determination = 1;
+}
+
+// Setting defines one owned setting: scalar or list values, and for lists
+// the replace, append or intersect merge rule.
+message Setting {
+  string owner_pack = 1;
+  string type = 2;
+  string label = 3;
+  string kind = 4;
+  string list_rule = 5;
+  int64 revision = 6;
+}
+
+message SaveSettingRequest {
+  Setting setting = 1;
+  int64 expected_revision = 2;
+}
+
+message SaveSettingResponse {
+  Setting setting = 1;
+}
+
+message ListSettingsRequest {}
+
+message ListSettingsResponse {
+  repeated Setting settings = 1;
+}
+
+// SettingValue is one generation: JSON text in force for a scope chain from
+// an instant (RFC 3339), draft until published.
+message SettingValue {
+  string owner_pack = 1;
+  string type = 2;
+  string scope_chain = 3;
+  string effective_from = 4;
+  int64 revision = 5;
+  string value_json = 6;
+  string status = 7;
+}
+
+message SaveSettingValueRequest {
+  SettingValue value = 1;
+}
+
+message SaveSettingValueResponse {
+  SettingValue value = 1;
+}
+
+message PublishSettingValueRequest {
+  string owner_pack = 1;
+  string type = 2;
+  string scope_chain = 3;
+  string effective_from = 4;
+  int64 revision = 5;
+}
+
+message PublishSettingValueResponse {
+  SettingValue value = 1;
+}
+
+message DiscardSettingValueRequest {
+  string owner_pack = 1;
+  string type = 2;
+  string scope_chain = 3;
+  string effective_from = 4;
+  int64 revision = 5;
+}
+
+message DiscardSettingValueResponse {}
+
+message ListSettingValuesRequest {
+  string owner_pack = 1;
+  string type = 2;
+  bool published_only = 3;
+}
+
+message ListSettingValuesResponse {
+  repeated SettingValue values = 1;
+}
+
+message ResolveSettingRequest {
+  string owner_pack = 1;
+  string type = 2;
+  map<string, string> scope = 3;
+  string at = 4;
+}
+
+message ResolveSettingResponse {
+  // The effective value as JSON text.
+  string value_json = 1;
+  repeated SettingValue winners = 2;
+}
+
+message PreviewSettingChangeRequest {
+  string owner_pack = 1;
+  string type = 2;
+  map<string, string> scope = 3;
+  SettingValue draft = 4;
+}
+
+message SettingChange {
+  string at = 1;
+  string before_json = 2;
+  string after_json = 3;
+}
+
+message PreviewSettingChangeResponse {
+  repeated SettingChange changes = 1;
+}
+
+// ReadinessCheck is one setup completeness row: what was checked, whether it
+// passed, and what to do when it did not.
+message ReadinessCheck {
+  string name = 1;
+  bool ok = 2;
+  string detail = 3;
+}
+
+message GetReadinessRequest {
+  string company = 1;
+}
+
+message GetReadinessResponse {
+  repeated ReadinessCheck checks = 1;
+}

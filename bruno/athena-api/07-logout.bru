@@ -1,0 +1,27 @@
+meta {
+  name: 07 - Sign out
+  type: http
+  seq: 7
+}
+
+post {
+  url: {{baseUrl}}/athena.v1.AuthService/Logout
+  body: json
+  auth: none
+}
+
+headers {
+  content-type: application/json
+  accept: application/json
+  X-CSRF-Token: {{csrfToken}}
+}
+
+body:json {
+  {}
+}
+
+tests {
+  test("signs out successfully", function() {
+    expect(res.status).to.equal(200);
+  });
+}

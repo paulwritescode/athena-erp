@@ -14,8 +14,7 @@ import (
 	"time"
 
 	"athena-erp/internal/server"
-
-	"github.com/go-sql-driver/mysql"
+	"athena-erp/internal/workspace"
 )
 
 // migrationLine is one migration in --json output.
@@ -50,7 +49,7 @@ func migrateCommand(args []string, out io.Writer) error {
 	if flags.NArg() > 0 {
 		return fmt.Errorf("unexpected argument %q", flags.Arg(0))
 	}
-	cfg, workspace, err := migrationTarget(*slug)
+	endpoint, svc, err := migrationTarget(*slug)
 	if err != nil {
 		return err
 	}
@@ -59,7 +58,7 @@ func migrateCommand(args []string, out io.Writer) error {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
 	if sub == "status" {
-		states, err := server.MigrationStatus(ctx, cfg, workspace)
+		states, err := server.MigrationStatus(ctx, endpoint, svc)
 		if err != nil {
 			return err
 		}
@@ -83,7 +82,7 @@ func migrateCommand(args []string, out io.Writer) error {
 		}
 		return nil
 	}
-	applied, err := server.Migrate(ctx, cfg, workspace, server.MigrationOptions{Target: *target, DryRun: *dryRun})
+	applied, err := server.Migrate(ctx, endpoint, svc, server.MigrationOptions{Target: *target, DryRun: *dryRun})
 	if err != nil {
 		return err
 	}
@@ -110,20 +109,20 @@ func migrateCommand(args []string, out io.Writer) error {
 
 // migrationTarget resolves the workspace like `run`, or falls back to
 // ATHENA_DATABASE_URL like `serve`. It never prints the DSN.
-func migrationTarget(slug string) (*mysql.Config, *server.Workspace, error) {
-	p, cfg, err := resolveWorkspace(slug)
+func migrationTarget(slug string) (*workspace.DBEndpoint, *server.Workspace, error) {
+	p, endpoint, err := resolveWorkspace(slug)
 	if err == nil {
-		return cfg, &server.Workspace{ID: p.Manifest.ID, Name: p.Manifest.Name, Slug: p.Manifest.Slug, Root: p.Root}, nil
+		return endpoint, &server.Workspace{ID: p.Manifest.ID, Name: p.Manifest.Name, Slug: p.Manifest.Slug, Root: p.Root}, nil
 	}
 	dsn := os.Getenv("ATHENA_DATABASE_URL")
 	if slug != "" || dsn == "" {
 		return nil, nil, err
 	}
-	cfg, perr := mysql.ParseDSN(dsn)
+	endpoint, perr := workspace.ParseDatabaseURL(dsn)
 	if perr != nil {
-		return nil, nil, errors.New("parse ATHENA_DATABASE_URL: invalid DSN")
+		return nil, nil, errors.New("parse ATHENA_DATABASE_URL: invalid database URL")
 	}
-	return cfg, nil, nil
+	return endpoint, nil, nil
 }
 
 func writeJSON(out io.Writer, v any) error {

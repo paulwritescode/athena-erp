@@ -2,9 +2,10 @@ syntax = "proto3";
 package athena.v1;
 option go_package = "athena-erp/gen/athena/v1;athenav1";
 // AuthService signs users in and out and manages users, Roles and Grants
-// (spec 21, ADR-0014). Login and GetSession are the only methods open to
-// callers who are not signed in. Every other method in every service is
-// denied unless the permission gate allows it.
+// (spec 21, ADR-0014, access model v2 in ADR-0017). Login, GetSession and
+// CompleteChallenge are the only methods open to callers who are not signed
+// in. Every other method in every service is denied unless the permission
+// gate allows it.
 service AuthService {
   // Login checks a username and password and starts a session. The session
   // token travels only in an HttpOnly, SameSite=Strict cookie; the response
@@ -16,16 +17,53 @@ service AuthService {
   rpc GetSession(GetSessionRequest) returns (GetSessionResponse);
   // ChangePassword sets the caller's own password and ends their other sessions.
   rpc ChangePassword(ChangePasswordRequest) returns (ChangePasswordResponse);
-  // The methods below need the access permission.
+  // InviteUser invites a user with no password and returns the single-use
+  // Challenge to show once. It needs access:users.
+  rpc InviteUser(InviteUserRequest) returns (InviteUserResponse);
+  // CompleteChallenge consumes a first-login or reset Challenge, stores the
+  // chosen password and starts a session. It is open: the Challenge is the
+  // credential.
+  rpc CompleteChallenge(CompleteChallengeRequest) returns (CompleteChallengeResponse);
+  // ResendInvite invalidates an invited user's earlier Challenges and issues
+  // a new one, returned to show once. It needs access:users.
+  rpc ResendInvite(ResendInviteRequest) returns (ResendInviteResponse);
+  // StartReset moves an active user to reset_required, revokes their
+  // sessions and issues a reset Challenge to show once. It needs
+  // access:recover and the caller's own password.
+  rpc StartReset(StartResetRequest) returns (StartResetResponse);
   rpc ListUsers(ListUsersRequest) returns (ListUsersResponse);
   rpc CreateUser(CreateUserRequest) returns (CreateUserResponse);
   rpc UpdateUser(UpdateUserRequest) returns (UpdateUserResponse);
-  // ResetPassword sets another user's password and ends their sessions.
+  // ResetPassword is retired: administrator-set passwords are removed, so it
+  // always fails. Start a reset instead.
   rpc ResetPassword(ResetPasswordRequest) returns (ResetPasswordResponse);
   rpc ListRoles(ListRolesRequest) returns (ListRolesResponse);
   // SaveRole creates or replaces the Role with the given name and its Grants.
   rpc SaveRole(SaveRoleRequest) returns (SaveRoleResponse);
   rpc DeleteRole(DeleteRoleRequest) returns (DeleteRoleResponse);
+  // ListAssignments returns a user's Role Assignments. It needs access:assign.
+  rpc ListAssignments(ListAssignmentsRequest) returns (ListAssignmentsResponse);
+  // SaveAssignment creates an Assignment or replaces one whose revision still
+  // matches. It needs access:assign.
+  rpc SaveAssignment(SaveAssignmentRequest) returns (SaveAssignmentResponse);
+  // RevokeAssignment deletes one Assignment. It needs access:assign.
+  rpc RevokeAssignment(RevokeAssignmentRequest) returns (RevokeAssignmentResponse);
+  // ExplainAccess reports which Assignment allows an action or why each one
+  // fails. It needs access:explore.
+  rpc ExplainAccess(ExplainAccessRequest) returns (ExplainAccessResponse);
+  // ListSessions lists sessions: the caller's own, or another user's with
+  // access:sessions.
+  rpc ListSessions(ListSessionsRequest) returns (ListSessionsResponse);
+  // RevokeSession ends one session. It needs access:sessions to end another
+  // user's session.
+  rpc RevokeSession(RevokeSessionRequest) returns (RevokeSessionResponse);
+  // TransferOwnership appoints the recipient an Instance Owner and, when
+  // asked, relinquishes the caller's own ownership. It needs
+  // access:ownership and the caller's own password.
+  rpc TransferOwnership(TransferOwnershipRequest) returns (TransferOwnershipResponse);
+  // ListRoleHolders lists the users holding the Role with a Grant covering
+  // the action on the Record Type. It needs access:roles.
+  rpc ListRoleHolders(ListRoleHoldersRequest) returns (ListRoleHoldersResponse);
   // ListAccessLog reads the Access Log. It needs the audit permission.
   rpc ListAccessLog(ListAccessLogRequest) returns (ListAccessLogResponse);
 }
@@ -51,7 +89,9 @@ message SessionInfo {
   string username = 2;
   string display_name = 3;
   bool owner = 4;
-  // Any of build, access, audit, files:read, files:write.
+  // Any of build, audit, files:read, files:write, rules:read, rules:write,
+  // access:ownership, access:users, access:roles, access:assign,
+  // access:recover, access:sessions, access:explore.
   repeated string system_permissions = 5;
   // Send this in the X-CSRF-Token header on every call.
   string csrf_token = 6;
@@ -70,15 +110,56 @@ message AccessUser {
   // Names of the user's Roles.
   repeated string roles = 6;
   string last_login_at = 7;
+  // invited, active, reset_required or suspended.
+  string state = 8;
 }
 message ListUsersRequest {}
 message ListUsersResponse {
   repeated AccessUser users = 1;
 }
-message CreateUserRequest {
+message InviteUserRequest {
   string username = 1;
   string display_name = 2;
-  string password = 3;
+  repeated string roles = 3;
+}
+message InviteUserResponse {
+  AccessUser user = 1;
+  // The single-use first-login Challenge, shown once.
+  string challenge = 2;
+}
+message CompleteChallengeRequest {
+  string username = 1;
+  // first_login or reset.
+  string purpose = 2;
+  string challenge = 3;
+  string new_password = 4;
+}
+message CompleteChallengeResponse {
+  SessionInfo session = 1;
+}
+message ResendInviteRequest {
+  string username = 1;
+}
+message ResendInviteResponse {
+  AccessUser user = 1;
+  // The single-use first-login Challenge, shown once.
+  string challenge = 2;
+}
+message StartResetRequest {
+  string username = 1;
+  // The caller's own password, proving a privileged recovery.
+  string actor_password = 2;
+}
+message StartResetResponse {
+  AccessUser user = 1;
+  // The single-use reset Challenge, shown once.
+  string challenge = 2;
+}
+message CreateUserRequest {
+  reserved 3;
+  reserved "password";
+  string username = 1;
+  string display_name = 2;
   repeated string roles = 4;
 }
 message CreateUserResponse {
@@ -101,10 +182,116 @@ message UpdateUserResponse {
   AccessUser user = 1;
 }
 message ResetPasswordRequest {
+  reserved 2;
+  reserved "new_password";
   string username = 1;
-  string new_password = 2;
 }
 message ResetPasswordResponse {}
+// ScopeValues holds the allowed values of one Scope dimension.
+message ScopeValues {
+  repeated string values = 1;
+}
+// Assignment is one Role given to one user with its own Scope and dates.
+message Assignment {
+  string id = 1;
+  string role = 2;
+  // Dimension name to allowed values. Empty means every row.
+  map<string, ScopeValues> scope = 3;
+  // Whole days, YYYY-MM-DD. Empty means unbounded.
+  string active_from = 4;
+  string expires_at = 5;
+  int64 revision = 6;
+}
+message ListAssignmentsRequest {
+  string username = 1;
+}
+message ListAssignmentsResponse {
+  repeated Assignment assignments = 1;
+}
+message SaveAssignmentRequest {
+  string username = 1;
+  Assignment assignment = 2;
+}
+message SaveAssignmentResponse {
+  Assignment assignment = 1;
+}
+message RevokeAssignmentRequest {
+  string id = 1;
+}
+message RevokeAssignmentResponse {}
+message ExplainAccessRequest {
+  string username = 1;
+  string action = 2;
+  string record_type_key = 3;
+  // When set, row conditions and Scopes are tested against this Record.
+  string record_id = 4;
+}
+// AssignmentExplanation reports why one Assignment allows an action or why
+// it fails. Reasons are fixed phrases such as "no covering Grant",
+// "outside dates", "Scope misses the required company" or "row condition
+// false".
+message AssignmentExplanation {
+  string assignment_id = 1;
+  string role = 2;
+  bool matched = 3;
+  repeated string reasons = 4;
+  bool separate_duties_conflict = 5;
+}
+message ExplainAccessResponse {
+  bool allowed = 1;
+  repeated AssignmentExplanation assignments = 2;
+}
+// Session is one signed-in session.
+message Session {
+  string id = 1;
+  string created_at = 2;
+  string last_seen_at = 3;
+  string expires_at = 4;
+  string device = 5;
+  // True for the session making the call.
+  bool current = 6;
+}
+message ListSessionsRequest {
+  // Empty lists the caller's own sessions.
+  string username = 1;
+}
+message ListSessionsResponse {
+  repeated Session sessions = 1;
+}
+message RevokeSessionRequest {
+  string id = 1;
+}
+message RevokeSessionResponse {}
+message TransferOwnershipRequest {
+  string username = 1;
+  // The caller's own password, proving a privileged ownership change.
+  string actor_password = 2;
+  // Also end the caller's own ownership Assignments.
+  bool relinquish = 3;
+}
+message TransferOwnershipResponse {
+  AccessUser user = 1;
+}
+message ListRoleHoldersRequest {
+  string role = 1;
+  string record_type_key = 2;
+  string action = 3;
+}
+// RoleHolder is one user whose Assignment of the Role covers the action.
+// Usable means the dates cover today and the Scope satisfies the Role; row
+// conditions and Scope matching still apply per Record.
+message RoleHolder {
+  string username = 1;
+  string display_name = 2;
+  string state = 3;
+  bool usable = 4;
+  map<string, ScopeValues> scope = 5;
+  string active_from = 6;
+  string expires_at = 7;
+}
+message ListRoleHoldersResponse {
+  repeated RoleHolder holders = 1;
+}
 // Grant allows actions on one Record Type. Grants are additive; no Grant
 // means deny.
 message Grant {
@@ -124,7 +311,9 @@ message Grant {
 message Role {
   string name = 1;
   string description = 2;
-  // Any of build, access, audit, files:read, files:write.
+  // Any of build, audit, files:read, files:write, rules:read, rules:write,
+  // access:ownership, access:users, access:roles, access:assign,
+  // access:recover, access:sessions, access:explore.
   repeated string system_permissions = 3;
   repeated Grant grants = 4;
 }

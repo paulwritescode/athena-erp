@@ -3,7 +3,17 @@ package auth
 import (
 	"context"
 	"sort"
+	"strings"
 )
+
+// RootUsername is the reserved workspace root account (ADR-0018). It is
+// created at setup, cannot be invited, and always signs in.
+const RootUsername = "administrator"
+
+// IsRoot reports whether the username is the workspace root account.
+func IsRoot(username string) bool {
+	return strings.ToLower(strings.TrimSpace(username)) == RootUsername
+}
 
 // Actions a Grant can allow on a Record Type.
 const (
@@ -23,12 +33,27 @@ const (
 // Actions lists every Grant action.
 var Actions = []string{ActionRead, ActionCreate, ActionWrite, ActionDelete, ActionSubmit, ActionCancel, ActionAmend, ActionAudit}
 
+// ValidAction reports whether action is a known Grant action.
+func ValidAction(action string) bool { return contains(Actions, action) }
+
 // System permissions are not tied to a Record Type.
 const (
 	// PermissionBuild saves, plans and deletes Record Types.
 	PermissionBuild = "build"
-	// PermissionAccess manages users, Roles and Grants.
-	PermissionAccess = "access"
+	// PermissionAccessOwnership appoints owners and assigns platform Roles.
+	PermissionAccessOwnership = "access:ownership"
+	// PermissionAccessUsers manages users.
+	PermissionAccessUsers = "access:users"
+	// PermissionAccessRoles manages Roles.
+	PermissionAccessRoles = "access:roles"
+	// PermissionAccessAssign assigns Roles to users.
+	PermissionAccessAssign = "access:assign"
+	// PermissionAccessRecover resets passwords and recovers accounts.
+	PermissionAccessRecover = "access:recover"
+	// PermissionAccessSessions lists and revokes sessions.
+	PermissionAccessSessions = "access:sessions"
+	// PermissionAccessExplore explains access decisions.
+	PermissionAccessExplore = "access:explore"
 	// PermissionAudit verifies the Audit Log chain and reads the Access Log.
 	PermissionAudit = "audit"
 	// PermissionFilesRead lists and reads the Workspace files and their versions.
@@ -40,10 +65,17 @@ const (
 	PermissionRulesRead = "rules:read"
 	// PermissionRulesWrite saves, deletes and simulates Rules. Treat it like build: a Rule runs on every matching save.
 	PermissionRulesWrite = "rules:write"
+	// PermissionLedgerRead lists the kernel's ledger masters.
+	PermissionLedgerRead = "ledger:read"
+	// PermissionLedgerWrite saves ledger masters, periods, rates, accounts,
+	// determination mappings and Settings. Treat it like build.
+	PermissionLedgerWrite = "ledger:write"
 )
 
 // SystemPermissions lists every system permission.
-var SystemPermissions = []string{PermissionBuild, PermissionAccess, PermissionAudit, PermissionFilesRead, PermissionFilesWrite, PermissionRulesRead, PermissionRulesWrite}
+var SystemPermissions = []string{PermissionBuild, PermissionAudit, PermissionFilesRead, PermissionFilesWrite, PermissionRulesRead, PermissionRulesWrite,
+	PermissionLedgerRead, PermissionLedgerWrite,
+	PermissionAccessOwnership, PermissionAccessUsers, PermissionAccessRoles, PermissionAccessAssign, PermissionAccessRecover, PermissionAccessSessions, PermissionAccessExplore}
 
 // AllRecordTypes is the Grant target that covers every Record Type.
 const AllRecordTypes = "*"
@@ -79,27 +111,46 @@ type Principal struct {
 	UserID      string
 	Username    string
 	DisplayName string
-	// Owner is the instance owner. It holds every permission and ignores
-	// Grants. Owners are created through the athena command line only.
-	Owner             bool
+	// Owner marks an instance owner. It grants nothing by itself: owners
+	// hold permissions through their Assignments like everyone else. Owners
+	// are created through the athena command line only.
+	Owner bool
+	// Root marks the workspace root account, the one bypass in the model
+	// (ADR-0018): it holds every permission without Assignments, so access
+	// can always be recovered and audited.
+	Root bool
+	// SystemPermissions unions the system permissions of the active
+	// Assignments.
 	SystemPermissions map[string]bool
-	Grants            []Grant
-	SessionID         string
+	// Assignments carries the usable Grants with their Scopes and dates.
+	// Every method below tests whole Assignments: an action on a row is
+	// allowed only when one single Assignment covers it, and the results
+	// of whole matching Assignments union.
+	Assignments []Assignment
+	SessionID   string
 }
 
 // HasSystem reports whether the principal holds a system permission.
 func (p *Principal) HasSystem(permission string) bool {
-	return p.Owner || p.SystemPermissions[permission]
+	return p.Root || p.SystemPermissions[permission]
 }
 
-// Can reports whether any Grant allows action on the Record Type.
+// Can reports whether some whole Assignment allows action on the Record
+// Type. Row conditions and Scope values narrow the reachable rows later;
+// Can only checks that an Assignment could allow the action at all. An
+// Assignment whose Scope misses a required dimension allows nothing.
 func (p *Principal) Can(recordType, action string) bool {
-	if p.Owner {
+	if p.Root {
 		return true
 	}
-	for _, g := range p.Grants {
-		if g.covers(recordType) && g.Actions[action] {
-			return true
+	for _, a := range p.Assignments {
+		if !a.usable() {
+			continue
+		}
+		for _, g := range a.Grants {
+			if g.covers(recordType) && g.Actions[action] {
+				return true
+			}
 		}
 	}
 	return false
@@ -111,15 +162,20 @@ func (p *Principal) CanAny(recordType string) bool {
 }
 
 // Level is the highest field permission level the principal has on the
-// Record Type.
+// Record Type, over the Grants of usable Assignments.
 func (p *Principal) Level(recordType string) int {
-	if p.Owner {
+	if p.Root {
 		return MaxPermissionLevel
 	}
 	level := 0
-	for _, g := range p.Grants {
-		if g.covers(recordType) && len(g.Actions) > 0 && g.Level > level {
-			level = g.Level
+	for _, a := range p.Assignments {
+		if !a.usable() {
+			continue
+		}
+		for _, g := range a.Grants {
+			if g.covers(recordType) && len(g.Actions) > 0 && g.Level > level {
+				level = g.Level
+			}
 		}
 	}
 	return level
@@ -136,46 +192,66 @@ func (p *Principal) Actions(recordType string) []string {
 	return out
 }
 
-// Scope returns the row conditions that limit action on the Record Type.
-// unrestricted is true when some Grant allows every Record. Otherwise the
-// principal reaches the Records for which any of conditions is true; an empty
-// list with unrestricted false means no Grant allows the action.
-func (p *Principal) Scope(recordType, action string) (conditions []string, unrestricted bool) {
-	if p.Owner {
+// Scope returns one disjunct per whole Assignment that allows action on the
+// Record Type: the Grant's row condition together with the Assignment's
+// Scope. The principal reaches a row when some disjunct's condition holds
+// and its Scope matches. unrestricted is true when some Assignment allows
+// every Record. An empty list with unrestricted false means nothing allows
+// the action.
+func (p *Principal) Scope(recordType, action string) (disjuncts []ScopeDisjunct, unrestricted bool) {
+	if p.Root {
 		return nil, true
 	}
 	seen := map[string]bool{}
-	for _, g := range p.Grants {
-		if !g.covers(recordType) || !g.Actions[action] {
+	for _, a := range p.Assignments {
+		if !a.usable() {
 			continue
 		}
-		if g.Condition == "" {
-			return nil, true
-		}
-		if !seen[g.Condition] {
-			seen[g.Condition] = true
-			conditions = append(conditions, g.Condition)
+		for _, g := range a.Grants {
+			if !g.covers(recordType) || !g.Actions[action] {
+				continue
+			}
+			if g.Condition == "" && len(a.Scope) == 0 {
+				return nil, true
+			}
+			d := ScopeDisjunct{Condition: g.Condition, Scope: a.Scope}
+			key := g.Condition + "\x00" + a.Scope.canonical()
+			if !seen[key] {
+				seen[key] = true
+				disjuncts = append(disjuncts, d)
+			}
 		}
 	}
-	sort.Strings(conditions)
-	return conditions, false
+	sort.Slice(disjuncts, func(i, j int) bool {
+		if disjuncts[i].Condition != disjuncts[j].Condition {
+			return disjuncts[i].Condition < disjuncts[j].Condition
+		}
+		return disjuncts[i].Scope.canonical() < disjuncts[j].Scope.canonical()
+	})
+	return disjuncts, false
 }
 
-// MustSeparateDuties reports whether every Grant that allows action on the
-// Record Type demands that the creator of a Record not act on it.
+// MustSeparateDuties reports whether every whole Assignment that allows
+// action on the Record Type demands that the creator of a Record not act on
+// it.
 func (p *Principal) MustSeparateDuties(recordType, action string) bool {
-	if p.Owner {
+	if p.Root {
 		return false
 	}
 	found := false
-	for _, g := range p.Grants {
-		if !g.covers(recordType) || !g.Actions[action] {
+	for _, a := range p.Assignments {
+		if !a.usable() {
 			continue
 		}
-		if !g.SeparateDuties {
-			return false
+		for _, g := range a.Grants {
+			if !g.covers(recordType) || !g.Actions[action] {
+				continue
+			}
+			if !g.SeparateDuties {
+				return false
+			}
+			found = true
 		}
-		found = true
 	}
 	return found
 }

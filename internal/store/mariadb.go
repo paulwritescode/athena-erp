@@ -168,6 +168,9 @@ func (d MariaDB) Upsert(table string, columns []string, keyColumn string, update
 
 func (MariaDB) ForUpdate() string { return "FOR UPDATE" }
 
+// Rebind passes the statement through: the MySQL driver binds ? directly.
+func (MariaDB) Rebind(query string) string { return query }
+
 // NullSafeEqual is MariaDB's null-safe equality operator.
 func (MariaDB) NullSafeEqual(a, b string) string { return "(" + a + " <=> " + b + ")" }
 

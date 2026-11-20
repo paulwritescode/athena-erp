@@ -4,11 +4,14 @@ import (
 	"context"
 	"database/sql/driver"
 	"errors"
+	"fmt"
 	"net"
+	"strings"
 	"time"
 
 	athenav1 "athena-erp/gen/athena/v1"
 	"athena-erp/internal/auth"
+	"athena-erp/internal/expr"
 
 	"connectrpc.com/connect/v2"
 	"connectrpc.com/connect/v2/connectproto"
@@ -35,14 +38,20 @@ func authError(op string, err error) error {
 		return connect.NewError(connect.CodeUnavailable, "the database is not reachable")
 	case errors.Is(err, auth.ErrInvalidCredentials):
 		return connect.NewError(connect.CodeUnauthenticated, err.Error())
+	case errors.Is(err, auth.ErrChallengeRefused):
+		return connect.NewError(connect.CodeUnauthenticated, err.Error())
 	case errors.Is(err, auth.ErrUnauthenticated):
 		return connect.NewError(connect.CodeUnauthenticated, err.Error())
 	case errors.Is(err, auth.ErrNotFound):
 		return connect.NewError(connect.CodeNotFound, err.Error())
 	case errors.Is(err, auth.ErrExists):
 		return connect.NewError(connect.CodeAlreadyExists, err.Error())
+	case errors.Is(err, auth.ErrConflict):
+		return connect.NewError(connect.CodeAborted, err.Error())
 	case errors.Is(err, auth.ErrLastOwner):
 		return connect.NewError(connect.CodeFailedPrecondition, err.Error())
+	case errors.Is(err, auth.ErrForbidden):
+		return connect.NewError(connect.CodePermissionDenied, err.Error())
 	case errors.Is(err, auth.ErrInvalid):
 		return connect.NewError(connect.CodeInvalidArgument, err.Error())
 	}
@@ -112,11 +121,71 @@ func (s authService) ChangePassword(ctx context.Context, req *athenav1.ChangePas
 
 // AccessUserMessage converts a user for the API and the CLI.
 func AccessUserMessage(u auth.User, now time.Time) *athenav1.AccessUser {
-	out := &athenav1.AccessUser{Username: u.Username, DisplayName: u.DisplayName, Owner: u.Owner, Disabled: u.Disabled, Locked: u.Locked(now), Roles: u.Roles}
+	out := &athenav1.AccessUser{Username: u.Username, DisplayName: u.DisplayName, Owner: u.Owner, Disabled: u.Disabled, Locked: u.Locked(now), Roles: u.Roles, State: u.State}
 	if u.LastLoginAt != nil {
 		out.LastLoginAt = u.LastLoginAt.UTC().Format(time.RFC3339)
 	}
 	return out
+}
+
+// AssignmentMessage converts an Assignment for the API and the CLI.
+func AssignmentMessage(a auth.Assignment) *athenav1.Assignment {
+	out := &athenav1.Assignment{Id: a.ID, Role: a.RoleName, Revision: a.Revision, Scope: scopeMessage(a.Scope)}
+	if a.ActiveFrom != nil {
+		out.ActiveFrom = a.ActiveFrom.Format("2006-01-02")
+	}
+	if a.ExpiresAt != nil {
+		out.ExpiresAt = a.ExpiresAt.Format("2006-01-02")
+	}
+	return out
+}
+
+func scopeMessage(scope auth.Scope) map[string]*athenav1.ScopeValues {
+	if len(scope) == 0 {
+		return nil
+	}
+	out := map[string]*athenav1.ScopeValues{}
+	for dimension, values := range scope {
+		out[dimension] = &athenav1.ScopeValues{Values: append([]string{}, values...)}
+	}
+	return out
+}
+
+func formatDay(at *time.Time) string {
+	if at == nil {
+		return ""
+	}
+	return at.Format("2006-01-02")
+}
+
+// AssignmentFromMessage converts an API Assignment. Dates must be whole
+// days in YYYY-MM-DD form; empty means unbounded.
+func AssignmentFromMessage(m *athenav1.Assignment) (auth.AssignmentInput, error) {
+	in := auth.AssignmentInput{ID: m.GetId(), Role: m.GetRole(), ExpectedRevision: m.GetRevision()}
+	if len(m.GetScope()) > 0 {
+		in.Scope = auth.Scope{}
+		for dimension, values := range m.GetScope() {
+			in.Scope[dimension] = append([]string{}, values.GetValues()...)
+		}
+	}
+	for _, dated := range []struct {
+		text string
+		name string
+		set  func(time.Time)
+	}{
+		{m.GetActiveFrom(), "active_from", func(at time.Time) { in.ActiveFrom = &at }},
+		{m.GetExpiresAt(), "expires_at", func(at time.Time) { in.ExpiresAt = &at }},
+	} {
+		if dated.text == "" {
+			continue
+		}
+		at, err := time.Parse("2006-01-02", dated.text)
+		if err != nil {
+			return auth.AssignmentInput{}, fmt.Errorf("%s: use YYYY-MM-DD", dated.name)
+		}
+		dated.set(at)
+	}
+	return in, nil
 }
 
 func (s authService) ListUsers(ctx context.Context, _ *athenav1.ListUsersRequest) (*athenav1.ListUsersResponse, error) {
@@ -141,21 +210,15 @@ func (s authService) logAdmin(ctx context.Context, event, requestID, subject str
 	s.auth.LogAccess(ctx, e)
 }
 
-func (s authService) CreateUser(ctx context.Context, req *athenav1.CreateUserRequest) (res *athenav1.CreateUserResponse, err error) {
-	ctx, requestID, end := startKernelSpan(ctx, "create_user", "")
+func (s authService) CreateUser(ctx context.Context, _ *athenav1.CreateUserRequest) (res *athenav1.CreateUserResponse, err error) {
+	ctx, _, end := startKernelSpan(ctx, "create_user", "")
 	defer func() { end(err) }()
-	user, err := s.auth.CreateUser(ctx, req.GetUsername(), req.GetDisplayName(), req.GetPassword(), false)
-	if err != nil {
-		return nil, authError("create user", err)
-	}
-	if len(req.GetRoles()) > 0 {
-		roles := req.GetRoles()
-		if user, err = s.auth.UpdateUser(ctx, user.Username, auth.UserUpdate{Roles: &roles}); err != nil {
-			return nil, authError("create user", err)
-		}
-	}
-	s.logAdmin(ctx, auth.EventUserCreated, requestID, "user "+user.Username)
-	return &athenav1.CreateUserResponse{User: AccessUserMessage(user, time.Now())}, nil
+	// Administrator-set passwords are removed (ADR-0017): creating a user
+	// now returns a one-time Challenge the current response cannot carry.
+	// Invite-only creation arrives with InviteUser in task 1.9; until then
+	// the athena command line invites users through the auth store directly.
+	err = connect.NewError(connect.CodeUnimplemented, "user creation is invite-only; invite users with the athena command line")
+	return nil, err
 }
 
 func (s authService) UpdateUser(ctx context.Context, req *athenav1.UpdateUserRequest) (res *athenav1.UpdateUserResponse, err error) {
@@ -174,15 +237,299 @@ func (s authService) UpdateUser(ctx context.Context, req *athenav1.UpdateUserReq
 	return &athenav1.UpdateUserResponse{User: AccessUserMessage(user, time.Now())}, nil
 }
 
-func (s authService) ResetPassword(ctx context.Context, req *athenav1.ResetPasswordRequest) (res *athenav1.ResetPasswordResponse, err error) {
-	ctx, requestID, end := startKernelSpan(ctx, "reset_password", "")
+func (s authService) ResetPassword(ctx context.Context, _ *athenav1.ResetPasswordRequest) (res *athenav1.ResetPasswordResponse, err error) {
+	ctx, _, end := startKernelSpan(ctx, "reset_password", "")
 	defer func() { end(err) }()
-	user, err := s.auth.ResetPassword(ctx, req.GetUsername(), req.GetNewPassword())
+	// Administrator-set passwords are removed (ADR-0017): the request
+	// carries no password anymore, so the method always fails.
+	err = connect.NewError(connect.CodeUnimplemented, "administrator-set passwords are removed; start a reset instead")
+	return nil, err
+}
+
+func (s authService) InviteUser(ctx context.Context, req *athenav1.InviteUserRequest) (res *athenav1.InviteUserResponse, err error) {
+	ctx, requestID, end := startKernelSpan(ctx, "invite_user", "")
+	defer func() { end(err) }()
+	user, challenge, err := s.auth.CreateUser(ctx, req.GetUsername(), req.GetDisplayName(), false, requestID)
 	if err != nil {
-		return nil, authError("reset password", err)
+		return nil, authError("invite user", err)
+	}
+	if len(req.GetRoles()) > 0 {
+		roles := req.GetRoles()
+		if user, err = s.auth.UpdateUser(ctx, user.Username, auth.UserUpdate{Roles: &roles}); err != nil {
+			return nil, authError("invite user", err)
+		}
+	}
+	s.logAdmin(ctx, auth.EventUserCreated, requestID, "user "+user.Username)
+	return &athenav1.InviteUserResponse{User: AccessUserMessage(user, time.Now()), Challenge: challenge}, nil
+}
+
+func (s authService) CompleteChallenge(ctx context.Context, req *athenav1.CompleteChallengeRequest) (res *athenav1.CompleteChallengeResponse, err error) {
+	ctx, requestID, end := startKernelSpan(ctx, "complete_challenge", "")
+	defer func() { end(err) }()
+	result, err := s.auth.CompleteChallenge(ctx, req.GetUsername(), req.GetPurpose(), req.GetChallenge(), req.GetNewPassword(), requestID)
+	if err != nil {
+		return nil, authError("complete sign-in", err)
+	}
+	setSessionCookie(ctx, result.Token, result.ExpiresAt)
+	return &athenav1.CompleteChallengeResponse{Session: sessionInfo(result.Principal, result.Token)}, nil
+}
+
+func (s authService) ResendInvite(ctx context.Context, req *athenav1.ResendInviteRequest) (res *athenav1.ResendInviteResponse, err error) {
+	ctx, requestID, end := startKernelSpan(ctx, "resend_invite", "")
+	defer func() { end(err) }()
+	user, challenge, err := s.auth.ResendInvite(ctx, req.GetUsername(), requestID)
+	if err != nil {
+		return nil, authError("resend invite", err)
+	}
+	return &athenav1.ResendInviteResponse{User: AccessUserMessage(user, time.Now()), Challenge: challenge}, nil
+}
+
+func (s authService) StartReset(ctx context.Context, req *athenav1.StartResetRequest) (res *athenav1.StartResetResponse, err error) {
+	ctx, requestID, end := startKernelSpan(ctx, "start_reset", "")
+	defer func() { end(err) }()
+	user, challenge, err := s.auth.StartReset(ctx, req.GetUsername(), req.GetActorPassword(), requestID)
+	if err != nil {
+		return nil, authError("start reset", err)
 	}
 	s.logAdmin(ctx, auth.EventPasswordReset, requestID, "user "+user.Username)
-	return &athenav1.ResetPasswordResponse{}, nil
+	return &athenav1.StartResetResponse{User: AccessUserMessage(user, time.Now()), Challenge: challenge}, nil
+}
+
+func (s authService) ListAssignments(ctx context.Context, req *athenav1.ListAssignmentsRequest) (*athenav1.ListAssignmentsResponse, error) {
+	assignments, err := s.auth.ListAssignments(ctx, req.GetUsername())
+	if err != nil {
+		return nil, authError("list assignments", err)
+	}
+	res := &athenav1.ListAssignmentsResponse{}
+	for _, a := range assignments {
+		res.Assignments = append(res.Assignments, AssignmentMessage(a))
+	}
+	return res, nil
+}
+
+func (s authService) SaveAssignment(ctx context.Context, req *athenav1.SaveAssignmentRequest) (res *athenav1.SaveAssignmentResponse, err error) {
+	ctx, requestID, end := startKernelSpan(ctx, "save_assignment", "")
+	defer func() { end(err) }()
+	if req.GetAssignment() == nil {
+		return nil, invalid("assignment is required")
+	}
+	in, err := AssignmentFromMessage(req.GetAssignment())
+	if err != nil {
+		return nil, invalid(err.Error())
+	}
+	out, err := s.auth.SaveAssignment(ctx, req.GetUsername(), in)
+	if err != nil {
+		return nil, authError("save assignment", err)
+	}
+	s.logAdmin(ctx, auth.EventUserUpdated, requestID, "assignment saved for "+req.GetUsername())
+	return &athenav1.SaveAssignmentResponse{Assignment: AssignmentMessage(out)}, nil
+}
+
+func (s authService) RevokeAssignment(ctx context.Context, req *athenav1.RevokeAssignmentRequest) (res *athenav1.RevokeAssignmentResponse, err error) {
+	ctx, requestID, end := startKernelSpan(ctx, "revoke_assignment", "")
+	defer func() { end(err) }()
+	if err := s.auth.RevokeAssignment(ctx, req.GetId()); err != nil {
+		return nil, authError("revoke assignment", err)
+	}
+	s.logAdmin(ctx, auth.EventUserUpdated, requestID, "assignment revoked "+req.GetId())
+	return &athenav1.RevokeAssignmentResponse{}, nil
+}
+
+func (s authService) ExplainAccess(ctx context.Context, req *athenav1.ExplainAccessRequest) (res *athenav1.ExplainAccessResponse, err error) {
+	ctx, _, end := startKernelSpan(ctx, "explain_access", "")
+	defer func() { end(err) }()
+	if !auth.ValidAction(req.GetAction()) {
+		return nil, invalid(fmt.Sprintf("unknown action %q", req.GetAction()))
+	}
+	recordType, err := loadRecordTypeFrom(ctx, s.auth.DB, req.GetRecordTypeKey())
+	if err != nil {
+		return nil, err
+	}
+	var row map[string]string
+	truth := map[string]bool{}
+	if req.GetRecordId() != "" {
+		record, err := loadRecord(ctx, s.auth.DB, recordType, req.GetRecordId(), "")
+		if err != nil {
+			return nil, err
+		}
+		row = scopeRow(recordType, record)
+		conditions, err := grantConditions(ctx, s.auth, req.GetUsername(), req.GetRecordTypeKey(), req.GetAction())
+		if err != nil {
+			return nil, authError("explain access", err)
+		}
+		if truth, err = evalGrantConditions(ctx, s.auth.DB, recordType, record, req.GetRecordId(), req.GetUsername(), conditions); err != nil {
+			return nil, err
+		}
+	}
+	out, err := s.auth.ExplainAccess(ctx, req.GetUsername(), req.GetAction(), req.GetRecordTypeKey(), row, truth, time.Now())
+	if err != nil {
+		return nil, authError("explain access", err)
+	}
+	res = &athenav1.ExplainAccessResponse{Allowed: out.Allowed}
+	for _, v := range out.Assignments {
+		res.Assignments = append(res.Assignments, &athenav1.AssignmentExplanation{AssignmentId: v.AssignmentID, Role: v.Role, Matched: v.Matched, Reasons: v.Reasons, SeparateDutiesConflict: v.SeparateDutiesConflict})
+	}
+	return res, nil
+}
+
+// grantConditions lists the distinct row conditions of the user's Grants
+// covering the action, for evaluation against one Record.
+func grantConditions(ctx context.Context, svc *auth.Service, username, recordType, action string) ([]string, error) {
+	assignments, err := svc.ListAssignments(ctx, username)
+	if err != nil {
+		return nil, err
+	}
+	var out []string
+	seen := map[string]bool{}
+	for _, a := range assignments {
+		for _, g := range a.Grants {
+			if g.RecordType != recordType && g.RecordType != auth.AllRecordTypes {
+				continue
+			}
+			if !g.Actions[action] || g.Condition == "" || seen[g.Condition] {
+				continue
+			}
+			seen[g.Condition] = true
+			out = append(out, g.Condition)
+		}
+	}
+	return out, nil
+}
+
+// evalGrantConditions evaluates row conditions against one Record, binding
+// user.name to the explained user. A condition that does not compile or is
+// not true-or-false counts as false, matching the list path, which drops
+// disjuncts it cannot compile.
+func evalGrantConditions(ctx context.Context, q querier, d recordTypeDefinition, record *athenav1.Record, recordID, username string, conditions []string) (map[string]bool, error) {
+	truth := map[string]bool{}
+	if len(conditions) == 0 {
+		return truth, nil
+	}
+	environment, err := newExprEnvironment(ctx, q, d, nil)
+	if err != nil {
+		return nil, err
+	}
+	plan := &exprPlan{exprEnvironment: environment, def: d, rollupOf: map[string]bool{}}
+	compiled := map[string]*expr.Program{}
+	for _, condition := range conditions {
+		program, err := environment.env.Compile(bindUser(condition, username))
+		if err != nil || program.Result != expr.Bool {
+			continue
+		}
+		compiled[condition] = program
+		for _, dep := range program.Deps {
+			for _, child := range environment.children {
+				if len(dep) > len(child.Name)+5 && dep[:len(child.Name)+5] == "doc."+child.Name+"." {
+					plan.usesChildren, plan.rollupOf[child.Name] = true, true
+				}
+			}
+		}
+	}
+	values, err := recordArgs(d, record)
+	if err != nil {
+		return nil, err
+	}
+	children, err := loadRollupChildren(ctx, q, plan, recordID)
+	if err != nil {
+		return nil, err
+	}
+	e, err := newEvaluation(plan, values, systemValues(record, d), children)
+	if err != nil {
+		return nil, err
+	}
+	for condition, program := range compiled {
+		value, err := program.Eval(e.scope)
+		ok, _ := value.(bool)
+		truth[condition] = err == nil && ok
+	}
+	return truth, nil
+}
+
+// scopeRow renders a Record's text fields for Scope matching. Only text
+// fields participate: Scope dimensions compare as strings, and any other
+// field behaves as absent, matching nothing.
+func scopeRow(d recordTypeDefinition, record *athenav1.Record) map[string]string {
+	row := map[string]string{}
+	for _, field := range d.Fields {
+		if value, ok := record.GetValues()[field.Name].GetKind().(*athenav1.FieldValue_StringValue); ok {
+			row[field.Name] = value.StringValue
+		}
+	}
+	return row
+}
+
+func (s authService) ListSessions(ctx context.Context, req *athenav1.ListSessionsRequest) (res *athenav1.ListSessionsResponse, err error) {
+	ctx, _, end := startKernelSpan(ctx, "list_sessions", "")
+	defer func() { end(err) }()
+	p := auth.PrincipalFrom(ctx)
+	if p == nil {
+		return nil, connect.NewError(connect.CodeUnauthenticated, "sign in to continue")
+	}
+	target := req.GetUsername()
+	if target == "" {
+		target = p.Username
+	}
+	if !equalUsername(target, p.Username) && !p.HasSystem(auth.PermissionAccessSessions) {
+		return nil, connect.NewError(connect.CodePermissionDenied, "you do not have permission to do this")
+	}
+	sessions, err := s.auth.ListSessions(ctx, target)
+	if err != nil {
+		return nil, authError("list sessions", err)
+	}
+	res = &athenav1.ListSessionsResponse{}
+	for _, session := range sessions {
+		res.Sessions = append(res.Sessions, SessionMessage(session, session.ID == p.SessionID))
+	}
+	return res, nil
+}
+
+func (s authService) RevokeSession(ctx context.Context, req *athenav1.RevokeSessionRequest) (res *athenav1.RevokeSessionResponse, err error) {
+	ctx, requestID, end := startKernelSpan(ctx, "revoke_session", "")
+	defer func() { end(err) }()
+	p := auth.PrincipalFrom(ctx)
+	if p == nil {
+		return nil, connect.NewError(connect.CodeUnauthenticated, "sign in to continue")
+	}
+	if err := s.auth.RevokeSession(ctx, p.UserID, req.GetId(), p.HasSystem(auth.PermissionAccessSessions)); err != nil {
+		return nil, authError("revoke session", err)
+	}
+	s.logAdmin(ctx, auth.EventLogout, requestID, "session revoked "+req.GetId())
+	return &athenav1.RevokeSessionResponse{}, nil
+}
+
+// SessionMessage converts a session for the API and the CLI. current marks
+// the session making the call.
+func SessionMessage(s auth.Session, current bool) *athenav1.Session {
+	return &athenav1.Session{Id: s.ID, CreatedAt: s.CreatedAt.UTC().Format(time.RFC3339), LastSeenAt: s.LastSeenAt.UTC().Format(time.RFC3339),
+		ExpiresAt: s.ExpiresAt.UTC().Format(time.RFC3339), Device: s.Device, Current: current}
+}
+
+func equalUsername(a, b string) bool {
+	return strings.EqualFold(strings.TrimSpace(a), strings.TrimSpace(b))
+}
+
+func (s authService) ListRoleHolders(ctx context.Context, req *athenav1.ListRoleHoldersRequest) (*athenav1.ListRoleHoldersResponse, error) {
+	holders, err := s.auth.ListRoleHolders(ctx, req.GetRole(), req.GetRecordTypeKey(), req.GetAction())
+	if err != nil {
+		return nil, authError("list role holders", err)
+	}
+	res := &athenav1.ListRoleHoldersResponse{}
+	for _, h := range holders {
+		res.Holders = append(res.Holders, &athenav1.RoleHolder{Username: h.Username, DisplayName: h.DisplayName, State: h.State,
+			Usable: h.Usable, Scope: scopeMessage(h.Scope), ActiveFrom: formatDay(h.ActiveFrom), ExpiresAt: formatDay(h.ExpiresAt)})
+	}
+	return res, nil
+}
+
+func (s authService) TransferOwnership(ctx context.Context, req *athenav1.TransferOwnershipRequest) (res *athenav1.TransferOwnershipResponse, err error) {
+	ctx, requestID, end := startKernelSpan(ctx, "transfer_ownership", "")
+	defer func() { end(err) }()
+	user, err := s.auth.TransferOwnership(ctx, req.GetUsername(), req.GetActorPassword(), req.GetRelinquish())
+	if err != nil {
+		return nil, authError("transfer ownership", err)
+	}
+	s.logAdmin(ctx, auth.EventUserUpdated, requestID, "ownership transferred to "+user.Username)
+	return &athenav1.TransferOwnershipResponse{User: AccessUserMessage(user, time.Now())}, nil
 }
 
 // RoleMessage converts a Role for the API and the CLI.

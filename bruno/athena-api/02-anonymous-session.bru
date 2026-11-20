@@ -1,0 +1,28 @@
+meta {
+  name: 02 - Anonymous session
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/athena.v1.AuthService/GetSession
+  body: json
+  auth: none
+}
+
+headers {
+  content-type: application/json
+  accept: application/json
+}
+
+body:json {
+  {}
+}
+
+tests {
+  test("allows a session check without signing in", function() {
+    expect(res.status).to.equal(200);
+    // Proto3 JSON omits false-valued fields, so absence means unauthenticated.
+    expect(res.body.session.authenticated).to.not.equal(true);
+  });
+}

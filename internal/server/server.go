@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"errors"
 	"fmt"
 	"log"
@@ -17,6 +18,7 @@ import (
 	"athena-erp/internal/store"
 	"athena-erp/internal/telemetry"
 	"athena-erp/internal/webui"
+	"athena-erp/internal/workspace"
 	"connectrpc.com/connect/v2"
 	"connectrpc.com/connect/v2/connecthttp"
 	"connectrpc.com/otelconnect"
@@ -34,9 +36,9 @@ const (
 // Config selects what one server process serves.
 type Config struct {
 	Addr string
-	// Database is the driver config for the Workspace database. Nil serves the
-	// desk without a database.
-	Database *mysql.Config
+	// Database is the driver endpoint for the Workspace database. Nil serves
+	// the desk without a database.
+	Database *workspace.DBEndpoint
 	// Workspace, when set, must match the athena_workspace row in Database.
 	Workspace *Workspace
 	// FilesRoot is the directory FileService manages when no Workspace is
@@ -74,13 +76,20 @@ func Serve(ctx context.Context, config Config) error {
 	databaseStatus := "Not configured"
 	var db *sql.DB
 	if config.Database != nil {
-		connector, err := mysql.NewConnector(utcConfig(config.Database))
+		endpoint := config.Database
+		dialect = dialectFor(endpoint.Driver)
+		driverName := "MariaDB"
+		dbAttrs := otelsql.WithAttributes(semconv.DBSystemNameMariaDB)
+		if endpoint.Driver == workspace.DriverPostgres {
+			driverName = "PostgreSQL"
+			dbAttrs = otelsql.WithAttributes(semconv.DBSystemNamePostgreSQL)
+		}
+		connector, err := endpointConnector(endpoint)
 		if err != nil {
-			return fmt.Errorf("open MariaDB connection: %w", err)
+			return err
 		}
 		// otelsql records statement text but never parameter values, so Record
 		// data stays out of traces.
-		dbAttrs := otelsql.WithAttributes(semconv.DBSystemNameMariaDB)
 		db = otelsql.OpenDB(connector, dbAttrs, otelsql.WithSpanOptions(otelsql.SpanOptions{OmitConnResetSession: true, OmitRows: true}))
 		if tel.Enabled() {
 			if _, err := otelsql.RegisterDBStatsMetrics(db, dbAttrs); err != nil {
@@ -92,7 +101,7 @@ func Serve(ctx context.Context, config Config) error {
 		err = db.PingContext(pingCtx)
 		cancel()
 		if err != nil {
-			return fmt.Errorf("connect to MariaDB: %w", err)
+			return fmt.Errorf("connect to %s: %w", driverName, err)
 		}
 		if config.Workspace != nil {
 			if err := checkWorkspace(ctx, db, *config.Workspace); err != nil {
@@ -105,8 +114,17 @@ func Serve(ctx context.Context, config Config) error {
 		if err := resumeOperations(ctx, db); err != nil {
 			return fmt.Errorf("resume interrupted Record Type saves: %w", err)
 		}
+		users := &auth.Service{DB: db}
+		if err := users.EnsureSystemRoles(ctx); err != nil {
+			return fmt.Errorf("seed system roles: %w", err)
+		}
+		if generated, err := users.EnsureRoot(ctx, endpoint.Password()); err != nil {
+			return fmt.Errorf("seed root administrator: %w", err)
+		} else if generated != "" {
+			log.Printf("Administrator account created with a generated password, shown once: %s", generated)
+		}
 		databaseStatus = "Connected"
-		log.Printf("MariaDB connected; metadata tables are ready")
+		log.Printf("%s connected; metadata tables are ready", driverName)
 	}
 
 	mux := http.NewServeMux()
@@ -191,7 +209,35 @@ func mountRPC(mux *http.ServeMux, config Config, db *sql.DB, telemetry bool, int
 	athenav1connect.RegisterRecordServiceHandler(rpcServer, recordService{db: db, hooks: hooks})
 	athenav1connect.RegisterRuleServiceHandler(rpcServer, newRuleService(db))
 	athenav1connect.RegisterFileServiceHandler(rpcServer, newFileService(filesWorkspace(config), db))
+	athenav1connect.RegisterLedgerServiceHandler(rpcServer, newLedgerService(db))
 	connecthttp.Mount(mux, rpcServer)
+}
+
+// dialectFor returns the SQL dialect for an endpoint driver. Unknown drivers
+// fall back to MariaDB; callers validate the driver before opening.
+func dialectFor(driver string) store.Dialect {
+	if driver == workspace.DriverPostgres {
+		return store.PostgreSQL{}
+	}
+	return store.MariaDB{}
+}
+
+// endpointConnector returns a database/sql connector for the endpoint,
+// pinning the MariaDB session to UTC. The PostgreSQL branch pins its session
+// at parse time (timezone=UTC in the connection config).
+func endpointConnector(endpoint *workspace.DBEndpoint) (driver.Connector, error) {
+	if endpoint.Driver == workspace.DriverPostgres {
+		connector, err := endpoint.Connector()
+		if err != nil {
+			return nil, fmt.Errorf("open PostgreSQL connection: %w", err)
+		}
+		return connector, nil
+	}
+	connector, err := mysql.NewConnector(utcConfig(endpoint.MySQL))
+	if err != nil {
+		return nil, fmt.Errorf("open MariaDB connection: %w", err)
+	}
+	return connector, nil
 }
 
 // utcConfig returns a copy of cfg with the session and driver pinned to UTC.

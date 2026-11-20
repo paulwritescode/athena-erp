@@ -6,8 +6,8 @@
 // reading as the acting user and validates every write, so a Rule can never
 // do more than Go lets it.
 //
-// Starlark rules are not production-ready: memory is not limited (starlark-go
-// has no allocation accounting), see ADR-0016.
+// Memory is guarded at the host boundary and by a save-time repeat ban (see
+// ADR-0020); the interpreter-internal residuals it names stay open.
 package rules
 
 import (
@@ -103,10 +103,24 @@ type Limits struct {
 	MaxWrites int
 	// MaxMessages is the warnings plus log lines kept.
 	MaxMessages int
+	// MaxValueLen caps the length of one string, list, dict or tuple that
+	// crosses between a Rule and the host in either direction.
+	MaxValueLen int
+	// MaxValues caps the values the host builds for one run: rows read,
+	// collections returned, and scalars converted at the boundary. Values
+	// the interpreter builds from them are bounded by MaxSteps instead.
+	MaxValues int
+	// MaxRows caps the rows one host call returns.
+	MaxRows int
+	// MaxCascadeDepth caps the Rules running inside one another.
+	MaxCascadeDepth int
 }
 
 // DefaultLimits is what the kernel runs Rules under.
-var DefaultLimits = Limits{MaxSteps: 200_000, Timeout: 500 * time.Millisecond, MaxReads: 200, MaxWrites: 50, MaxMessages: 50}
+var DefaultLimits = Limits{
+	MaxSteps: 200_000, Timeout: 500 * time.Millisecond, MaxReads: 200, MaxWrites: 50, MaxMessages: 50,
+	MaxValueLen: 10_000, MaxValues: 50_000, MaxRows: 100, MaxCascadeDepth: MaxCascadeDepth,
+}
 
 const (
 	// MaxSourceBytes is the largest Rule source.
@@ -271,6 +285,9 @@ func checkProgram(t Type, file *syntax.File, refs Refs) error {
 			if n.Op == syntax.SLASH {
 				fail(n.OpPos, "the / operator gives a float and is not allowed; use // for whole numbers or div(a, b, scale) for decimals")
 			}
+			if n.Op == syntax.STAR && (isRepeatable(n.X) || isRepeatable(n.Y)) {
+				fail(n.OpPos, "repeating a list, string or tuple with * is not allowed; fetch rows with find or append in a loop")
+			}
 		case *syntax.AssignStmt:
 			if n.Op == syntax.SLASH_EQ {
 				fail(n.OpPos, "the /= operator gives a float and is not allowed")
@@ -297,6 +314,26 @@ func checkProgram(t Type, file *syntax.File, refs Refs) error {
 	return found
 }
 
+// isRepeatable reports whether an operand is statically a sequence that *
+// would repeat: a list, tuple, string or bytes literal, or an allocate call
+// that returns a list. Anything else keeps numeric multiplication working;
+// the interpreter still refuses a repeat past 1 GiB at run time.
+func isRepeatable(n syntax.Expr) bool {
+	switch n := n.(type) {
+	case *syntax.ParenExpr:
+		return isRepeatable(n.X)
+	case *syntax.ListExpr, *syntax.TupleExpr:
+		return true
+	case *syntax.Literal:
+		return n.Token == syntax.STRING || n.Token == syntax.BYTES
+	case *syntax.CallExpr:
+		if id, ok := n.Fn.(*syntax.Ident); ok && id.Name == "allocate" {
+			return true
+		}
+	}
+	return false
+}
+
 // Status is how a run ended.
 type Status string
 
@@ -308,11 +345,14 @@ const (
 
 // Error codes of an errored run besides the codes a Host reports.
 const (
-	CodeRejected  = "rejected"
-	CodeError     = "error"
-	CodeStepLimit = "step_limit"
-	CodeTimeLimit = "time_limit"
-	CodeLimit     = "limit"
+	CodeRejected     = "rejected"
+	CodeError        = "error"
+	CodeStepLimit    = "step_limit"
+	CodeTimeLimit    = "time_limit"
+	CodeLimit        = "limit"
+	CodeMemoryLimit  = "memory_limit"
+	CodeRowLimit     = "row_limit"
+	CodeCascadeLimit = "cascade_limit"
 )
 
 // Message is a warning or a log line.
@@ -379,6 +419,7 @@ type Outcome struct {
 	Result    []Write
 	Steps     uint64
 	Reads     int
+	Values    int
 	Duration  time.Duration
 	InputHash string
 }
@@ -389,6 +430,25 @@ type state struct {
 	limits   Limits
 	outcome  *Outcome
 	timedOut atomic.Bool
+	values   int
+}
+
+// countValues records n values the host built for the run and stops it past
+// the cap.
+func (s *state) countValues(n int) error {
+	s.values += n
+	if s.values > s.limits.MaxValues {
+		return &HostError{Code: CodeMemoryLimit, Err: fmt.Errorf("the Rule built more than %d values", s.limits.MaxValues)}
+	}
+	return nil
+}
+
+// checkLen refuses one value longer than the cap.
+func (s *state) checkLen(what string, n int) error {
+	if n > s.limits.MaxValueLen {
+		return &HostError{Code: CodeMemoryLimit, Err: fmt.Errorf("%s is longer than %d", what, s.limits.MaxValueLen)}
+	}
+	return nil
 }
 
 func (s *state) message(into *[]Message, code, text string) {
@@ -423,6 +483,7 @@ func (p *Program) Run(ctx context.Context, in Input, host Host, limits Limits) (
 	defer func() {
 		out.Steps = thread.ExecutionSteps()
 		out.Duration = time.Since(started)
+		out.Values = s.values
 		if r := recover(); r != nil {
 			out.Status, out.Code, out.Message = Errored, CodeError, "the Rule stopped unexpectedly"
 		}
@@ -438,6 +499,8 @@ func (p *Program) Run(ctx context.Context, in Input, host Host, limits Limits) (
 			doc, derr := newRecord(in.RecordType, in.Doc)
 			if derr != nil {
 				err = derr
+			} else if cerr := s.countValues(len(in.Doc.Values) + 1); cerr != nil {
+				err = cerr
 			} else {
 				result, err = starlark.Call(thread, fn, starlark.Tuple{doc, contextValue(in)}, nil)
 			}
@@ -465,6 +528,13 @@ func (s *state) classify(err error, thread *starlark.Thread) {
 		out.Status, out.Code, out.Message = Errored, CodeStepLimit, fmt.Sprintf("the Rule used more than %d steps", s.limits.MaxSteps)
 	case errors.As(err, &hostErr):
 		out.Status, out.Code, out.Message = Errored, hostErr.Code, clip(hostErr.Error(), maxMessageLen)
+	case isRepeatError(err):
+		message := err.Error()
+		var eval *starlark.EvalError
+		if errors.As(err, &eval) {
+			message = eval.Msg
+		}
+		out.Status, out.Code, out.Message = Errored, CodeMemoryLimit, clip(message, maxMessageLen)
 	default:
 		message := err.Error()
 		var eval *starlark.EvalError
@@ -479,6 +549,14 @@ func (s *state) classify(err error, thread *starlark.Thread) {
 	}
 }
 
+// isRepeatError reports an interpreter refusal to allocate a repetition. The
+// static check catches literal repeats at save time; this catches the same
+// bomb through variables at run time, before anything is allocated.
+func isRepeatError(err error) bool {
+	text := err.Error()
+	return strings.Contains(text, "excessive repeat") || strings.Contains(text, "repeat count")
+}
+
 // collectResult turns the dict a transform returned into ordered writes.
 func (s *state) collectResult(result starlark.Value) error {
 	if result == nil || result == starlark.None {
@@ -488,12 +566,21 @@ func (s *state) collectResult(result starlark.Value) error {
 	if !ok {
 		return fmt.Errorf("transform must return a dict, not %s", result.Type())
 	}
+	if err := s.checkLen("the transform result", dict.Len()); err != nil {
+		return err
+	}
+	if err := s.countValues(dict.Len()); err != nil {
+		return err
+	}
 	for _, item := range dict.Items() {
 		key, ok := starlark.AsString(item[0])
 		if !ok {
 			return fmt.Errorf("transform result keys must be text")
 		}
-		value, err := toGo(item[1])
+		if err := s.checkLen("a transform result key", len(key)); err != nil {
+			return err
+		}
+		value, err := s.toGo(item[1])
 		if err != nil {
 			return fmt.Errorf("%s: %w", key, err)
 		}
@@ -581,14 +668,14 @@ var (
 type Stack []string
 
 // Enter returns the stack with name pushed, or an error when name is already
-// running (a cycle) or the depth limit is reached.
-func (s Stack) Enter(name string) (Stack, error) {
+// running (a cycle) or maxDepth is reached.
+func (s Stack) Enter(name string, maxDepth int) (Stack, error) {
 	for _, running := range s {
 		if running == name {
 			return s, ErrCycle
 		}
 	}
-	if len(s) >= MaxCascadeDepth {
+	if len(s) >= maxDepth {
 		return s, ErrDepth
 	}
 	return append(append(Stack(nil), s...), name), nil

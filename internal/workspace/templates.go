@@ -60,7 +60,10 @@ Thumbs.db
 const envExampleTemplate = `# Optional workspace-local settings. Copy to .env.local, which Git ignores.
 # The database server login normally lives in the home .env.local.
 # Set it here only to override the home login for this workspace.
+# MariaDB (the only tested engine):
 # ATHENA_SERVER_URL='athena_user:change-me@tcp(127.0.0.1:3306)/'
+# PostgreSQL (implemented but untested; the home driver must say postgres):
+# ATHENA_SERVER_URL='postgres://athena_user:change-me@127.0.0.1:5432/'
 `
 
 const readmeTemplate = `# {{name}}

@@ -8,6 +8,7 @@ package workspace
 
 import (
 	"bufio"
+	"database/sql/driver"
 	"errors"
 	"fmt"
 	"os"
@@ -15,6 +16,9 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/go-sql-driver/mysql"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/stdlib"
 	"gopkg.in/yaml.v3"
 )
 
@@ -28,6 +32,11 @@ const (
 	ServerURLEnv = "ATHENA_SERVER_URL"
 	// SchemaFormatVersion is the workspace file layout this build writes.
 	SchemaFormatVersion = 1
+	// DriverMariaDB and DriverPostgres are the supported database drivers.
+	// Only MariaDB is tested; the PostgreSQL adapter is implemented but
+	// untested and claims no parity.
+	DriverMariaDB  = "mariadb"
+	DriverPostgres = "postgres"
 )
 
 // Home is athena-home.yaml.
@@ -107,8 +116,8 @@ func LoadHome(dir string) (Home, error) {
 	if err := readYAML(filepath.Join(dir, HomeFile), &home); err != nil {
 		return home, err
 	}
-	if home.Database.Driver != "mariadb" {
-		return home, fmt.Errorf("%s: database driver %q is not supported; use mariadb", HomeFile, home.Database.Driver)
+	if home.Database.Driver != DriverMariaDB && home.Database.Driver != DriverPostgres {
+		return home, fmt.Errorf("%s: database driver %q is not supported; use mariadb or postgres", HomeFile, home.Database.Driver)
 	}
 	if home.Database.CredentialsEnv == "" {
 		home.Database.CredentialsEnv = ServerURLEnv
@@ -268,4 +277,121 @@ func readYAML(path string, out any) error {
 func exists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
+}
+
+// DBEndpoint carries the driver plus its parsed connection config so server
+// and CLI open paths switch on one value. Exactly one of MySQL or Postgres
+// is set, matching Driver.
+type DBEndpoint struct {
+	Driver   string
+	MySQL    *mysql.Config
+	Postgres *pgx.ConnConfig
+}
+
+// ParseEndpoint parses a server URL plus database name into a DBEndpoint for
+// the given driver. MariaDB URLs are classic DSNs ("user:pass@tcp(host:port)/"
+// with no database); PostgreSQL URLs are postgres:// connection strings with
+// no database path segment. The database name is set on the parsed config.
+func ParseEndpoint(driver, serverURL, database string) (*DBEndpoint, error) {
+	if serverURL == "" {
+		return nil, fmt.Errorf("%s is not set; run athena init or set it in the home .env.local", ServerURLEnv)
+	}
+	switch driver {
+	case DriverPostgres:
+		pgcfg, err := pgx.ParseConfig(serverURL)
+		if err != nil {
+			return nil, fmt.Errorf("parse postgres server URL: %w", err)
+		}
+		if pgcfg.Database != "" {
+			return nil, fmt.Errorf("postgres server URL must not include a database name; got %q", pgcfg.Database)
+		}
+		pgcfg.Database = database
+		if pgcfg.RuntimeParams == nil {
+			pgcfg.RuntimeParams = map[string]string{}
+		}
+		pgcfg.RuntimeParams["timezone"] = "UTC"
+		pgcfg.RuntimeParams["datestyle"] = "ISO, MDY"
+		return &DBEndpoint{Driver: DriverPostgres, Postgres: pgcfg}, nil
+	case "", DriverMariaDB:
+		mycfg, err := mysql.ParseDSN(serverURL)
+		if err != nil {
+			return nil, fmt.Errorf("parse MariaDB server URL: %w", err)
+		}
+		if mycfg.DBName != "" {
+			return nil, fmt.Errorf("MariaDB server URL must not include a database name; got %q", mycfg.DBName)
+		}
+		mycfg.DBName = database
+		return &DBEndpoint{Driver: DriverMariaDB, MySQL: mycfg}, nil
+	default:
+		return nil, fmt.Errorf("database driver %q is not supported; use mariadb or postgres", driver)
+	}
+}
+
+// Password returns the server login password carried by the endpoint.
+func (e *DBEndpoint) Password() string {
+	if e.Driver == DriverPostgres {
+		if e.Postgres == nil {
+			return ""
+		}
+		return e.Postgres.Password
+	}
+	if e.MySQL == nil {
+		return ""
+	}
+	return e.MySQL.Passwd
+}
+
+// DatabaseName returns the database name carried by the endpoint.
+func (e *DBEndpoint) DatabaseName() string {
+	if e.Driver == DriverPostgres {
+		if e.Postgres == nil {
+			return ""
+		}
+		return e.Postgres.Database
+	}
+	if e.MySQL == nil {
+		return ""
+	}
+	return e.MySQL.DBName
+}
+
+// Connector returns a database/sql connector for the endpoint. The MariaDB
+// connector keeps session defaults (multiStatements/parseTime); callers that
+// need a UTC session must set Loc=UTC before calling.
+func (e *DBEndpoint) Connector() (driver.Connector, error) {
+	switch e.Driver {
+	case DriverPostgres:
+		return stdlib.GetConnector(*e.Postgres), nil
+	case DriverMariaDB:
+		return mysql.NewConnector(e.MySQL)
+	default:
+		return nil, fmt.Errorf("database driver %q is not supported; use mariadb or postgres", e.Driver)
+	}
+}
+
+// ParseDatabaseURL parses a full database URL, server plus database name, for
+// the serve and migrate fallbacks outside a home. A postgres:// or
+// postgresql:// scheme selects PostgreSQL; anything else parses as a MariaDB
+// DSN with its existing errors.
+func ParseDatabaseURL(dsn string) (*DBEndpoint, error) {
+	if strings.HasPrefix(dsn, "postgres://") || strings.HasPrefix(dsn, "postgresql://") {
+		pgcfg, err := pgx.ParseConfig(dsn)
+		if err != nil {
+			return nil, fmt.Errorf("invalid postgres URL: %w", err)
+		}
+		if pgcfg.Database == "" {
+			return nil, errors.New("invalid postgres URL: no database name in the path")
+		}
+		if pgcfg.RuntimeParams == nil {
+			pgcfg.RuntimeParams = map[string]string{}
+		}
+		pgcfg.RuntimeParams["timezone"] = "UTC"
+		pgcfg.RuntimeParams["datestyle"] = "ISO, MDY"
+		return &DBEndpoint{Driver: DriverPostgres, Postgres: pgcfg}, nil
+	}
+	cfg, err := mysql.ParseDSN(dsn)
+	if err != nil {
+		return nil, err
+	}
+	return &DBEndpoint{Driver: DriverMariaDB, MySQL: cfg}, nil
 }

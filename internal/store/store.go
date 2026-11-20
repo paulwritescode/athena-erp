@@ -2,8 +2,8 @@
 // code asks a Dialect for statements and classifications instead of writing
 // engine syntax itself.
 //
-// Only MariaDB is implemented and tested. The interface exists because a
-// second engine is planned; nothing here claims support for one.
+// Only MariaDB is tested. PostgreSQL is implemented but untested: its SQL
+// strings are unit-tested without a server, and no parity is claimed.
 package store
 
 import (
@@ -127,6 +127,12 @@ type Dialect interface {
 	// returns false when another session holds it after the wait. release
 	// must be called on the same session.
 	LockSchema(ctx context.Context, q Querier) (acquired bool, release func(), err error)
+
+	// Rebind rewrites ? placeholders for the engine's driver. MariaDB
+	// passes the statement through; PostgreSQL numbers them $1, $2, ...
+	// for pgx. Callers apply it where statements meet arguments; during
+	// the parity run, not before.
+	Rebind(query string) string
 
 	// Classify maps a driver error to an ErrorKind.
 	Classify(err error) ErrorKind

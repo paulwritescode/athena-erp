@@ -32,6 +32,15 @@ const (
 	AuthServiceGetSessionProcedure = "/athena.v1.AuthService/GetSession"
 	// AuthServiceChangePasswordProcedure is the procedure name of the AuthService's ChangePassword RPC.
 	AuthServiceChangePasswordProcedure = "/athena.v1.AuthService/ChangePassword"
+	// AuthServiceInviteUserProcedure is the procedure name of the AuthService's InviteUser RPC.
+	AuthServiceInviteUserProcedure = "/athena.v1.AuthService/InviteUser"
+	// AuthServiceCompleteChallengeProcedure is the procedure name of the AuthService's
+	// CompleteChallenge RPC.
+	AuthServiceCompleteChallengeProcedure = "/athena.v1.AuthService/CompleteChallenge"
+	// AuthServiceResendInviteProcedure is the procedure name of the AuthService's ResendInvite RPC.
+	AuthServiceResendInviteProcedure = "/athena.v1.AuthService/ResendInvite"
+	// AuthServiceStartResetProcedure is the procedure name of the AuthService's StartReset RPC.
+	AuthServiceStartResetProcedure = "/athena.v1.AuthService/StartReset"
 	// AuthServiceListUsersProcedure is the procedure name of the AuthService's ListUsers RPC.
 	AuthServiceListUsersProcedure = "/athena.v1.AuthService/ListUsers"
 	// AuthServiceCreateUserProcedure is the procedure name of the AuthService's CreateUser RPC.
@@ -46,6 +55,26 @@ const (
 	AuthServiceSaveRoleProcedure = "/athena.v1.AuthService/SaveRole"
 	// AuthServiceDeleteRoleProcedure is the procedure name of the AuthService's DeleteRole RPC.
 	AuthServiceDeleteRoleProcedure = "/athena.v1.AuthService/DeleteRole"
+	// AuthServiceListAssignmentsProcedure is the procedure name of the AuthService's ListAssignments
+	// RPC.
+	AuthServiceListAssignmentsProcedure = "/athena.v1.AuthService/ListAssignments"
+	// AuthServiceSaveAssignmentProcedure is the procedure name of the AuthService's SaveAssignment RPC.
+	AuthServiceSaveAssignmentProcedure = "/athena.v1.AuthService/SaveAssignment"
+	// AuthServiceRevokeAssignmentProcedure is the procedure name of the AuthService's RevokeAssignment
+	// RPC.
+	AuthServiceRevokeAssignmentProcedure = "/athena.v1.AuthService/RevokeAssignment"
+	// AuthServiceExplainAccessProcedure is the procedure name of the AuthService's ExplainAccess RPC.
+	AuthServiceExplainAccessProcedure = "/athena.v1.AuthService/ExplainAccess"
+	// AuthServiceListSessionsProcedure is the procedure name of the AuthService's ListSessions RPC.
+	AuthServiceListSessionsProcedure = "/athena.v1.AuthService/ListSessions"
+	// AuthServiceRevokeSessionProcedure is the procedure name of the AuthService's RevokeSession RPC.
+	AuthServiceRevokeSessionProcedure = "/athena.v1.AuthService/RevokeSession"
+	// AuthServiceTransferOwnershipProcedure is the procedure name of the AuthService's
+	// TransferOwnership RPC.
+	AuthServiceTransferOwnershipProcedure = "/athena.v1.AuthService/TransferOwnership"
+	// AuthServiceListRoleHoldersProcedure is the procedure name of the AuthService's ListRoleHolders
+	// RPC.
+	AuthServiceListRoleHoldersProcedure = "/athena.v1.AuthService/ListRoleHolders"
 	// AuthServiceListAccessLogProcedure is the procedure name of the AuthService's ListAccessLog RPC.
 	AuthServiceListAccessLogProcedure = "/athena.v1.AuthService/ListAccessLog"
 )
@@ -77,6 +106,34 @@ var (
 			StreamType: connect.StreamTypeUnary,
 			Schema:     v1.File_athena_v1_auth_proto.Services().ByName("AuthService").Methods().ByName("ChangePassword"),
 			Procedure:  AuthServiceChangePasswordProcedure,
+		}
+	})
+	authServiceInviteUserSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_athena_v1_auth_proto.Services().ByName("AuthService").Methods().ByName("InviteUser"),
+			Procedure:  AuthServiceInviteUserProcedure,
+		}
+	})
+	authServiceCompleteChallengeSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_athena_v1_auth_proto.Services().ByName("AuthService").Methods().ByName("CompleteChallenge"),
+			Procedure:  AuthServiceCompleteChallengeProcedure,
+		}
+	})
+	authServiceResendInviteSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_athena_v1_auth_proto.Services().ByName("AuthService").Methods().ByName("ResendInvite"),
+			Procedure:  AuthServiceResendInviteProcedure,
+		}
+	})
+	authServiceStartResetSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_athena_v1_auth_proto.Services().ByName("AuthService").Methods().ByName("StartReset"),
+			Procedure:  AuthServiceStartResetProcedure,
 		}
 	})
 	authServiceListUsersSpec = sync.OnceValue(func() connect.Spec {
@@ -128,6 +185,62 @@ var (
 			Procedure:  AuthServiceDeleteRoleProcedure,
 		}
 	})
+	authServiceListAssignmentsSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_athena_v1_auth_proto.Services().ByName("AuthService").Methods().ByName("ListAssignments"),
+			Procedure:  AuthServiceListAssignmentsProcedure,
+		}
+	})
+	authServiceSaveAssignmentSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_athena_v1_auth_proto.Services().ByName("AuthService").Methods().ByName("SaveAssignment"),
+			Procedure:  AuthServiceSaveAssignmentProcedure,
+		}
+	})
+	authServiceRevokeAssignmentSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_athena_v1_auth_proto.Services().ByName("AuthService").Methods().ByName("RevokeAssignment"),
+			Procedure:  AuthServiceRevokeAssignmentProcedure,
+		}
+	})
+	authServiceExplainAccessSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_athena_v1_auth_proto.Services().ByName("AuthService").Methods().ByName("ExplainAccess"),
+			Procedure:  AuthServiceExplainAccessProcedure,
+		}
+	})
+	authServiceListSessionsSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_athena_v1_auth_proto.Services().ByName("AuthService").Methods().ByName("ListSessions"),
+			Procedure:  AuthServiceListSessionsProcedure,
+		}
+	})
+	authServiceRevokeSessionSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_athena_v1_auth_proto.Services().ByName("AuthService").Methods().ByName("RevokeSession"),
+			Procedure:  AuthServiceRevokeSessionProcedure,
+		}
+	})
+	authServiceTransferOwnershipSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_athena_v1_auth_proto.Services().ByName("AuthService").Methods().ByName("TransferOwnership"),
+			Procedure:  AuthServiceTransferOwnershipProcedure,
+		}
+	})
+	authServiceListRoleHoldersSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_athena_v1_auth_proto.Services().ByName("AuthService").Methods().ByName("ListRoleHolders"),
+			Procedure:  AuthServiceListRoleHoldersProcedure,
+		}
+	})
 	authServiceListAccessLogSpec = sync.OnceValue(func() connect.Spec {
 		return connect.Spec{
 			StreamType: connect.StreamTypeUnary,
@@ -149,16 +262,53 @@ type AuthServiceClient interface {
 	GetSession(context.Context, *v1.GetSessionRequest) (*v1.GetSessionResponse, error)
 	// ChangePassword sets the caller's own password and ends their other sessions.
 	ChangePassword(context.Context, *v1.ChangePasswordRequest) (*v1.ChangePasswordResponse, error)
-	// The methods below need the access permission.
+	// InviteUser invites a user with no password and returns the single-use
+	// Challenge to show once. It needs access:users.
+	InviteUser(context.Context, *v1.InviteUserRequest) (*v1.InviteUserResponse, error)
+	// CompleteChallenge consumes a first-login or reset Challenge, stores the
+	// chosen password and starts a session. It is open: the Challenge is the
+	// credential.
+	CompleteChallenge(context.Context, *v1.CompleteChallengeRequest) (*v1.CompleteChallengeResponse, error)
+	// ResendInvite invalidates an invited user's earlier Challenges and issues
+	// a new one, returned to show once. It needs access:users.
+	ResendInvite(context.Context, *v1.ResendInviteRequest) (*v1.ResendInviteResponse, error)
+	// StartReset moves an active user to reset_required, revokes their
+	// sessions and issues a reset Challenge to show once. It needs
+	// access:recover and the caller's own password.
+	StartReset(context.Context, *v1.StartResetRequest) (*v1.StartResetResponse, error)
 	ListUsers(context.Context, *v1.ListUsersRequest) (*v1.ListUsersResponse, error)
 	CreateUser(context.Context, *v1.CreateUserRequest) (*v1.CreateUserResponse, error)
 	UpdateUser(context.Context, *v1.UpdateUserRequest) (*v1.UpdateUserResponse, error)
-	// ResetPassword sets another user's password and ends their sessions.
+	// ResetPassword is retired: administrator-set passwords are removed, so it
+	// always fails. Start a reset instead.
 	ResetPassword(context.Context, *v1.ResetPasswordRequest) (*v1.ResetPasswordResponse, error)
 	ListRoles(context.Context, *v1.ListRolesRequest) (*v1.ListRolesResponse, error)
 	// SaveRole creates or replaces the Role with the given name and its Grants.
 	SaveRole(context.Context, *v1.SaveRoleRequest) (*v1.SaveRoleResponse, error)
 	DeleteRole(context.Context, *v1.DeleteRoleRequest) (*v1.DeleteRoleResponse, error)
+	// ListAssignments returns a user's Role Assignments. It needs access:assign.
+	ListAssignments(context.Context, *v1.ListAssignmentsRequest) (*v1.ListAssignmentsResponse, error)
+	// SaveAssignment creates an Assignment or replaces one whose revision still
+	// matches. It needs access:assign.
+	SaveAssignment(context.Context, *v1.SaveAssignmentRequest) (*v1.SaveAssignmentResponse, error)
+	// RevokeAssignment deletes one Assignment. It needs access:assign.
+	RevokeAssignment(context.Context, *v1.RevokeAssignmentRequest) (*v1.RevokeAssignmentResponse, error)
+	// ExplainAccess reports which Assignment allows an action or why each one
+	// fails. It needs access:explore.
+	ExplainAccess(context.Context, *v1.ExplainAccessRequest) (*v1.ExplainAccessResponse, error)
+	// ListSessions lists sessions: the caller's own, or another user's with
+	// access:sessions.
+	ListSessions(context.Context, *v1.ListSessionsRequest) (*v1.ListSessionsResponse, error)
+	// RevokeSession ends one session. It needs access:sessions to end another
+	// user's session.
+	RevokeSession(context.Context, *v1.RevokeSessionRequest) (*v1.RevokeSessionResponse, error)
+	// TransferOwnership appoints the recipient an Instance Owner and, when
+	// asked, relinquishes the caller's own ownership. It needs
+	// access:ownership and the caller's own password.
+	TransferOwnership(context.Context, *v1.TransferOwnershipRequest) (*v1.TransferOwnershipResponse, error)
+	// ListRoleHolders lists the users holding the Role with a Grant covering
+	// the action on the Record Type. It needs access:roles.
+	ListRoleHolders(context.Context, *v1.ListRoleHoldersRequest) (*v1.ListRoleHoldersResponse, error)
 	// ListAccessLog reads the Access Log. It needs the audit permission.
 	ListAccessLog(context.Context, *v1.ListAccessLogRequest) (*v1.ListAccessLogResponse, error)
 }
@@ -181,16 +331,53 @@ type AuthServiceHandler interface {
 	GetSession(context.Context, *v1.GetSessionRequest) (*v1.GetSessionResponse, error)
 	// ChangePassword sets the caller's own password and ends their other sessions.
 	ChangePassword(context.Context, *v1.ChangePasswordRequest) (*v1.ChangePasswordResponse, error)
-	// The methods below need the access permission.
+	// InviteUser invites a user with no password and returns the single-use
+	// Challenge to show once. It needs access:users.
+	InviteUser(context.Context, *v1.InviteUserRequest) (*v1.InviteUserResponse, error)
+	// CompleteChallenge consumes a first-login or reset Challenge, stores the
+	// chosen password and starts a session. It is open: the Challenge is the
+	// credential.
+	CompleteChallenge(context.Context, *v1.CompleteChallengeRequest) (*v1.CompleteChallengeResponse, error)
+	// ResendInvite invalidates an invited user's earlier Challenges and issues
+	// a new one, returned to show once. It needs access:users.
+	ResendInvite(context.Context, *v1.ResendInviteRequest) (*v1.ResendInviteResponse, error)
+	// StartReset moves an active user to reset_required, revokes their
+	// sessions and issues a reset Challenge to show once. It needs
+	// access:recover and the caller's own password.
+	StartReset(context.Context, *v1.StartResetRequest) (*v1.StartResetResponse, error)
 	ListUsers(context.Context, *v1.ListUsersRequest) (*v1.ListUsersResponse, error)
 	CreateUser(context.Context, *v1.CreateUserRequest) (*v1.CreateUserResponse, error)
 	UpdateUser(context.Context, *v1.UpdateUserRequest) (*v1.UpdateUserResponse, error)
-	// ResetPassword sets another user's password and ends their sessions.
+	// ResetPassword is retired: administrator-set passwords are removed, so it
+	// always fails. Start a reset instead.
 	ResetPassword(context.Context, *v1.ResetPasswordRequest) (*v1.ResetPasswordResponse, error)
 	ListRoles(context.Context, *v1.ListRolesRequest) (*v1.ListRolesResponse, error)
 	// SaveRole creates or replaces the Role with the given name and its Grants.
 	SaveRole(context.Context, *v1.SaveRoleRequest) (*v1.SaveRoleResponse, error)
 	DeleteRole(context.Context, *v1.DeleteRoleRequest) (*v1.DeleteRoleResponse, error)
+	// ListAssignments returns a user's Role Assignments. It needs access:assign.
+	ListAssignments(context.Context, *v1.ListAssignmentsRequest) (*v1.ListAssignmentsResponse, error)
+	// SaveAssignment creates an Assignment or replaces one whose revision still
+	// matches. It needs access:assign.
+	SaveAssignment(context.Context, *v1.SaveAssignmentRequest) (*v1.SaveAssignmentResponse, error)
+	// RevokeAssignment deletes one Assignment. It needs access:assign.
+	RevokeAssignment(context.Context, *v1.RevokeAssignmentRequest) (*v1.RevokeAssignmentResponse, error)
+	// ExplainAccess reports which Assignment allows an action or why each one
+	// fails. It needs access:explore.
+	ExplainAccess(context.Context, *v1.ExplainAccessRequest) (*v1.ExplainAccessResponse, error)
+	// ListSessions lists sessions: the caller's own, or another user's with
+	// access:sessions.
+	ListSessions(context.Context, *v1.ListSessionsRequest) (*v1.ListSessionsResponse, error)
+	// RevokeSession ends one session. It needs access:sessions to end another
+	// user's session.
+	RevokeSession(context.Context, *v1.RevokeSessionRequest) (*v1.RevokeSessionResponse, error)
+	// TransferOwnership appoints the recipient an Instance Owner and, when
+	// asked, relinquishes the caller's own ownership. It needs
+	// access:ownership and the caller's own password.
+	TransferOwnership(context.Context, *v1.TransferOwnershipRequest) (*v1.TransferOwnershipResponse, error)
+	// ListRoleHolders lists the users holding the Role with a Grant covering
+	// the action on the Record Type. It needs access:roles.
+	ListRoleHolders(context.Context, *v1.ListRoleHoldersRequest) (*v1.ListRoleHoldersResponse, error)
 	// ListAccessLog reads the Access Log. It needs the audit permission.
 	ListAccessLog(context.Context, *v1.ListAccessLogRequest) (*v1.ListAccessLogResponse, error)
 }
@@ -203,6 +390,10 @@ func RegisterAuthServiceHandler(server *connect.Server, svc AuthServiceHandler) 
 		connect.Method{Spec: authServiceLogoutSpec(), Handler: adapter.logout},
 		connect.Method{Spec: authServiceGetSessionSpec(), Handler: adapter.getSession},
 		connect.Method{Spec: authServiceChangePasswordSpec(), Handler: adapter.changePassword},
+		connect.Method{Spec: authServiceInviteUserSpec(), Handler: adapter.inviteUser},
+		connect.Method{Spec: authServiceCompleteChallengeSpec(), Handler: adapter.completeChallenge},
+		connect.Method{Spec: authServiceResendInviteSpec(), Handler: adapter.resendInvite},
+		connect.Method{Spec: authServiceStartResetSpec(), Handler: adapter.startReset},
 		connect.Method{Spec: authServiceListUsersSpec(), Handler: adapter.listUsers},
 		connect.Method{Spec: authServiceCreateUserSpec(), Handler: adapter.createUser},
 		connect.Method{Spec: authServiceUpdateUserSpec(), Handler: adapter.updateUser},
@@ -210,6 +401,14 @@ func RegisterAuthServiceHandler(server *connect.Server, svc AuthServiceHandler) 
 		connect.Method{Spec: authServiceListRolesSpec(), Handler: adapter.listRoles},
 		connect.Method{Spec: authServiceSaveRoleSpec(), Handler: adapter.saveRole},
 		connect.Method{Spec: authServiceDeleteRoleSpec(), Handler: adapter.deleteRole},
+		connect.Method{Spec: authServiceListAssignmentsSpec(), Handler: adapter.listAssignments},
+		connect.Method{Spec: authServiceSaveAssignmentSpec(), Handler: adapter.saveAssignment},
+		connect.Method{Spec: authServiceRevokeAssignmentSpec(), Handler: adapter.revokeAssignment},
+		connect.Method{Spec: authServiceExplainAccessSpec(), Handler: adapter.explainAccess},
+		connect.Method{Spec: authServiceListSessionsSpec(), Handler: adapter.listSessions},
+		connect.Method{Spec: authServiceRevokeSessionSpec(), Handler: adapter.revokeSession},
+		connect.Method{Spec: authServiceTransferOwnershipSpec(), Handler: adapter.transferOwnership},
+		connect.Method{Spec: authServiceListRoleHoldersSpec(), Handler: adapter.listRoleHolders},
 		connect.Method{Spec: authServiceListAccessLogSpec(), Handler: adapter.listAccessLog},
 	)
 }
@@ -231,6 +430,22 @@ func (UnimplementedAuthServiceHandler) GetSession(context.Context, *v1.GetSessio
 
 func (UnimplementedAuthServiceHandler) ChangePassword(context.Context, *v1.ChangePasswordRequest) (*v1.ChangePasswordResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, "athena.v1.AuthService.ChangePassword is not implemented")
+}
+
+func (UnimplementedAuthServiceHandler) InviteUser(context.Context, *v1.InviteUserRequest) (*v1.InviteUserResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "athena.v1.AuthService.InviteUser is not implemented")
+}
+
+func (UnimplementedAuthServiceHandler) CompleteChallenge(context.Context, *v1.CompleteChallengeRequest) (*v1.CompleteChallengeResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "athena.v1.AuthService.CompleteChallenge is not implemented")
+}
+
+func (UnimplementedAuthServiceHandler) ResendInvite(context.Context, *v1.ResendInviteRequest) (*v1.ResendInviteResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "athena.v1.AuthService.ResendInvite is not implemented")
+}
+
+func (UnimplementedAuthServiceHandler) StartReset(context.Context, *v1.StartResetRequest) (*v1.StartResetResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "athena.v1.AuthService.StartReset is not implemented")
 }
 
 func (UnimplementedAuthServiceHandler) ListUsers(context.Context, *v1.ListUsersRequest) (*v1.ListUsersResponse, error) {
@@ -259,6 +474,38 @@ func (UnimplementedAuthServiceHandler) SaveRole(context.Context, *v1.SaveRoleReq
 
 func (UnimplementedAuthServiceHandler) DeleteRole(context.Context, *v1.DeleteRoleRequest) (*v1.DeleteRoleResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, "athena.v1.AuthService.DeleteRole is not implemented")
+}
+
+func (UnimplementedAuthServiceHandler) ListAssignments(context.Context, *v1.ListAssignmentsRequest) (*v1.ListAssignmentsResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "athena.v1.AuthService.ListAssignments is not implemented")
+}
+
+func (UnimplementedAuthServiceHandler) SaveAssignment(context.Context, *v1.SaveAssignmentRequest) (*v1.SaveAssignmentResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "athena.v1.AuthService.SaveAssignment is not implemented")
+}
+
+func (UnimplementedAuthServiceHandler) RevokeAssignment(context.Context, *v1.RevokeAssignmentRequest) (*v1.RevokeAssignmentResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "athena.v1.AuthService.RevokeAssignment is not implemented")
+}
+
+func (UnimplementedAuthServiceHandler) ExplainAccess(context.Context, *v1.ExplainAccessRequest) (*v1.ExplainAccessResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "athena.v1.AuthService.ExplainAccess is not implemented")
+}
+
+func (UnimplementedAuthServiceHandler) ListSessions(context.Context, *v1.ListSessionsRequest) (*v1.ListSessionsResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "athena.v1.AuthService.ListSessions is not implemented")
+}
+
+func (UnimplementedAuthServiceHandler) RevokeSession(context.Context, *v1.RevokeSessionRequest) (*v1.RevokeSessionResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "athena.v1.AuthService.RevokeSession is not implemented")
+}
+
+func (UnimplementedAuthServiceHandler) TransferOwnership(context.Context, *v1.TransferOwnershipRequest) (*v1.TransferOwnershipResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "athena.v1.AuthService.TransferOwnership is not implemented")
+}
+
+func (UnimplementedAuthServiceHandler) ListRoleHolders(context.Context, *v1.ListRoleHoldersRequest) (*v1.ListRoleHoldersResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "athena.v1.AuthService.ListRoleHolders is not implemented")
 }
 
 func (UnimplementedAuthServiceHandler) ListAccessLog(context.Context, *v1.ListAccessLogRequest) (*v1.ListAccessLogResponse, error) {
@@ -296,6 +543,38 @@ func (c *authServiceClient) GetSession(ctx context.Context, req *v1.GetSessionRe
 func (c *authServiceClient) ChangePassword(ctx context.Context, req *v1.ChangePasswordRequest) (*v1.ChangePasswordResponse, error) {
 	var res v1.ChangePasswordResponse
 	if err := c.client.CallUnary(ctx, authServiceChangePasswordSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *authServiceClient) InviteUser(ctx context.Context, req *v1.InviteUserRequest) (*v1.InviteUserResponse, error) {
+	var res v1.InviteUserResponse
+	if err := c.client.CallUnary(ctx, authServiceInviteUserSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *authServiceClient) CompleteChallenge(ctx context.Context, req *v1.CompleteChallengeRequest) (*v1.CompleteChallengeResponse, error) {
+	var res v1.CompleteChallengeResponse
+	if err := c.client.CallUnary(ctx, authServiceCompleteChallengeSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *authServiceClient) ResendInvite(ctx context.Context, req *v1.ResendInviteRequest) (*v1.ResendInviteResponse, error) {
+	var res v1.ResendInviteResponse
+	if err := c.client.CallUnary(ctx, authServiceResendInviteSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *authServiceClient) StartReset(ctx context.Context, req *v1.StartResetRequest) (*v1.StartResetResponse, error) {
+	var res v1.StartResetResponse
+	if err := c.client.CallUnary(ctx, authServiceStartResetSpec(), req, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -357,6 +636,70 @@ func (c *authServiceClient) DeleteRole(ctx context.Context, req *v1.DeleteRoleRe
 	return &res, nil
 }
 
+func (c *authServiceClient) ListAssignments(ctx context.Context, req *v1.ListAssignmentsRequest) (*v1.ListAssignmentsResponse, error) {
+	var res v1.ListAssignmentsResponse
+	if err := c.client.CallUnary(ctx, authServiceListAssignmentsSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *authServiceClient) SaveAssignment(ctx context.Context, req *v1.SaveAssignmentRequest) (*v1.SaveAssignmentResponse, error) {
+	var res v1.SaveAssignmentResponse
+	if err := c.client.CallUnary(ctx, authServiceSaveAssignmentSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *authServiceClient) RevokeAssignment(ctx context.Context, req *v1.RevokeAssignmentRequest) (*v1.RevokeAssignmentResponse, error) {
+	var res v1.RevokeAssignmentResponse
+	if err := c.client.CallUnary(ctx, authServiceRevokeAssignmentSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *authServiceClient) ExplainAccess(ctx context.Context, req *v1.ExplainAccessRequest) (*v1.ExplainAccessResponse, error) {
+	var res v1.ExplainAccessResponse
+	if err := c.client.CallUnary(ctx, authServiceExplainAccessSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *authServiceClient) ListSessions(ctx context.Context, req *v1.ListSessionsRequest) (*v1.ListSessionsResponse, error) {
+	var res v1.ListSessionsResponse
+	if err := c.client.CallUnary(ctx, authServiceListSessionsSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *authServiceClient) RevokeSession(ctx context.Context, req *v1.RevokeSessionRequest) (*v1.RevokeSessionResponse, error) {
+	var res v1.RevokeSessionResponse
+	if err := c.client.CallUnary(ctx, authServiceRevokeSessionSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *authServiceClient) TransferOwnership(ctx context.Context, req *v1.TransferOwnershipRequest) (*v1.TransferOwnershipResponse, error) {
+	var res v1.TransferOwnershipResponse
+	if err := c.client.CallUnary(ctx, authServiceTransferOwnershipSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *authServiceClient) ListRoleHolders(ctx context.Context, req *v1.ListRoleHoldersRequest) (*v1.ListRoleHoldersResponse, error) {
+	var res v1.ListRoleHoldersResponse
+	if err := c.client.CallUnary(ctx, authServiceListRoleHoldersSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
 func (c *authServiceClient) ListAccessLog(ctx context.Context, req *v1.ListAccessLogRequest) (*v1.ListAccessLogResponse, error) {
 	var res v1.ListAccessLogResponse
 	if err := c.client.CallUnary(ctx, authServiceListAccessLogSpec(), req, &res); err != nil {
@@ -409,6 +752,54 @@ func (h authServiceHandler) changePassword(ctx context.Context, _ connect.Spec, 
 		return err
 	}
 	res, err := h.svc.ChangePassword(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h authServiceHandler) inviteUser(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.InviteUserRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.InviteUser(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h authServiceHandler) completeChallenge(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.CompleteChallengeRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.CompleteChallenge(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h authServiceHandler) resendInvite(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.ResendInviteRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.ResendInvite(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h authServiceHandler) startReset(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.StartResetRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.StartReset(ctx, &req)
 	if err != nil {
 		return err
 	}
@@ -493,6 +884,102 @@ func (h authServiceHandler) deleteRole(ctx context.Context, _ connect.Spec, stre
 		return err
 	}
 	res, err := h.svc.DeleteRole(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h authServiceHandler) listAssignments(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.ListAssignmentsRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.ListAssignments(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h authServiceHandler) saveAssignment(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.SaveAssignmentRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.SaveAssignment(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h authServiceHandler) revokeAssignment(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.RevokeAssignmentRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.RevokeAssignment(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h authServiceHandler) explainAccess(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.ExplainAccessRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.ExplainAccess(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h authServiceHandler) listSessions(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.ListSessionsRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.ListSessions(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h authServiceHandler) revokeSession(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.RevokeSessionRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.RevokeSession(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h authServiceHandler) transferOwnership(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.TransferOwnershipRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.TransferOwnership(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h authServiceHandler) listRoleHolders(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.ListRoleHoldersRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.ListRoleHolders(ctx, &req)
 	if err != nil {
 		return err
 	}

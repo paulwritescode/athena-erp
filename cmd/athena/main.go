@@ -7,6 +7,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"os"
@@ -44,7 +45,7 @@ func run(args []string) error {
 	case "init":
 		return initCommand(args[1:])
 	case "new":
-		return newCommand(args[1:])
+		return newCommand(args[1:], os.Stdout)
 	case "run":
 		return runCommand(args[1:])
 	case "serve":
@@ -67,6 +68,8 @@ func run(args []string) error {
 		return accessLogCommand(args[1:], os.Stdout)
 	case "files":
 		return filesCommand(args[1:], os.Stdin, os.Stdout)
+	case "ledger":
+		return ledgerCommand(args[1:], os.Stdout)
 	case "rules":
 		return rulesCommand(args[1:], os.Stdout)
 	case "version", "--version", "-v":
@@ -88,8 +91,9 @@ Usage:
   athena init [directory] [--host 127.0.0.1] [--port 3306] [--user name]
       Create a home and save its MariaDB server login. The password is
       read from ATHENA_SERVER_PASSWORD or prompted for.
-  athena new [name]
+  athena new [--driver mariadb|postgres] [name]
       Create a workspace in the current home, with its own database.
+      --driver must match the home driver; postgres is untested.
   athena run [--workspace slug] [--addr %s]
       Run a workspace. Inside a workspace directory the workspace is found
       automatically; from the home pass --workspace.
@@ -117,15 +121,16 @@ Usage:
       Type-check an expression against a Record Type, evaluate it for one
       Record (--record id), or calculate formulas and field states for values
       that are not saved (--values). records list also takes --filter.
-  athena user create|list|set|reset-password <username> [--workspace slug] [--json]
-      Manage sign-in users. "create <username> --owner" creates an instance
-      owner, which the first start of the desk needs; owners hold every
-      permission and are created here only. Passwords (12 or more characters)
-      come from ATHENA_USER_PASSWORD or a prompt. set takes --roles a,b,
-      --disable, --enable, --unlock and --display-name.
-  athena role list|show|save|delete [name] [--workspace slug] [--json]
+  athena user invite|list|set|resend|reset|suspend|reactivate|sessions <username> [--workspace slug] [--json]
+      Manage sign-in users. "invite <username> --owner" creates an instance
+      owner, which the first start of the desk needs; owners hold the
+      Instance Owner role and are created here only (create is the same
+      command under its old name). Users choose their own passwords through
+      one-time challenges. set takes --roles a,b, --disable, --enable,
+      --unlock and --display-name.
+  athena role list|show|save|delete|assign|revoke|explain [name] [--workspace slug] [--json]
       Manage Roles and their Grants. "save --file role.json" takes a JSON
-      Role: system permissions (build, access, audit, files:read, files:write, rules:read, rules:write) and Grants of actions
+      Role: system permissions (build, audit, files:read, files:write, rules:read, rules:write, ledger:read, ledger:write, access:ownership, access:users, access:roles, access:assign, access:recover, access:sessions, access:explore) and Grants of actions
       on a Record Type with a permission level and an optional row condition.
   athena access-log [--event name] [--limit N] [--workspace slug] [--json]
       Print sign-ins, failures, lockouts, denials and access changes.
@@ -137,12 +142,18 @@ Usage:
       shows which file backs which Record Type, Rule or Report. "put" reads
       --file or standard input; --expected-hash, --new and "rm --yes" guard
       against overwriting. "history" lists versions and "get --revision N" reads one.
+  athena ledger company|period|currency|account|determination|setting ... [--workspace slug] [--json]
+      Manage the kernel's ledger masters. company save|list, period
+      save|list|close|reopen, currency save|list|rate-save|rate-get, account
+      type-save|type-list|save|list, determination save|list|resolve, setting
+      save|list|save-value|publish|discard|list-values|resolve|preview. Run
+      "athena ledger" with no nouns for every flag.
   athena rules list|show|save|rm|versions|simulate|runs [key] [--workspace slug] [--json]
       Manage Starlark Rules (validation, derivation, guard, transform). Rules run
       at document events inside the save, through Go host functions only, under
       step and time limits, with no files, network, clock or floats. "save --file
       rule.star" creates a version; "simulate" is a rolled-back dry run with a diff;
-      "runs" prints the Rule Run log. Not production-ready (ADR-0016, Proposed).
+      "runs" prints the Rule Run log. Memory-guarded, proposed (ADR-0016, ADR-0020).
   athena audit verify|anchor [--anchor seq:hash] [--workspace slug] [--json]
       verify checks the Audit Log hash chain from the first row to the last and
       prints the chain head. anchor verifies, then prints only "seq:hash" for a
@@ -213,14 +224,26 @@ func initCommand(args []string) error {
 	return nil
 }
 
-func newCommand(args []string) error {
+func newCommand(args []string, out io.Writer) error {
 	flags := flag.NewFlagSet("new", flag.ContinueOnError)
+	driverFlag := flags.String("driver", "", "database driver the home must use (default: the home driver)")
 	if ok, err := parse(flags, args); !ok {
 		return err
 	}
 	home, err := workspace.FindHome(".")
 	if err != nil {
 		return err
+	}
+	loaded, err := workspace.LoadHome(home)
+	if err != nil {
+		return err
+	}
+	driver := loaded.Database.Driver
+	if *driverFlag != "" && *driverFlag != driver {
+		return fmt.Errorf("athena new: --driver %q does not match the home driver %q", *driverFlag, driver)
+	}
+	if driver == workspace.DriverPostgres {
+		fmt.Fprintln(out, "warning: the PostgreSQL adapter is implemented but untested; MariaDB is the only tested engine")
 	}
 	name := strings.Join(flags.Args(), " ")
 	if name == "" {
@@ -238,13 +261,13 @@ func newCommand(args []string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("Created %s in %s\nDatabase: %s\n", result.Manifest.Name, result.Root, result.Manifest.Database.Name)
+	fmt.Fprintf(out, "Created %s in %s\nDatabase: %s\n", result.Manifest.Name, result.Root, result.Manifest.Database.Name)
 	if result.GitInitialized {
-		fmt.Println("Git repository initialized on main. Commit and add a remote when ready.")
+		fmt.Fprintln(out, "Git repository initialized on main. Commit and add a remote when ready.")
 	} else {
-		fmt.Println("Git is not installed; initialize a repository yourself if you want one.")
+		fmt.Fprintln(out, "Git is not installed; initialize a repository yourself if you want one.")
 	}
-	fmt.Printf("Run it with:\n  cd %s && athena run\n", result.Root)
+	fmt.Fprintf(out, "Run it with:\n  cd %s && athena run\n", result.Root)
 	return nil
 }
 
@@ -275,9 +298,9 @@ func runCommand(args []string) error {
 	})
 }
 
-// resolveWorkspace finds a workspace and the database config its server login and
-// database name give.
-func resolveWorkspace(slug string) (workspace.Workspace, *mysql.Config, error) {
+// resolveWorkspace finds a workspace and the database endpoint its home driver,
+// server login and database name give.
+func resolveWorkspace(slug string) (workspace.Workspace, *workspace.DBEndpoint, error) {
 	p, err := workspace.Resolve(".", slug)
 	if err != nil {
 		return workspace.Workspace{}, nil, err
@@ -286,11 +309,15 @@ func resolveWorkspace(slug string) (workspace.Workspace, *mysql.Config, error) {
 	if err != nil {
 		return workspace.Workspace{}, nil, err
 	}
-	cfg, err := workspace.ServerConfig(env[workspace.ServerURLEnv], p.Manifest.Database.Name)
+	home, err := workspace.LoadHome(p.Home)
 	if err != nil {
 		return workspace.Workspace{}, nil, err
 	}
-	return p, cfg, nil
+	endpoint, err := workspace.ParseEndpoint(home.Database.Driver, env[workspace.ServerURLEnv], p.Manifest.Database.Name)
+	if err != nil {
+		return workspace.Workspace{}, nil, err
+	}
+	return p, endpoint, nil
 }
 
 func serveCommand(args []string) error {
@@ -313,12 +340,12 @@ func serveCommand(args []string) error {
 	}
 	label := "athena serve (no database)"
 	if dsn := os.Getenv("ATHENA_DATABASE_URL"); dsn != "" {
-		cfg, err := mysql.ParseDSN(dsn)
+		endpoint, err := workspace.ParseDatabaseURL(dsn)
 		if err != nil {
 			return fmt.Errorf("parse ATHENA_DATABASE_URL: %w", err)
 		}
-		config.Database = cfg
-		label = "athena serve (database " + cfg.DBName + ")"
+		config.Database = endpoint
+		label = "athena serve (database " + endpoint.DatabaseName() + ")"
 	}
 	lock, err := workspace.Acquire(workspace.Active{Workspace: label, Addr: *addr})
 	if err != nil {

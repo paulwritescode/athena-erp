@@ -120,7 +120,8 @@ func TestAuditRowsCarryValuesAndOneRequestIDLinksEverything(t *testing.T) {
 	// Version and the Activity Timeline.
 	callCtx := context.WithValue(ctx, requestKey{}, requestInfo{id: "0190a1b2-aaaa-7000-8000-000000000001", source: sourceAPI})
 	// An API call always carries the signed-in principal the gate loaded.
-	callCtx = auth.WithPrincipal(callCtx, &auth.Principal{UserID: "u", Username: "owner", Owner: true})
+	callCtx = auth.WithPrincipal(callCtx, &auth.Principal{UserID: "u", Username: "owner", Owner: true,
+		Assignments: []auth.Assignment{{ID: "a", Active: true, Grants: []auth.Grant{grantOf(auth.AllRecordTypes, auth.MaxPermissionLevel, "", auth.ActionRead, auth.ActionSubmit, auth.ActionAudit)}}}})
 	res, err := records.SubmitRecord(callCtx, &athenav1.SubmitRecordRequest{RecordTypeKey: "order", Id: order.GetId(), ExpectedRevision: 2})
 	if err != nil {
 		t.Fatal(err)

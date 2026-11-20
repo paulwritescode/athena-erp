@@ -152,6 +152,9 @@ func (s recordService) CreateRecord(ctx context.Context, req *athenav1.CreateRec
 	if err != nil {
 		return nil, err
 	}
+	if err := refuseKernelKind(recordType.kind()); err != nil {
+		return nil, err
+	}
 	p, err := accessFor(ctx)
 	if err != nil {
 		return nil, err
@@ -358,6 +361,9 @@ func (s recordService) UpdateRecord(ctx context.Context, req *athenav1.UpdateRec
 	if err != nil {
 		return nil, err
 	}
+	if err := refuseKernelKind(recordType.kind()); err != nil {
+		return nil, err
+	}
 	p, err := accessFor(ctx)
 	if err != nil {
 		return nil, err
@@ -461,6 +467,11 @@ func (s recordService) UpdateRecord(ctx context.Context, req *athenav1.UpdateRec
 	if _, err := tx.ExecContext(ctx, statement, changedArgs...); err != nil {
 		return nil, writeError("update record", err)
 	}
+	// The proposed row must satisfy the Assignments too: the old row was
+	// checked above, and moving a Record out of scope is refused here.
+	if err := authorizeProposed(ctx, tx, p, recordType, req.GetId(), auth.ActionWrite); err != nil {
+		return nil, err
+	}
 	if recordType.kind() == kindChild {
 		if err := refreshParent(ctx, tx, recordType, current.GetParentId()); err != nil {
 			return nil, err
@@ -510,6 +521,9 @@ func (s recordService) DeleteRecord(ctx context.Context, req *athenav1.DeleteRec
 	defer func() { end(err) }()
 	recordType, err := s.recordType(ctx, req.GetRecordTypeKey())
 	if err != nil {
+		return nil, err
+	}
+	if err := refuseKernelKind(recordType.kind()); err != nil {
 		return nil, err
 	}
 	if recordType.kind() == kindSetting {

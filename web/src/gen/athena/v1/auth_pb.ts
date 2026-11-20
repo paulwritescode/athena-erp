@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file athena/v1/auth.proto.
  */
 export const file_athena_v1_auth: GenFile = /*@__PURE__*/
-  fileDesc("ChRhdGhlbmEvdjEvYXV0aC5wcm90bxIJYXRoZW5hLnYxIjIKDExvZ2luUmVxdWVzdBIQCgh1c2VybmFtZRgBIAEoCRIQCghwYXNzd29yZBgCIAEoCSI4Cg1Mb2dpblJlc3BvbnNlEicKB3Nlc3Npb24YASABKAsyFi5hdGhlbmEudjEuU2Vzc2lvbkluZm8iDwoNTG9nb3V0UmVxdWVzdCIQCg5Mb2dvdXRSZXNwb25zZSITChFHZXRTZXNzaW9uUmVxdWVzdCJQChJHZXRTZXNzaW9uUmVzcG9uc2USJwoHc2Vzc2lvbhgBIAEoCzIWLmF0aGVuYS52MS5TZXNzaW9uSW5mbxIRCgloYXNfdXNlcnMYAiABKAgiiwEKC1Nlc3Npb25JbmZvEhUKDWF1dGhlbnRpY2F0ZWQYASABKAgSEAoIdXNlcm5hbWUYAiABKAkSFAoMZGlzcGxheV9uYW1lGAMgASgJEg0KBW93bmVyGAQgASgIEhoKEnN5c3RlbV9wZXJtaXNzaW9ucxgFIAMoCRISCgpjc3JmX3Rva2VuGAYgASgJIkcKFUNoYW5nZVBhc3N3b3JkUmVxdWVzdBIYChBjdXJyZW50X3Bhc3N3b3JkGAEgASgJEhQKDG5ld19wYXNzd29yZBgCIAEoCSIYChZDaGFuZ2VQYXNzd29yZFJlc3BvbnNlIosBCgpBY2Nlc3NVc2VyEhAKCHVzZXJuYW1lGAEgASgJEhQKDGRpc3BsYXlfbmFtZRgCIAEoCRINCgVvd25lchgDIAEoCBIQCghkaXNhYmxlZBgEIAEoCBIOCgZsb2NrZWQYBSABKAgSDQoFcm9sZXMYBiADKAkSFQoNbGFzdF9sb2dpbl9hdBgHIAEoCSISChBMaXN0VXNlcnNSZXF1ZXN0IjkKEUxpc3RVc2Vyc1Jlc3BvbnNlEiQKBXVzZXJzGAEgAygLMhUuYXRoZW5hLnYxLkFjY2Vzc1VzZXIiXAoRQ3JlYXRlVXNlclJlcXVlc3QSEAoIdXNlcm5hbWUYASABKAkSFAoMZGlzcGxheV9uYW1lGAIgASgJEhAKCHBhc3N3b3JkGAMgASgJEg0KBXJvbGVzGAQgAygJIjkKEkNyZWF0ZVVzZXJSZXNwb25zZRIjCgR1c2VyGAEgASgLMhUuYXRoZW5hLnYxLkFjY2Vzc1VzZXIiuQEKEVVwZGF0ZVVzZXJSZXF1ZXN0EhAKCHVzZXJuYW1lGAEgASgJEhkKDGRpc3BsYXlfbmFtZRgCIAEoCUgAiAEBEhUKCGRpc2FibGVkGAMgASgISAGIAQESKAoFcm9sZXMYBCABKAsyFC5hdGhlbmEudjEuUm9sZU5hbWVzSAKIAQESDgoGdW5sb2NrGAUgASgIQg8KDV9kaXNwbGF5X25hbWVCCwoJX2Rpc2FibGVkQggKBl9yb2xlcyIaCglSb2xlTmFtZXMSDQoFbmFtZXMYASADKAkiOQoSVXBkYXRlVXNlclJlc3BvbnNlEiMKBHVzZXIYASABKAsyFS5hdGhlbmEudjEuQWNjZXNzVXNlciI+ChRSZXNldFBhc3N3b3JkUmVxdWVzdBIQCgh1c2VybmFtZRgBIAEoCRIUCgxuZXdfcGFzc3dvcmQYAiABKAkiFwoVUmVzZXRQYXNzd29yZFJlc3BvbnNlIncKBUdyYW50EhcKD3JlY29yZF90eXBlX2tleRgBIAEoCRIPCgdhY3Rpb25zGAIgAygJEhgKEHBlcm1pc3Npb25fbGV2ZWwYAyABKAUSEQoJY29uZGl0aW9uGAQgASgJEhcKD3NlcGFyYXRlX2R1dGllcxgFIAEoCCJnCgRSb2xlEgwKBG5hbWUYASABKAkSEwoLZGVzY3JpcHRpb24YAiABKAkSGgoSc3lzdGVtX3Blcm1pc3Npb25zGAMgAygJEiAKBmdyYW50cxgEIAMoCzIQLmF0aGVuYS52MS5HcmFudCISChBMaXN0Um9sZXNSZXF1ZXN0IjMKEUxpc3RSb2xlc1Jlc3BvbnNlEh4KBXJvbGVzGAEgAygLMg8uYXRoZW5hLnYxLlJvbGUiMAoPU2F2ZVJvbGVSZXF1ZXN0Eh0KBHJvbGUYASABKAsyDy5hdGhlbmEudjEuUm9sZSIxChBTYXZlUm9sZVJlc3BvbnNlEh0KBHJvbGUYASABKAsyDy5hdGhlbmEudjEuUm9sZSIhChFEZWxldGVSb2xlUmVxdWVzdBIMCgRuYW1lGAEgASgJIhQKEkRlbGV0ZVJvbGVSZXNwb25zZSJLChRMaXN0QWNjZXNzTG9nUmVxdWVzdBIRCglwYWdlX3NpemUYASABKAUSEQoJYmVmb3JlX2lkGAIgASgDEg0KBWV2ZW50GAMgASgJIrcBCgtBY2Nlc3NFdmVudBIKCgJpZBgBIAEoAxIKCgJhdBgCIAEoCRINCgVldmVudBgDIAEoCRIPCgdvdXRjb21lGAQgASgJEhAKCHVzZXJuYW1lGAUgASgJEhEKCXByb2NlZHVyZRgGIAEoCRIXCg9yZWNvcmRfdHlwZV9rZXkYByABKAkSDgoGYWN0aW9uGAggASgJEhIKCnJlcXVlc3RfaWQYCSABKAkSDgoGZGV0YWlsGAogASgJIj8KFUxpc3RBY2Nlc3NMb2dSZXNwb25zZRImCgZldmVudHMYASADKAsyFi5hdGhlbmEudjEuQWNjZXNzRXZlbnQiMQoLQXV0aEZhaWx1cmUSDgoGcmVhc29uGAEgASgJEhIKCnVubG9ja3NfYXQYAiABKAkyiAcKC0F1dGhTZXJ2aWNlEjoKBUxvZ2luEhcuYXRoZW5hLnYxLkxvZ2luUmVxdWVzdBoYLmF0aGVuYS52MS5Mb2dpblJlc3BvbnNlEj0KBkxvZ291dBIYLmF0aGVuYS52MS5Mb2dvdXRSZXF1ZXN0GhkuYXRoZW5hLnYxLkxvZ291dFJlc3BvbnNlEkkKCkdldFNlc3Npb24SHC5hdGhlbmEudjEuR2V0U2Vzc2lvblJlcXVlc3QaHS5hdGhlbmEudjEuR2V0U2Vzc2lvblJlc3BvbnNlElUKDkNoYW5nZVBhc3N3b3JkEiAuYXRoZW5hLnYxLkNoYW5nZVBhc3N3b3JkUmVxdWVzdBohLmF0aGVuYS52MS5DaGFuZ2VQYXNzd29yZFJlc3BvbnNlEkYKCUxpc3RVc2VycxIbLmF0aGVuYS52MS5MaXN0VXNlcnNSZXF1ZXN0GhwuYXRoZW5hLnYxLkxpc3RVc2Vyc1Jlc3BvbnNlEkkKCkNyZWF0ZVVzZXISHC5hdGhlbmEudjEuQ3JlYXRlVXNlclJlcXVlc3QaHS5hdGhlbmEudjEuQ3JlYXRlVXNlclJlc3BvbnNlEkkKClVwZGF0ZVVzZXISHC5hdGhlbmEudjEuVXBkYXRlVXNlclJlcXVlc3QaHS5hdGhlbmEudjEuVXBkYXRlVXNlclJlc3BvbnNlElIKDVJlc2V0UGFzc3dvcmQSHy5hdGhlbmEudjEuUmVzZXRQYXNzd29yZFJlcXVlc3QaIC5hdGhlbmEudjEuUmVzZXRQYXNzd29yZFJlc3BvbnNlEkYKCUxpc3RSb2xlcxIbLmF0aGVuYS52MS5MaXN0Um9sZXNSZXF1ZXN0GhwuYXRoZW5hLnYxLkxpc3RSb2xlc1Jlc3BvbnNlEkMKCFNhdmVSb2xlEhouYXRoZW5hLnYxLlNhdmVSb2xlUmVxdWVzdBobLmF0aGVuYS52MS5TYXZlUm9sZVJlc3BvbnNlEkkKCkRlbGV0ZVJvbGUSHC5hdGhlbmEudjEuRGVsZXRlUm9sZVJlcXVlc3QaHS5hdGhlbmEudjEuRGVsZXRlUm9sZVJlc3BvbnNlElIKDUxpc3RBY2Nlc3NMb2cSHy5hdGhlbmEudjEuTGlzdEFjY2Vzc0xvZ1JlcXVlc3QaIC5hdGhlbmEudjEuTGlzdEFjY2Vzc0xvZ1Jlc3BvbnNlQiNaIWF0aGVuYS1lcnAvZ2VuL2F0aGVuYS92MTthdGhlbmF2MWIGcHJvdG8z");
+  fileDesc("ChRhdGhlbmEvdjEvYXV0aC5wcm90bxIJYXRoZW5hLnYxIjIKDExvZ2luUmVxdWVzdBIQCgh1c2VybmFtZRgBIAEoCRIQCghwYXNzd29yZBgCIAEoCSI4Cg1Mb2dpblJlc3BvbnNlEicKB3Nlc3Npb24YASABKAsyFi5hdGhlbmEudjEuU2Vzc2lvbkluZm8iDwoNTG9nb3V0UmVxdWVzdCIQCg5Mb2dvdXRSZXNwb25zZSITChFHZXRTZXNzaW9uUmVxdWVzdCJQChJHZXRTZXNzaW9uUmVzcG9uc2USJwoHc2Vzc2lvbhgBIAEoCzIWLmF0aGVuYS52MS5TZXNzaW9uSW5mbxIRCgloYXNfdXNlcnMYAiABKAgiiwEKC1Nlc3Npb25JbmZvEhUKDWF1dGhlbnRpY2F0ZWQYASABKAgSEAoIdXNlcm5hbWUYAiABKAkSFAoMZGlzcGxheV9uYW1lGAMgASgJEg0KBW93bmVyGAQgASgIEhoKEnN5c3RlbV9wZXJtaXNzaW9ucxgFIAMoCRISCgpjc3JmX3Rva2VuGAYgASgJIkcKFUNoYW5nZVBhc3N3b3JkUmVxdWVzdBIYChBjdXJyZW50X3Bhc3N3b3JkGAEgASgJEhQKDG5ld19wYXNzd29yZBgCIAEoCSIYChZDaGFuZ2VQYXNzd29yZFJlc3BvbnNlIpoBCgpBY2Nlc3NVc2VyEhAKCHVzZXJuYW1lGAEgASgJEhQKDGRpc3BsYXlfbmFtZRgCIAEoCRINCgVvd25lchgDIAEoCBIQCghkaXNhYmxlZBgEIAEoCBIOCgZsb2NrZWQYBSABKAgSDQoFcm9sZXMYBiADKAkSFQoNbGFzdF9sb2dpbl9hdBgHIAEoCRINCgVzdGF0ZRgIIAEoCSISChBMaXN0VXNlcnNSZXF1ZXN0IjkKEUxpc3RVc2Vyc1Jlc3BvbnNlEiQKBXVzZXJzGAEgAygLMhUuYXRoZW5hLnYxLkFjY2Vzc1VzZXIiSgoRSW52aXRlVXNlclJlcXVlc3QSEAoIdXNlcm5hbWUYASABKAkSFAoMZGlzcGxheV9uYW1lGAIgASgJEg0KBXJvbGVzGAMgAygJIkwKEkludml0ZVVzZXJSZXNwb25zZRIjCgR1c2VyGAEgASgLMhUuYXRoZW5hLnYxLkFjY2Vzc1VzZXISEQoJY2hhbGxlbmdlGAIgASgJImYKGENvbXBsZXRlQ2hhbGxlbmdlUmVxdWVzdBIQCgh1c2VybmFtZRgBIAEoCRIPCgdwdXJwb3NlGAIgASgJEhEKCWNoYWxsZW5nZRgDIAEoCRIUCgxuZXdfcGFzc3dvcmQYBCABKAkiRAoZQ29tcGxldGVDaGFsbGVuZ2VSZXNwb25zZRInCgdzZXNzaW9uGAEgASgLMhYuYXRoZW5hLnYxLlNlc3Npb25JbmZvIicKE1Jlc2VuZEludml0ZVJlcXVlc3QSEAoIdXNlcm5hbWUYASABKAkiTgoUUmVzZW5kSW52aXRlUmVzcG9uc2USIwoEdXNlchgBIAEoCzIVLmF0aGVuYS52MS5BY2Nlc3NVc2VyEhEKCWNoYWxsZW5nZRgCIAEoCSI9ChFTdGFydFJlc2V0UmVxdWVzdBIQCgh1c2VybmFtZRgBIAEoCRIWCg5hY3Rvcl9wYXNzd29yZBgCIAEoCSJMChJTdGFydFJlc2V0UmVzcG9uc2USIwoEdXNlchgBIAEoCzIVLmF0aGVuYS52MS5BY2Nlc3NVc2VyEhEKCWNoYWxsZW5nZRgCIAEoCSJaChFDcmVhdGVVc2VyUmVxdWVzdBIQCgh1c2VybmFtZRgBIAEoCRIUCgxkaXNwbGF5X25hbWUYAiABKAkSDQoFcm9sZXMYBCADKAlKBAgDEARSCHBhc3N3b3JkIjkKEkNyZWF0ZVVzZXJSZXNwb25zZRIjCgR1c2VyGAEgASgLMhUuYXRoZW5hLnYxLkFjY2Vzc1VzZXIiuQEKEVVwZGF0ZVVzZXJSZXF1ZXN0EhAKCHVzZXJuYW1lGAEgASgJEhkKDGRpc3BsYXlfbmFtZRgCIAEoCUgAiAEBEhUKCGRpc2FibGVkGAMgASgISAGIAQESKAoFcm9sZXMYBCABKAsyFC5hdGhlbmEudjEuUm9sZU5hbWVzSAKIAQESDgoGdW5sb2NrGAUgASgIQg8KDV9kaXNwbGF5X25hbWVCCwoJX2Rpc2FibGVkQggKBl9yb2xlcyIaCglSb2xlTmFtZXMSDQoFbmFtZXMYASADKAkiOQoSVXBkYXRlVXNlclJlc3BvbnNlEiMKBHVzZXIYASABKAsyFS5hdGhlbmEudjEuQWNjZXNzVXNlciI8ChRSZXNldFBhc3N3b3JkUmVxdWVzdBIQCgh1c2VybmFtZRgBIAEoCUoECAIQA1IMbmV3X3Bhc3N3b3JkIhcKFVJlc2V0UGFzc3dvcmRSZXNwb25zZSIdCgtTY29wZVZhbHVlcxIOCgZ2YWx1ZXMYASADKAki2AEKCkFzc2lnbm1lbnQSCgoCaWQYASABKAkSDAoEcm9sZRgCIAEoCRIvCgVzY29wZRgDIAMoCzIgLmF0aGVuYS52MS5Bc3NpZ25tZW50LlNjb3BlRW50cnkSEwoLYWN0aXZlX2Zyb20YBCABKAkSEgoKZXhwaXJlc19hdBgFIAEoCRIQCghyZXZpc2lvbhgGIAEoAxpECgpTY29wZUVudHJ5EgsKA2tleRgBIAEoCRIlCgV2YWx1ZRgCIAEoCzIWLmF0aGVuYS52MS5TY29wZVZhbHVlczoCOAEiKgoWTGlzdEFzc2lnbm1lbnRzUmVxdWVzdBIQCgh1c2VybmFtZRgBIAEoCSJFChdMaXN0QXNzaWdubWVudHNSZXNwb25zZRIqCgthc3NpZ25tZW50cxgBIAMoCzIVLmF0aGVuYS52MS5Bc3NpZ25tZW50IlQKFVNhdmVBc3NpZ25tZW50UmVxdWVzdBIQCgh1c2VybmFtZRgBIAEoCRIpCgphc3NpZ25tZW50GAIgASgLMhUuYXRoZW5hLnYxLkFzc2lnbm1lbnQiQwoWU2F2ZUFzc2lnbm1lbnRSZXNwb25zZRIpCgphc3NpZ25tZW50GAEgASgLMhUuYXRoZW5hLnYxLkFzc2lnbm1lbnQiJQoXUmV2b2tlQXNzaWdubWVudFJlcXVlc3QSCgoCaWQYASABKAkiGgoYUmV2b2tlQXNzaWdubWVudFJlc3BvbnNlImQKFEV4cGxhaW5BY2Nlc3NSZXF1ZXN0EhAKCHVzZXJuYW1lGAEgASgJEg4KBmFjdGlvbhgCIAEoCRIXCg9yZWNvcmRfdHlwZV9rZXkYAyABKAkSEQoJcmVjb3JkX2lkGAQgASgJIoABChVBc3NpZ25tZW50RXhwbGFuYXRpb24SFQoNYXNzaWdubWVudF9pZBgBIAEoCRIMCgRyb2xlGAIgASgJEg8KB21hdGNoZWQYAyABKAgSDwoHcmVhc29ucxgEIAMoCRIgChhzZXBhcmF0ZV9kdXRpZXNfY29uZmxpY3QYBSABKAgiXwoVRXhwbGFpbkFjY2Vzc1Jlc3BvbnNlEg8KB2FsbG93ZWQYASABKAgSNQoLYXNzaWdubWVudHMYAiADKAsyIC5hdGhlbmEudjEuQXNzaWdubWVudEV4cGxhbmF0aW9uInQKB1Nlc3Npb24SCgoCaWQYASABKAkSEgoKY3JlYXRlZF9hdBgCIAEoCRIUCgxsYXN0X3NlZW5fYXQYAyABKAkSEgoKZXhwaXJlc19hdBgEIAEoCRIOCgZkZXZpY2UYBSABKAkSDwoHY3VycmVudBgGIAEoCCInChNMaXN0U2Vzc2lvbnNSZXF1ZXN0EhAKCHVzZXJuYW1lGAEgASgJIjwKFExpc3RTZXNzaW9uc1Jlc3BvbnNlEiQKCHNlc3Npb25zGAEgAygLMhIuYXRoZW5hLnYxLlNlc3Npb24iIgoUUmV2b2tlU2Vzc2lvblJlcXVlc3QSCgoCaWQYASABKAkiFwoVUmV2b2tlU2Vzc2lvblJlc3BvbnNlIlgKGFRyYW5zZmVyT3duZXJzaGlwUmVxdWVzdBIQCgh1c2VybmFtZRgBIAEoCRIWCg5hY3Rvcl9wYXNzd29yZBgCIAEoCRISCgpyZWxpbnF1aXNoGAMgASgIIkAKGVRyYW5zZmVyT3duZXJzaGlwUmVzcG9uc2USIwoEdXNlchgBIAEoCzIVLmF0aGVuYS52MS5BY2Nlc3NVc2VyIk8KFkxpc3RSb2xlSG9sZGVyc1JlcXVlc3QSDAoEcm9sZRgBIAEoCRIXCg9yZWNvcmRfdHlwZV9rZXkYAiABKAkSDgoGYWN0aW9uGAMgASgJIvMBCgpSb2xlSG9sZGVyEhAKCHVzZXJuYW1lGAEgASgJEhQKDGRpc3BsYXlfbmFtZRgCIAEoCRINCgVzdGF0ZRgDIAEoCRIOCgZ1c2FibGUYBCABKAgSLwoFc2NvcGUYBSADKAsyIC5hdGhlbmEudjEuUm9sZUhvbGRlci5TY29wZUVudHJ5EhMKC2FjdGl2ZV9mcm9tGAYgASgJEhIKCmV4cGlyZXNfYXQYByABKAkaRAoKU2NvcGVFbnRyeRILCgNrZXkYASABKAkSJQoFdmFsdWUYAiABKAsyFi5hdGhlbmEudjEuU2NvcGVWYWx1ZXM6AjgBIkEKF0xpc3RSb2xlSG9sZGVyc1Jlc3BvbnNlEiYKB2hvbGRlcnMYASADKAsyFS5hdGhlbmEudjEuUm9sZUhvbGRlciJ3CgVHcmFudBIXCg9yZWNvcmRfdHlwZV9rZXkYASABKAkSDwoHYWN0aW9ucxgCIAMoCRIYChBwZXJtaXNzaW9uX2xldmVsGAMgASgFEhEKCWNvbmRpdGlvbhgEIAEoCRIXCg9zZXBhcmF0ZV9kdXRpZXMYBSABKAgiZwoEUm9sZRIMCgRuYW1lGAEgASgJEhMKC2Rlc2NyaXB0aW9uGAIgASgJEhoKEnN5c3RlbV9wZXJtaXNzaW9ucxgDIAMoCRIgCgZncmFudHMYBCADKAsyEC5hdGhlbmEudjEuR3JhbnQiEgoQTGlzdFJvbGVzUmVxdWVzdCIzChFMaXN0Um9sZXNSZXNwb25zZRIeCgVyb2xlcxgBIAMoCzIPLmF0aGVuYS52MS5Sb2xlIjAKD1NhdmVSb2xlUmVxdWVzdBIdCgRyb2xlGAEgASgLMg8uYXRoZW5hLnYxLlJvbGUiMQoQU2F2ZVJvbGVSZXNwb25zZRIdCgRyb2xlGAEgASgLMg8uYXRoZW5hLnYxLlJvbGUiIQoRRGVsZXRlUm9sZVJlcXVlc3QSDAoEbmFtZRgBIAEoCSIUChJEZWxldGVSb2xlUmVzcG9uc2UiSwoUTGlzdEFjY2Vzc0xvZ1JlcXVlc3QSEQoJcGFnZV9zaXplGAEgASgFEhEKCWJlZm9yZV9pZBgCIAEoAxINCgVldmVudBgDIAEoCSK3AQoLQWNjZXNzRXZlbnQSCgoCaWQYASABKAMSCgoCYXQYAiABKAkSDQoFZXZlbnQYAyABKAkSDwoHb3V0Y29tZRgEIAEoCRIQCgh1c2VybmFtZRgFIAEoCRIRCglwcm9jZWR1cmUYBiABKAkSFwoPcmVjb3JkX3R5cGVfa2V5GAcgASgJEg4KBmFjdGlvbhgIIAEoCRISCgpyZXF1ZXN0X2lkGAkgASgJEg4KBmRldGFpbBgKIAEoCSI/ChVMaXN0QWNjZXNzTG9nUmVzcG9uc2USJgoGZXZlbnRzGAEgAygLMhYuYXRoZW5hLnYxLkFjY2Vzc0V2ZW50IjEKC0F1dGhGYWlsdXJlEg4KBnJlYXNvbhgBIAEoCRISCgp1bmxvY2tzX2F0GAIgASgJMpAPCgtBdXRoU2VydmljZRI6CgVMb2dpbhIXLmF0aGVuYS52MS5Mb2dpblJlcXVlc3QaGC5hdGhlbmEudjEuTG9naW5SZXNwb25zZRI9CgZMb2dvdXQSGC5hdGhlbmEudjEuTG9nb3V0UmVxdWVzdBoZLmF0aGVuYS52MS5Mb2dvdXRSZXNwb25zZRJJCgpHZXRTZXNzaW9uEhwuYXRoZW5hLnYxLkdldFNlc3Npb25SZXF1ZXN0Gh0uYXRoZW5hLnYxLkdldFNlc3Npb25SZXNwb25zZRJVCg5DaGFuZ2VQYXNzd29yZBIgLmF0aGVuYS52MS5DaGFuZ2VQYXNzd29yZFJlcXVlc3QaIS5hdGhlbmEudjEuQ2hhbmdlUGFzc3dvcmRSZXNwb25zZRJJCgpJbnZpdGVVc2VyEhwuYXRoZW5hLnYxLkludml0ZVVzZXJSZXF1ZXN0Gh0uYXRoZW5hLnYxLkludml0ZVVzZXJSZXNwb25zZRJeChFDb21wbGV0ZUNoYWxsZW5nZRIjLmF0aGVuYS52MS5Db21wbGV0ZUNoYWxsZW5nZVJlcXVlc3QaJC5hdGhlbmEudjEuQ29tcGxldGVDaGFsbGVuZ2VSZXNwb25zZRJPCgxSZXNlbmRJbnZpdGUSHi5hdGhlbmEudjEuUmVzZW5kSW52aXRlUmVxdWVzdBofLmF0aGVuYS52MS5SZXNlbmRJbnZpdGVSZXNwb25zZRJJCgpTdGFydFJlc2V0EhwuYXRoZW5hLnYxLlN0YXJ0UmVzZXRSZXF1ZXN0Gh0uYXRoZW5hLnYxLlN0YXJ0UmVzZXRSZXNwb25zZRJGCglMaXN0VXNlcnMSGy5hdGhlbmEudjEuTGlzdFVzZXJzUmVxdWVzdBocLmF0aGVuYS52MS5MaXN0VXNlcnNSZXNwb25zZRJJCgpDcmVhdGVVc2VyEhwuYXRoZW5hLnYxLkNyZWF0ZVVzZXJSZXF1ZXN0Gh0uYXRoZW5hLnYxLkNyZWF0ZVVzZXJSZXNwb25zZRJJCgpVcGRhdGVVc2VyEhwuYXRoZW5hLnYxLlVwZGF0ZVVzZXJSZXF1ZXN0Gh0uYXRoZW5hLnYxLlVwZGF0ZVVzZXJSZXNwb25zZRJSCg1SZXNldFBhc3N3b3JkEh8uYXRoZW5hLnYxLlJlc2V0UGFzc3dvcmRSZXF1ZXN0GiAuYXRoZW5hLnYxLlJlc2V0UGFzc3dvcmRSZXNwb25zZRJGCglMaXN0Um9sZXMSGy5hdGhlbmEudjEuTGlzdFJvbGVzUmVxdWVzdBocLmF0aGVuYS52MS5MaXN0Um9sZXNSZXNwb25zZRJDCghTYXZlUm9sZRIaLmF0aGVuYS52MS5TYXZlUm9sZVJlcXVlc3QaGy5hdGhlbmEudjEuU2F2ZVJvbGVSZXNwb25zZRJJCgpEZWxldGVSb2xlEhwuYXRoZW5hLnYxLkRlbGV0ZVJvbGVSZXF1ZXN0Gh0uYXRoZW5hLnYxLkRlbGV0ZVJvbGVSZXNwb25zZRJYCg9MaXN0QXNzaWdubWVudHMSIS5hdGhlbmEudjEuTGlzdEFzc2lnbm1lbnRzUmVxdWVzdBoiLmF0aGVuYS52MS5MaXN0QXNzaWdubWVudHNSZXNwb25zZRJVCg5TYXZlQXNzaWdubWVudBIgLmF0aGVuYS52MS5TYXZlQXNzaWdubWVudFJlcXVlc3QaIS5hdGhlbmEudjEuU2F2ZUFzc2lnbm1lbnRSZXNwb25zZRJbChBSZXZva2VBc3NpZ25tZW50EiIuYXRoZW5hLnYxLlJldm9rZUFzc2lnbm1lbnRSZXF1ZXN0GiMuYXRoZW5hLnYxLlJldm9rZUFzc2lnbm1lbnRSZXNwb25zZRJSCg1FeHBsYWluQWNjZXNzEh8uYXRoZW5hLnYxLkV4cGxhaW5BY2Nlc3NSZXF1ZXN0GiAuYXRoZW5hLnYxLkV4cGxhaW5BY2Nlc3NSZXNwb25zZRJPCgxMaXN0U2Vzc2lvbnMSHi5hdGhlbmEudjEuTGlzdFNlc3Npb25zUmVxdWVzdBofLmF0aGVuYS52MS5MaXN0U2Vzc2lvbnNSZXNwb25zZRJSCg1SZXZva2VTZXNzaW9uEh8uYXRoZW5hLnYxLlJldm9rZVNlc3Npb25SZXF1ZXN0GiAuYXRoZW5hLnYxLlJldm9rZVNlc3Npb25SZXNwb25zZRJeChFUcmFuc2Zlck93bmVyc2hpcBIjLmF0aGVuYS52MS5UcmFuc2Zlck93bmVyc2hpcFJlcXVlc3QaJC5hdGhlbmEudjEuVHJhbnNmZXJPd25lcnNoaXBSZXNwb25zZRJYCg9MaXN0Um9sZUhvbGRlcnMSIS5hdGhlbmEudjEuTGlzdFJvbGVIb2xkZXJzUmVxdWVzdBoiLmF0aGVuYS52MS5MaXN0Um9sZUhvbGRlcnNSZXNwb25zZRJSCg1MaXN0QWNjZXNzTG9nEh8uYXRoZW5hLnYxLkxpc3RBY2Nlc3NMb2dSZXF1ZXN0GiAuYXRoZW5hLnYxLkxpc3RBY2Nlc3NMb2dSZXNwb25zZUIjWiFhdGhlbmEtZXJwL2dlbi9hdGhlbmEvdjE7YXRoZW5hdjFiBnByb3RvMw");
 
 /**
  * @generated from message athena.v1.LoginRequest
@@ -142,7 +142,9 @@ export type SessionInfo = Message<"athena.v1.SessionInfo"> & {
   owner: boolean;
 
   /**
-   * Any of build, access, audit, files:read, files:write.
+   * Any of build, audit, files:read, files:write, rules:read, rules:write,
+   * access:ownership, access:users, access:roles, access:assign,
+   * access:recover, access:sessions, access:explore.
    *
    * @generated from field: repeated string system_permissions = 5;
    */
@@ -238,6 +240,13 @@ export type AccessUser = Message<"athena.v1.AccessUser"> & {
    * @generated from field: string last_login_at = 7;
    */
   lastLoginAt: string;
+
+  /**
+   * invited, active, reset_required or suspended.
+   *
+   * @generated from field: string state = 8;
+   */
+  state: string;
 };
 
 /**
@@ -278,6 +287,197 @@ export const ListUsersResponseSchema: GenMessage<ListUsersResponse> = /*@__PURE_
   messageDesc(file_athena_v1_auth, 11);
 
 /**
+ * @generated from message athena.v1.InviteUserRequest
+ */
+export type InviteUserRequest = Message<"athena.v1.InviteUserRequest"> & {
+  /**
+   * @generated from field: string username = 1;
+   */
+  username: string;
+
+  /**
+   * @generated from field: string display_name = 2;
+   */
+  displayName: string;
+
+  /**
+   * @generated from field: repeated string roles = 3;
+   */
+  roles: string[];
+};
+
+/**
+ * Describes the message athena.v1.InviteUserRequest.
+ * Use `create(InviteUserRequestSchema)` to create a new message.
+ */
+export const InviteUserRequestSchema: GenMessage<InviteUserRequest> = /*@__PURE__*/
+  messageDesc(file_athena_v1_auth, 12);
+
+/**
+ * @generated from message athena.v1.InviteUserResponse
+ */
+export type InviteUserResponse = Message<"athena.v1.InviteUserResponse"> & {
+  /**
+   * @generated from field: athena.v1.AccessUser user = 1;
+   */
+  user?: AccessUser | undefined;
+
+  /**
+   * The single-use first-login Challenge, shown once.
+   *
+   * @generated from field: string challenge = 2;
+   */
+  challenge: string;
+};
+
+/**
+ * Describes the message athena.v1.InviteUserResponse.
+ * Use `create(InviteUserResponseSchema)` to create a new message.
+ */
+export const InviteUserResponseSchema: GenMessage<InviteUserResponse> = /*@__PURE__*/
+  messageDesc(file_athena_v1_auth, 13);
+
+/**
+ * @generated from message athena.v1.CompleteChallengeRequest
+ */
+export type CompleteChallengeRequest = Message<"athena.v1.CompleteChallengeRequest"> & {
+  /**
+   * @generated from field: string username = 1;
+   */
+  username: string;
+
+  /**
+   * first_login or reset.
+   *
+   * @generated from field: string purpose = 2;
+   */
+  purpose: string;
+
+  /**
+   * @generated from field: string challenge = 3;
+   */
+  challenge: string;
+
+  /**
+   * @generated from field: string new_password = 4;
+   */
+  newPassword: string;
+};
+
+/**
+ * Describes the message athena.v1.CompleteChallengeRequest.
+ * Use `create(CompleteChallengeRequestSchema)` to create a new message.
+ */
+export const CompleteChallengeRequestSchema: GenMessage<CompleteChallengeRequest> = /*@__PURE__*/
+  messageDesc(file_athena_v1_auth, 14);
+
+/**
+ * @generated from message athena.v1.CompleteChallengeResponse
+ */
+export type CompleteChallengeResponse = Message<"athena.v1.CompleteChallengeResponse"> & {
+  /**
+   * @generated from field: athena.v1.SessionInfo session = 1;
+   */
+  session?: SessionInfo | undefined;
+};
+
+/**
+ * Describes the message athena.v1.CompleteChallengeResponse.
+ * Use `create(CompleteChallengeResponseSchema)` to create a new message.
+ */
+export const CompleteChallengeResponseSchema: GenMessage<CompleteChallengeResponse> = /*@__PURE__*/
+  messageDesc(file_athena_v1_auth, 15);
+
+/**
+ * @generated from message athena.v1.ResendInviteRequest
+ */
+export type ResendInviteRequest = Message<"athena.v1.ResendInviteRequest"> & {
+  /**
+   * @generated from field: string username = 1;
+   */
+  username: string;
+};
+
+/**
+ * Describes the message athena.v1.ResendInviteRequest.
+ * Use `create(ResendInviteRequestSchema)` to create a new message.
+ */
+export const ResendInviteRequestSchema: GenMessage<ResendInviteRequest> = /*@__PURE__*/
+  messageDesc(file_athena_v1_auth, 16);
+
+/**
+ * @generated from message athena.v1.ResendInviteResponse
+ */
+export type ResendInviteResponse = Message<"athena.v1.ResendInviteResponse"> & {
+  /**
+   * @generated from field: athena.v1.AccessUser user = 1;
+   */
+  user?: AccessUser | undefined;
+
+  /**
+   * The single-use first-login Challenge, shown once.
+   *
+   * @generated from field: string challenge = 2;
+   */
+  challenge: string;
+};
+
+/**
+ * Describes the message athena.v1.ResendInviteResponse.
+ * Use `create(ResendInviteResponseSchema)` to create a new message.
+ */
+export const ResendInviteResponseSchema: GenMessage<ResendInviteResponse> = /*@__PURE__*/
+  messageDesc(file_athena_v1_auth, 17);
+
+/**
+ * @generated from message athena.v1.StartResetRequest
+ */
+export type StartResetRequest = Message<"athena.v1.StartResetRequest"> & {
+  /**
+   * @generated from field: string username = 1;
+   */
+  username: string;
+
+  /**
+   * The caller's own password, proving a privileged recovery.
+   *
+   * @generated from field: string actor_password = 2;
+   */
+  actorPassword: string;
+};
+
+/**
+ * Describes the message athena.v1.StartResetRequest.
+ * Use `create(StartResetRequestSchema)` to create a new message.
+ */
+export const StartResetRequestSchema: GenMessage<StartResetRequest> = /*@__PURE__*/
+  messageDesc(file_athena_v1_auth, 18);
+
+/**
+ * @generated from message athena.v1.StartResetResponse
+ */
+export type StartResetResponse = Message<"athena.v1.StartResetResponse"> & {
+  /**
+   * @generated from field: athena.v1.AccessUser user = 1;
+   */
+  user?: AccessUser | undefined;
+
+  /**
+   * The single-use reset Challenge, shown once.
+   *
+   * @generated from field: string challenge = 2;
+   */
+  challenge: string;
+};
+
+/**
+ * Describes the message athena.v1.StartResetResponse.
+ * Use `create(StartResetResponseSchema)` to create a new message.
+ */
+export const StartResetResponseSchema: GenMessage<StartResetResponse> = /*@__PURE__*/
+  messageDesc(file_athena_v1_auth, 19);
+
+/**
  * @generated from message athena.v1.CreateUserRequest
  */
 export type CreateUserRequest = Message<"athena.v1.CreateUserRequest"> & {
@@ -292,11 +492,6 @@ export type CreateUserRequest = Message<"athena.v1.CreateUserRequest"> & {
   displayName: string;
 
   /**
-   * @generated from field: string password = 3;
-   */
-  password: string;
-
-  /**
    * @generated from field: repeated string roles = 4;
    */
   roles: string[];
@@ -307,7 +502,7 @@ export type CreateUserRequest = Message<"athena.v1.CreateUserRequest"> & {
  * Use `create(CreateUserRequestSchema)` to create a new message.
  */
 export const CreateUserRequestSchema: GenMessage<CreateUserRequest> = /*@__PURE__*/
-  messageDesc(file_athena_v1_auth, 12);
+  messageDesc(file_athena_v1_auth, 20);
 
 /**
  * @generated from message athena.v1.CreateUserResponse
@@ -324,7 +519,7 @@ export type CreateUserResponse = Message<"athena.v1.CreateUserResponse"> & {
  * Use `create(CreateUserResponseSchema)` to create a new message.
  */
 export const CreateUserResponseSchema: GenMessage<CreateUserResponse> = /*@__PURE__*/
-  messageDesc(file_athena_v1_auth, 13);
+  messageDesc(file_athena_v1_auth, 21);
 
 /**
  * @generated from message athena.v1.UpdateUserRequest
@@ -367,7 +562,7 @@ export type UpdateUserRequest = Message<"athena.v1.UpdateUserRequest"> & {
  * Use `create(UpdateUserRequestSchema)` to create a new message.
  */
 export const UpdateUserRequestSchema: GenMessage<UpdateUserRequest> = /*@__PURE__*/
-  messageDesc(file_athena_v1_auth, 14);
+  messageDesc(file_athena_v1_auth, 22);
 
 /**
  * @generated from message athena.v1.RoleNames
@@ -384,7 +579,7 @@ export type RoleNames = Message<"athena.v1.RoleNames"> & {
  * Use `create(RoleNamesSchema)` to create a new message.
  */
 export const RoleNamesSchema: GenMessage<RoleNames> = /*@__PURE__*/
-  messageDesc(file_athena_v1_auth, 15);
+  messageDesc(file_athena_v1_auth, 23);
 
 /**
  * @generated from message athena.v1.UpdateUserResponse
@@ -401,7 +596,7 @@ export type UpdateUserResponse = Message<"athena.v1.UpdateUserResponse"> & {
  * Use `create(UpdateUserResponseSchema)` to create a new message.
  */
 export const UpdateUserResponseSchema: GenMessage<UpdateUserResponse> = /*@__PURE__*/
-  messageDesc(file_athena_v1_auth, 16);
+  messageDesc(file_athena_v1_auth, 24);
 
 /**
  * @generated from message athena.v1.ResetPasswordRequest
@@ -411,11 +606,6 @@ export type ResetPasswordRequest = Message<"athena.v1.ResetPasswordRequest"> & {
    * @generated from field: string username = 1;
    */
   username: string;
-
-  /**
-   * @generated from field: string new_password = 2;
-   */
-  newPassword: string;
 };
 
 /**
@@ -423,7 +613,7 @@ export type ResetPasswordRequest = Message<"athena.v1.ResetPasswordRequest"> & {
  * Use `create(ResetPasswordRequestSchema)` to create a new message.
  */
 export const ResetPasswordRequestSchema: GenMessage<ResetPasswordRequest> = /*@__PURE__*/
-  messageDesc(file_athena_v1_auth, 17);
+  messageDesc(file_athena_v1_auth, 25);
 
 /**
  * @generated from message athena.v1.ResetPasswordResponse
@@ -436,7 +626,530 @@ export type ResetPasswordResponse = Message<"athena.v1.ResetPasswordResponse"> &
  * Use `create(ResetPasswordResponseSchema)` to create a new message.
  */
 export const ResetPasswordResponseSchema: GenMessage<ResetPasswordResponse> = /*@__PURE__*/
-  messageDesc(file_athena_v1_auth, 18);
+  messageDesc(file_athena_v1_auth, 26);
+
+/**
+ * ScopeValues holds the allowed values of one Scope dimension.
+ *
+ * @generated from message athena.v1.ScopeValues
+ */
+export type ScopeValues = Message<"athena.v1.ScopeValues"> & {
+  /**
+   * @generated from field: repeated string values = 1;
+   */
+  values: string[];
+};
+
+/**
+ * Describes the message athena.v1.ScopeValues.
+ * Use `create(ScopeValuesSchema)` to create a new message.
+ */
+export const ScopeValuesSchema: GenMessage<ScopeValues> = /*@__PURE__*/
+  messageDesc(file_athena_v1_auth, 27);
+
+/**
+ * Assignment is one Role given to one user with its own Scope and dates.
+ *
+ * @generated from message athena.v1.Assignment
+ */
+export type Assignment = Message<"athena.v1.Assignment"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @generated from field: string role = 2;
+   */
+  role: string;
+
+  /**
+   * Dimension name to allowed values. Empty means every row.
+   *
+   * @generated from field: map<string, athena.v1.ScopeValues> scope = 3;
+   */
+  scope: { [key: string]: ScopeValues };
+
+  /**
+   * Whole days, YYYY-MM-DD. Empty means unbounded.
+   *
+   * @generated from field: string active_from = 4;
+   */
+  activeFrom: string;
+
+  /**
+   * @generated from field: string expires_at = 5;
+   */
+  expiresAt: string;
+
+  /**
+   * @generated from field: int64 revision = 6;
+   */
+  revision: bigint;
+};
+
+/**
+ * Describes the message athena.v1.Assignment.
+ * Use `create(AssignmentSchema)` to create a new message.
+ */
+export const AssignmentSchema: GenMessage<Assignment> = /*@__PURE__*/
+  messageDesc(file_athena_v1_auth, 28);
+
+/**
+ * @generated from message athena.v1.ListAssignmentsRequest
+ */
+export type ListAssignmentsRequest = Message<"athena.v1.ListAssignmentsRequest"> & {
+  /**
+   * @generated from field: string username = 1;
+   */
+  username: string;
+};
+
+/**
+ * Describes the message athena.v1.ListAssignmentsRequest.
+ * Use `create(ListAssignmentsRequestSchema)` to create a new message.
+ */
+export const ListAssignmentsRequestSchema: GenMessage<ListAssignmentsRequest> = /*@__PURE__*/
+  messageDesc(file_athena_v1_auth, 29);
+
+/**
+ * @generated from message athena.v1.ListAssignmentsResponse
+ */
+export type ListAssignmentsResponse = Message<"athena.v1.ListAssignmentsResponse"> & {
+  /**
+   * @generated from field: repeated athena.v1.Assignment assignments = 1;
+   */
+  assignments: Assignment[];
+};
+
+/**
+ * Describes the message athena.v1.ListAssignmentsResponse.
+ * Use `create(ListAssignmentsResponseSchema)` to create a new message.
+ */
+export const ListAssignmentsResponseSchema: GenMessage<ListAssignmentsResponse> = /*@__PURE__*/
+  messageDesc(file_athena_v1_auth, 30);
+
+/**
+ * @generated from message athena.v1.SaveAssignmentRequest
+ */
+export type SaveAssignmentRequest = Message<"athena.v1.SaveAssignmentRequest"> & {
+  /**
+   * @generated from field: string username = 1;
+   */
+  username: string;
+
+  /**
+   * @generated from field: athena.v1.Assignment assignment = 2;
+   */
+  assignment?: Assignment | undefined;
+};
+
+/**
+ * Describes the message athena.v1.SaveAssignmentRequest.
+ * Use `create(SaveAssignmentRequestSchema)` to create a new message.
+ */
+export const SaveAssignmentRequestSchema: GenMessage<SaveAssignmentRequest> = /*@__PURE__*/
+  messageDesc(file_athena_v1_auth, 31);
+
+/**
+ * @generated from message athena.v1.SaveAssignmentResponse
+ */
+export type SaveAssignmentResponse = Message<"athena.v1.SaveAssignmentResponse"> & {
+  /**
+   * @generated from field: athena.v1.Assignment assignment = 1;
+   */
+  assignment?: Assignment | undefined;
+};
+
+/**
+ * Describes the message athena.v1.SaveAssignmentResponse.
+ * Use `create(SaveAssignmentResponseSchema)` to create a new message.
+ */
+export const SaveAssignmentResponseSchema: GenMessage<SaveAssignmentResponse> = /*@__PURE__*/
+  messageDesc(file_athena_v1_auth, 32);
+
+/**
+ * @generated from message athena.v1.RevokeAssignmentRequest
+ */
+export type RevokeAssignmentRequest = Message<"athena.v1.RevokeAssignmentRequest"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+};
+
+/**
+ * Describes the message athena.v1.RevokeAssignmentRequest.
+ * Use `create(RevokeAssignmentRequestSchema)` to create a new message.
+ */
+export const RevokeAssignmentRequestSchema: GenMessage<RevokeAssignmentRequest> = /*@__PURE__*/
+  messageDesc(file_athena_v1_auth, 33);
+
+/**
+ * @generated from message athena.v1.RevokeAssignmentResponse
+ */
+export type RevokeAssignmentResponse = Message<"athena.v1.RevokeAssignmentResponse"> & {
+};
+
+/**
+ * Describes the message athena.v1.RevokeAssignmentResponse.
+ * Use `create(RevokeAssignmentResponseSchema)` to create a new message.
+ */
+export const RevokeAssignmentResponseSchema: GenMessage<RevokeAssignmentResponse> = /*@__PURE__*/
+  messageDesc(file_athena_v1_auth, 34);
+
+/**
+ * @generated from message athena.v1.ExplainAccessRequest
+ */
+export type ExplainAccessRequest = Message<"athena.v1.ExplainAccessRequest"> & {
+  /**
+   * @generated from field: string username = 1;
+   */
+  username: string;
+
+  /**
+   * @generated from field: string action = 2;
+   */
+  action: string;
+
+  /**
+   * @generated from field: string record_type_key = 3;
+   */
+  recordTypeKey: string;
+
+  /**
+   * When set, row conditions and Scopes are tested against this Record.
+   *
+   * @generated from field: string record_id = 4;
+   */
+  recordId: string;
+};
+
+/**
+ * Describes the message athena.v1.ExplainAccessRequest.
+ * Use `create(ExplainAccessRequestSchema)` to create a new message.
+ */
+export const ExplainAccessRequestSchema: GenMessage<ExplainAccessRequest> = /*@__PURE__*/
+  messageDesc(file_athena_v1_auth, 35);
+
+/**
+ * AssignmentExplanation reports why one Assignment allows an action or why
+ * it fails. Reasons are fixed phrases such as "no covering Grant",
+ * "outside dates", "Scope misses the required company" or "row condition
+ * false".
+ *
+ * @generated from message athena.v1.AssignmentExplanation
+ */
+export type AssignmentExplanation = Message<"athena.v1.AssignmentExplanation"> & {
+  /**
+   * @generated from field: string assignment_id = 1;
+   */
+  assignmentId: string;
+
+  /**
+   * @generated from field: string role = 2;
+   */
+  role: string;
+
+  /**
+   * @generated from field: bool matched = 3;
+   */
+  matched: boolean;
+
+  /**
+   * @generated from field: repeated string reasons = 4;
+   */
+  reasons: string[];
+
+  /**
+   * @generated from field: bool separate_duties_conflict = 5;
+   */
+  separateDutiesConflict: boolean;
+};
+
+/**
+ * Describes the message athena.v1.AssignmentExplanation.
+ * Use `create(AssignmentExplanationSchema)` to create a new message.
+ */
+export const AssignmentExplanationSchema: GenMessage<AssignmentExplanation> = /*@__PURE__*/
+  messageDesc(file_athena_v1_auth, 36);
+
+/**
+ * @generated from message athena.v1.ExplainAccessResponse
+ */
+export type ExplainAccessResponse = Message<"athena.v1.ExplainAccessResponse"> & {
+  /**
+   * @generated from field: bool allowed = 1;
+   */
+  allowed: boolean;
+
+  /**
+   * @generated from field: repeated athena.v1.AssignmentExplanation assignments = 2;
+   */
+  assignments: AssignmentExplanation[];
+};
+
+/**
+ * Describes the message athena.v1.ExplainAccessResponse.
+ * Use `create(ExplainAccessResponseSchema)` to create a new message.
+ */
+export const ExplainAccessResponseSchema: GenMessage<ExplainAccessResponse> = /*@__PURE__*/
+  messageDesc(file_athena_v1_auth, 37);
+
+/**
+ * Session is one signed-in session.
+ *
+ * @generated from message athena.v1.Session
+ */
+export type Session = Message<"athena.v1.Session"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @generated from field: string created_at = 2;
+   */
+  createdAt: string;
+
+  /**
+   * @generated from field: string last_seen_at = 3;
+   */
+  lastSeenAt: string;
+
+  /**
+   * @generated from field: string expires_at = 4;
+   */
+  expiresAt: string;
+
+  /**
+   * @generated from field: string device = 5;
+   */
+  device: string;
+
+  /**
+   * True for the session making the call.
+   *
+   * @generated from field: bool current = 6;
+   */
+  current: boolean;
+};
+
+/**
+ * Describes the message athena.v1.Session.
+ * Use `create(SessionSchema)` to create a new message.
+ */
+export const SessionSchema: GenMessage<Session> = /*@__PURE__*/
+  messageDesc(file_athena_v1_auth, 38);
+
+/**
+ * @generated from message athena.v1.ListSessionsRequest
+ */
+export type ListSessionsRequest = Message<"athena.v1.ListSessionsRequest"> & {
+  /**
+   * Empty lists the caller's own sessions.
+   *
+   * @generated from field: string username = 1;
+   */
+  username: string;
+};
+
+/**
+ * Describes the message athena.v1.ListSessionsRequest.
+ * Use `create(ListSessionsRequestSchema)` to create a new message.
+ */
+export const ListSessionsRequestSchema: GenMessage<ListSessionsRequest> = /*@__PURE__*/
+  messageDesc(file_athena_v1_auth, 39);
+
+/**
+ * @generated from message athena.v1.ListSessionsResponse
+ */
+export type ListSessionsResponse = Message<"athena.v1.ListSessionsResponse"> & {
+  /**
+   * @generated from field: repeated athena.v1.Session sessions = 1;
+   */
+  sessions: Session[];
+};
+
+/**
+ * Describes the message athena.v1.ListSessionsResponse.
+ * Use `create(ListSessionsResponseSchema)` to create a new message.
+ */
+export const ListSessionsResponseSchema: GenMessage<ListSessionsResponse> = /*@__PURE__*/
+  messageDesc(file_athena_v1_auth, 40);
+
+/**
+ * @generated from message athena.v1.RevokeSessionRequest
+ */
+export type RevokeSessionRequest = Message<"athena.v1.RevokeSessionRequest"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+};
+
+/**
+ * Describes the message athena.v1.RevokeSessionRequest.
+ * Use `create(RevokeSessionRequestSchema)` to create a new message.
+ */
+export const RevokeSessionRequestSchema: GenMessage<RevokeSessionRequest> = /*@__PURE__*/
+  messageDesc(file_athena_v1_auth, 41);
+
+/**
+ * @generated from message athena.v1.RevokeSessionResponse
+ */
+export type RevokeSessionResponse = Message<"athena.v1.RevokeSessionResponse"> & {
+};
+
+/**
+ * Describes the message athena.v1.RevokeSessionResponse.
+ * Use `create(RevokeSessionResponseSchema)` to create a new message.
+ */
+export const RevokeSessionResponseSchema: GenMessage<RevokeSessionResponse> = /*@__PURE__*/
+  messageDesc(file_athena_v1_auth, 42);
+
+/**
+ * @generated from message athena.v1.TransferOwnershipRequest
+ */
+export type TransferOwnershipRequest = Message<"athena.v1.TransferOwnershipRequest"> & {
+  /**
+   * @generated from field: string username = 1;
+   */
+  username: string;
+
+  /**
+   * The caller's own password, proving a privileged ownership change.
+   *
+   * @generated from field: string actor_password = 2;
+   */
+  actorPassword: string;
+
+  /**
+   * Also end the caller's own ownership Assignments.
+   *
+   * @generated from field: bool relinquish = 3;
+   */
+  relinquish: boolean;
+};
+
+/**
+ * Describes the message athena.v1.TransferOwnershipRequest.
+ * Use `create(TransferOwnershipRequestSchema)` to create a new message.
+ */
+export const TransferOwnershipRequestSchema: GenMessage<TransferOwnershipRequest> = /*@__PURE__*/
+  messageDesc(file_athena_v1_auth, 43);
+
+/**
+ * @generated from message athena.v1.TransferOwnershipResponse
+ */
+export type TransferOwnershipResponse = Message<"athena.v1.TransferOwnershipResponse"> & {
+  /**
+   * @generated from field: athena.v1.AccessUser user = 1;
+   */
+  user?: AccessUser | undefined;
+};
+
+/**
+ * Describes the message athena.v1.TransferOwnershipResponse.
+ * Use `create(TransferOwnershipResponseSchema)` to create a new message.
+ */
+export const TransferOwnershipResponseSchema: GenMessage<TransferOwnershipResponse> = /*@__PURE__*/
+  messageDesc(file_athena_v1_auth, 44);
+
+/**
+ * @generated from message athena.v1.ListRoleHoldersRequest
+ */
+export type ListRoleHoldersRequest = Message<"athena.v1.ListRoleHoldersRequest"> & {
+  /**
+   * @generated from field: string role = 1;
+   */
+  role: string;
+
+  /**
+   * @generated from field: string record_type_key = 2;
+   */
+  recordTypeKey: string;
+
+  /**
+   * @generated from field: string action = 3;
+   */
+  action: string;
+};
+
+/**
+ * Describes the message athena.v1.ListRoleHoldersRequest.
+ * Use `create(ListRoleHoldersRequestSchema)` to create a new message.
+ */
+export const ListRoleHoldersRequestSchema: GenMessage<ListRoleHoldersRequest> = /*@__PURE__*/
+  messageDesc(file_athena_v1_auth, 45);
+
+/**
+ * RoleHolder is one user whose Assignment of the Role covers the action.
+ * Usable means the dates cover today and the Scope satisfies the Role; row
+ * conditions and Scope matching still apply per Record.
+ *
+ * @generated from message athena.v1.RoleHolder
+ */
+export type RoleHolder = Message<"athena.v1.RoleHolder"> & {
+  /**
+   * @generated from field: string username = 1;
+   */
+  username: string;
+
+  /**
+   * @generated from field: string display_name = 2;
+   */
+  displayName: string;
+
+  /**
+   * @generated from field: string state = 3;
+   */
+  state: string;
+
+  /**
+   * @generated from field: bool usable = 4;
+   */
+  usable: boolean;
+
+  /**
+   * @generated from field: map<string, athena.v1.ScopeValues> scope = 5;
+   */
+  scope: { [key: string]: ScopeValues };
+
+  /**
+   * @generated from field: string active_from = 6;
+   */
+  activeFrom: string;
+
+  /**
+   * @generated from field: string expires_at = 7;
+   */
+  expiresAt: string;
+};
+
+/**
+ * Describes the message athena.v1.RoleHolder.
+ * Use `create(RoleHolderSchema)` to create a new message.
+ */
+export const RoleHolderSchema: GenMessage<RoleHolder> = /*@__PURE__*/
+  messageDesc(file_athena_v1_auth, 46);
+
+/**
+ * @generated from message athena.v1.ListRoleHoldersResponse
+ */
+export type ListRoleHoldersResponse = Message<"athena.v1.ListRoleHoldersResponse"> & {
+  /**
+   * @generated from field: repeated athena.v1.RoleHolder holders = 1;
+   */
+  holders: RoleHolder[];
+};
+
+/**
+ * Describes the message athena.v1.ListRoleHoldersResponse.
+ * Use `create(ListRoleHoldersResponseSchema)` to create a new message.
+ */
+export const ListRoleHoldersResponseSchema: GenMessage<ListRoleHoldersResponse> = /*@__PURE__*/
+  messageDesc(file_athena_v1_auth, 47);
 
 /**
  * Grant allows actions on one Record Type. Grants are additive; no Grant
@@ -488,7 +1201,7 @@ export type Grant = Message<"athena.v1.Grant"> & {
  * Use `create(GrantSchema)` to create a new message.
  */
 export const GrantSchema: GenMessage<Grant> = /*@__PURE__*/
-  messageDesc(file_athena_v1_auth, 19);
+  messageDesc(file_athena_v1_auth, 48);
 
 /**
  * @generated from message athena.v1.Role
@@ -505,7 +1218,9 @@ export type Role = Message<"athena.v1.Role"> & {
   description: string;
 
   /**
-   * Any of build, access, audit, files:read, files:write.
+   * Any of build, audit, files:read, files:write, rules:read, rules:write,
+   * access:ownership, access:users, access:roles, access:assign,
+   * access:recover, access:sessions, access:explore.
    *
    * @generated from field: repeated string system_permissions = 3;
    */
@@ -522,7 +1237,7 @@ export type Role = Message<"athena.v1.Role"> & {
  * Use `create(RoleSchema)` to create a new message.
  */
 export const RoleSchema: GenMessage<Role> = /*@__PURE__*/
-  messageDesc(file_athena_v1_auth, 20);
+  messageDesc(file_athena_v1_auth, 49);
 
 /**
  * @generated from message athena.v1.ListRolesRequest
@@ -535,7 +1250,7 @@ export type ListRolesRequest = Message<"athena.v1.ListRolesRequest"> & {
  * Use `create(ListRolesRequestSchema)` to create a new message.
  */
 export const ListRolesRequestSchema: GenMessage<ListRolesRequest> = /*@__PURE__*/
-  messageDesc(file_athena_v1_auth, 21);
+  messageDesc(file_athena_v1_auth, 50);
 
 /**
  * @generated from message athena.v1.ListRolesResponse
@@ -552,7 +1267,7 @@ export type ListRolesResponse = Message<"athena.v1.ListRolesResponse"> & {
  * Use `create(ListRolesResponseSchema)` to create a new message.
  */
 export const ListRolesResponseSchema: GenMessage<ListRolesResponse> = /*@__PURE__*/
-  messageDesc(file_athena_v1_auth, 22);
+  messageDesc(file_athena_v1_auth, 51);
 
 /**
  * @generated from message athena.v1.SaveRoleRequest
@@ -569,7 +1284,7 @@ export type SaveRoleRequest = Message<"athena.v1.SaveRoleRequest"> & {
  * Use `create(SaveRoleRequestSchema)` to create a new message.
  */
 export const SaveRoleRequestSchema: GenMessage<SaveRoleRequest> = /*@__PURE__*/
-  messageDesc(file_athena_v1_auth, 23);
+  messageDesc(file_athena_v1_auth, 52);
 
 /**
  * @generated from message athena.v1.SaveRoleResponse
@@ -586,7 +1301,7 @@ export type SaveRoleResponse = Message<"athena.v1.SaveRoleResponse"> & {
  * Use `create(SaveRoleResponseSchema)` to create a new message.
  */
 export const SaveRoleResponseSchema: GenMessage<SaveRoleResponse> = /*@__PURE__*/
-  messageDesc(file_athena_v1_auth, 24);
+  messageDesc(file_athena_v1_auth, 53);
 
 /**
  * @generated from message athena.v1.DeleteRoleRequest
@@ -603,7 +1318,7 @@ export type DeleteRoleRequest = Message<"athena.v1.DeleteRoleRequest"> & {
  * Use `create(DeleteRoleRequestSchema)` to create a new message.
  */
 export const DeleteRoleRequestSchema: GenMessage<DeleteRoleRequest> = /*@__PURE__*/
-  messageDesc(file_athena_v1_auth, 25);
+  messageDesc(file_athena_v1_auth, 54);
 
 /**
  * @generated from message athena.v1.DeleteRoleResponse
@@ -616,7 +1331,7 @@ export type DeleteRoleResponse = Message<"athena.v1.DeleteRoleResponse"> & {
  * Use `create(DeleteRoleResponseSchema)` to create a new message.
  */
 export const DeleteRoleResponseSchema: GenMessage<DeleteRoleResponse> = /*@__PURE__*/
-  messageDesc(file_athena_v1_auth, 26);
+  messageDesc(file_athena_v1_auth, 55);
 
 /**
  * @generated from message athena.v1.ListAccessLogRequest
@@ -647,7 +1362,7 @@ export type ListAccessLogRequest = Message<"athena.v1.ListAccessLogRequest"> & {
  * Use `create(ListAccessLogRequestSchema)` to create a new message.
  */
 export const ListAccessLogRequestSchema: GenMessage<ListAccessLogRequest> = /*@__PURE__*/
-  messageDesc(file_athena_v1_auth, 27);
+  messageDesc(file_athena_v1_auth, 56);
 
 /**
  * AccessEvent is one Access Log row. It holds identifiers and outcome codes
@@ -712,7 +1427,7 @@ export type AccessEvent = Message<"athena.v1.AccessEvent"> & {
  * Use `create(AccessEventSchema)` to create a new message.
  */
 export const AccessEventSchema: GenMessage<AccessEvent> = /*@__PURE__*/
-  messageDesc(file_athena_v1_auth, 28);
+  messageDesc(file_athena_v1_auth, 57);
 
 /**
  * @generated from message athena.v1.ListAccessLogResponse
@@ -729,7 +1444,7 @@ export type ListAccessLogResponse = Message<"athena.v1.ListAccessLogResponse"> &
  * Use `create(ListAccessLogResponseSchema)` to create a new message.
  */
 export const ListAccessLogResponseSchema: GenMessage<ListAccessLogResponse> = /*@__PURE__*/
-  messageDesc(file_athena_v1_auth, 29);
+  messageDesc(file_athena_v1_auth, 58);
 
 /**
  * AuthFailure is attached as an error detail to a failed Login that the
@@ -759,13 +1474,14 @@ export type AuthFailure = Message<"athena.v1.AuthFailure"> & {
  * Use `create(AuthFailureSchema)` to create a new message.
  */
 export const AuthFailureSchema: GenMessage<AuthFailure> = /*@__PURE__*/
-  messageDesc(file_athena_v1_auth, 30);
+  messageDesc(file_athena_v1_auth, 59);
 
 /**
  * AuthService signs users in and out and manages users, Roles and Grants
- * (spec 21, ADR-0014). Login and GetSession are the only methods open to
- * callers who are not signed in. Every other method in every service is
- * denied unless the permission gate allows it.
+ * (spec 21, ADR-0014, access model v2 in ADR-0017). Login, GetSession and
+ * CompleteChallenge are the only methods open to callers who are not signed
+ * in. Every other method in every service is denied unless the permission
+ * gate allows it.
  *
  * @generated from service athena.v1.AuthService
  */
@@ -812,8 +1528,52 @@ export const AuthService: GenService<{
     output: typeof ChangePasswordResponseSchema;
   },
   /**
-   * The methods below need the access permission.
+   * InviteUser invites a user with no password and returns the single-use
+   * Challenge to show once. It needs access:users.
    *
+   * @generated from rpc athena.v1.AuthService.InviteUser
+   */
+  inviteUser: {
+    methodKind: "unary";
+    input: typeof InviteUserRequestSchema;
+    output: typeof InviteUserResponseSchema;
+  },
+  /**
+   * CompleteChallenge consumes a first-login or reset Challenge, stores the
+   * chosen password and starts a session. It is open: the Challenge is the
+   * credential.
+   *
+   * @generated from rpc athena.v1.AuthService.CompleteChallenge
+   */
+  completeChallenge: {
+    methodKind: "unary";
+    input: typeof CompleteChallengeRequestSchema;
+    output: typeof CompleteChallengeResponseSchema;
+  },
+  /**
+   * ResendInvite invalidates an invited user's earlier Challenges and issues
+   * a new one, returned to show once. It needs access:users.
+   *
+   * @generated from rpc athena.v1.AuthService.ResendInvite
+   */
+  resendInvite: {
+    methodKind: "unary";
+    input: typeof ResendInviteRequestSchema;
+    output: typeof ResendInviteResponseSchema;
+  },
+  /**
+   * StartReset moves an active user to reset_required, revokes their
+   * sessions and issues a reset Challenge to show once. It needs
+   * access:recover and the caller's own password.
+   *
+   * @generated from rpc athena.v1.AuthService.StartReset
+   */
+  startReset: {
+    methodKind: "unary";
+    input: typeof StartResetRequestSchema;
+    output: typeof StartResetResponseSchema;
+  },
+  /**
    * @generated from rpc athena.v1.AuthService.ListUsers
    */
   listUsers: {
@@ -838,7 +1598,8 @@ export const AuthService: GenService<{
     output: typeof UpdateUserResponseSchema;
   },
   /**
-   * ResetPassword sets another user's password and ends their sessions.
+   * ResetPassword is retired: administrator-set passwords are removed, so it
+   * always fails. Start a reset instead.
    *
    * @generated from rpc athena.v1.AuthService.ResetPassword
    */
@@ -872,6 +1633,93 @@ export const AuthService: GenService<{
     methodKind: "unary";
     input: typeof DeleteRoleRequestSchema;
     output: typeof DeleteRoleResponseSchema;
+  },
+  /**
+   * ListAssignments returns a user's Role Assignments. It needs access:assign.
+   *
+   * @generated from rpc athena.v1.AuthService.ListAssignments
+   */
+  listAssignments: {
+    methodKind: "unary";
+    input: typeof ListAssignmentsRequestSchema;
+    output: typeof ListAssignmentsResponseSchema;
+  },
+  /**
+   * SaveAssignment creates an Assignment or replaces one whose revision still
+   * matches. It needs access:assign.
+   *
+   * @generated from rpc athena.v1.AuthService.SaveAssignment
+   */
+  saveAssignment: {
+    methodKind: "unary";
+    input: typeof SaveAssignmentRequestSchema;
+    output: typeof SaveAssignmentResponseSchema;
+  },
+  /**
+   * RevokeAssignment deletes one Assignment. It needs access:assign.
+   *
+   * @generated from rpc athena.v1.AuthService.RevokeAssignment
+   */
+  revokeAssignment: {
+    methodKind: "unary";
+    input: typeof RevokeAssignmentRequestSchema;
+    output: typeof RevokeAssignmentResponseSchema;
+  },
+  /**
+   * ExplainAccess reports which Assignment allows an action or why each one
+   * fails. It needs access:explore.
+   *
+   * @generated from rpc athena.v1.AuthService.ExplainAccess
+   */
+  explainAccess: {
+    methodKind: "unary";
+    input: typeof ExplainAccessRequestSchema;
+    output: typeof ExplainAccessResponseSchema;
+  },
+  /**
+   * ListSessions lists sessions: the caller's own, or another user's with
+   * access:sessions.
+   *
+   * @generated from rpc athena.v1.AuthService.ListSessions
+   */
+  listSessions: {
+    methodKind: "unary";
+    input: typeof ListSessionsRequestSchema;
+    output: typeof ListSessionsResponseSchema;
+  },
+  /**
+   * RevokeSession ends one session. It needs access:sessions to end another
+   * user's session.
+   *
+   * @generated from rpc athena.v1.AuthService.RevokeSession
+   */
+  revokeSession: {
+    methodKind: "unary";
+    input: typeof RevokeSessionRequestSchema;
+    output: typeof RevokeSessionResponseSchema;
+  },
+  /**
+   * TransferOwnership appoints the recipient an Instance Owner and, when
+   * asked, relinquishes the caller's own ownership. It needs
+   * access:ownership and the caller's own password.
+   *
+   * @generated from rpc athena.v1.AuthService.TransferOwnership
+   */
+  transferOwnership: {
+    methodKind: "unary";
+    input: typeof TransferOwnershipRequestSchema;
+    output: typeof TransferOwnershipResponseSchema;
+  },
+  /**
+   * ListRoleHolders lists the users holding the Role with a Grant covering
+   * the action on the Record Type. It needs access:roles.
+   *
+   * @generated from rpc athena.v1.AuthService.ListRoleHolders
+   */
+  listRoleHolders: {
+    methodKind: "unary";
+    input: typeof ListRoleHoldersRequestSchema;
+    output: typeof ListRoleHoldersResponseSchema;
   },
   /**
    * ListAccessLog reads the Access Log. It needs the audit permission.

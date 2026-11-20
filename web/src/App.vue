@@ -18,6 +18,8 @@ import RecordTypesPage from './pages/RecordTypesPage.vue'
 import PacksPage from './pages/PacksPage.vue'
 import RulesPage from './pages/RulesPage.vue'
 import FilesPage from './pages/FilesPage.vue'
+import AccessPage from './pages/AccessPage.vue'
+import LedgerSetupPage from './pages/LedgerSetupPage.vue'
 import RecordsPage from './pages/RecordsPage.vue'
 
 const apiState = ref<'connecting' | 'connected' | 'error'>('connecting')
@@ -27,7 +29,7 @@ const page = ref<Page>('overview')
 const selectedRecordType = ref('')
 // The open Record in View: '' for the table, 'new' for the create form, or a Record ID.
 const recordRoute = ref('')
-const pages: Page[] = ['overview', 'record-types', 'packs', 'rules', 'files']
+const pages: Page[] = ['overview', 'record-types', 'packs', 'rules', 'files', 'access', 'ledger']
 
 // The address bar holds the current screen so a refresh or the back button
 // returns to it.
@@ -82,13 +84,21 @@ const canWriteFiles = computed(() => (user.value ? user.value.systemPermissions.
 // database there is no session and the page shows why it is unavailable.
 const canRules = computed(() => (user.value ? user.value.systemPermissions.includes('rules:read') : databaseState.value !== 'Connected'))
 const canWriteRules = computed(() => (user.value ? user.value.systemPermissions.includes('rules:write') : false))
-// Build opens for the build permission, files:read or rules:read; a user with
-// only the last two sees just those pages.
-const canBuildDesk = computed(() => canBuild.value || canFiles.value || canRules.value)
+// Access follows access:users or access:roles; the server checks the finer
+// access:* permissions on every call.
+const canAccess = computed(() => (user.value ? user.value.systemPermissions.includes('access:users') || user.value.systemPermissions.includes('access:roles') : false))
+// Ledger follows ledger:read and edits only with ledger:write.
+const canLedger = computed(() => (user.value ? user.value.systemPermissions.includes('ledger:read') : false))
+const canWriteLedger = computed(() => (user.value ? user.value.systemPermissions.includes('ledger:write') : false))
+// Build opens for the build permission, files:read, rules:read or access; a
+// user with only the last three sees just those pages.
+const canBuildDesk = computed(() => canBuild.value || canFiles.value || canRules.value || canAccess.value || canLedger.value)
 const buildNav = computed<[Page, string][]>(() => {
   const items: [Page, string][] = canBuild.value ? [['overview', 'Overview'], ['record-types', 'Record Types'], ['packs', 'Packs']] : []
   if (canRules.value) items.push(['rules', 'Rules'])
   if (canFiles.value) items.push(['files', 'Files'])
+  if (canAccess.value) items.push(['access', 'Access'])
+  if (canLedger.value) items.push(['ledger', 'Ledger'])
   return items
 })
 watch(canBuildDesk, (value) => { if (!value) mode.value = 'view' })
@@ -327,6 +337,8 @@ function cancelPendingSave() {
       <PacksPage v-else-if="mode === 'build' && page === 'packs'" @open-record-types="page = 'record-types'" />
       <RulesPage v-else-if="mode === 'build' && page === 'rules'" :can-write="canWriteRules" :record-types="recordTypes" />
       <FilesPage v-else-if="mode === 'build' && page === 'files'" :can-write="canWriteFiles" />
+      <AccessPage v-else-if="mode === 'build' && page === 'access'" :permissions="user?.systemPermissions ?? []" :username="user?.username ?? ''" :record-types="recordTypes" />
+      <LedgerSetupPage v-else-if="mode === 'build' && page === 'ledger'" :can-write="canWriteLedger" />
       <RecordsPage v-else v-model:record-id="recordRoute" :record-type="viewRecordType" :record-types="viewRecordTypes" @back="mode = 'build'" />
     </main>
     <MigrationDialog v-if="pendingSave" :record-type="pendingSave.recordType" :plan="pendingSave.plan" @confirm="confirmPendingSave" @cancel="cancelPendingSave" />

@@ -1,0 +1,31 @@
+# 2026/11/20 23:48:04.272044 [TestPeriodSaveEnforcesNonOverlap] [rapid] draw book: 0
+# 2026/11/20 23:48:04.272056 [TestPeriodSaveEnforcesNonOverlap] [rapid] draw existing: 1
+# 2026/11/20 23:48:04.272057 [TestPeriodSaveEnforcesNonOverlap] [rapid] draw start: 12
+# 2026/11/20 23:48:04.272061 [TestPeriodSaveEnforcesNonOverlap] [rapid] draw length: 0
+# 2026/11/20 23:48:04.272709 [TestPeriodSaveEnforcesNonOverlap] [rapid] draw existing: 2
+# 2026/11/20 23:48:04.272712 [TestPeriodSaveEnforcesNonOverlap] [rapid] draw start: 2
+# 2026/11/20 23:48:04.272713 [TestPeriodSaveEnforcesNonOverlap] [rapid] draw length: 10
+# 2026/11/20 23:48:04.273183 [TestPeriodSaveEnforcesNonOverlap] seed 2026-01-03..2026-01-13: err = <nil>
+# 
+v0.4.8#17120735398220889999
+0x0
+0x0
+0x0
+0x0
+0x0
+0x1
+0x0
+0x9867f1f40f739
+0xc
+0x0
+0x0
+0x0
+0x0
+0x38e38e38e38e4
+0x2
+0x0
+0x38e38e38e38e4
+0x2
+0x0
+0x9867f1f40f739
+0xa
