@@ -32,8 +32,8 @@
   - Apply design-system §4 roles to every page; `text-wrap` rules; tabular numbers in tables.
   - Create `web/src/icons.ts` (safe Lucide registry with fallback) and use the §5 table everywhere.
   - Accept: grep finds no direct font sizes or Lucide imports outside the registry and `components/ui`.
-- [ ] **B4. Accent and charts** (Muse, after the user picks option A or B in design-system §2.3)
-  - Apply the chosen `--primary` and chart series; verify text on primary ≥ 4.5:1 in both themes.
+- [ ] **B4. Accent presets and charts** (Muse; decided: both presets, design-system §2.3)
+  - Ship `ink` (default) and `red` presets as `[data-accent]` blocks in `theme.css` for light and dark, and the chart series; a Workspace setting chooses one (Settings page, with a live preview); verify text on primary ≥ 4.5:1 for every preset and theme.
   - Accept: only buttons, focus ring, selected-nav marker and charts carry the accent.
 - [ ] **B4a. Steering sync** (master)
   - Confirm `AGENTS.md`, `.kiro/steering/athena-design.md` and `docs/design/athena-design-system.md` agree with what B1 to B4 shipped; move tokens from *Proposed* to implemented; update `docs/architecture/frontend-theme-and-type.md` and `docs/README.md`.
@@ -43,7 +43,7 @@
 - [ ] **B5. Workspace identity and logo** (Codex then Muse)
   - Workspace settings for display name and logo (stored as a Workspace file, validated SVG/PNG ≤ 512 KB, served same-origin with a content hash URL). CLI `athena workspace set --name --logo file`. `athena new --logo`.
   - Desk: logo and name in header, sign-in, tab title, favicon; Athena mark fallback; "Powered by Athena" footer.
-  - Add `athena.png` at the repository root (user to supply; not present on 2026-11-21).
+  - Logos are `athena-black-logo` (light theme) and `athena-white-logo` (dark theme) at the repository root, PNG without an extension. Rename to `.png`, generate favicon and header sizes, and switch the mark with the theme.
 - [ ] **B6. Everyday vocabulary and help** (Muse, Codex for the server side)
   - `web/src/copy/glossary.ts` with plain labels and one-line explanations for every status, lifecycle state, ledger and access term; `circle-help` popovers; View mode uses only glossary words.
   - Naming registry `docs/design/naming.md`: product and layer names (section N below), forbidden old terms, and how a name maps to CLI, proto service, package and UI label. `terms_test.go` extended to new forbidden terms only after user approval.
@@ -128,7 +128,7 @@ Gates per name: pattern, 1 to 2 syllables, clean as `athena-<noun>`, the user ca
 
 | # | Question | Blocks |
 | --- | --- | --- |
-| Z0 | Accent option A (ink) or B (MUJI red), design-system §2.3 | B4 |
+| Z0 | DECIDED 2026-11-21: both presets, chosen per Workspace | B4 |
 | Z1 | Pilot company, jurisdiction, chart and tax | D5 |
 | Z2 | Permitted backdating window (ADR-0023 O-011) and book policy (O-012) | C1 |
 | Z3 | Stock valuation method and negative stock | C7 |
@@ -137,7 +137,7 @@ Gates per name: pattern, 1 to 2 syllables, clean as `athena-<noun>`, the user ca
 | Z6 | `vite-plugin-pwa`, deployment profile and recovery objectives | D4 |
 | Z7 | Pack build order, pilot country, provider qualification | D7 |
 | Z8 | Session and rate-limit defaults in B7 | B7 |
-| Z9 | Add `@lucasmarkes/hairline` and `golang.org/x/time/rate` as dependencies | B10, B7 |
+| Z9 | DECIDED 2026-11-21: added `@lucasmarkes/hairline` 0.5.1 (MIT, pinned) and `golang.org/x/time` v0.16.0 (indirect until B7 imports `rate`) | B10, B7 |
 | Z10 | Satori web embedding rights (bundle the font or keep local-only) | B3, D3 |
 | Z11 | Product names in section N | B6 |
-| Z12 | Commit G1 to G6.1 as a baseline branch, and include `.agents/` and `.kiro/` | everything |
+| Z12 | DECIDED 2026-11-21: committed on `feat/batch-2-g1-g6` (951ed0d, bf47716) with `.agents/` and `.kiro/` | everything |

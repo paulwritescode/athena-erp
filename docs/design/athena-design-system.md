@@ -30,12 +30,14 @@ Semantic status colors are separate and fixed: `--destructive`, and the *Propose
 
 The current light and dark values in `web/src/theme.css` stay unchanged as the neutral base. One existing value breaks the rule: dark `--sidebar-primary: oklch(0.488 0.243 264.376)` is blue. Task B4 sets it to `var(--primary)`.
 
-### 2.3 Accent (OPEN, needs the user)
+### 2.3 Accent (decided 2026-11-21: both, chosen per Workspace)
 
-| Option | Light `--primary` | Dark `--primary` | Character |
+Athena ships both accents as named presets, and each Workspace picks one in Settings (stored as a Workspace setting, applied as `data-accent="ink"` or `data-accent="red"` on `<html>`). Ink is the default for a new Workspace. Only the tokens in §2.1 change between presets.
+
+| Preset | Light `--primary` | Dark `--primary` | Character |
 | --- | --- | --- | --- |
-| A, current (default) | `oklch(0.21 0.006 285.885)` (Zinc 900) | `oklch(0.92 0.004 286.32)` | Ink on paper. No hue anywhere except charts. |
-| B, MUJI red | `oklch(0.42 0.13 22)` (close to MUJI's brand red `#7f0019`, lifted for contrast) | `oklch(0.68 0.13 22)` | One warm signature color on actions only. |
+| `ink` (default) | `oklch(0.21 0.006 285.885)` (Zinc 900) | `oklch(0.92 0.004 286.32)` | Ink on paper. No hue anywhere except charts. |
+| `red` | `oklch(0.42 0.13 22)` (close to MUJI's brand red `#7f0019`, lifted for contrast) | `oklch(0.68 0.13 22)` | One warm signature color on actions only. |
 
 The Workspace can override the accent in Settings (playbook §8), within contrast limits checked at save: text on `--primary` ≥ 4.5:1.
 
@@ -51,7 +53,7 @@ Muted, earthy and distinguishable, ordered so series 1 and 2 differ in lightness
 | `--chart-4` | `oklch(0.50 0.08 240)` | `oklch(0.70 0.08 240)` | indigo |
 | `--chart-5` | `oklch(0.75 0.06 85)` | `oklch(0.55 0.06 85)` | kinari (unbleached) |
 
-With option B, `--chart-1` becomes the accent.
+With the `red` preset, `--chart-1` becomes the accent.
 
 ### 2.5 Status tokens (*Proposed*)
 
@@ -239,7 +241,7 @@ Rules:
 
 ## 10. Brand and Workspace logo
 
-The Athena mark (`athena.png`, expected at the repository root; not present on 2026-11-21) is the platform logo for the installer, the CLI banner, the default favicon and the sign-in page when a Workspace has no logo.
+The Athena mark comes in two files at the repository root, `athena-black-logo` and `athena-white-logo` (PNG, 1254 x 1254, RGBA; added 2026-11-21 without a file extension). Use the black mark on the light theme and the white mark on the dark theme. Task B5 renames them to `.png`, makes web sizes (favicon 32 and 180 px, header 48 px, sign-in 96 px) and an SVG if one is supplied. It is the platform logo for the installer, the CLI banner, the default favicon and the sign-in page when a Workspace has no logo.
 
 Each Workspace can set its own logo and name (task B5): stored as a Workspace file and referenced from Workspace settings, served same-origin, shown in the header, the sign-in page, the browser tab title and favicon, printed documents and public pages. Rules: SVG or PNG, up to 512 KB, shown at 24 px height in the header and 48 px on sign-in, never stretched, with the Workspace name as text beside or below it. The platform mark appears only as "Powered by Athena" in the footer once a Workspace logo is set.
 
