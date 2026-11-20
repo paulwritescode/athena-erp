@@ -1,0 +1,77 @@
+Stopped Athena on port 3000.
+CI=true pnpm --dir web install --frozen-lockfile --store-dir /Users/iampaulking/Documents/projects/duchess/athena-erp/.cache/pnpm
+Already up to date
+Done in 332ms using pnpm v11.22.0
+CI=true pnpm --dir web run typecheck
+$ vue-tsc --noEmit -p tsconfig.app.json
+CI=true pnpm --dir web run build
+$ vite build
+[36mvite v8.3.8 [32mbuilding client environment for production...[36m[39m
+transforming...
+✓ 3286 modules transformed.
+rendering chunks...
+computing gzip size...
+../internal/webui/dist/index.html                   0.50 kB │ gzip:   0.30 kB
+../internal/webui/dist/assets/index-B7cV-UMJ.css  110.57 kB │ gzip:  18.98 kB
+../internal/webui/dist/assets/index-nDeHcnH1.js   438.56 kB │ gzip: 139.68 kB
+
+[32m✓ built in 572ms[39m
+2026/11/19 19:49:27 OpenTelemetry exporting traces and metrics to http://127.0.0.1:4318
+2026/11/19 19:49:28 MariaDB connected; metadata tables are ready
+2026/11/19 19:49:28 Athena ERP listening at http://127.0.0.1:3000
+2026/11/19 19:49:32 telemetry: traces export: Post "http://127.0.0.1:4318/v1/traces": dial tcp 127.0.0.1:4318: connect: connection refused (repeats suppressed for a minute)
+2026/11/19 19:50:07 record type save 01a1f4b7-2a3a-7839-af4a-10487adbe815: Create the table for P2a check with 1 field
+2026/11/19 19:50:42 telemetry: failed to upload metrics: Post "http://127.0.0.1:4318/v1/metrics": dial tcp 127.0.0.1:4318: connect: connection refused (repeats suppressed for a minute)
+2026/11/19 19:51:42 telemetry: failed to upload metrics: Post "http://127.0.0.1:4318/v1/metrics": dial tcp 127.0.0.1:4318: connect: connection refused (repeats suppressed for a minute)
+2026/11/19 19:52:57 telemetry: failed to upload metrics: Post "http://127.0.0.1:4318/v1/metrics": dial tcp 127.0.0.1:4318: connect: connection refused (repeats suppressed for a minute)
+2026/11/19 19:54:12 telemetry: failed to upload metrics: Post "http://127.0.0.1:4318/v1/metrics": dial tcp 127.0.0.1:4318: connect: connection refused (repeats suppressed for a minute)
+2026/11/19 19:55:27 telemetry: failed to upload metrics: Post "http://127.0.0.1:4318/v1/metrics": dial tcp 127.0.0.1:4318: connect: connection refused (repeats suppressed for a minute)
+2026/11/19 19:56:27 telemetry: failed to upload metrics: Post "http://127.0.0.1:4318/v1/metrics": dial tcp 127.0.0.1:4318: connect: connection refused (repeats suppressed for a minute)
+2026/11/19 19:57:27 telemetry: failed to upload metrics: Post "http://127.0.0.1:4318/v1/metrics": dial tcp 127.0.0.1:4318: connect: connection refused (repeats suppressed for a minute)
+2026/11/19 19:58:42 telemetry: failed to upload metrics: Post "http://127.0.0.1:4318/v1/metrics": dial tcp 127.0.0.1:4318: connect: connection refused (repeats suppressed for a minute)
+2026/11/19 19:59:42 telemetry: failed to upload metrics: Post "http://127.0.0.1:4318/v1/metrics": dial tcp 127.0.0.1:4318: connect: connection refused (repeats suppressed for a minute)
+2026/11/19 20:00:42 telemetry: failed to upload metrics: Post "http://127.0.0.1:4318/v1/metrics": dial tcp 127.0.0.1:4318: connect: connection refused (repeats suppressed for a minute)
+2026/11/19 20:01:57 telemetry: failed to upload metrics: Post "http://127.0.0.1:4318/v1/metrics": dial tcp 127.0.0.1:4318: connect: connection refused (repeats suppressed for a minute)
+2026/11/19 20:02:57 telemetry: failed to upload metrics: Post "http://127.0.0.1:4318/v1/metrics": dial tcp 127.0.0.1:4318: connect: connection refused (repeats suppressed for a minute)
+2026/11/19 20:03:57 telemetry: failed to upload metrics: Post "http://127.0.0.1:4318/v1/metrics": dial tcp 127.0.0.1:4318: connect: connection refused (repeats suppressed for a minute)
+2026/11/19 20:04:57 telemetry: failed to upload metrics: Post "http://127.0.0.1:4318/v1/metrics": dial tcp 127.0.0.1:4318: connect: connection refused (repeats suppressed for a minute)
+2026/11/19 20:06:12 telemetry: failed to upload metrics: Post "http://127.0.0.1:4318/v1/metrics": dial tcp 127.0.0.1:4318: connect: connection refused (repeats suppressed for a minute)
+2026/11/19 20:07:12 telemetry: failed to upload metrics: Post "http://127.0.0.1:4318/v1/metrics": dial tcp 127.0.0.1:4318: connect: connection refused (repeats suppressed for a minute)
+2026/11/19 20:08:27 telemetry: failed to upload metrics: Post "http://127.0.0.1:4318/v1/metrics": dial tcp 127.0.0.1:4318: connect: connection refused (repeats suppressed for a minute)
+2026/11/19 20:09:27 telemetry: failed to upload metrics: Post "http://127.0.0.1:4318/v1/metrics": dial tcp 127.0.0.1:4318: connect: connection refused (repeats suppressed for a minute)
+2026/11/19 20:10:27 telemetry: failed to upload metrics: Post "http://127.0.0.1:4318/v1/metrics": dial tcp 127.0.0.1:4318: connect: connection refused (repeats suppressed for a minute)
+2026/11/19 20:11:27 telemetry: failed to upload metrics: Post "http://127.0.0.1:4318/v1/metrics": dial tcp 127.0.0.1:4318: connect: connection refused (repeats suppressed for a minute)
+2026/11/19 20:12:27 telemetry: failed to upload metrics: Post "http://127.0.0.1:4318/v1/metrics": dial tcp 127.0.0.1:4318: connect: connection refused (repeats suppressed for a minute)
+2026/11/19 20:13:42 telemetry: failed to upload metrics: Post "http://127.0.0.1:4318/v1/metrics": dial tcp 127.0.0.1:4318: connect: connection refused (repeats suppressed for a minute)
+2026/11/19 20:14:42 telemetry: failed to upload metrics: Post "http://127.0.0.1:4318/v1/metrics": dial tcp 127.0.0.1:4318: connect: connection refused (repeats suppressed for a minute)
+2026/11/19 20:15:42 telemetry: failed to upload metrics: Post "http://127.0.0.1:4318/v1/metrics": dial tcp 127.0.0.1:4318: connect: connection refused (repeats suppressed for a minute)
+2026/11/19 20:16:57 telemetry: failed to upload metrics: Post "http://127.0.0.1:4318/v1/metrics": dial tcp 127.0.0.1:4318: connect: connection refused (repeats suppressed for a minute)
+2026/11/19 20:18:12 telemetry: failed to upload metrics: Post "http://127.0.0.1:4318/v1/metrics": dial tcp 127.0.0.1:4318: connect: connection refused (repeats suppressed for a minute)
+2026/11/19 20:19:27 telemetry: failed to upload metrics: Post "http://127.0.0.1:4318/v1/metrics": dial tcp 127.0.0.1:4318: connect: connection refused (repeats suppressed for a minute)
+2026/11/19 20:20:41 telemetry: forward browser traces: dial tcp 127.0.0.1:4318: connect: connection refused (repeats suppressed for a minute)
+2026/11/19 20:21:42 telemetry: failed to upload metrics: Post "http://127.0.0.1:4318/v1/metrics": dial tcp 127.0.0.1:4318: connect: connection refused (repeats suppressed for a minute)
+2026/11/19 20:22:42 telemetry: failed to upload metrics: Post "http://127.0.0.1:4318/v1/metrics": dial tcp 127.0.0.1:4318: connect: connection refused (repeats suppressed for a minute)
+2026/11/19 20:23:57 telemetry: failed to upload metrics: Post "http://127.0.0.1:4318/v1/metrics": dial tcp 127.0.0.1:4318: connect: connection refused (repeats suppressed for a minute)
+2026/11/19 20:25:12 telemetry: failed to upload metrics: Post "http://127.0.0.1:4318/v1/metrics": dial tcp 127.0.0.1:4318: connect: connection refused (repeats suppressed for a minute)
+2026/11/19 20:26:12 telemetry: failed to upload metrics: Post "http://127.0.0.1:4318/v1/metrics": dial tcp 127.0.0.1:4318: connect: connection refused (repeats suppressed for a minute)
+2026/11/19 20:27:27 telemetry: failed to upload metrics: Post "http://127.0.0.1:4318/v1/metrics": dial tcp 127.0.0.1:4318: connect: connection refused (repeats suppressed for a minute)
+2026/11/19 20:28:27 telemetry: failed to upload metrics: Post "http://127.0.0.1:4318/v1/metrics": dial tcp 127.0.0.1:4318: connect: connection refused (repeats suppressed for a minute)
+2026/11/19 20:29:27 telemetry: failed to upload metrics: Post "http://127.0.0.1:4318/v1/metrics": dial tcp 127.0.0.1:4318: connect: connection refused (repeats suppressed for a minute)
+2026/11/19 20:30:27 telemetry: failed to upload metrics: Post "http://127.0.0.1:4318/v1/metrics": dial tcp 127.0.0.1:4318: connect: connection refused (repeats suppressed for a minute)
+2026/11/19 20:31:27 telemetry: failed to upload metrics: Post "http://127.0.0.1:4318/v1/metrics": dial tcp 127.0.0.1:4318: connect: connection refused (repeats suppressed for a minute)
+2026/11/19 20:32:42 telemetry: failed to upload metrics: Post "http://127.0.0.1:4318/v1/metrics": dial tcp 127.0.0.1:4318: connect: connection refused (repeats suppressed for a minute)
+2026/11/19 20:33:57 telemetry: failed to upload metrics: Post "http://127.0.0.1:4318/v1/metrics": dial tcp 127.0.0.1:4318: connect: connection refused (repeats suppressed for a minute)
+2026/11/19 20:34:57 telemetry: failed to upload metrics: Post "http://127.0.0.1:4318/v1/metrics": dial tcp 127.0.0.1:4318: connect: connection refused (repeats suppressed for a minute)
+2026/11/19 20:36:12 telemetry: failed to upload metrics: Post "http://127.0.0.1:4318/v1/metrics": dial tcp 127.0.0.1:4318: connect: connection refused (repeats suppressed for a minute)
+2026/11/19 20:37:12 telemetry: failed to upload metrics: Post "http://127.0.0.1:4318/v1/metrics": dial tcp 127.0.0.1:4318: connect: connection refused (repeats suppressed for a minute)
+2026/11/19 20:38:12 telemetry: failed to upload metrics: Post "http://127.0.0.1:4318/v1/metrics": dial tcp 127.0.0.1:4318: connect: connection refused (repeats suppressed for a minute)
+2026/11/19 20:39:27 telemetry: failed to upload metrics: Post "http://127.0.0.1:4318/v1/metrics": dial tcp 127.0.0.1:4318: connect: connection refused (repeats suppressed for a minute)
+2026/11/19 20:40:42 telemetry: failed to upload metrics: Post "http://127.0.0.1:4318/v1/metrics": dial tcp 127.0.0.1:4318: connect: connection refused (repeats suppressed for a minute)
+2026/11/19 20:41:57 telemetry: failed to upload metrics: Post "http://127.0.0.1:4318/v1/metrics": dial tcp 127.0.0.1:4318: connect: connection refused (repeats suppressed for a minute)
+2026/11/19 20:42:57 telemetry: failed to upload metrics: Post "http://127.0.0.1:4318/v1/metrics": dial tcp 127.0.0.1:4318: connect: connection refused (repeats suppressed for a minute)
+2026/11/19 20:43:57 telemetry: failed to upload metrics: Post "http://127.0.0.1:4318/v1/metrics": dial tcp 127.0.0.1:4318: connect: connection refused (repeats suppressed for a minute)
+2026/11/19 20:44:57 telemetry: failed to upload metrics: Post "http://127.0.0.1:4318/v1/metrics": dial tcp 127.0.0.1:4318: connect: connection refused (repeats suppressed for a minute)
+2026/11/19 20:46:12 telemetry: failed to upload metrics: Post "http://127.0.0.1:4318/v1/metrics": dial tcp 127.0.0.1:4318: connect: connection refused (repeats suppressed for a minute)
+2026/11/19 20:47:27 telemetry: failed to upload metrics: Post "http://127.0.0.1:4318/v1/metrics": dial tcp 127.0.0.1:4318: connect: connection refused (repeats suppressed for a minute)
+2026/11/19 20:48:27 telemetry: failed to upload metrics: Post "http://127.0.0.1:4318/v1/metrics": dial tcp 127.0.0.1:4318: connect: connection refused (repeats suppressed for a minute)
+2026/11/19 20:49:42 telemetry: failed to upload metrics: Post "http://127.0.0.1:4318/v1/metrics": dial tcp 127.0.0.1:4318: connect: connection refused (repeats suppressed for a minute)
