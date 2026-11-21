@@ -34,7 +34,7 @@
   - Apply design-system §4 roles to every page; `text-wrap` rules; tabular numbers in tables.
   - Create `web/src/icons.ts` (safe Lucide registry with fallback) and use the §5 table everywhere.
   - Accept: grep finds no direct font sizes or Lucide imports outside the registry and `components/ui`.
-- [ ] **B4. Appearance: presets and custom colors** (Codex for the server, then Muse for the Desk; design-system §2.3, §18)
+- [x] **B4. Appearance: presets and custom colors** (Codex for the server, then Muse for the Desk; design-system §2.3, §18)
   - Server: Workspace appearance stored as a setting (`brand.accent` preset or custom accent and chart colors in OKLCH), `WorkspaceService.GetAppearance` and `SetAppearance` with permission `settings:appearance`, contrast check returning the nearest passing value, applied at sign-in and on the sign-in page.
   - Desk: Settings → Appearance with swatches, Custom with a color picker for the accent and charts, a light and dark live preview, save and reset; `data-accent` or custom properties applied to `<html>` at load; per-user light, dark or system choice.
   - Accept: Go tests for storage, permission and contrast; choosing a color changes only accent spots for every user after reload.
@@ -46,7 +46,7 @@
   - Page pass on Overview, Record Types, Records, Rules, Files, Access, Ledger and Sign-in: spacing tokens, one primary action, hierarchy per §4, empty, loading and error states, impeccable `layout` and `polish`, emilkowalski-motion.
   - Native mobile and tablet per §13: floating bottom navigation, bottom drawers for every dialog, form, picker, filter and menu (content height, swipe to close, dirty-form guard), edge-swipe back and forward, minified tables and charts, pull to refresh, web app manifest.
   - Accept: browser pass at 375, 768, 1280, 1440 in both themes on every page; a scripted check that no dialog opens centered below 1024 px; swipe and drawer gestures checked in Chrome device emulation with touch.
-- [ ] **B12. Notifications** (Codex for the server, then Muse for the Desk; ADR required, new durable data)
+- [x] **B12. Notifications** (Codex for the server, then Muse for the Desk; ADR required, new durable data)
   - Migration: `athena_notifications` (recipient user, kind, subject reference, actor, created, read_at) and `NotificationService` (List with keyset paging, UnreadCount, MarkRead, MarkAllRead). Notifications are written in the same transaction as the event, by the services that own it: auth (invite accepted, access changed, sign-in failed or locked, session ended by someone else), rules (save stopped), lifecycle (approval waiting), ledger (period closed). Text is built from a kind and parameters; no Record values in the row beyond the subject's display label.
   - Desk per design-system §17: bell with unread count, inbox popover (bottom drawer on phones), Today and Earlier, mark read, deep links, 30 s polling.
   - Accept: a Go test per source; the Desk shows a new notification within 30 s without reload.
@@ -74,7 +74,7 @@
   - Desk: root sees a quiet "Root administrator" caption and a `lock` badge on its own user row with the reason; its row actions are disabled with the reason.
   - Fix: a fresh load of `?mode=build` lands in View because the `canBuildDesk` watch fires during startup (found in B2, present before B2).
   - Build/View: mode switch per design-system §7; Build shows a persistent "Building" caption and a hairline-separated sidebar group; View hides all Build navigation; a "Preview as" control in Build shows View as a chosen Role (read-only, from playbook §8 "Developer entry").
-- [ ] **B9a. Record Types list and editor page** (Muse; added 2026-11-21 at the user's request; design-system §19; before B9, after B3 merges)
+- [x] **B9a. Record Types list and editor page** (Muse; added 2026-11-21 at the user's request; design-system §19; before B9, after B3 merges)
   - Replace the list-plus-inline-form page with the §19 list (DataTable on desktop and tablet with name, description, kind, fields, records, Pack, last changed, changed by; stacked rows and a summary drawer on phones) and the dedicated editor page at `/build/record-types/<key>` with Form, Fields, Settings, Rules and History tabs. Move the existing editing (fields, settings, save, destructive-save planning, delete) onto the editor page with no behavior change. The Form tab is a placeholder until B9.
   - Server: Record counts and last-changed actor per Record Type if `RecordTypeService.ListRecordTypes` lacks them (Codex or Muse server worker, additive proto fields).
   - Accept: no form shows on the list; every existing Record Type action still works from the editor page; links to `/build/record-types/<key>` survive reload.
@@ -143,6 +143,13 @@ Pattern: **Athena + one concrete noun**, 1 to 2 syllables, works as `athena-<nou
 | Import and migration | importers (G15) | Athena Bridge |
 
 Gates per name: pattern, 1 to 2 syllables, clean as `athena-<noun>`, the user can guess what it does. The everyday user mostly sees the plain section names ("Books", "Stock", "Reports"); the product names appear in docs, the CLI and Settings.
+
+## Follow-ups from merged slices (2026-11-21)
+
+- B9a: Delete next to Save in the editor header; editor title not an h1; field-row action icons cramped; Required checkbox alignment; dead `.records-layout` rule (style.css:178).
+- B3: Rule Run sheet shows messages, not a diff (needs a RuleRun diff field on the server).
+- B4: unset custom chart swatches show black; "Selected page" preview lacks the accent; Security section intro copy too playful.
+- Security RPC: MariaDB-only upsert; last-writer-wins on concurrent sets.
 
 ## Z. Decisions the user must make (OPEN)
 
