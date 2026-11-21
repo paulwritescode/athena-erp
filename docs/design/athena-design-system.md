@@ -282,6 +282,8 @@ Every button that does something has an icon and a word, a visible hover, and a 
 | Destructive | outline `--destructive` at rest, filled `--destructive` on hover; always confirms | `trash-2` Delete, `user-x` Remove | last, separated by a hairline divider; never next to the primary |
 | Restore | outline with `--success` icon | `play` Reactivate, `rotate-ccw` Restore | where its opposite (Suspend, Delete) appears |
 
+Times read as people say them: "Today 1:36 PM", "Yesterday 9:10 AM", "21 Nov 2026"; exact timestamps with seconds only in tooltips and in audit views.
+
 Behavior: hover darkens or tints the surface over `--duration-fast` and shows the pointer cursor; press scales to 0.97; focus-visible shows the ring; busy keeps the width, swaps the icon for a spinner and disables the button; disabled shows the reason in a tooltip (desktop) or under the button group (touch). Icons are 16 px with `--space-2` to the label. A group of actions is spaced `--space-2` within a kind and `--space-4` between kinds. On phones a row's actions move into its detail drawer as full-width buttons, grouped the same way.
 
 ## 15. Sidebar structure (desktop)
@@ -291,22 +293,23 @@ Build mode, grouped by how people work, with caption headings:
 | Group | Items |
 | --- | --- |
 | (no heading) | Overview |
-| Data | Record Types, Packs, Files |
-| Logic | Rules |
-| Money | Ledger |
-| People | Access |
-| Insight | Reports, Jobs |
-| Workspace | Setup, Settings |
+| Build | Record Types, Packs, Rules, Files |
+| Operate | Ledger, Reports, Jobs |
+| Administer | Access, Settings, Setup |
+
+Revised 2026-11-21 after the first build: six groups with one item each added height without adding meaning. Three groups follow the order of the work (define, run, administer). Groups sit `--space-4` apart; the caption heading is `--space-2` above its first item.
 
 View mode: Home, then the Record Types the user can read, grouped by the Pack or Module that installed them (ungrouped ones under "Records"), then Work queue, Reports and Count when present. Groups collapse; the open state is remembered per user. The Build and View control, cards, inputs and panels use the same radius family (`--radius` and `calc(var(--radius) - 2px)`); nothing uses a square corner except hairline dividers.
 
 ## 16. Detail panels
 
-Opening a row's detail (a user in Access, a Record from a list, a session) on desktop and tablet opens a right sheet that spans the full viewport height, from the top of the browser window to the bottom, above the header, with a dim overlay. It is 480 px wide (640 px for wide content), has its own header with the title, status and close, a scrolling body, and a sticky footer with the action groups from §14. On phones it is a bottom drawer (§13). Inline detail cards inside the page are not used.
+Opening a row's detail (a user in Access, a Record from a list, a session) on desktop and tablet opens a right sheet that spans the full viewport height, from the top of the browser window to the bottom, above the header, with a dim overlay. It is 480 px wide (640 px for wide content), has its own header with the title (the thing's everyday name, for a person their display name, with the username or ID below in mono caption), status and close, a scrolling body, and a sticky footer with the action groups from §14. On phones it is a bottom drawer (§13). Inline detail cards inside the page are not used.
 
 ## 17. Notifications
 
 The bell is a working inbox, not decoration. It shows an unread count, a list grouped by Today and Earlier, read and unread state, "Mark all as read", and a link from each notification to the thing it is about. Each notification says what happened in everyday words, who did it and when. Sources in the beta: your invite was accepted, your Role or access changed, a sign-in to your account failed or was locked, your session was ended by someone else, a Rule stopped your save, an approval waits for you, a period you work in was closed, a job you started finished or failed. New notifications arrive without reloading (polling every 30 s, or the server stream when G8 lands) and appear as a quiet toast only when they need action. On phones the inbox opens as a bottom drawer.
+
+Toasts never cover actions: while a right sheet is open on desktop and tablet, toasts appear at the bottom left of the sheet's free area (bottom center of the remaining page); on phones toasts appear at the top, below the header, so they never cover a drawer footer or the floating navigation.
 
 ## 18. Appearance settings (decided 2026-11-21)
 
