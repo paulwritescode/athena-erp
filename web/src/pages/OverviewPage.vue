@@ -7,7 +7,7 @@ const emit = defineEmits<{ navigate: [page: Page]; createRecordType: [] }>()
 
 <template>
   <section class="page-content">
-    <div class="welcome-row"><div><h1>Workspace</h1><p class="lead">Define Record Types, group them into Packs and add Rules.</p></div><Button @click="emit('createRecordType')">New Record Type</Button></div>
+    <div class="welcome-row"><div><h1>Overview</h1><p class="lead">Define Record Types, group them into Packs and add Rules.</p></div><Button @click="emit('createRecordType')">New Record Type</Button></div>
     <p v-if="apiState === 'error' || databaseState !== 'Connected'" class="notice-row">{{ apiState === 'error' ? 'The Athena server is unavailable.' : `Database: ${databaseState}.` }}</p>
     <div class="foundation-grid">
       <button class="foundation-card" @click="emit('navigate', 'record-types')"><h3>Record Types</h3><p>Fields that define a table in the Workspace database.</p><div class="card-footer"><span class="muted-label">{{ recordTypes.length }} {{ recordTypes.length === 1 ? 'Record Type' : 'Record Types' }}</span><span class="arrow">→</span></div></button>

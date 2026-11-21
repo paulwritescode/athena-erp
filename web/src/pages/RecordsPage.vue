@@ -3,6 +3,7 @@ import { computed, nextTick, reactive, ref, watch } from 'vue'
 import { create } from '@bufbuild/protobuf'
 import { Code, ConnectError } from '@connectrpc/connect'
 import { recordClient } from '../api'
+import { keyMatchesRoute } from '../composables/useRecordTypes'
 import { docstates, fieldEditable, isCalculated, validateField, validateManualName } from '../fieldRules'
 import { forgetLabels } from '../lookup'
 import { FieldValueSchema, type ActivityEvent, type FieldChange, type FieldState, type Record as RecordMessage, type RecordEvent, type RecordVersion, type FieldValue } from '../gen/athena/v1/records_pb'
@@ -19,7 +20,9 @@ import { toast } from 'vue-sonner'
 
 // recordType is null when no saved Record Type exists yet. recordId comes from the page
 // URL: '' for the table, 'new' for the create form, or an record ID.
-const props = defineProps<{ recordType: RecordType | null; recordId: string; recordTypes?: RecordType[] }>()
+// recordTypeKey is the key the address names; writes send it, and a record
+// type that does not match it never saves.
+const props = defineProps<{ recordType: RecordType | null; recordTypeKey: string; recordId: string; recordTypes?: RecordType[] }>()
 const emit = defineEmits<{ back: []; 'update:recordId': [id: string] }>()
 
 const records = ref<RecordMessage[]>([])
@@ -301,7 +304,7 @@ function toValue(field: Field): FieldValue {
 
 async function submit() {
   const recordType = props.recordType
-  if (!editing.value || !recordType) return
+  if (!editing.value || !recordType || !keyMatchesRoute(recordType.name, props.recordTypeKey)) return
   for (const field of recordType.fields) { touched.add(field.name); if (!locked(field) && !states[field.name]?.hidden) check(field) }
   if (editing.value === 'new' && isChild.value && !parentId.value.trim()) errors.parent_id = `Choose the ${parentLabel.value} this belongs to.`
   if (editing.value === 'new' && allowsManualName.value) {
@@ -313,14 +316,14 @@ async function submit() {
   const values = Object.fromEntries(recordType.fields.filter((field) => !locked(field) && !states[field.name]?.hidden).map((field) => [field.name, toValue(field)]))
   try {
     if (editing.value === 'new') {
-      const res = await recordClient.createRecord({ recordTypeKey: recordType.name, values, parentId: isChild.value ? parentId.value.trim() : '', name: allowsManualName.value ? manualName.value.trim() : '' })
+      const res = await recordClient.createRecord({ recordTypeKey: props.recordTypeKey, values, parentId: isChild.value ? parentId.value.trim() : '', name: allowsManualName.value ? manualName.value.trim() : '' })
       if (res.record) records.value = [...records.value, res.record]
       forgetLabels(recordType.name)
       toast.success('Record created.')
       close()
     } else {
       const current = editing.value
-      const res = await recordClient.updateRecord({ recordTypeKey: recordType.name, id: current.id, expectedRevision: current.revision, values })
+      const res = await recordClient.updateRecord({ recordTypeKey: props.recordTypeKey, id: current.id, expectedRevision: current.revision, values })
       const updated = res.record
       if (updated) {
         records.value = records.value.map((item) => item.id === current.id ? updated : item)

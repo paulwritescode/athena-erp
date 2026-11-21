@@ -576,6 +576,8 @@ function explainHolder(holder: RoleHolder) {
 // sessions permission, which the server checks.
 const sessionUser = ref(props.username)
 const sessions = ref<Session[]>([])
+const selectedSession = ref('')
+const sessionDetail = computed(() => sessions.value.find((session) => session.id === selectedSession.value) ?? null)
 
 async function loadSessions() {
   if (!sessionUser.value.trim()) return
@@ -643,7 +645,7 @@ onMounted(async () => {
 <template>
   <section class="page-content files-page">
     <div class="page-title-row">
-      <div><h1>Users &amp; Roles</h1><p class="lead">Invite users, hand out scoped Roles, inspect sessions and explain access decisions.</p></div>
+      <div><h1>Access</h1><p class="lead">Invite users, hand out scoped Roles, inspect sessions and explain access decisions.</p></div>
       <div v-if="tab === 'users' && canUsers && !unavailable" class="toolbar-actions"><Button @click="inviting = true">＋ Invite user</Button></div>
     </div>
     <div v-if="unavailable" class="empty-builder"><div class="card-icon">⌘</div><h2>Access is unavailable</h2><p>{{ unavailable }}</p></div>
@@ -659,15 +661,15 @@ onMounted(async () => {
         <div class="access-split">
           <div class="access-main">
             <p v-if="loaded && users.length === 0" class="files-empty">No users yet.</p>
-            <Table v-else>
+            <Table v-else class="datatable-stacked">
               <TableHeader><TableRow><TableHead>Username</TableHead><TableHead>Display name</TableHead><TableHead>State</TableHead><TableHead>Roles</TableHead><TableHead>Last sign-in</TableHead></TableRow></TableHeader>
               <TableBody>
                 <TableRow v-for="user in users" :key="user.username" class="cursor-pointer" :data-state="user.username === selectedUser ? 'selected' : undefined" @click="selectUser(user.username === selectedUser ? '' : user.username)">
-                  <TableCell>{{ user.username }} <Badge v-if="user.owner" variant="secondary">Owner</Badge></TableCell>
-                  <TableCell>{{ user.displayName }}</TableCell>
-                  <TableCell><Badge :variant="stateVariant(user.state)">{{ user.state || 'active' }}</Badge><Badge v-if="user.locked" variant="destructive">Locked</Badge></TableCell>
-                  <TableCell>{{ user.roles.join(', ') }}</TableCell>
-                  <TableCell>{{ when(user.lastLoginAt) }}</TableCell>
+                  <TableCell data-label="Username"><button type="button" class="row-open" :aria-expanded="user.username === selectedUser" :aria-label="`Open details for ${user.username}`" @click.stop="selectUser(user.username === selectedUser ? '' : user.username)">{{ user.username }}</button> <Badge v-if="user.owner" variant="secondary">Owner</Badge></TableCell>
+                  <TableCell data-label="Display name">{{ user.displayName }}</TableCell>
+                  <TableCell data-label="State"><Badge :variant="stateVariant(user.state)">{{ user.state || 'active' }}</Badge><Badge v-if="user.locked" variant="destructive">Locked</Badge></TableCell>
+                  <TableCell data-label="Roles" class="datatable-hide-mobile">{{ user.roles.join(', ') }}</TableCell>
+                  <TableCell data-label="Last sign-in" class="datatable-hide-mobile">{{ when(user.lastLoginAt) }}</TableCell>
                 </TableRow>
               </TableBody>
             </Table>
@@ -678,6 +680,7 @@ onMounted(async () => {
               <Badge :variant="stateVariant(selected.state)">{{ selected.state || 'active' }}</Badge>
               <div class="toolbar-actions"><Button variant="ghost" size="sm" aria-label="Close details" @click="selectUser('')">✕</Button></div>
             </div>
+            <p v-if="selected.lastLoginAt" class="muted-label">Last sign-in {{ when(selected.lastLoginAt) }}</p>
             <p v-if="isRootSelected" class="editor-footnote">The root account is managed outside the desk and cannot be changed here.</p>
             <div v-else class="toolbar-actions access-drawer-actions">
               <Button v-if="canUsers && selected.state === 'invited'" variant="outline" size="sm" :disabled="busy" @click="resend(selected.username)">Resend invite</Button>
@@ -706,14 +709,14 @@ onMounted(async () => {
           <div class="access-main">
             <div class="toolbar-actions access-tab-actions"><Button size="sm" :disabled="busy" @click="openNewRole">＋ New Role</Button></div>
             <p v-if="loaded && roles.length === 0" class="files-empty">No Roles yet.</p>
-            <Table v-else>
+            <Table v-else class="datatable-stacked">
               <TableHeader><TableRow><TableHead>Role</TableHead><TableHead>Description</TableHead><TableHead>System permissions</TableHead><TableHead>Grants</TableHead></TableRow></TableHeader>
               <TableBody>
                 <TableRow v-for="role in roles" :key="role.name" class="cursor-pointer" :data-state="role.name === selectedRole ? 'selected' : undefined" @click="selectedRole = role.name === selectedRole ? '' : role.name">
-                  <TableCell>{{ role.name }}</TableCell>
-                  <TableCell>{{ role.description }}</TableCell>
-                  <TableCell>{{ role.systemPermissions.join(', ') }}</TableCell>
-                  <TableCell>{{ role.grants.length }}</TableCell>
+                  <TableCell data-label="Role"><button type="button" class="row-open" :aria-expanded="role.name === selectedRole" :aria-label="`Open details for ${role.name}`" @click.stop="selectedRole = role.name === selectedRole ? '' : role.name">{{ role.name }}</button></TableCell>
+                  <TableCell data-label="Description" class="datatable-hide-mobile">{{ role.description }}</TableCell>
+                  <TableCell data-label="System permissions" class="datatable-hide-mobile">{{ role.systemPermissions.join(', ') }}</TableCell>
+                  <TableCell data-label="Grants">{{ role.grants.length }}</TableCell>
                 </TableRow>
               </TableBody>
             </Table>
@@ -728,6 +731,7 @@ onMounted(async () => {
               </div>
             </div>
             <p v-if="roleDetail.description" class="muted-label">{{ roleDetail.description }}</p>
+            <p v-if="roleDetail.systemPermissions.length > 0" class="muted-label">System permissions: {{ roleDetail.systemPermissions.join(', ') }}</p>
             <p v-if="roleDetail.grants.length === 0" class="files-empty">No Grants. Roles gain Grants from the command line.</p>
             <ul v-else class="access-grants">
               <li v-for="(grant, index) in roleDetail.grants" :key="index">
@@ -741,12 +745,12 @@ onMounted(async () => {
       </TabsContent>
       <TabsContent value="permissions">
         <p v-if="loaded && roles.length === 0" class="files-empty">No Roles yet.</p>
-        <Table v-else>
+        <Table v-else class="datatable-stacked">
           <TableHeader><TableRow><TableHead>Record Type</TableHead><TableHead v-for="role in roles" :key="role.name">{{ role.name }}</TableHead></TableRow></TableHeader>
           <TableBody>
             <TableRow v-for="typeKey in matrixTypes" :key="typeKey">
-              <TableCell>{{ typeKey === '*' ? 'All record types' : typeKey }}</TableCell>
-              <TableCell v-for="role in roles" :key="role.name">
+              <TableCell data-label="Record Type">{{ typeKey === '*' ? 'All record types' : typeKey }}</TableCell>
+              <TableCell v-for="role in roles" :key="role.name" :data-label="role.name">
                 <span v-if="cellActions(role, typeKey).length === 0" class="muted-label">·</span>
                 <Button v-for="action in cellActions(role, typeKey)" :key="action" variant="ghost" size="sm" class="access-letter" :disabled="busy" :title="`${action} ${typeKey === '*' ? 'everything' : typeKey} — show holders`" @click="openHolders(role.name, typeKey, action)">{{ actionLetter(action) }}</Button>
               </TableCell>
@@ -764,19 +768,36 @@ onMounted(async () => {
           <div class="toolbar-actions"><Button variant="outline" :disabled="busy" @click="loadSessions">List sessions</Button></div>
         </div>
         <p v-if="sessions.length === 0" class="files-empty">No live sessions.</p>
-        <Table v-else>
-          <TableHeader><TableRow><TableHead>Started</TableHead><TableHead>Last seen</TableHead><TableHead>Expires</TableHead><TableHead>Device</TableHead><TableHead></TableHead><TableHead></TableHead></TableRow></TableHeader>
-          <TableBody>
-            <TableRow v-for="session in sessions" :key="session.id">
-              <TableCell>{{ when(session.createdAt) }}</TableCell>
-              <TableCell>{{ when(session.lastSeenAt) }}</TableCell>
-              <TableCell>{{ when(session.expiresAt) }}</TableCell>
-              <TableCell>{{ session.device || '—' }}</TableCell>
-              <TableCell><Badge v-if="session.current" variant="secondary">This device</Badge></TableCell>
-              <TableCell><Button variant="ghost" size="sm" :disabled="busy" @click="revokeSession(session.id)">End</Button></TableCell>
-            </TableRow>
-          </TableBody>
-        </Table>
+        <div v-else class="access-split">
+          <div class="access-main">
+            <Table class="datatable-stacked">
+              <TableHeader><TableRow><TableHead>Started</TableHead><TableHead>Last seen</TableHead><TableHead>Expires</TableHead><TableHead>Device</TableHead><TableHead></TableHead><TableHead></TableHead></TableRow></TableHeader>
+              <TableBody>
+                <TableRow v-for="session in sessions" :key="session.id" class="cursor-pointer" :data-state="session.id === selectedSession ? 'selected' : undefined" @click="selectedSession = session.id === selectedSession ? '' : session.id">
+                  <TableCell data-label="Started" class="datatable-hide-mobile">{{ when(session.createdAt) }}</TableCell>
+                  <TableCell data-label="Last seen">{{ when(session.lastSeenAt) }}</TableCell>
+                  <TableCell data-label="Expires" class="datatable-hide-mobile">{{ when(session.expiresAt) }}</TableCell>
+                  <TableCell data-label="Device"><button type="button" class="row-open" :aria-expanded="session.id === selectedSession" :aria-label="`Open details for session ${session.id.slice(0, 8)}`" @click.stop="selectedSession = session.id === selectedSession ? '' : session.id">{{ session.device || '—' }}</button></TableCell>
+                  <TableCell data-label="Status" :class="!session.current ? 'datatable-hide-mobile' : undefined"><Badge v-if="session.current" variant="secondary">This device</Badge></TableCell>
+                  <TableCell><Button variant="ghost" size="sm" :disabled="busy" @click.stop="revokeSession(session.id)">End</Button></TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
+          </div>
+          <aside v-if="sessionDetail" class="access-drawer" aria-label="Session details">
+            <div class="record-editor-head">
+              <h2 class="files-title">{{ sessionDetail.device || 'Session' }}</h2>
+              <Badge v-if="sessionDetail.current" variant="secondary">This device</Badge>
+              <div class="toolbar-actions"><Button variant="ghost" size="sm" aria-label="Close details" @click="selectedSession = ''">✕</Button></div>
+            </div>
+            <p class="muted-label">Started {{ when(sessionDetail.createdAt) }}</p>
+            <p class="muted-label">Last seen {{ when(sessionDetail.lastSeenAt) }}</p>
+            <p class="muted-label">Expires {{ when(sessionDetail.expiresAt) }}</p>
+            <div class="toolbar-actions access-drawer-actions">
+              <Button variant="ghost" size="sm" :disabled="busy" @click="revokeSession(sessionDetail.id)">End session</Button>
+            </div>
+          </aside>
+        </div>
       </TabsContent>
       <TabsContent value="explore">
         <div class="editor-toolbar explore-form">

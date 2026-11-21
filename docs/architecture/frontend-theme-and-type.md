@@ -25,10 +25,16 @@ Selection, caret, scrollbars and the focus ring come from tokens in the `style.c
 
 `web/src/tokens.test.ts` fails the web suite if any `.vue` or `.css` file under `web/src` other than `web/src/theme.css` holds a hex literal, `rgb(` or named color in a value position: CSS declarations, `.vue` style blocks, `style`/`:style`/`v-bind` values, Tailwind arbitrary values and `fill`/`stroke`/`color` attributes. Comments, selectors, `data-*` attribute values, `transparent`, `currentColor` and `inherit` are allowed. Literal colors belong in `theme.css` only.
 
-Known limits (the check uses regular expressions; task B2 replaces it with a parser-based check using `@vue/compiler-sfc` and a CSS parser):
-- a color in a backtick string inside an object binding, such as `:style="{ fill: \`#abc\` }"`, is not caught;
-- `red` as the value of a `data-*` key inside a `v-bind="{ ... }"` object is wrongly flagged;
-- a color in a CSS rule that also contains a nested rule (`.a { color: #abc; &:hover { ... } }`) is not caught.
+The check is structural since B2: `@vue/compiler-sfc` parses each `.vue` file into blocks and the template block into the real template AST, which is walked for paint attributes and bindings by exact name. Bare `v-bind` objects scan only style, class and paint keys; ternary conditions never count (only branch values reach paint); `url()` contents never count. String literals in `<script>` and `<script setup>` count as well, since a palette object reaches paint through `:style`; files with a legitimate reason list in `SCRIPT_EXCEPTIONS` (empty today). A brace/string-aware CSS scanner reads every declaration value in every rule, nested or not. The B1 regex limits are closed and covered by fixtures (backtick bindings, `data-*` keys inside `v-bind` objects, colors beside nested rules), as are conditional `v-bind` objects, `stop-color`, `title` strings, `url(#fragment)` references and script palette objects. `@vue/compiler-dom` and `postcss` are transitive-only, so expression and CSS scanning are purpose-built in the test file.
+
+Remaining limits:
+- a `//` inside a JavaScript regex literal reads as a comment start to the script scanner, so code after it on that line goes unscanned;
+- a regex literal holding braces next to a `data-*` key in one `v-bind` object could mis-split the pair.
+Neither shape appears in this tree; both are covered by staying out of it rather than by handling it.
+
+## Shell breakpoints and overlays
+
+B2 adapts the shadcn-vue sidebar to the R2 breakpoints: full sidebar at 1024 px and up, a 56 px icon rail from 640 to 1023, and the bottom navigation below 640 (`SIDEBAR_MOBILE_BREAKPOINT` 640, widths 15rem/3.5rem in `sidebar/utils.ts`, `min-[640px]:` visibility in `Sidebar.vue`). Sheet, dialog, drawer and alert-dialog overlays are a plain `bg-black/30` dim with no backdrop blur. Sheets carry `--space-4` side padding at their usages.
 
 
 ## Type scale

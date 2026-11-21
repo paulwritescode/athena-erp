@@ -89,15 +89,24 @@ const table = useTable({
 })
 
 const fieldTypes = computed(() => new Map(props.fields.map((field) => [field.name, field.type])))
+const fieldIndex = computed(() => new Map(props.fields.map((field, index) => [field.name, index])))
 
 function align(columnId: string) {
   const type = fieldTypes.value.get(columnId) ?? ''
   return alignRight.has(type) ? 'is-right' : alignCenter.has(type) ? 'is-center' : ''
 }
+
+// Stacked rows keep the key fields: the status, then the first two fields.
+// The rest wait in the record form, one tap away.
+function stackedClass(columnId: string): string {
+  const parts = [align(columnId)]
+  if (columnId !== 'docstate' && (fieldIndex.value.get(columnId) ?? 0) > 1) parts.push('datatable-hide-mobile')
+  return parts.filter((part) => part.length > 0).join(' ')
+}
 </script>
 
 <template>
-  <div class="entries-scroll">
+  <div class="entries-scroll datatable-stacked">
     <Table class="entries-grid" :style="{ width: `${table.getTotalSize()}px` }">
       <colgroup>
         <col v-for="column in table.getAllLeafColumns()" :key="column.id" :style="{ width: `${column.getSize()}px` }" />
@@ -122,8 +131,8 @@ function align(columnId: string) {
         </TableRow>
       </TableHeader>
       <TableBody>
-        <TableRow v-for="row in table.getRowModel().rows" :key="row.id" tabindex="0" class="entries-row" @click="emit('open', row.original)" @keydown.enter="emit('open', row.original)">
-          <TableCell v-for="cell in row.getAllCells()" :key="cell.id" :class="align(cell.column.id)" :title="cellText(cell.column.id, cell.getValue())">{{ cellText(cell.column.id, cell.getValue()) }}</TableCell>
+        <TableRow v-for="row in table.getRowModel().rows" :key="row.id" tabindex="0" class="entries-row" @click="emit('open', row.original)" @keydown.enter="emit('open', row.original)" @keydown.space.prevent="emit('open', row.original)">
+          <TableCell v-for="cell in row.getAllCells()" :key="cell.id" :class="stackedClass(cell.column.id)" :data-label="String(cell.column.columnDef.header ?? '')" :title="cellText(cell.column.id, cell.getValue())">{{ cellText(cell.column.id, cell.getValue()) }}</TableCell>
         </TableRow>
       </TableBody>
     </Table>

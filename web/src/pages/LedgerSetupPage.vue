@@ -457,8 +457,8 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div>
-    <div class="page-title-row"><div><h1>Ledger setup</h1><p class="lead">Companies, periods, currencies and accounts. Jurisdiction, chart and tax stay open for the sponsor.</p></div></div>
+  <div class="page-content">
+    <div class="page-title-row"><div><h1>Ledger</h1><p class="lead">Companies, periods, currencies and accounts. Jurisdiction, chart and tax stay open for the sponsor.</p></div></div>
     <Tabs :model-value="ledgerTab" @update:model-value="onLedgerTab">
       <TabsList>
         <TabsTrigger value="readiness">Readiness</TabsTrigger>

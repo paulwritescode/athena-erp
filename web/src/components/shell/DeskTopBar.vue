@@ -1,0 +1,56 @@
+// DeskTopBar is the neutral header with a hairline: a breadcrumb on the
+// left only when the page is deeper than one level (an open Record), then
+// search, the Build/View switch, theme, notifications and the user menu on
+// the right. Below 640 px it keeps the mark, search, notifications and the
+// avatar; the mode switch moves into the user menu.
+<script setup lang="ts">
+import { Moon, Search, Sun } from '@lucide/vue'
+import markDark from '@/assets/brand/athena-white.png'
+import markLight from '@/assets/brand/athena-black.png'
+import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb'
+import { Button } from '@/components/ui/button'
+import type { SessionUser } from '@/types'
+import ModeSwitch from './ModeSwitch.vue'
+import NotificationsPopover from './NotificationsPopover.vue'
+import UserMenu from './UserMenu.vue'
+
+defineProps<{ breadcrumb: { parent: string; current: string } | null; mode: 'build' | 'view'; canBuildDesk: boolean; user: SessionUser | null; isDark: boolean; workspaceName: string }>()
+const emit = defineEmits<{ parentClick: []; setMode: ['build' | 'view']; openPalette: []; toggleTheme: []; changePassword: []; signOut: [] }>()
+</script>
+
+<template>
+  <header class="bg-background/95 supports-[backdrop-filter]:bg-background/60 sticky top-0 z-10 flex h-14 shrink-0 items-center gap-2 border-b px-3 backdrop-blur min-[640px]:px-4">
+    <img :src="markLight" alt="" class="size-7 shrink-0 rounded-md min-[640px]:hidden dark:hidden" />
+    <img :src="markDark" alt="" class="hidden size-7 shrink-0 rounded-md dark:block dark:min-[640px]:hidden" />
+    <span class="min-w-0 flex-1 truncate text-sm font-semibold min-[640px]:hidden">{{ workspaceName || 'Athena' }}</span>
+    <Breadcrumb v-if="breadcrumb" class="min-w-0 flex-1">
+      <BreadcrumbList class="flex-nowrap">
+        <BreadcrumbItem class="min-w-0 shrink">
+          <BreadcrumbLink as-child>
+            <button class="max-w-32 cursor-pointer truncate sm:max-w-48" @click="emit('parentClick')">{{ breadcrumb.parent }}</button>
+          </BreadcrumbLink>
+        </BreadcrumbItem>
+        <BreadcrumbSeparator class="shrink-0" />
+        <BreadcrumbItem class="min-w-0">
+          <BreadcrumbPage class="truncate">{{ breadcrumb.current }}</BreadcrumbPage>
+        </BreadcrumbItem>
+      </BreadcrumbList>
+    </Breadcrumb>
+    <div class="ml-auto flex shrink-0 items-center gap-1 min-[640px]:gap-2">
+      <Button variant="outline" class="text-muted-foreground hidden w-56 justify-start font-normal min-[1024px]:inline-flex" aria-label="Search pages and actions" @click="emit('openPalette')">
+        <Search class="size-4" aria-hidden="true" />
+        <span>Search...</span>
+        <kbd class="bg-muted ml-auto rounded border px-1 text-[10px] font-medium">⌘K</kbd>
+      </Button>
+      <Button variant="ghost" size="icon-sm" class="min-[1024px]:hidden" aria-label="Search pages and actions" @click="emit('openPalette')">
+        <Search class="size-4" aria-hidden="true" />
+      </Button>
+      <ModeSwitch v-if="canBuildDesk" class="hidden min-[640px]:flex" :model-value="mode" @update:model-value="(next) => emit('setMode', next)" />
+      <Button variant="ghost" size="icon-sm" class="hidden min-[640px]:inline-flex" :aria-label="isDark ? 'Switch to light theme' : 'Switch to dark theme'" @click="emit('toggleTheme')">
+        <component :is="isDark ? Sun : Moon" class="size-4" aria-hidden="true" />
+      </Button>
+      <NotificationsPopover />
+      <UserMenu v-if="user" :user="user" :is-dark="isDark" :mode="mode" :can-build-desk="canBuildDesk" @set-mode="(next) => emit('setMode', next)" @toggle-theme="emit('toggleTheme')" @change-password="emit('changePassword')" @sign-out="emit('signOut')" />
+    </div>
+  </header>
+</template>
