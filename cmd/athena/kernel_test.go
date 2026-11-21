@@ -264,3 +264,31 @@ func TestExpressionsCommand(t *testing.T) {
 		t.Fatalf("help = %q, %v", out, err)
 	}
 }
+
+func TestRecordTypesShowReportsLocalAdministrator(t *testing.T) {
+	_, cfg := testdb.NewWithConfig(t)
+	t.Setenv("ATHENA_DATABASE_URL", cfg.FormatDSN())
+	t.Chdir(t.TempDir()) // no home here, so the DSN fallback applies
+	run := func(args ...string) (string, error) {
+		var out bytes.Buffer
+		err := recordTypesCommand(args, &out)
+		return out.String(), err
+	}
+	definition := filepath.Join(t.TempDir(), "item.json")
+	if err := os.WriteFile(definition, []byte(`{"key":"item","label":"Item","kind":"master","fields":[{"key":"code","label":"Code","type":"Text"}]}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := run("save", "--file", definition); err != nil {
+		t.Fatal(err)
+	}
+	out, err := run("show", "item", "--json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, `"updatedBy"`) || !strings.Contains(out, `"Local administrator"`) {
+		t.Fatalf("show = %q, want the operator as the saver", out)
+	}
+	if !strings.Contains(out, `"updatedAt"`) {
+		t.Fatalf("show = %q, want a last-save timestamp", out)
+	}
+}

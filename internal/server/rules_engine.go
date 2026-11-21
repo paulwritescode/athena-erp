@@ -504,7 +504,7 @@ func (h *ruleHost) Find(recordType string, filters map[string]any, limit int) ([
 	}
 	hidden := hiddenFields(h.principal, def)
 	where, args := []string{"1 = 1"}, []any{}
-	if live := liveClause(def); live != "" {
+	if live := liveClause(dialect, def); live != "" {
 		where = append(where, live)
 	}
 	if !scope.unrestricted {

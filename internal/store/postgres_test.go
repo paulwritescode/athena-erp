@@ -166,6 +166,7 @@ func TestPostgresClassify(t *testing.T) {
 		{"22001", "", ErrValueTooLong},
 		{"22003", "", ErrValueTooLong},
 		{"22P02", "", ErrValueTooLong},
+		{"42P01", "", ErrMissingTable},
 		{"XX000", "", ErrOther},
 	}
 	for _, tc := range cases {

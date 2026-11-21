@@ -398,7 +398,26 @@ type RecordType struct {
 	LabelField string `protobuf:"bytes,14,opt,name=label_field,json=labelField,proto3" json:"label_field,omitempty"`
 	// What the caller may do with this Record Type. Filled by ListRecordTypes;
 	// ignored on save.
-	Access        *RecordTypeAccess `protobuf:"bytes,15,opt,name=access,proto3" json:"access,omitempty"`
+	Access *RecordTypeAccess `protobuf:"bytes,15,opt,name=access,proto3" json:"access,omitempty"`
+	// Number of Records in the Record Type's table. Filled by ListRecordTypes;
+	// ignored on save.
+	RecordCount int64 `protobuf:"varint,16,opt,name=record_count,json=recordCount,proto3" json:"record_count,omitempty"`
+	// True when the caller may see the Record Type but may not read its
+	// Records, so record_count is 0 instead of the real number. Filled by
+	// ListRecordTypes; ignored on save.
+	CountHidden bool `protobuf:"varint,17,opt,name=count_hidden,json=countHidden,proto3" json:"count_hidden,omitempty"`
+	// RFC 3339 timestamp of the last completed save, from the journal. Empty
+	// when the Record Type predates journal timestamps. Filled by
+	// ListRecordTypes; ignored on save.
+	UpdatedAt string `protobuf:"bytes,18,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	// Display name of who last saved the Record Type, or "Local administrator"
+	// for command-line saves. Empty for saves that predate actor recording.
+	// Filled by ListRecordTypes; ignored on save.
+	UpdatedBy string `protobuf:"bytes,19,opt,name=updated_by,json=updatedBy,proto3" json:"updated_by,omitempty"`
+	// Key of the Pack that installed the Record Type. Empty until Packs install
+	// in C3; Workspace-authored Record Types also report empty. Filled by
+	// ListRecordTypes; ignored on save.
+	PackKey       string `protobuf:"bytes,20,opt,name=pack_key,json=packKey,proto3" json:"pack_key,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -536,6 +555,41 @@ func (x *RecordType) GetAccess() *RecordTypeAccess {
 		return x.Access
 	}
 	return nil
+}
+
+func (x *RecordType) GetRecordCount() int64 {
+	if x != nil {
+		return x.RecordCount
+	}
+	return 0
+}
+
+func (x *RecordType) GetCountHidden() bool {
+	if x != nil {
+		return x.CountHidden
+	}
+	return false
+}
+
+func (x *RecordType) GetUpdatedAt() string {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return ""
+}
+
+func (x *RecordType) GetUpdatedBy() string {
+	if x != nil {
+		return x.UpdatedBy
+	}
+	return ""
+}
+
+func (x *RecordType) GetPackKey() string {
+	if x != nil {
+		return x.PackKey
+	}
+	return ""
 }
 
 // RecordTypeAccess is the caller's Grants on one Record Type, merged.
@@ -1147,7 +1201,7 @@ const file_athena_v1_record_types_proto_rawDesc = "" +
 	"\n" +
 	"depends_on\x18\x19 \x01(\tR\tdependsOn\x12)\n" +
 	"\x10permission_level\x18\x1a \x01(\x05R\x0fpermissionLevelB\b\n" +
-	"\x06_scale\"\x87\x04\n" +
+	"\x06_scale\"\xa6\x05\n" +
 	"\n" +
 	"RecordType\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
@@ -1166,7 +1220,14 @@ const file_athena_v1_record_types_proto_rawDesc = "" +
 	"\x11allow_manual_name\x18\r \x01(\bR\x0fallowManualName\x12\x1f\n" +
 	"\vlabel_field\x18\x0e \x01(\tR\n" +
 	"labelField\x123\n" +
-	"\x06access\x18\x0f \x01(\v2\x1b.athena.v1.RecordTypeAccessR\x06access\"W\n" +
+	"\x06access\x18\x0f \x01(\v2\x1b.athena.v1.RecordTypeAccessR\x06access\x12!\n" +
+	"\frecord_count\x18\x10 \x01(\x03R\vrecordCount\x12!\n" +
+	"\fcount_hidden\x18\x11 \x01(\bR\vcountHidden\x12\x1d\n" +
+	"\n" +
+	"updated_at\x18\x12 \x01(\tR\tupdatedAt\x12\x1d\n" +
+	"\n" +
+	"updated_by\x18\x13 \x01(\tR\tupdatedBy\x12\x19\n" +
+	"\bpack_key\x18\x14 \x01(\tR\apackKey\"W\n" +
 	"\x10RecordTypeAccess\x12\x18\n" +
 	"\aactions\x18\x01 \x03(\tR\aactions\x12)\n" +
 	"\x10permission_level\x18\x02 \x01(\x05R\x0fpermissionLevel\"\x18\n" +

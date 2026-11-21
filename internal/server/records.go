@@ -79,7 +79,7 @@ func (s recordService) ListRecords(ctx context.Context, req *athenav1.ListRecord
 	} else if req.GetParentId() != "" {
 		return nil, invalid("only child Record Types have a parent")
 	}
-	if live := liveClause(recordType); live != "" {
+	if live := liveClause(dialect, recordType); live != "" {
 		where += " AND " + live
 	}
 	if !scope.unrestricted {
@@ -303,7 +303,7 @@ func nextChildIndex(ctx context.Context, tx *sql.Tx, recordType recordTypeDefini
 		return 0, internalError("load parent Record Type", fmt.Errorf("parent %q: %v", recordType.ParentRecordType, err))
 	}
 	query := "SELECT `id` FROM " + dialect.QuoteIdent(recordTypeTableName(parent.Name)) + " WHERE `id` = ?"
-	if live := liveClause(*parent); live != "" {
+	if live := liveClause(dialect, *parent); live != "" {
 		query += " AND " + live
 	}
 	var found string
@@ -340,7 +340,7 @@ func checkUnique(ctx context.Context, tx *sql.Tx, recordType recordTypeDefinitio
 			query += " AND `id` <> ?"
 			params = append(params, selfID)
 		}
-		if live := liveClause(recordType); live != "" {
+		if live := liveClause(dialect, recordType); live != "" {
 			query += " AND " + live
 		}
 		var taken bool
@@ -509,9 +509,9 @@ func fieldsByKey(recordType recordTypeDefinition) map[string]recordTypeField {
 }
 
 // liveClause hides soft-deleted Records. Only Masters are soft-deleted.
-func liveClause(recordType recordTypeDefinition) string {
+func liveClause(d store.Dialect, recordType recordTypeDefinition) string {
 	if recordType.kind() == kindMaster {
-		return "`deleted_at` IS NULL"
+		return d.QuoteIdent("deleted_at") + " IS NULL"
 	}
 	return ""
 }
@@ -731,7 +731,7 @@ type querier interface {
 // loadRecord reads one record. suffix is "" or "FOR UPDATE" inside a transaction.
 func loadRecord(ctx context.Context, q querier, recordType recordTypeDefinition, id, suffix string) (*athenav1.Record, error) {
 	where := "`id` = ?"
-	if live := liveClause(recordType); live != "" {
+	if live := liveClause(dialect, recordType); live != "" {
 		where += " AND " + live
 	}
 	query := fmt.Sprintf("SELECT %s FROM %s WHERE %s %s", selectColumns(recordType), dialect.QuoteIdent(recordTypeTableName(recordType.Name)), where, suffix)
@@ -764,7 +764,7 @@ func (s recordService) checkChanged(ctx context.Context, recordType recordTypeDe
 	}
 	var exists bool
 	where := "`id` = ?"
-	if live := liveClause(recordType); live != "" {
+	if live := liveClause(dialect, recordType); live != "" {
 		where += " AND " + live
 	}
 	statement := fmt.Sprintf("SELECT EXISTS(SELECT 1 FROM %s WHERE %s)", dialect.QuoteIdent(recordTypeTableName(recordType.Name)), where)

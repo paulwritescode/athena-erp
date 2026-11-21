@@ -85,7 +85,7 @@ func TestMariaDBClassify(t *testing.T) {
 		1452: ErrForeignKeyMissingParent, 1451: ErrForeignKeyInUse,
 		1048: ErrNotNull, 1364: ErrNotNull,
 		1406: ErrValueTooLong, 1264: ErrValueTooLong, 1366: ErrValueTooLong,
-		1146: ErrOther,
+		1146: ErrMissingTable,
 	}
 	d := MariaDB{}
 	for number, want := range cases {
@@ -96,6 +96,15 @@ func TestMariaDBClassify(t *testing.T) {
 	}
 	if got := d.Classify(errors.New("plain")); got != ErrOther {
 		t.Errorf("plain error = %d, want ErrOther", got)
+	}
+}
+
+func TestTableExistsSQLPerDialect(t *testing.T) {
+	if mariaDBTableExistsSQL != `SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ?)` {
+		t.Errorf("MariaDB probe = %q", mariaDBTableExistsSQL)
+	}
+	if pgTableExistsSQL != `SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_catalog = current_database() AND table_schema = current_schema() AND table_name = $1)` {
+		t.Errorf("PostgreSQL probe = %q", pgTableExistsSQL)
 	}
 }
 

@@ -23,6 +23,7 @@ var _ Dialect = PostgreSQL{}
 // PostgreSQL SQLSTATE codes; see the server error code reference.
 const (
 	pgUniqueViolation      = "23505"
+	pgUndefinedTable       = "42P01"
 	pgForeignKeyViolation  = "23503"
 	pgNotNullViolation     = "23502"
 	pgDeadlockDetected     = "40P01"
@@ -226,9 +227,14 @@ func (d PostgreSQL) IncompatibleValues(column, fieldType, linkTable string) (str
 	return fmt.Sprintf("CHAR_LENGTH(%s) > %d", text, limit), nil
 }
 
+// pgTableExistsSQL is the catalogue probe TableExists runs, kept as a
+// constant so tests assert the exact SQL per dialect. pgx binds by number,
+// so the marker is $1, not ?.
+const pgTableExistsSQL = `SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_catalog = current_database() AND table_schema = current_schema() AND table_name = $1)`
+
 func (PostgreSQL) TableExists(ctx context.Context, q Querier, table string) (bool, error) {
 	var exists bool
-	err := q.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_catalog = current_database() AND table_schema = current_schema() AND table_name = ?)`, table).Scan(&exists)
+	err := q.QueryRowContext(ctx, pgTableExistsSQL, table).Scan(&exists)
 	return exists, err
 }
 
@@ -300,6 +306,8 @@ func (PostgreSQL) Classify(err error) ErrorKind {
 	switch dbErr.Code {
 	case pgUniqueViolation:
 		return ErrDuplicateKey
+	case pgUndefinedTable:
+		return ErrMissingTable
 	case pgDeadlockDetected:
 		return ErrDeadlock
 	case pgSerializationFailure:

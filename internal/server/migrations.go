@@ -33,6 +33,11 @@ type saveOptions struct {
 	ConfirmDataLoss bool `json:"confirm_data_loss,omitempty"`
 	// Backfills holds validated database arguments (string or bool) by field key.
 	Backfills map[string]any `json:"backfills,omitempty"`
+	// Actor is the display name of who saved, or "Local administrator" for the
+	// command line. The server sets it; ListRecordTypes reports it as
+	// updated_by. Backfills may hold Record values, so readers after the
+	// actor must extract only this field and never log the rest.
+	Actor string `json:"actor,omitempty"`
 }
 
 type migrationStep struct {

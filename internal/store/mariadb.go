@@ -18,6 +18,7 @@ var _ Dialect = MariaDB{}
 // MariaDB error numbers; see the server error reference.
 const (
 	errDuplicateEntry   = 1062
+	errNoSuchTable      = 1146
 	errLockWaitTimeout  = 1205
 	errDeadlock         = 1213
 	errRowIsReferenced  = 1451
@@ -212,9 +213,13 @@ func (d MariaDB) IncompatibleValues(column, fieldType, linkTable string) (string
 	return fmt.Sprintf("CHAR_LENGTH(%s) > %d", text, limit), nil
 }
 
+// mariaDBTableExistsSQL is the catalogue probe TableExists runs, kept as a
+// constant so tests assert the exact SQL per dialect.
+const mariaDBTableExistsSQL = `SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ?)`
+
 func (MariaDB) TableExists(ctx context.Context, q Querier, table string) (bool, error) {
 	var exists bool
-	err := q.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ?)`, table).Scan(&exists)
+	err := q.QueryRowContext(ctx, mariaDBTableExistsSQL, table).Scan(&exists)
 	return exists, err
 }
 
@@ -272,6 +277,8 @@ func (MariaDB) Classify(err error) ErrorKind {
 	switch dbErr.Number {
 	case errDuplicateEntry:
 		return ErrDuplicateKey
+	case errNoSuchTable:
+		return ErrMissingTable
 	case errDeadlock:
 		return ErrDeadlock
 	case errLockWaitTimeout:

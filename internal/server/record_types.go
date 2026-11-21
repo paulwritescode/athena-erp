@@ -10,6 +10,7 @@ import (
 	"log"
 	"regexp"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	athenav1 "athena-erp/gen/athena/v1"
@@ -107,6 +108,10 @@ const (
 	operationPending   = "pending"
 	operationCompleted = "completed"
 	operationFailed    = "failed"
+	// operationCompensated marks a member save undone by pair compensation.
+	// It completed and then was rolled back, so it is neither the last save
+	// nor a failure of its own.
+	operationCompensated = "compensated"
 )
 
 // saveGroup journals an atomic pair save: a child and its parent, applied both
@@ -170,6 +175,7 @@ func (s recordTypeService) ListRecordTypes(ctx context.Context, _ *athenav1.List
 	}
 	defer rows.Close()
 	res := &athenav1.ListRecordTypesResponse{}
+	var names []string
 	for rows.Next() {
 		var payload []byte
 		var revision int64
@@ -198,11 +204,214 @@ func (s recordTypeService) ListRecordTypes(ctx context.Context, _ *athenav1.List
 		}
 		item.Access = access
 		res.RecordTypes = append(res.RecordTypes, item)
+		names = append(names, recordType.Name)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, internalError("list Record Types", err)
 	}
+	if err := s.enrichRecordTypes(ctx, p, res.RecordTypes, names); err != nil {
+		return nil, err
+	}
 	return res, nil
+}
+
+// enrichRecordTypes fills the list-only columns: last save time and actor
+// from the journal, and Record counts for the Record Types the caller may
+// read. PackKey stays empty until Packs install in C3.
+func (s recordTypeService) enrichRecordTypes(ctx context.Context, p *auth.Principal, items []*athenav1.RecordType, names []string) error {
+	if len(items) == 0 {
+		return nil
+	}
+	saves, err := lastSaves(ctx, s.db)
+	if err != nil {
+		return internalError("read Record Type saves", err)
+	}
+	counts, err := recordCounts(ctx, s.db, p, items)
+	if err != nil {
+		return internalError("count Records", err)
+	}
+	for i, item := range items {
+		if save, ok := saves[names[i]]; ok {
+			item.UpdatedAt = save.at
+			item.UpdatedBy = save.by
+		}
+		if count, ok := counts[names[i]]; ok {
+			item.RecordCount = count
+		} else {
+			item.CountHidden = true
+		}
+	}
+	return nil
+}
+
+// lastSave is when and by whom a Record Type was last saved.
+type lastSave struct {
+	at string
+	by string
+}
+
+// lastSaves returns the latest completed save per Record Type. Member saves
+// of a pair group that never completed are skipped, whatever their own
+// status: their save was rolled back or never settled, so the surviving
+// revision's actor and time win without any backfill. Ties on the journal's
+// second-precision timestamp break on the time-ordered operation ID. Only
+// the actor is read from the stored options; backfills may hold Record
+// values and are never decoded here.
+func lastSaves(ctx context.Context, db *sql.DB) (map[string]lastSave, error) {
+	excluded, err := unsettledMemberOps(ctx, db)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := db.QueryContext(ctx, `SELECT record_type_name, updated_at, options, id
+		FROM athena_record_type_operations
+		WHERE status = 'completed' AND action = 'save'
+		ORDER BY record_type_name, updated_at DESC, id DESC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	saves := map[string]lastSave{}
+	for rows.Next() {
+		var name string
+		var at time.Time
+		var options []byte
+		var id string
+		if err := rows.Scan(&name, &at, &options, &id); err != nil {
+			return nil, err
+		}
+		if _, ok := saves[name]; ok || excluded[id] {
+			continue
+		}
+		var actor struct {
+			Actor string `json:"actor"`
+		}
+		if len(options) > 0 {
+			if err := json.Unmarshal(options, &actor); err != nil {
+				return nil, err
+			}
+		}
+		saves[name] = lastSave{at: at.UTC().Format(time.RFC3339), by: actor.Actor}
+	}
+	return saves, rows.Err()
+}
+
+// unsettledMemberOps returns the operation IDs journaled as members of a
+// pair group that never completed: pending mid-flight saves as well as
+// failed and compensated groups, including groups written before member
+// operations carried their own compensated mark.
+func unsettledMemberOps(ctx context.Context, db *sql.DB) (map[string]bool, error) {
+	rows, err := db.QueryContext(ctx, `SELECT definition FROM athena_record_type_operations
+		WHERE action = 'save_group' AND status != 'completed'`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	excluded := map[string]bool{}
+	for rows.Next() {
+		var payload []byte
+		if err := rows.Scan(&payload); err != nil {
+			return nil, err
+		}
+		var group saveGroup
+		if err := json.Unmarshal(payload, &group); err != nil {
+			return nil, err
+		}
+		excluded[group.ChildOp] = true
+		excluded[group.ParentOp] = true
+	}
+	return excluded, rows.Err()
+}
+
+// recordCounts counts the live Records of the Record Types the caller may
+// read without row conditions or Assignment scope, in one query. Names the
+// caller may not read, or may read only in part, are absent from the map, so
+// the caller sees 0 with count_hidden rather than a number that mixes rows
+// they can and cannot open.
+func recordCounts(ctx context.Context, db *sql.DB, p *auth.Principal, items []*athenav1.RecordType) (map[string]int64, error) {
+	var targets []*athenav1.RecordType
+	for _, item := range items {
+		if p == nil {
+			targets = append(targets, item)
+			continue
+		}
+		if _, unrestricted := p.Scope(item.GetKey(), auth.ActionRead); unrestricted {
+			targets = append(targets, item)
+		}
+	}
+	if len(targets) == 0 {
+		return map[string]int64{}, nil
+	}
+	return retryOnMissingTable(func(err error) bool {
+		return dialect.Classify(err) == store.ErrMissingTable
+	}, func() (map[string]int64, error) {
+		existing := map[string]bool{}
+		for _, item := range targets {
+			ok, err := dialect.TableExists(ctx, db, recordTypeTableName(item.GetKey()))
+			if err != nil {
+				return nil, err
+			}
+			existing[item.GetKey()] = ok
+		}
+		return runCountQuery(ctx, db, targets, existing)
+	})
+}
+
+// retryOnMissingTable runs op once more when it fails because a table
+// vanished mid-flight, so a concurrent drop costs one retry instead of an
+// error. Any other failure, or a second miss, is returned as is.
+func retryOnMissingTable[T any](isMissing func(error) bool, op func() (T, error)) (T, error) {
+	out, err := op()
+	if err != nil && isMissing(err) {
+		return op()
+	}
+	return out, err
+}
+
+// countMemberSQL builds one UNION member counting a Record Type's live
+// Records. Placeholders stay ? here; the caller rebinds them through the
+// dialect where the statement meets its arguments.
+func countMemberSQL(d store.Dialect, key, kind string) string {
+	member := "SELECT ? AS name, COUNT(*) AS n FROM " + d.QuoteIdent(recordTypeTableName(key))
+	if clause := liveClause(d, recordTypeDefinition{Kind: kind}); clause != "" {
+		member += " WHERE " + clause
+	}
+	return member
+}
+
+// runCountQuery counts each existing table once. Missing tables count 0:
+// the definition outlived its table, which List still shows.
+func runCountQuery(ctx context.Context, db *sql.DB, targets []*athenav1.RecordType, existing map[string]bool) (map[string]int64, error) {
+	counts := map[string]int64{}
+	var query strings.Builder
+	var args []any
+	for _, item := range targets {
+		if !existing[item.GetKey()] {
+			counts[item.GetKey()] = 0
+			continue
+		}
+		if len(args) > 0 {
+			query.WriteString(" UNION ALL ")
+		}
+		query.WriteString(countMemberSQL(dialect, item.GetKey(), item.GetKind()))
+		args = append(args, item.GetKey())
+	}
+	if len(args) == 0 {
+		return counts, nil
+	}
+	rows, err := db.QueryContext(ctx, dialect.Rebind(query.String()), args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var name string
+		var count int64
+		if err := rows.Scan(&name, &count); err != nil {
+			return nil, err
+		}
+		counts[name] = count
+	}
+	return counts, rows.Err()
 }
 
 func (s recordTypeService) SaveRecordType(ctx context.Context, req *athenav1.SaveRecordTypeRequest) (*athenav1.SaveRecordTypeResponse, error) {
@@ -254,6 +463,7 @@ func (s recordTypeService) savePair(ctx context.Context, conn sqlConn, recordTyp
 	if err != nil {
 		return nil, err
 	}
+	child.opts.Actor = displayActor(ctx)
 	// The parent prepares after the child commits: its validation reads the
 	// child's saved definition. The revision is checked now so the journal
 	// never records a parent the client did not see.
@@ -291,6 +501,7 @@ func (s recordTypeService) savePair(ctx context.Context, conn sqlConn, recordTyp
 	if err != nil {
 		return nil, s.abandonPair(ctx, conn, groupID, group, recordType.Label, parent.Label, err)
 	}
+	parentPrepared.opts.Actor = displayActor(ctx)
 	parentSaved, _, err := commitOne(ctx, conn, parentPrepared, parentOp.String())
 	if err != nil {
 		return nil, s.abandonPair(ctx, conn, groupID, group, recordType.Label, parent.Label, err)
@@ -307,6 +518,11 @@ func (s recordTypeService) abandonPair(ctx context.Context, conn sqlConn, groupI
 	if cerr := compensateChildSave(ctx, conn, group); cerr != nil {
 		failGroup(conn, groupID, "compensation_failed", cerr)
 		return connect.NewError(connect.CodeOf(cause), fmt.Sprintf("%s was not saved, and rolling back %s failed: %s; the child save stands and needs an operator", parentLabel, childLabel, connectMessage(cerr)))
+	}
+	// The child save is undone: mark its member operation so the rolled-back
+	// save never shows as anyone's last save.
+	if _, err := conn.ExecContext(ctx, `UPDATE athena_record_type_operations SET status = ?, last_step = 'compensated' WHERE id = ?`, operationCompensated, group.ChildOp); err != nil {
+		return internalError("record type save group", err)
 	}
 	failGroup(conn, groupID, "compensated", cause)
 	return connect.NewError(connect.CodeOf(cause), fmt.Sprintf("%s was not saved, so %s was rolled back: %s", parentLabel, childLabel, connectMessage(cause)))
@@ -328,6 +544,7 @@ func saveOne(ctx context.Context, conn sqlConn, recordType recordTypeDefinition,
 	if err != nil {
 		return 0, err
 	}
+	prepared.opts.Actor = displayActor(ctx)
 	saved, _, err := commitOne(ctx, conn, prepared, "")
 	return saved, err
 }
@@ -418,7 +635,7 @@ func (s recordTypeService) DeleteRecordType(ctx context.Context, req *athenav1.D
 	if records > 0 && !req.GetDeleteRecords() {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, fmt.Sprintf("%s has %s; confirm that they should be deleted too", recordType.Label, plural(records, "record", "records")))
 	}
-	operationID, err := startOperation(ctx, conn, actionDelete, *recordType, revision, saveOptions{})
+	operationID, err := startOperation(ctx, conn, actionDelete, *recordType, revision, saveOptions{Actor: displayActor(ctx)})
 	if err != nil {
 		return nil, internalError("record type delete operation", err)
 	}

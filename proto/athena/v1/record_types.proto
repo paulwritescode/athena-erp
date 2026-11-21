@@ -133,6 +133,25 @@ message RecordType {
   // What the caller may do with this Record Type. Filled by ListRecordTypes;
   // ignored on save.
   RecordTypeAccess access = 15;
+  // Number of Records in the Record Type's table. Filled by ListRecordTypes;
+  // ignored on save.
+  int64 record_count = 16;
+  // True when the caller may see the Record Type but may not read its
+  // Records, so record_count is 0 instead of the real number. Filled by
+  // ListRecordTypes; ignored on save.
+  bool count_hidden = 17;
+  // RFC 3339 timestamp of the last completed save, from the journal. Empty
+  // when the Record Type predates journal timestamps. Filled by
+  // ListRecordTypes; ignored on save.
+  string updated_at = 18;
+  // Display name of who last saved the Record Type, or "Local administrator"
+  // for command-line saves. Empty for saves that predate actor recording.
+  // Filled by ListRecordTypes; ignored on save.
+  string updated_by = 19;
+  // Key of the Pack that installed the Record Type. Empty until Packs install
+  // in C3; Workspace-authored Record Types also report empty. Filled by
+  // ListRecordTypes; ignored on save.
+  string pack_key = 20;
 }
 // RecordTypeAccess is the caller's Grants on one Record Type, merged.
 message RecordTypeAccess {

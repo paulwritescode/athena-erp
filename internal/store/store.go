@@ -27,6 +27,7 @@ const (
 	ErrForeignKeyInUse
 	ErrNotNull
 	ErrValueTooLong
+	ErrMissingTable
 )
 
 // Column is a column name with its rendered SQL type.

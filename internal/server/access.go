@@ -31,6 +31,19 @@ func actorName(ctx context.Context) string {
 	return localActor
 }
 
+// displayActor names who makes a change for people to read: the signed-in
+// display name (falling back to the username), or the operator for the
+// athena command line.
+func displayActor(ctx context.Context) string {
+	if p := auth.PrincipalFrom(ctx); p != nil {
+		if p.DisplayName != "" {
+			return p.DisplayName
+		}
+		return p.Username
+	}
+	return localActor
+}
+
 // accessFor returns the principal acting in ctx, or nil for the operator.
 func accessFor(ctx context.Context) (*auth.Principal, error) {
 	if p := auth.PrincipalFrom(ctx); p != nil {
