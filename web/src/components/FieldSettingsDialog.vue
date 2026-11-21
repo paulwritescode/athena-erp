@@ -15,7 +15,7 @@ const props = defineProps<{ field: Field | null; lifecycle: boolean }>()
 const emit = defineEmits<{ close: [] }>()
 
 const type = computed(() => props.field?.type ?? '')
-const indexable = computed(() => type.value !== 'Long text' && type.value !== 'Checkbox')
+const indexable = computed(() => type.value !== 'Long text' && type.value !== 'Checkbox' && type.value !== 'Image')
 const bounded = computed(() => ['Number', 'Currency', 'Money', 'Quantity', 'Date'].includes(type.value))
 const patterned = computed(() => ['Text', 'Long text', 'Phone'].includes(type.value))
 const lengthLimited = computed(() => ['Text', 'Long text', 'Email', 'Phone'].includes(type.value))
@@ -92,7 +92,7 @@ function onOpenChange(open: boolean) {
           <textarea id="fs-choices" class="settings-textarea" rows="5" :value="choiceText" placeholder="open: Open&#10;paid: Paid" @input="editChoices(($event.target as HTMLTextAreaElement).value)" />
           <p class="settings-note">A value is a permanent lowercase identifier. Removing a value clears it from stored records.</p>
         </div>
-        <div v-if="type !== 'Link'" class="settings-field"><Label for="fs-default">Default value</Label><Input id="fs-default" :model-value="field.default ?? ''" :placeholder="type === 'Checkbox' ? 'true or false' : ''" @update:model-value="setText('default', $event)" /></div>
+        <div v-if="type !== 'Link' && type !== 'Image'" class="settings-field"><Label for="fs-default">Default value</Label><Input id="fs-default" :model-value="field.default ?? ''" :placeholder="type === 'Checkbox' ? 'true or false' : ''" @update:model-value="setText('default', $event)" /></div>
         <template v-if="bounded">
           <div class="settings-field"><Label for="fs-min">Minimum</Label><Input id="fs-min" :model-value="field.min ?? ''" :placeholder="type === 'Date' ? 'YYYY-MM-DD' : ''" @update:model-value="setText('min', $event)" /></div>
           <div class="settings-field"><Label for="fs-max">Maximum</Label><Input id="fs-max" :model-value="field.max ?? ''" :placeholder="type === 'Date' ? 'YYYY-MM-DD' : ''" @update:model-value="setText('max', $event)" /></div>
@@ -104,7 +104,7 @@ function onOpenChange(open: boolean) {
       </div>
       <div class="settings-grid">
         <p class="settings-note is-wide">Expressions read fields as <code>doc.field_key</code> and a child Record Type's lines as <code>doc.line.field_key</code> in <code>sum</code>, <code>min</code>, <code>max</code> and <code>count</code>. Write decimals as <code>dec("1.5")</code>.</p>
-        <div v-if="type !== 'Link'" class="settings-field is-wide"><Label for="fs-formula">Formula</Label><Input id="fs-formula" :model-value="field.formula ?? ''" placeholder="doc.qty * doc.rate" :aria-invalid="expressionProblem('formula') ? 'true' : undefined" @update:model-value="setExpression('formula', $event)" /><p v-if="expressionProblem('formula')" class="field-error">{{ expressionProblem('formula') }}</p></div>
+        <div v-if="type !== 'Link' && type !== 'Image'" class="settings-field is-wide"><Label for="fs-formula">Formula</Label><Input id="fs-formula" :model-value="field.formula ?? ''" placeholder="doc.qty * doc.rate" :aria-invalid="expressionProblem('formula') ? 'true' : undefined" @update:model-value="setExpression('formula', $event)" /><p v-if="expressionProblem('formula')" class="field-error">{{ expressionProblem('formula') }}</p></div>
         <div class="settings-field is-wide"><Label for="fs-required-if">Required when</Label><Input id="fs-required-if" :model-value="field.required_if ?? ''" placeholder="doc.is_credit" :aria-invalid="expressionProblem('required_if') ? 'true' : undefined" @update:model-value="setExpression('required_if', $event)" /><p v-if="expressionProblem('required_if')" class="field-error">{{ expressionProblem('required_if') }}</p></div>
         <div class="settings-field is-wide"><Label for="fs-read-only-if">Read only when</Label><Input id="fs-read-only-if" :model-value="field.read_only_if ?? ''" placeholder="doc.paid" :aria-invalid="expressionProblem('read_only_if') ? 'true' : undefined" @update:model-value="setExpression('read_only_if', $event)" /><p v-if="expressionProblem('read_only_if')" class="field-error">{{ expressionProblem('read_only_if') }}</p></div>
         <div class="settings-field is-wide"><Label for="fs-validate">Must be true</Label><Input id="fs-validate" :model-value="field.validate ?? ''" placeholder="doc.rate >= dec(0)" :aria-invalid="expressionProblem('validate') ? 'true' : undefined" @update:model-value="setExpression('validate', $event)" /><p v-if="expressionProblem('validate')" class="field-error">{{ expressionProblem('validate') }}</p></div>

@@ -31,6 +31,51 @@ export const docstates = { draft: 0, submitted: 1, cancelled: 2 } as const
  * fields marked allow_on_submit, and a cancelled document does not change.
  * A Record Type that is not submittable is always editable.
  */
+/** One value of an Image field: a Workspace file path with the hash the writer saw and the alt text readers hear. */
+export type ImageFieldValue = { path: string; hash: string; altText: string }
+
+/** The longest alt text the server accepts (internal/server/records.go). */
+export const maxAltText = 1000
+
+/** The largest image the server uploads (internal/files/path.go). */
+export const maxImageBytes = 5 << 20
+
+/** The image file types, living under images/ only (internal/files/path.go). */
+export const imageExtensions = ['.jpeg', '.jpg', '.png', '.webp']
+
+const pathSegment = /^[a-z0-9_][a-z0-9_.-]*$/
+const shaHex = /^[0-9a-f]{64}$/
+
+/**
+ * Mirrors files.IsImagePath over CleanPath: a cleaned path under images/
+ * with an image extension. The server also bounds bytes and depth and decodes
+ * escapes; paths near those edges are left for the server to refuse.
+ */
+export function isImagePath(path: string): boolean {
+  const segments = path.split('/')
+  if (segments.length < 2 || segments[0] !== 'images') return false
+  for (const segment of segments) {
+    if (!segment || segment === '.' || segment === '..' || segment.startsWith('.') || segment.endsWith('.') || !pathSegment.test(segment)) return false
+  }
+  const last = segments[segments.length - 1] ?? ''
+  return imageExtensions.includes(last.slice(last.lastIndexOf('.')))
+}
+
+/**
+ * Mirrors the server's Image check (imageArgument in
+ * internal/server/records.go): a reference under images/ with the file's
+ * hash and required alt text. Returns an error message, or '' when valid.
+ */
+export function validateImageValue(field: Field, value: ImageFieldValue | null): string {
+  if (!value) return field.required ? `${field.label} is required.` : ''
+  if (!value.path.trim() || !isImagePath(value.path.trim())) return `${field.label} must reference an image under images/.`
+  if (!shaHex.test(value.hash)) return `${field.label} must carry the 64-character hash of its file.`
+  const alt = value.altText.trim()
+  if (!alt) return `${field.label} needs alt text describing the image.`
+  if ([...alt].length > maxAltText) return `${field.label}: the alt text is longer than ${maxAltText} characters.`
+  return ''
+}
+
 export function fieldEditable(field: Field, submittable: boolean, docstate: number): boolean {
   if (isCalculated(field)) return false
   if (!submittable || docstate === docstates.draft) return true

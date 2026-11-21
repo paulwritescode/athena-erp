@@ -4,7 +4,8 @@ import { create } from '@bufbuild/protobuf'
 import { Code, ConnectError } from '@connectrpc/connect'
 import { recordClient } from '../api'
 import { keyMatchesRoute } from '../composables/useRecordTypes'
-import { docstates, fieldEditable, isCalculated, validateField, validateManualName } from '../fieldRules'
+import { docstates, fieldEditable, isCalculated, validateField, validateImageValue, validateManualName, type ImageFieldValue } from '../fieldRules'
+import { planSections, type PlannedFieldItem, type PlannedSection } from '../forms/layout'
 import { gloss } from '../copy/glossary'
 import { forgetLabels, labelWithState, resolveRecords } from '../lookup'
 import { formatWhen, formatWhenFull } from '../times'
@@ -18,15 +19,17 @@ import DataTable, { type TableFilter } from '@/components/DataTable.vue'
 import PullToRefresh from '@/components/PullToRefresh.vue'
 import { buildRecordColumns, combineRecordFilter } from '@/components/records/recordColumns'
 import { loadPageSize, savePageSize } from '@/tablePrefs'
+import WorkspaceImage from '@/components/WorkspaceImage.vue'
 import CheckboxField from '@/components/fields/CheckboxField.vue'
 import DateField from '@/components/fields/DateField.vue'
+import ImageField from '@/components/fields/ImageField.vue'
 import LinkField from '@/components/fields/LinkField.vue'
 import LongTextField from '@/components/fields/LongTextField.vue'
 import NumberField from '@/components/fields/NumberField.vue'
 import SelectField from '@/components/fields/SelectField.vue'
 import TextField from '@/components/fields/TextField.vue'
 import { Marker, MarkerContent, MarkerIcon } from '@/components/ui/marker'
-import { CalendarPlus, Clock, Fingerprint, Hash, Layers, Pencil, Plus, Trash2, User } from '@/icons'
+import { CalendarPlus, Clock, Fingerprint, Hash, Image as ImageIcon, Layers, Pencil, Plus, Trash2, User } from '@/icons'
 import { toast } from 'vue-sonner'
 
 // recordType is null when no saved Record Type exists yet. recordId comes from the page
@@ -56,6 +59,7 @@ const knownRevisions = new Map<string, bigint>()
 const editing = ref<RecordMessage | 'new' | null>(null)
 const texts = reactive<Record<string, string>>({})
 const checks = reactive<Record<string, boolean>>({})
+const images = reactive<Record<string, ImageFieldValue | null>>({})
 const errors = reactive<Record<string, string>>({})
 const touched = new Set<string>()
 const busy = ref(false)
@@ -228,7 +232,7 @@ function open(record: RecordMessage | 'new') {
   history.value = []
   versions.value = []
   activity.value = []
-  clear(texts); clear(checks); clear(errors); clear(states); touched.clear()
+  clear(texts); clear(checks); clear(images); clear(errors); clear(states); touched.clear()
   lastPreview = ''
   parentId.value = record === 'new' ? '' : record.parentId
   manualName.value = ''
@@ -236,10 +240,12 @@ function open(record: RecordMessage | 'new') {
     const kind = record === 'new' ? undefined : record.values[field.name]?.kind
     // A new record shows the default the server will fill in.
     if (field.type === 'Checkbox') checks[field.name] = kind?.case === 'boolValue' ? kind.value : record === 'new' && field.default === 'true'
+    else if (field.type === 'Image') images[field.name] = kind?.case === 'imageValue' ? { path: kind.value.path, hash: kind.value.hash, altText: kind.value.altText } : null
     else texts[field.name] = kind?.case === 'stringValue' ? kind.value : record === 'new' ? field.default ?? '' : ''
   }
   if (record !== 'new') void loadHistory(record)
   schedulePreview(0)
+  void evaluateVisibility()
 }
 
 // Read-only fields take only their default, and a set-once field is fixed
@@ -249,6 +255,7 @@ function locked(field: Field): boolean {
   if (!fieldEditable(field, submittable.value, docstate.value)) return true
   if (!field.set_once || editing.value === null || editing.value === 'new') return false
   const kind = editing.value.values[field.name]?.kind
+  if (field.type === 'Image') return kind?.case === 'imageValue'
   return kind?.case === 'stringValue' || kind?.case === 'boolValue'
 }
 
@@ -414,7 +421,38 @@ function fieldLabel(field: Field): string {
 function effective(field: Field): Field {
   return states[field.name]?.required && !field.required ? { ...field, required: true } : field
 }
-const shownFields = computed(() => (props.recordType?.fields ?? []).filter((field) => !states[field.name]?.hidden))
+// The form renders the layout's sections (B9); without a layout every field
+// renders in definition order in one column.
+const plannedSections = computed<PlannedSection[]>(() => planSections(props.recordType?.layout, props.recordType?.fields ?? []))
+// Section visibility runs against the record being edited. New records and
+// failures show the section: visibility only hides, so it must never hide on
+// a doubt. Draft values do not re-evaluate it; saving re-opens the record
+// and runs it again.
+const hiddenSections = reactive<Record<number, boolean>>({})
+let visibilityRequest = 0
+const visibleSections = computed(() => plannedSections.value.filter((_, index) => !hiddenSections[index]))
+async function evaluateVisibility() {
+  const recordType = props.recordType
+  const current = editing.value
+  const request = ++visibilityRequest
+  clear(hiddenSections)
+  if (!recordType || !current || current === 'new') return
+  await Promise.all(plannedSections.value.map(async (section, index) => {
+    if (!section.visibility.trim()) return
+    try {
+      const res = await recordClient.evaluateExpression({ recordTypeKey: recordType.name, expression: section.visibility, id: current.id })
+      if (request !== visibilityRequest || editing.value !== current) return
+      if (res.evaluated && !res.isNull && res.value === 'false') hiddenSections[index] = true
+    } catch {
+      // A section that cannot be judged stays visible.
+    }
+  }))
+}
+// A half-width field takes one column of a two-column section; everything
+// else spans the grid.
+function spanClass(section: PlannedSection, item: PlannedFieldItem): string {
+  return item.width === 'half' && section.columns === 2 ? '' : 'is-wide'
+}
 const hasExpressions = computed(() => props.recordType?.fields.some((field) => field.formula || field.required_if || field.read_only_if || field.validate || field.depends_on) ?? false)
 function schedulePreview(delay = 250) {
   clearTimeout(previewTimer)
@@ -441,9 +479,11 @@ async function preview() {
     // The preview is a hint; the server still checks every save.
   }
 }
-watch([texts, checks], () => schedulePreview(), { deep: true })
+watch([texts, checks, images], () => schedulePreview(), { deep: true })
 function check(field: Field) {
-  const problem = validateField(effective(field), texts[field.name] ?? '')
+  const problem = field.type === 'Image'
+    ? validateImageValue(effective(field), images[field.name] ?? null)
+    : validateField(effective(field), texts[field.name] ?? '')
   if (problem) errors[field.name] = problem
   else delete errors[field.name]
 }
@@ -490,6 +530,10 @@ function reportWriteError(err: unknown) {
 
 function toValue(field: Field): FieldValue {
   if (field.type === 'Checkbox') return create(FieldValueSchema, { kind: { case: 'boolValue', value: checks[field.name] ?? false } })
+  if (field.type === 'Image') {
+    const image = images[field.name] ?? null
+    return create(FieldValueSchema, image ? { kind: { case: 'imageValue', value: { path: image.path, hash: image.hash, altText: image.altText } } } : { kind: { case: 'nullValue', value: true } })
+  }
   const text = (texts[field.name] ?? '').trim()
   return create(FieldValueSchema, text ? { kind: { case: 'stringValue', value: text } } : { kind: { case: 'nullValue', value: true } })
 }
@@ -655,7 +699,7 @@ function calculatedError(field: Field): string | undefined {
         </div>
       </div>
       <form ref="formRef" class="entry-form" novalidate @submit.prevent="submit">
-        <div class="entry-form-grid">
+        <div class="entry-form-sections">
           <LinkField
             v-if="isChild"
             id="entry-parent-id"
@@ -678,88 +722,129 @@ function calculatedError(field: Field): string | undefined {
             v-model="manualName"
             @update:model-value="delete errors.manual_name"
           />
-          <template v-for="field in shownFields" :key="field.name">
-            <LinkField
-              v-if="field.type === 'Link' && field.target_record_type"
-              :id="`entry-${field.name}`"
-              :label="fieldLabel(field)"
-              :optional="!effective(field).required"
-              :error="errors[field.name] ?? calculatedError(field)"
-              v-model="texts[field.name]"
-              :record-type-key="field.target_record_type"
-              :target-label="targetLabel(field)"
-              :disabled="locked(field)"
-              @update:model-value="onInput(field)"
-              @blur="onBlur(field)"
-            />
-            <CheckboxField
-              v-else-if="field.type === 'Checkbox'"
-              :id="`entry-${field.name}`"
-              :label="fieldLabel(field)"
-              :optional="!effective(field).required"
-              :error="errors[field.name] ?? calculatedError(field)"
-              v-model="checks[field.name]"
-              :disabled="locked(field)"
-            />
-            <SelectField
-              v-else-if="field.type === 'Enum'"
-              :id="`entry-${field.name}`"
-              :label="fieldLabel(field)"
-              :optional="!effective(field).required"
-              :error="errors[field.name] ?? calculatedError(field)"
-              v-model="texts[field.name]"
-              :options="field.values ?? []"
-              :disabled="locked(field)"
-              @update:model-value="onInput(field)"
-              @blur="onBlur(field)"
-            />
-            <LongTextField
-              v-else-if="field.type === 'Long text'"
-              :id="`entry-${field.name}`"
-              :label="fieldLabel(field)"
-              :optional="!effective(field).required"
-              :error="errors[field.name] ?? calculatedError(field)"
-              v-model="texts[field.name]"
-              class="is-wide"
-              :disabled="locked(field)"
-              @update:model-value="onInput(field)"
-              @blur="onBlur(field)"
-            />
-            <DateField
-              v-else-if="field.type === 'Date'"
-              :id="`entry-${field.name}`"
-              :label="fieldLabel(field)"
-              :optional="!effective(field).required"
-              :error="errors[field.name] ?? calculatedError(field)"
-              v-model="texts[field.name]"
-              :disabled="locked(field)"
-              @update:model-value="onInput(field)"
-              @blur="onBlur(field)"
-            />
-            <NumberField
-              v-else-if="['Number', 'Currency', 'Money', 'Quantity'].includes(field.type)"
-              :id="`entry-${field.name}`"
-              :label="fieldLabel(field)"
-              :optional="!effective(field).required"
-              :error="errors[field.name] ?? calculatedError(field)"
-              v-model="texts[field.name]"
-              :disabled="locked(field)"
-              @update:model-value="onInput(field)"
-              @blur="onBlur(field)"
-            />
-            <TextField
-              v-else
-              :id="`entry-${field.name}`"
-              :label="fieldLabel(field)"
-              :optional="!effective(field).required"
-              :error="errors[field.name] ?? calculatedError(field)"
-              v-model="texts[field.name]"
-              :type="inputType(field)"
-              :disabled="locked(field)"
-              @update:model-value="onInput(field)"
-              @blur="onBlur(field)"
-            />
-          </template>
+          <section v-for="(section, sectionIndex) in visibleSections" :key="sectionIndex" class="layout-section" :aria-label="section.title || `Section ${sectionIndex + 1}`">
+            <div v-if="section.title || section.description" class="layout-section-head">
+              <h2 v-if="section.title">{{ section.title }}</h2>
+              <p v-if="section.description" class="layout-section-description">{{ section.description }}</p>
+            </div>
+            <div class="layout-grid" :class="section.columns === 2 ? 'is-two' : 'is-one'">
+              <template v-for="(item, itemIndex) in section.items" :key="itemIndex">
+                <p v-if="item.kind === 'text'" class="layout-text is-wide">{{ item.text }}</p>
+                <WorkspaceImage v-else-if="item.kind === 'image'" :path="item.path" alt="" class="is-wide layout-block-image" />
+                <div v-else-if="item.kind === 'art'" class="is-wide layout-art" role="note"><ImageIcon class="size-4" aria-hidden="true" /><span>Artwork appears here</span></div>
+                <template v-else-if="item.kind === 'field' && !states[item.field.name]?.hidden">
+                  <LinkField
+                    v-if="item.field.type === 'Link' && item.field.target_record_type"
+                    :id="`entry-${item.field.name}`"
+                    :label="fieldLabel(item.field)"
+                    :optional="!effective(item.field).required"
+                    :help="item.helpText || undefined"
+                    :error="errors[item.field.name] ?? calculatedError(item.field)"
+                    v-model="texts[item.field.name]"
+                    :record-type-key="item.field.target_record_type"
+                    :target-label="targetLabel(item.field)"
+                    :class="spanClass(section, item)"
+                    :disabled="locked(item.field)"
+                    @update:model-value="onInput(item.field)"
+                    @blur="onBlur(item.field)"
+                  />
+                  <CheckboxField
+                    v-else-if="item.field.type === 'Checkbox'"
+                    :id="`entry-${item.field.name}`"
+                    :label="fieldLabel(item.field)"
+                    :optional="!effective(item.field).required"
+                    :help="item.helpText || undefined"
+                    :error="errors[item.field.name] ?? calculatedError(item.field)"
+                    v-model="checks[item.field.name]"
+                    :class="spanClass(section, item)"
+                    :disabled="locked(item.field)"
+                  />
+                  <SelectField
+                    v-else-if="item.field.type === 'Enum'"
+                    :id="`entry-${item.field.name}`"
+                    :label="fieldLabel(item.field)"
+                    :optional="!effective(item.field).required"
+                    :help="item.helpText || undefined"
+                    :error="errors[item.field.name] ?? calculatedError(item.field)"
+                    v-model="texts[item.field.name]"
+                    :options="item.field.values ?? []"
+                    :class="spanClass(section, item)"
+                    :disabled="locked(item.field)"
+                    @update:model-value="onInput(item.field)"
+                    @blur="onBlur(item.field)"
+                  />
+                  <LongTextField
+                    v-else-if="item.field.type === 'Long text'"
+                    :id="`entry-${item.field.name}`"
+                    :label="fieldLabel(item.field)"
+                    :optional="!effective(item.field).required"
+                    :help="item.helpText || undefined"
+                    :error="errors[item.field.name] ?? calculatedError(item.field)"
+                    v-model="texts[item.field.name]"
+                    :class="spanClass(section, item)"
+                    :disabled="locked(item.field)"
+                    @update:model-value="onInput(item.field)"
+                    @blur="onBlur(item.field)"
+                  />
+                  <DateField
+                    v-else-if="item.field.type === 'Date'"
+                    :id="`entry-${item.field.name}`"
+                    :label="fieldLabel(item.field)"
+                    :optional="!effective(item.field).required"
+                    :help="item.helpText || undefined"
+                    :error="errors[item.field.name] ?? calculatedError(item.field)"
+                    v-model="texts[item.field.name]"
+                    :class="spanClass(section, item)"
+                    :disabled="locked(item.field)"
+                    @update:model-value="onInput(item.field)"
+                    @blur="onBlur(item.field)"
+                  />
+                  <NumberField
+                    v-else-if="['Number', 'Currency', 'Money', 'Quantity'].includes(item.field.type)"
+                    :id="`entry-${item.field.name}`"
+                    :label="fieldLabel(item.field)"
+                    :optional="!effective(item.field).required"
+                    :help="item.helpText || undefined"
+                    :error="errors[item.field.name] ?? calculatedError(item.field)"
+                    v-model="texts[item.field.name]"
+                    :class="spanClass(section, item)"
+                    :disabled="locked(item.field)"
+                    @update:model-value="onInput(item.field)"
+                    @blur="onBlur(item.field)"
+                  />
+                  <ImageField
+                    v-else-if="item.field.type === 'Image'"
+                    :id="`entry-${item.field.name}`"
+                    :label="fieldLabel(item.field)"
+                    :optional="!effective(item.field).required"
+                    :help="item.helpText || undefined"
+                    :error="errors[item.field.name] ?? calculatedError(item.field)"
+                    v-model="images[item.field.name]"
+                    :record-type-key="recordType.name"
+                    :field-name="item.field.name"
+                    :class="spanClass(section, item)"
+                    :disabled="locked(item.field)"
+                    @update:model-value="onInput(item.field)"
+                    @blur="onBlur(item.field)"
+                  />
+                  <TextField
+                    v-else
+                    :id="`entry-${item.field.name}`"
+                    :label="fieldLabel(item.field)"
+                    :optional="!effective(item.field).required"
+                    :help="item.helpText || undefined"
+                    :error="errors[item.field.name] ?? calculatedError(item.field)"
+                    v-model="texts[item.field.name]"
+                    :type="inputType(item.field)"
+                    :class="spanClass(section, item)"
+                    :disabled="locked(item.field)"
+                    @update:model-value="onInput(item.field)"
+                    @blur="onBlur(item.field)"
+                  />
+                </template>
+              </template>
+            </div>
+          </section>
         </div>
         <div class="entry-form-footer">
           <ActionButton v-if="editing !== 'new' && !isSetting && (!submittable || docstate === 0)" kind="destructive" label="Delete" icon="trash-2" :busy="busy" @press="confirmingDelete = true" />

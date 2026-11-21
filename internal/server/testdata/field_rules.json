@@ -60,5 +60,19 @@
   {"name": "quantity above max", "type": "Quantity", "required": false, "value": "5.5", "valid": false, "uom": "kg", "max": "5"},
   {"name": "enum listed", "type": "Enum", "required": false, "value": "open", "valid": true, "values": ["open", "paid"]},
   {"name": "enum unlisted", "type": "Enum", "required": false, "value": "void", "valid": false, "values": ["open", "paid"]},
-  {"name": "enum is case sensitive", "type": "Enum", "required": false, "value": "OPEN", "valid": false, "values": ["open", "paid"]}
+  {"name": "enum is case sensitive", "type": "Enum", "required": false, "value": "OPEN", "valid": false, "values": ["open", "paid"]},
+  {"name": "image ok", "type": "Image", "required": false, "value": "", "valid": true, "image": {"path": "images/logo.png", "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "alt_text": "Acme logo"}},
+  {"name": "image required missing", "type": "Image", "required": true, "value": "", "valid": false},
+  {"name": "image optional missing", "type": "Image", "required": false, "value": "", "valid": true},
+  {"name": "image outside images", "type": "Image", "required": false, "value": "", "valid": false, "image": {"path": "packs/logo.png", "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "alt_text": "Acme logo"}},
+  {"name": "image wrong extension", "type": "Image", "required": false, "value": "", "valid": false, "image": {"path": "images/notes.txt", "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "alt_text": "Notes"}},
+  {"name": "image empty path", "type": "Image", "required": false, "value": "", "valid": false, "image": {"path": "", "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "alt_text": "Acme logo"}},
+  {"name": "image escaping path", "type": "Image", "required": false, "value": "", "valid": false, "image": {"path": "images/../logo.png", "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "alt_text": "Acme logo"}},
+  {"name": "image uppercase path", "type": "Image", "required": false, "value": "", "valid": false, "image": {"path": "images/Logo.png", "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "alt_text": "Acme logo"}},
+  {"name": "image short hash", "type": "Image", "required": false, "value": "", "valid": false, "image": {"path": "images/logo.png", "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b85", "alt_text": "Acme logo"}},
+  {"name": "image uppercase hash", "type": "Image", "required": false, "value": "", "valid": false, "image": {"path": "images/logo.png", "hash": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855", "alt_text": "Acme logo"}},
+  {"name": "image missing alt", "type": "Image", "required": false, "value": "", "valid": false, "image": {"path": "images/logo.png", "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "alt_text": ""}},
+  {"name": "image blank alt", "type": "Image", "required": false, "value": "", "valid": false, "image": {"path": "images/logo.png", "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "alt_text": "   "}},
+  {"name": "image alt at limit", "type": "Image", "required": false, "value": "", "valid": true, "image": {"path": "images/logo.png", "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "alt_text": "{repeat:a:1000}"}},
+  {"name": "image alt over limit", "type": "Image", "required": false, "value": "", "valid": false, "image": {"path": "images/logo.png", "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "alt_text": "{repeat:a:1001}"}}
 ]

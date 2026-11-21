@@ -1,3 +1,5 @@
+import type { FormLayout } from './forms/layout'
+
 export type Page = 'overview' | 'record-types' | 'packs' | 'rules' | 'files' | 'access' | 'ledger' | 'reports' | 'jobs' | 'settings' | 'setup' | 'queue' | 'count' | 'gallery'
 export type EnumChoice = { value: string; label: string }
 // The optional attributes mirror RecordTypeField in proto/athena/v1/record_types.proto;
@@ -41,7 +43,7 @@ export type Kind = 'master' | 'document' | 'child' | 'setting'
 // on the document lifecycle (draft, submitted, cancelled, amended). naming_series,
 // gap_free and allow_manual_name set how a submittable document is named;
 // label_field names the field that labels a Record in pickers.
-export type RecordType = { name: string; label: string; description: string; kind: Kind; class?: string; parent_record_type?: string; submittable?: boolean; amendable?: boolean; naming_series?: string; gap_free?: boolean; allow_manual_name?: boolean; label_field?: string; fields: Field[]; revision: number; access?: RecordTypeAccess; record_count?: number; count_hidden?: boolean; updated_at?: string; updated_by?: string; pack_key?: string }
+export type RecordType = { name: string; label: string; description: string; kind: Kind; class?: string; parent_record_type?: string; submittable?: boolean; amendable?: boolean; naming_series?: string; gap_free?: boolean; allow_manual_name?: boolean; label_field?: string; fields: Field[]; layout?: FormLayout; revision: number; access?: RecordTypeAccess; record_count?: number; count_hidden?: boolean; updated_at?: string; updated_by?: string; pack_key?: string }
 
 // What the signed-in user may do with a Record Type, as ListRecordTypes reports it.
 export type RecordTypeAccess = { actions: string[]; permission_level: number }

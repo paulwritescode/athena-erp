@@ -12,6 +12,7 @@ import { WorkspaceService } from './gen/athena/v1/workspace_pb'
 import { create } from '@bufbuild/protobuf'
 import { Code, ConnectError } from '@connectrpc/connect'
 import { isStepUpRequired, sessionEndReason } from './apiErrors'
+import { layoutFromMessage, layoutToMessage } from './forms/layout'
 import type { Field, Kind, RecordType } from './types'
 
 // The session token lives in an HttpOnly cookie the browser sends by itself.
@@ -135,6 +136,7 @@ function fieldFromMessage(field: RecordTypeFieldMessage): Field {
 }
 
 function fromMessage(recordType: RecordTypeMessage): RecordType {
+  const layout = layoutFromMessage(recordType.layout)
   return {
     name: recordType.key,
     label: recordType.label,
@@ -150,6 +152,7 @@ function fromMessage(recordType: RecordTypeMessage): RecordType {
     ...(recordType.allowManualName ? { allow_manual_name: true } : {}),
     ...(recordType.labelField ? { label_field: recordType.labelField } : {}),
     fields: recordType.fields.map(fieldFromMessage),
+    ...(layout ? { layout } : {}),
     ...(recordType.access ? { access: { actions: recordType.access.actions, permission_level: recordType.access.permissionLevel } } : {}),
     record_count: Number(recordType.recordCount),
     ...(recordType.countHidden ? { count_hidden: true } : {}),
@@ -180,6 +183,7 @@ function toMessage(recordType: RecordType): RecordTypeMessage {
     gapFree: recordType.kind === 'document' && (recordType.submittable ?? false) && (recordType.naming_series ?? '') !== '' && (recordType.gap_free ?? false),
     allowManualName: recordType.kind === 'document' && (recordType.submittable ?? false) && (recordType.allow_manual_name ?? false),
     labelField: recordType.label_field ?? '',
+    layout: layoutToMessage(recordType.layout),
     fields: recordType.fields.map((field) => ({
       key: field.name,
       label: field.label,

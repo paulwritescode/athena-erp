@@ -1,16 +1,18 @@
 import { describe, expect, it } from 'vitest'
 import cases from '../../internal/server/testdata/field_rules.json'
-import { compareDecimal, docstates, fieldEditable, isCalculated, maxExpressionLength, validateExpressionText, validateField, validateManualName, validateNamingSeries } from './fieldRules'
+import { compareDecimal, docstates, fieldEditable, isCalculated, maxExpressionLength, validateExpressionText, validateField, validateImageValue, validateManualName, validateNamingSeries, type ImageFieldValue } from './fieldRules'
 import type { Field } from './types'
 
 // The server tests read the same table (internal/server/fieldrules_test.go),
-// so a rule change that is made on only one side fails a test.
+// so a rule change that is made on only one side fails a test. Image rows
+// carry an image object instead of a text value; a missing image is null.
 function expand(value: string): string {
   const match = /^\{repeat:(.*):(\d+)\}$/.exec(value)
   return match ? (match[1] ?? '').repeat(Number(match[2])) : value
 }
 
-type Case = (typeof cases)[number] & { max_length?: number; min?: string; max?: string; pattern?: string; values?: string[]; currency?: string; scale?: number; uom?: string }
+type ImageCase = { path: string; hash: string; alt_text: string }
+type Case = (typeof cases)[number] & { max_length?: number; min?: string; max?: string; pattern?: string; values?: string[]; currency?: string; scale?: number; uom?: string; image?: ImageCase }
 
 function fieldOf(c: Case): Field {
   return {
@@ -33,12 +35,24 @@ function fieldOf(c: Case): Field {
 describe('validateField parity with the server', () => {
   for (const c of cases as Case[]) {
     it(c.name, () => {
-      expect(validateField(fieldOf(c), expand(c.value)) === '').toBe(c.valid)
+      if (c.type === 'Image') {
+        const image: ImageFieldValue | null = c.image ? { path: c.image.path, hash: c.image.hash, altText: expand(c.image.alt_text) } : null
+        expect(validateImageValue(fieldOf(c), image) === '').toBe(c.valid)
+      } else {
+        expect(validateField(fieldOf(c), expand(c.value)) === '').toBe(c.valid)
+      }
     })
   }
 
   it('accepts any checkbox state', () => {
     expect(validateField({ name: 'f', label: 'Field', type: 'Checkbox', required: true }, '')).toBe('')
+  })
+
+  it('names what an image value is missing', () => {
+    const field: Field = { name: 'photo', label: 'Photo', type: 'Image', required: false }
+    expect(validateImageValue({ ...field, required: true }, null)).toBe('Photo is required.')
+    expect(validateImageValue(field, null)).toBe('')
+    expect(validateImageValue(field, { path: 'packs/a.png', hash: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855', altText: 'A' })).toContain('under images/')
   })
 })
 

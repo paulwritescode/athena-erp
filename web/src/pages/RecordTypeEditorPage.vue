@@ -139,7 +139,7 @@ function changeType(field: Field) {
   if (field.type === 'Money') { field.currency = 'USD'; field.scale = 2 }
   if (field.type === 'Quantity') field.uom = 'unit'
   if (field.type === 'Enum') field.values = [{ value: 'option_1', label: 'Option 1' }]
-  if (field.type === 'Long text' || field.type === 'Checkbox') { delete field.unique; delete field.index }
+  if (field.type === 'Long text' || field.type === 'Checkbox' || field.type === 'Image') { delete field.unique; delete field.index }
 }
 
 // Work documents have no submit step, so the server refuses the combination.
@@ -173,7 +173,7 @@ function setAmendable(value: boolean) {
 }
 const settingsField = ref<Field | null>(null)
 const confirmingTypeDelete = ref(false)
-const fieldTypes = ['Text', 'Long text', 'Email', 'Phone', 'Number', 'Currency', 'Money', 'Quantity', 'Date', 'Select', 'Enum', 'Link', 'Checkbox']
+const fieldTypes = ['Text', 'Long text', 'Email', 'Phone', 'Number', 'Currency', 'Money', 'Quantity', 'Date', 'Select', 'Enum', 'Link', 'Checkbox', 'Image']
 
 function save() {
   for (const field of props.currentRecordType.fields) normalizeNewFieldName(field)
