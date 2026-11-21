@@ -68,7 +68,6 @@ function fillFrom(identity: Identity | undefined) {
   currentDark.value = identity?.logoDarkUrl ?? ''
   for (const side of ['light', 'dark'] as const) {
     const r = refs(side)
-    if (r.preview.value.startsWith('blob:')) URL.revokeObjectURL(r.preview.value)
     r.file.value = null
     r.preview.value = ''
     r.clear.value = false
@@ -123,16 +122,22 @@ function chosen(side: Side, event: Event) {
     r.problem.value = `"${file.name}" is larger than 512 KB.`
     return
   }
-  if (r.preview.value.startsWith('blob:')) URL.revokeObjectURL(r.preview.value)
-  r.file.value = file
-  r.preview.value = URL.createObjectURL(file)
-  r.clear.value = false
+  // A data: URL preview: blob: is blocked by the page img-src policy.
+  const reader = new FileReader()
+  reader.onload = () => {
+    r.file.value = file
+    r.preview.value = typeof reader.result === 'string' ? reader.result : ''
+    r.clear.value = false
+  }
+  reader.onerror = () => {
+    r.problem.value = `Could not read "${file.name}".`
+  }
+  reader.readAsDataURL(file)
 }
 
 function remove(side: Side) {
   const r = refs(side)
   if (r.file.value) {
-    if (r.preview.value.startsWith('blob:')) URL.revokeObjectURL(r.preview.value)
     r.file.value = null
     r.preview.value = ''
     return

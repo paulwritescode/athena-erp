@@ -22,7 +22,6 @@ afterEach(() => {
   for (const cleanup of cleanups.splice(0)) cleanup()
   document.body.innerHTML = ''
   vi.restoreAllMocks()
-  vi.unstubAllGlobals()
 })
 
 async function mountSection(canEdit: boolean) {
@@ -87,16 +86,16 @@ describe('IdentitySection', () => {
 
   it('saves the name and upload bytes, then refreshes', async () => {
     vi.mocked(workspaceClient.getIdentity).mockResolvedValue({ identity: { ...stored } } as never)
-    vi.mocked(workspaceClient.setIdentity).mockImplementation(async (req: never) => {
-      const r = req as unknown as { displayName: string }
-      return { identity: { ...stored, displayName: r.displayName || stored.displayName } } as never
+    vi.mocked(workspaceClient.setIdentity).mockImplementation(async (req) => {
+      return { identity: { ...stored, displayName: req.displayName || stored.displayName } } as never
     })
-    URL.createObjectURL = vi.fn(() => 'blob:preview') as unknown as typeof URL.createObjectURL
-    URL.revokeObjectURL = vi.fn()
     await mountSection(true)
     await setName('Acme Ltd')
     chooseFile('dark', new File(['svg-bytes'], 'logo.svg', { type: 'image/svg+xml' }))
+    await new Promise((resolve) => setTimeout(resolve, 50))
     await nextTick()
+    const preview = document.querySelector('img[alt="Dark logo preview"]')?.getAttribute('src') ?? ''
+    expect(preview.startsWith('data:')).toBe(true)
     button('Save identity').click()
     await new Promise((resolve) => setTimeout(resolve, 0))
     await nextTick()
