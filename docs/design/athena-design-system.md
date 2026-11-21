@@ -313,9 +313,20 @@ The bell is a working inbox, not decoration. It shows an unread count, a list gr
 
 Toasts never cover actions: while a right sheet is open on desktop and tablet, toasts appear at the bottom left of the sheet's free area (bottom center of the remaining page); on phones toasts appear at the top, below the header, so they never cover a drawer footer or the floating navigation.
 
-## 18. Appearance settings (decided 2026-11-21)
+## 18. Appearance settings (revised 2026-11-21)
 
-Settings → Appearance (permission `settings:appearance`) lets a Workspace choose the accent: the `ink` and `red` presets as swatches, or Custom with a color picker for the accent and, optionally, the five chart colors. The page previews buttons, focus ring, selected navigation and a chart in light and dark side by side before saving. On save the server checks contrast (text on the accent ≥ 4.5:1 in both themes) and offers the nearest passing lightness if it fails. Only the accent tokens of §2.1 change; surfaces stay neutral. The choice is stored per Workspace and applied for every user on next load, without a rebuild. A user can also choose light, dark or system for themselves.
+Settings → Appearance (permission `settings:appearance`) follows the shadcn "create" pattern: a short column of choices on the left and one live preview on the right. Nothing on the page exists only to fill space; every preview element is something Athena actually shows.
+
+**Choices (left column, 280 px on desktop; stacked above the preview on phones):** each choice is one row with a caption label, the current value in body text and a small color dot or icon on the right; clicking opens a popover (a bottom drawer on touch) with the options.
+1. **Accent** — the button, focus ring, selected navigation and first chart color. Options in a grid of swatches with names: Ink (default), Slate, Blue, Sky, Green, Amber, Orange, Brown, Red, and Custom (a color picker).
+2. **Charts** — the five chart colors: "Match accent" (a tonal ramp of the accent, default) or one of the palettes Neutral, Earth, Ocean, Forest, or Custom.
+3. **Your theme** — Light, Dark or System (this one is per user, not per Workspace, and says so).
+
+Below the choices: Save (primary) and Reset to default (quiet). Save is enabled only when something changed.
+
+**Preview (right):** one realistic Athena card drawn with the chosen tokens, in light and dark side by side on desktop (one, following the theme switch, on phones): a page header with a title and a primary "New invoice" button and a secondary "Export" button; a search input showing the focus ring; three list rows with a status badge each (Draft, Submitted, Paid); a selected sidebar item; and a small bar chart of six months in the chart colors with a legend. No labels like "Focus ring" or "Selected page" on the elements themselves.
+
+Rules: every preset is defined once in `web/src/theme.css` as a `[data-accent="<name>"]` block (light and dark) and listed in one place in `web/src/appearance.ts`; the server stores the preset name, checked against the same list, or the custom values. Every preset passes the contrast check in both themes, verified by a test.
 
 ## 19. Record Types: list, then a dedicated editor (decided 2026-11-21)
 
@@ -324,6 +335,10 @@ Following Frappe's DocType list: the Record Types page is a list first, and edit
 - **Desktop and tablet list:** a DataTable with Name (with its icon), Description, Kind (Master, Document, Setting and so on, as a badge), Fields (count), Records (count), Pack (or "None"), Last changed (readable time, §14) and Changed by. Search, a Kind filter and a Pack filter sit above it. Sort by any column. The primary action is "New Record Type". No form shows on this page.
 - **Phone list:** stacked rows with Name, Kind badge and Fields count. Tapping a row opens a bottom drawer with the summary (description, counts, Pack, last changed) and two actions: "Open editor" (goes to the editor page) and "View records".
 - **Editor page** at `/build/record-types/<key>` (and `/build/record-types/new`): the page header shows the name, Kind and saved state, with Save as the primary action and Delete in the destructive slot. Tabs: **Form** (the form builder, task B9: sections, columns, drag and keyboard reordering, field settings in a right sheet, optional image and text blocks, and an optional hairline or ASCII header chosen from the art registry, §9), **Fields** (the table of fields with type, key, required and link target), **Settings** (key, description, kind, label field, naming), **Rules** (Rules attached to this Record Type), and **History** (saves from the journal). A live preview shows the form at phone and desktop width. On phones the editor page opens full screen with the tabs as a segmented control, and the form builder uses move up and move down instead of drag.
+
+## 20. Creating a Record Type (decided 2026-11-21)
+
+"New Record Type" never opens an unnamed editor. It opens a small dialog (a bottom drawer on touch) titled "New Record Type" with three fields: **Name** (required, focused, example "Customer"), **What is it for?** (optional, one line), and **Kind** (Master, Document, Setting and the rest, each with a one-line explanation, default Master). The key is derived from the name and shown below it in mono caption ("Saved as customer"), editable through a small "Change" link. "Create" is disabled until the name is valid and unique; errors appear under the field. Create saves the Record Type with one default field (Name, text, required) so it exists as a real, named Record Type, then opens its editor on the Fields tab. In the editor, the name is the page title and editable in place (click the title, or "Rename" in the header menu); it is never a plain input hidden among the fields.
 
 ## 12. Checks before a screen is done
 
