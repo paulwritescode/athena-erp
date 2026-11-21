@@ -15,7 +15,12 @@ service AuthService {
   rpc Logout(LogoutRequest) returns (LogoutResponse);
   // GetSession reports whether the caller is signed in. A missing cookie is anonymous.
   // A presented, ended session returns its expiry or revocation reason.
+  // It never extends idle: the desk's "Stay signed in" uses Touch for that.
   rpc GetSession(GetSessionRequest) returns (GetSessionResponse);
+  // Touch extends the caller's idle expiry to a full window from now and
+  // returns the fresh session. The desk calls it only when the user answers
+  // the idle warning; background polls stay on the passive GetSession.
+  rpc Touch(TouchRequest) returns (TouchResponse);
   // ChangePassword sets the caller's own password and ends their sessions.
   rpc ChangePassword(ChangePasswordRequest) returns (ChangePasswordResponse);
   // InviteUser invites a user with no password and returns the single-use
@@ -93,6 +98,10 @@ message GetSessionResponse {
   // False until the first user exists. The desk then tells the person to run
   // "athena user create --owner" instead of showing a sign-in form.
   bool has_users = 2;
+}
+message TouchRequest {}
+message TouchResponse {
+  SessionInfo session = 1;
 }
 // SessionInfo describes a signed-in user. It is empty when nobody is signed in.
 message SessionInfo {

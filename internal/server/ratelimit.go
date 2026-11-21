@@ -178,7 +178,11 @@ func rateInterceptor(svc *auth.Service) connect.ServerInterceptor {
 			if class != "" {
 				token := cookieValue(info.RequestHeader(), sessionCookieName)
 				if token != "" && auth.CheckCSRF(token, info.RequestHeader().Get(csrfHeader)) {
-					p, err := svc.Authenticate(ctx, token)
+					authenticate := svc.Authenticate
+					if passiveProcedures[spec.Procedure] {
+						authenticate = svc.AuthenticatePassive
+					}
+					p, err := authenticate(ctx, token)
 					if err != nil {
 						return authError("check session", err)
 					}

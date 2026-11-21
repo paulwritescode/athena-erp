@@ -142,23 +142,27 @@ func (s *Store) stat(rel string) (fs.FileInfo, error) {
 // is refused, as is one that is not text unless it is a PNG logo under
 // brand/.
 func (s *Store) read(rel string) (diskFile, error) {
+	limit := int64(MaxFileBytes)
+	if IsImagePath(rel) {
+		limit = MaxImageBytes
+	}
 	info, err := s.stat(rel)
 	if err != nil {
 		return diskFile{}, err
 	}
-	if info.Size() > MaxFileBytes {
-		return diskFile{}, fmt.Errorf("%w: the limit is %d bytes", ErrTooLarge, MaxFileBytes)
+	if info.Size() > limit {
+		return diskFile{}, fmt.Errorf("%w: the limit is %d bytes", ErrTooLarge, limit)
 	}
 	f, err := s.root.Open(rel)
 	if err != nil {
 		return diskFile{}, err
 	}
 	defer f.Close()
-	content, err := io.ReadAll(io.LimitReader(f, MaxFileBytes+1))
+	content, err := io.ReadAll(io.LimitReader(f, limit+1))
 	if err != nil {
 		return diskFile{}, err
 	}
-	if !AllowBinary(rel) {
+	if !AllowBinary(rel) && !IsImagePath(rel) {
 		if err := checkText(content); err != nil {
 			return diskFile{}, err
 		}
@@ -343,6 +347,40 @@ func (s *Store) Put(ctx context.Context, p string, content []byte, expect Expect
 	if err := Validate(rel, content); err != nil {
 		return Info{}, err
 	}
+	return s.putContent(ctx, rel, content, expect, meta)
+}
+
+// ImageInfo describes a stored image: its file with the pixel dimensions of
+// what was stored.
+type ImageInfo struct {
+	Info
+	Width  int
+	Height int
+}
+
+// PutImage validates uploaded bytes as an image, strips their metadata and
+// stores the result like Put: versioned, audited and concurrency-checked.
+func (s *Store) PutImage(ctx context.Context, p string, content []byte, expect Expect, meta Meta) (ImageInfo, error) {
+	rel, err := CleanPath(p)
+	if err != nil {
+		return ImageInfo{}, err
+	}
+	if _, err := ValidateImage(rel, content); err != nil {
+		return ImageInfo{}, err
+	}
+	cleaned, err := CleanImage(content)
+	if err != nil {
+		return ImageInfo{}, err
+	}
+	info, err := s.putContent(ctx, rel, cleaned.Content, expect, meta)
+	if err != nil {
+		return ImageInfo{}, err
+	}
+	return ImageInfo{Info: info, Width: cleaned.Width, Height: cleaned.Height}, nil
+}
+
+// putContent records validated content under an already-cleaned path.
+func (s *Store) putContent(ctx context.Context, rel string, content []byte, expect Expect, meta Meta) (Info, error) {
 	tx, err := s.DB.BeginTx(ctx, nil)
 	if err != nil {
 		return Info{}, err
@@ -439,8 +477,13 @@ func (s *Store) Move(ctx context.Context, from, to string, expect Expect, meta M
 		return Info{}, err
 	}
 	// The content must be valid where it lands: a file moved into
-	// record_types/ has to be a Record Type file.
-	if err := Validate(dst, disk.content); err != nil {
+	// record_types/ has to be a Record Type file, and only images land in
+	// images/.
+	if IsImagePath(dst) {
+		if _, err := ValidateImage(dst, disk.content); err != nil {
+			return Info{}, err
+		}
+	} else if err := Validate(dst, disk.content); err != nil {
 		return Info{}, err
 	}
 	if target, err := s.load(dst); err != nil {

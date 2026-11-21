@@ -17,6 +17,7 @@ import (
 	athenav1 "athena-erp/gen/athena/v1"
 	"athena-erp/internal/audit"
 	"athena-erp/internal/auth"
+	"athena-erp/internal/files"
 	"athena-erp/internal/lifecycle"
 	"athena-erp/internal/store"
 	"athena-erp/internal/types"
@@ -841,6 +842,14 @@ func scanRecord(rows *sql.Rows, recordType recordTypeDefinition) (*athenav1.Reco
 			}
 		case *sql.NullString:
 			if v.Valid {
+				if field.Type == "Image" {
+					var ref imageReference
+					if err := json.Unmarshal([]byte(v.String), &ref); err != nil {
+						return nil, internalError("read image reference", err)
+					}
+					value.Kind = &athenav1.FieldValue_ImageValue{ImageValue: &athenav1.ImageValue{Path: ref.Path, Hash: ref.Hash, AltText: ref.AltText}}
+					break
+				}
 				text := v.String
 				if field.Type == "Number" || field.Type == "Currency" || field.Type == "Quantity" {
 					text = trimDecimal(text)
@@ -934,6 +943,50 @@ func createDefault(field recordTypeField) (any, error) {
 // fieldArgument converts one FieldValue into a database argument, or nil for
 // null. It applies the type's own rules, then the field's attributes. A Money
 // field returns int64 minor units; every other type returns a string or bool.
+// maxAltText is the longest alt text an image value may carry: a sentence
+// for screen readers, not a caption.
+const maxAltText = 1000
+
+var shaHexPattern = regexp.MustCompile(`^[0-9a-f]{64}$`)
+
+// imageReference is the stored form of an Image value: a Workspace file
+// path with the hash the writer saw and the alt text readers hear.
+type imageReference struct {
+	Path    string `json:"path"`
+	Hash    string `json:"hash"`
+	AltText string `json:"alt_text"`
+}
+
+// imageArgument validates an Image value and renders it for the JSON column.
+// The reference shape is checked here; the file itself is verified when the
+// layout that shows it saves, and through GetFile when it is read.
+func imageArgument(field recordTypeField, value *athenav1.FieldValue) (any, error) {
+	v, ok := value.GetKind().(*athenav1.FieldValue_ImageValue)
+	if !ok {
+		return nil, invalid(fmt.Sprintf("%s must be an image reference", field.Label))
+	}
+	ref := v.ImageValue
+	path := strings.TrimSpace(ref.GetPath())
+	if path == "" || !files.IsImagePath(path) {
+		return nil, invalid(fmt.Sprintf("%s must reference an image under images/", field.Label))
+	}
+	if !shaHexPattern.MatchString(ref.GetHash()) {
+		return nil, invalid(fmt.Sprintf("%s must carry the 64-character hash of its file", field.Label))
+	}
+	alt := strings.TrimSpace(ref.GetAltText())
+	if alt == "" {
+		return nil, invalid(fmt.Sprintf("%s needs alt text describing the image", field.Label))
+	}
+	if utf8.RuneCountInString(alt) > maxAltText {
+		return nil, invalid(fmt.Sprintf("%s: the alt text is longer than %d characters", field.Label, maxAltText))
+	}
+	payload, err := json.Marshal(imageReference{Path: path, Hash: ref.GetHash(), AltText: alt})
+	if err != nil {
+		return nil, internalError("write image reference", err)
+	}
+	return string(payload), nil
+}
+
 func fieldArgument(field recordTypeField, value *athenav1.FieldValue) (any, error) {
 	if value == nil || value.GetNullValue() {
 		return nil, nil
@@ -944,6 +997,9 @@ func fieldArgument(field recordTypeField, value *athenav1.FieldValue) (any, erro
 			return nil, invalid(fmt.Sprintf("%s must be true or false", field.Label))
 		}
 		return v.BoolValue, nil
+	}
+	if field.Type == "Image" {
+		return imageArgument(field, value)
 	}
 	v, ok := value.GetKind().(*athenav1.FieldValue_StringValue)
 	if !ok {

@@ -58,6 +58,7 @@ var procedurePolicies = map[string]policy{
 
 	athenav1connect.AuthServiceLoginProcedure:             {kind: policyPublic},
 	athenav1connect.AuthServiceGetSessionProcedure:        {kind: policyPublic},
+	athenav1connect.AuthServiceTouchProcedure:             {kind: policySession},
 	athenav1connect.AuthServiceStepUpProcedure:            {kind: policySession},
 	athenav1connect.AuthServiceLogoutProcedure:            {kind: policySession},
 	athenav1connect.AuthServiceChangePasswordProcedure:    {kind: policySession},
@@ -92,6 +93,7 @@ var procedurePolicies = map[string]policy{
 	athenav1connect.FileServiceGetFileProcedure:          {kind: policySystem, permission: auth.PermissionFilesRead},
 	athenav1connect.FileServiceListFileVersionsProcedure: {kind: policySystem, permission: auth.PermissionFilesRead},
 	athenav1connect.FileServicePutFileProcedure:          {kind: policySystem, permission: auth.PermissionFilesWrite},
+	athenav1connect.FileServicePutImageProcedure:         {kind: policySystem, permission: auth.PermissionFilesWrite},
 	athenav1connect.FileServiceMoveFileProcedure:         {kind: policySystem, permission: auth.PermissionFilesWrite},
 	athenav1connect.FileServiceDeleteFileProcedure:       {kind: policySystem, permission: auth.PermissionFilesWrite},
 	athenav1connect.RuleServiceListRulesProcedure:        {kind: policySystem, permission: auth.PermissionRulesRead},
@@ -179,6 +181,7 @@ var destructiveProcedures = map[string]bool{
 	athenav1connect.FileServiceDeleteFileProcedure:             true,
 	athenav1connect.FileServiceMoveFileProcedure:               true,
 	athenav1connect.FileServicePutFileProcedure:                true,
+	athenav1connect.FileServicePutImageProcedure:               true,
 	athenav1connect.RuleServiceSaveRuleProcedure:               true,
 	athenav1connect.RuleServiceDeleteRuleProcedure:             true,
 	athenav1connect.RecordTypeServiceSaveRecordTypeProcedure:   true,
@@ -188,6 +191,17 @@ var destructiveProcedures = map[string]bool{
 	athenav1connect.LedgerServiceDiscardSettingValueProcedure:  true,
 	athenav1connect.LedgerServicePublishSettingValueProcedure:  true,
 	athenav1connect.LedgerServiceSetPeriodStatusProcedure:      true,
+}
+
+// passiveProcedures are background reads the desk makes without the user:
+// they check expiry but must not move last_seen_at, or an unattended open
+// tab would keep itself signed in forever and idle timeout could never
+// fire. Touch stays active deliberately: it exists to extend idle.
+var passiveProcedures = map[string]bool{
+	athenav1connect.NotificationServiceUnreadCountProcedure: true,
+	athenav1connect.NotificationServiceListProcedure:        true,
+	athenav1connect.AuthServiceGetSessionProcedure:          true,
+	athenav1connect.WorkspaceServiceGetAppearanceProcedure:  true,
 }
 
 type sessionTokenKey struct{}
@@ -231,7 +245,11 @@ func gateInterceptor(svc *auth.Service) connect.ServerInterceptor {
 			principal := auth.PrincipalFrom(ctx)
 			var sessionErr error = &auth.SessionEnded{Reason: "revoked"}
 			if token != "" && principal == nil {
-				p, err := svc.Authenticate(ctx, token)
+				authenticate := svc.Authenticate
+				if passiveProcedures[spec.Procedure] {
+					authenticate = svc.AuthenticatePassive
+				}
+				p, err := authenticate(ctx, token)
 				sessionErr = err
 				switch {
 				case err == nil:

@@ -452,7 +452,8 @@ func readRecordType(path string) (*athenav1.RecordType, error) {
 	return &recordType, nil
 }
 
-// parseValues reads a JSON object whose values are strings, booleans or null.
+// parseValues reads a JSON object whose values are strings, booleans, null,
+// or image references shaped {"path": ..., "hash": ..., "alt_text": ...}.
 func parseValues(text string) (map[string]*athenav1.FieldValue, error) {
 	if text == "" {
 		return nil, errors.New("records create needs --values, for example --values '{\"name\":\"Acme\"}'")
@@ -470,11 +471,42 @@ func parseValues(text string) (map[string]*athenav1.FieldValue, error) {
 			values[key] = &athenav1.FieldValue{Kind: &athenav1.FieldValue_BoolValue{BoolValue: v}}
 		case nil:
 			values[key] = &athenav1.FieldValue{Kind: &athenav1.FieldValue_NullValue{NullValue: true}}
+		case map[string]any:
+			image, err := parseImageValue(key, v)
+			if err != nil {
+				return nil, err
+			}
+			values[key] = &athenav1.FieldValue{Kind: &athenav1.FieldValue_ImageValue{ImageValue: image}}
 		default:
-			return nil, fmt.Errorf("--values: %q must be text, true, false or null; write numbers as text", key)
+			return nil, fmt.Errorf("--values: %q must be text, true, false, null or an image reference; write numbers as text", key)
 		}
 	}
 	return values, nil
+}
+
+// parseImageValue reads one {"path","hash","alt_text"} object. The server
+// validates the reference itself; the CLI only checks the shape.
+func parseImageValue(key string, raw map[string]any) (*athenav1.ImageValue, error) {
+	field := func(name string) (string, error) {
+		text, ok := raw[name].(string)
+		if !ok || text == "" {
+			return "", fmt.Errorf("--values: %q needs an image reference shaped {\"path\":...,\"hash\":...,\"alt_text\":...}", key)
+		}
+		return text, nil
+	}
+	path, err := field("path")
+	if err != nil {
+		return nil, err
+	}
+	hash, err := field("hash")
+	if err != nil {
+		return nil, err
+	}
+	alt, err := field("alt_text")
+	if err != nil {
+		return nil, err
+	}
+	return &athenav1.ImageValue{Path: path, Hash: hash, AltText: alt}, nil
 }
 
 func writeProto(out io.Writer, message proto.Message) error {

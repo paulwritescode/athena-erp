@@ -1,9 +1,9 @@
-// The Record Type editor (§19): one type per address, a draft at /new.
-// Header, tabs (Form placeholder until B9, Fields, Settings, Rules,
-// History) and the full editing behaviour moved unchanged from the old
-// inline form.
+// The Record Type editor (§§19-20): one saved type per address, created
+// through the name-first dialog. Header, tabs (Form placeholder, Fields,
+// Settings, Rules, History) and the full editing behaviour moved unchanged
+// from the old inline form.
 <script setup lang="ts">
-import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref, type ComponentPublicInstance } from 'vue'
 import { useMediaQuery } from '@vueuse/core'
 import { ConnectError } from '@connectrpc/connect'
 import { ruleClient } from '@/api'
@@ -17,9 +17,12 @@ import HelpHint from '@/copy/HelpHint.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
+import { snakeKey } from '@/components/record-types/recordTypeKeys'
 import { Badge } from '@/components/ui/badge'
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb'
+import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -31,34 +34,16 @@ const emit = defineEmits<{
   save: [complete: (saved: boolean) => void]
   delete: [recordType: RecordType]
   addField: []
-  addRecordType: []
-  rename: [from: string, to: string]
   closeEditor: []
   viewRecords: [key: string]
   openRules: []
-  savedAs: [key: string]
 }>()
 
-const isNew = computed(() => props.editorKey === 'new')
-// The addressed type: the selected draft on /new, the named type otherwise.
-// An unknown key stays unknown once loading settles: no silent fallback.
-const edited = computed(() => {
-  if (isNew.value) return props.currentRecordType.revision === 0 && props.currentRecordType.name !== '' ? props.currentRecordType : null
-  return props.recordTypes.find((item) => item.name === props.editorKey) ?? null
-})
-const unknown = computed(() => props.typesLoaded && !props.typesLoadFailed && !isNew.value && !edited.value)
+// The addressed type. An unknown key stays unknown once loading settles:
+// no silent fallback.
+const edited = computed(() => props.recordTypes.find((item) => item.name === props.editorKey) ?? null)
+const unknown = computed(() => props.typesLoaded && !props.typesLoadFailed && !edited.value)
 const waiting = computed(() => !edited.value && !unknown.value)
-
-function ensureDraft() {
-  if (!isNew.value || !props.typesLoaded || edited.value) return
-  emit('addRecordType')
-}
-onMounted(ensureDraft)
-watch(() => props.typesLoaded, ensureDraft)
-// A saved draft earns its key as the address, replacing /new in place.
-watch(() => props.currentRecordType.revision, (revision, previous) => {
-  if (isNew.value && previous === 0 && revision > 0) emit('savedAs', props.currentRecordType.name)
-})
 
 const tab = ref('fields')
 const isPhone = useMediaQuery('(max-width: 639px)')
@@ -77,46 +62,32 @@ function fieldKey(field: Field) {
   return key
 }
 
-function snakeKey(text: string, fallback: string, taken: Set<string>, reserved: string[]) {
-  let base = text.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')
-  if (!base) base = fallback
-  if (reserved.includes(base)) base = `${fallback}_${base}`
-  if (/^[0-9]/.test(base)) base = `${fallback}_${base}`
-  let candidate = base
-  let suffix = 2
-  while (taken.has(candidate)) candidate = `${base}_${suffix++}`
-  return candidate
-}
 function fieldNameFromLabel(label: string, field: Field) {
   const taken = new Set(props.currentRecordType.fields.filter((item) => item !== field).map((item) => item.name.toLowerCase()))
   return snakeKey(label, 'field', taken, ['id', 'revision', 'created_at', 'updated_at', 'created_by', 'modified_by', 'owner', 'deleted_at', 'def_version', 'request_id', 'parent_id', 'idx'])
 }
-const manuallyNamedRecordTypes = new Set<string>()
-const recordTypeIsSaved = computed(() => props.currentRecordType.revision > 0)
-function recordTypeKeyFrom(text: string) {
-  const taken = new Set(props.recordTypes.filter((item) => item !== props.currentRecordType).map((item) => item.name.toLowerCase()))
-  return snakeKey(text, 'record_type', taken, [])
+// The title edits in place (§20): click it, or Rename in the header menu.
+// A blank commit keeps the old name; a rename saves with the next Save.
+const titleEditing = ref(false)
+const titleDraft = ref('')
+const titleInput = ref<ComponentPublicInstance | null>(null)
+function startTitleEdit() {
+  titleDraft.value = props.currentRecordType.label
+  titleEditing.value = true
+  void nextTick(() => {
+    const input = titleInput.value?.$el as HTMLInputElement | undefined
+    input?.focus()
+    input?.select()
+  })
 }
-function renameRecordType(name: string) {
-  const from = props.currentRecordType.name
-  if (name === from) return
-  if (manuallyNamedRecordTypes.delete(from)) manuallyNamedRecordTypes.add(name)
-  emit('rename', from, name)
+function commitTitleEdit() {
+  if (!titleEditing.value) return
+  titleEditing.value = false
+  const next = titleDraft.value.trim()
+  if (next) props.currentRecordType.label = next
 }
-function updateRecordTypeLabel(label: string | number) {
-  const wasAuto = !manuallyNamedRecordTypes.has(props.currentRecordType.name)
-  props.currentRecordType.label = String(label)
-  if (!recordTypeIsSaved.value && wasAuto) renameRecordType(recordTypeKeyFrom(props.currentRecordType.label))
-}
-function typeRecordTypeName(event: Event) {
-  const from = props.currentRecordType.name
-  const value = (event.target as HTMLInputElement).value
-  if (!value) return
-  manuallyNamedRecordTypes.add(from)
-  renameRecordType(value)
-}
-function normalizeRecordTypeName() {
-  if (!recordTypeIsSaved.value) renameRecordType(recordTypeKeyFrom(props.currentRecordType.name))
+function cancelTitleEdit() {
+  titleEditing.value = false
 }
 function updateFieldLabel(field: Field, label: string | number) {
   field.label = String(label)
@@ -266,16 +237,35 @@ const kindBadge = computed(() => kinds.find((item) => item.value === props.curre
       <div class="page-title-row mt-2">
         <div class="min-w-0">
           <div class="flex flex-wrap items-center gap-2">
-            <Input :model-value="currentRecordType.label" class="record-title-input min-w-0 flex-1" placeholder="Record Type name" aria-label="Record Type label" @update:model-value="updateRecordTypeLabel" />
+            <h1 v-if="!titleEditing" class="min-w-0 flex-1 cursor-pointer truncate" @click="startTitleEdit">{{ currentRecordType.label }}</h1>
+            <Input v-else ref="titleInput" v-model="titleDraft" class="record-title-input min-w-0 flex-1" aria-label="Record Type name" @keyup.enter="commitTitleEdit" @keyup.escape="cancelTitleEdit" @blur="commitTitleEdit" />
+            <ActionButton v-if="!titleEditing" kind="quiet" density="inline" icon-only label="Rename" icon="pencil" @press="startTitleEdit" />
             <Badge variant="secondary">{{ kindBadge }}</Badge>
-            <span class="muted-label">{{ recordTypeIsSaved ? 'Saved' : 'Not saved' }}</span>
+            <span class="muted-label">Saved</span>
           </div>
         </div>
         <div class="max-[639px]:hidden">
           <div class="toolbar-actions">
-            <ActionButton kind="secondary" density="row" label="View records" icon="eye" :disabled-reason="recordTypeIsSaved ? null : 'Save the Record Type first.'" @press="emit('viewRecords', currentRecordType.name)" />
+            <ActionButton kind="secondary" density="row" label="View records" icon="eye" @press="emit('viewRecords', currentRecordType.name)" />
             <ActionButton kind="primary" density="row" label="Save" icon="save" @press="save" />
-            <ActionButton kind="destructive" density="row" label="Delete" icon="trash-2" @press="confirmingTypeDelete = true" />
+            <DropdownMenu>
+              <DropdownMenuTrigger as-child>
+                <Button variant="ghost" size="icon" aria-label="More actions">
+                  <component :is="icon('ellipsis')" class="size-4" aria-hidden="true" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem @select="startTitleEdit">
+                  <component :is="icon('pencil')" class="size-4" aria-hidden="true" />
+                  <span>Rename</span>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem class="text-destructive focus:text-destructive" @select="confirmingTypeDelete = true">
+                  <component :is="icon('trash-2')" class="size-4" aria-hidden="true" />
+                  <span>Delete</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       </div>
@@ -300,19 +290,19 @@ const kindBadge = computed(() => kinds.find((item) => item.value === props.curre
         </TabsContent>
         <TabsContent value="settings">
           <div class="record-meta">
-            <label>Key<Input :model-value="currentRecordType.name" :readonly="recordTypeIsSaved" aria-label="Record Type name" @input="typeRecordTypeName" @blur="normalizeRecordTypeName" /><small>{{ recordTypeIsSaved ? 'Fixed after the first save.' : 'Follows the name until you edit it.' }}</small></label>
+            <label>Key<Input :model-value="currentRecordType.name" readonly aria-label="Record Type name" /><small>Fixed after the first save.</small></label>
             <label>Description<Input v-model="currentRecordType.description" placeholder="Optional" aria-label="Description" /></label>
           </div>
           <div class="record-meta record-kind">
-            <label>Kind <HelpHint term="recordKind" /><select :value="currentRecordType.kind" :disabled="recordTypeIsSaved" aria-label="Record Type kind" @change="chooseKind(($event.target as HTMLSelectElement).value as Kind)"><option v-for="kind in kinds" :key="kind.value" :value="kind.value">{{ kind.label }}</option></select><small>{{ recordTypeIsSaved ? 'Fixed after the first save. ' : '' }}{{ kindHint }}</small></label>
+            <label>Kind <HelpHint term="recordKind" /><select :value="currentRecordType.kind" disabled aria-label="Record Type kind" @change="chooseKind(($event.target as HTMLSelectElement).value as Kind)"><option v-for="kind in kinds" :key="kind.value" :value="kind.value">{{ kind.label }}</option></select><small>Fixed after the first save. {{ kindHint }}</small></label>
             <label v-if="currentRecordType.kind === 'document'">Class<select v-model="currentRecordType.class" aria-label="Document class" @change="chooseClass"><option v-for="item in documentClasses" :key="item[0]" :value="item[0]">{{ item[1] }}</option></select><small>Posting documents will write to ledgers; work and batch documents track work.</small></label>
             <label v-if="currentRecordType.kind === 'document' && currentRecordType.class !== 'work'" class="switch-label"><span class="switch-line"><Checkbox :model-value="currentRecordType.submittable ?? false" aria-label="Submittable" @update:model-value="setSubmittable($event === true)" />Submittable</span><small>Records move from draft to submitted to cancelled. Submitted records stay fixed, apart from fields set to allow editing.</small></label>
             <label v-if="currentRecordType.kind === 'document' && currentRecordType.submittable" class="switch-label"><span class="switch-line"><Checkbox :model-value="currentRecordType.amendable ?? false" aria-label="Amendable" @update:model-value="setAmendable($event === true)" />Amendable</span><small>A cancelled record can be amended into a new draft that points back to it.</small></label>
             <label v-if="currentRecordType.kind === 'document' && currentRecordType.submittable" :class="{ 'is-invalid': namingProblem }">Naming series<Input :model-value="currentRecordType.naming_series ?? ''" placeholder="INV-{yyyy}-{#####}" aria-label="Naming series" :aria-invalid="namingProblem ? 'true' : undefined" @update:model-value="setNamingSeries(String($event))" /><small>{{ namingProblem || 'Numbers each document when it is submitted. Tokens: {yyyy}, {yy}, {mm} and one counter such as {#####}. Empty keeps the Record ID as the name.' }}</small></label>
             <label v-if="currentRecordType.kind === 'document' && currentRecordType.submittable && currentRecordType.naming_series" class="switch-label"><span class="switch-line"><Checkbox :model-value="currentRecordType.gap_free ?? false" aria-label="Gap-free numbering" @update:model-value="setFlag('gap_free', $event === true)" />Gap-free numbering</span><small>A submit that fails returns its number, so the series has no gaps. Submits take turns. Without it numbers can skip.</small></label>
             <label v-if="currentRecordType.kind === 'document' && currentRecordType.submittable" class="switch-label"><span class="switch-line"><Checkbox :model-value="currentRecordType.allow_manual_name ?? false" aria-label="Allow manual names" @update:model-value="setFlag('allow_manual_name', $event === true)" />Allow manual names</span><small>A new document can take a name typed by hand, for example when moving old documents in. It must be unused and is logged.</small></label>
-            <label v-if="recordTypeIsSaved">Label field<select :value="currentRecordType.label_field ?? ''" aria-label="Label field" @change="setLabelField(($event.target as HTMLSelectElement).value)"><option value="">Automatic</option><option v-for="field in labelFieldChoices" :key="field.name" :value="field.name">{{ field.label }}</option></select><small>The field that labels a Record when it is chosen from a list. Automatic uses the record name, then the first required text field.</small></label>
-            <label v-if="currentRecordType.kind === 'child'">Belongs to<select v-model="currentRecordType.parent_record_type" :disabled="recordTypeIsSaved" aria-label="Parent Record Type"><option :value="undefined" disabled>Select a saved Record Type</option><option v-for="item in parentChoices" :key="item.name" :value="item.name">{{ item.label }}</option></select><small>{{ recordTypeIsSaved ? 'Fixed after the first save.' : 'Save the owning Record Type first.' }}</small></label>
+            <label>Label field<select :value="currentRecordType.label_field ?? ''" aria-label="Label field" @change="setLabelField(($event.target as HTMLSelectElement).value)"><option value="">Automatic</option><option v-for="field in labelFieldChoices" :key="field.name" :value="field.name">{{ field.label }}</option></select><small>The field that labels a Record when it is chosen from a list. Automatic uses the record name, then the first required text field.</small></label>
+            <label v-if="currentRecordType.kind === 'child'">Belongs to<select v-model="currentRecordType.parent_record_type" disabled aria-label="Parent Record Type"><option :value="undefined" disabled>Select a saved Record Type</option><option v-for="item in parentChoices" :key="item.name" :value="item.name">{{ item.label }}</option></select><small>Fixed after the first save.</small></label>
           </div>
           <p v-if="databaseState !== 'Connected'" class="muted-label">The database is not connected. Changes stay in this browser session.</p>
         </TabsContent>
@@ -354,7 +344,7 @@ const kindBadge = computed(() => kinds.find((item) => item.value === props.curre
       <div aria-hidden="true" class="h-44 min-[640px]:hidden" />
       <div class="bg-card fixed inset-x-0 z-30 border-t px-4 pt-3 min-[640px]:hidden" style="bottom: calc(var(--space-16) + var(--space-3) + env(safe-area-inset-bottom, 0px) + var(--space-2)); padding-bottom: var(--space-3)">
         <div class="flex gap-2">
-          <ActionButton kind="secondary" density="touch" label="View records" icon="eye" full-bleed :disabled-reason="recordTypeIsSaved ? null : 'Save the Record Type first.'" @press="emit('viewRecords', currentRecordType.name)" />
+          <ActionButton kind="secondary" density="touch" label="View records" icon="eye" full-bleed @press="emit('viewRecords', currentRecordType.name)" />
           <ActionButton kind="primary" density="touch" label="Save" icon="save" full-bleed @press="save" />
         </div>
         <Separator class="my-2" />
@@ -362,11 +352,11 @@ const kindBadge = computed(() => kinds.find((item) => item.value === props.curre
       </div>
       <ConfirmDialog
         v-model:open="confirmingTypeDelete"
-        :title="recordTypeIsSaved ? `Delete ${currentRecordType.label}?` : `Discard ${currentRecordType.label}?`"
-        :body="recordTypeIsSaved ? 'Its table and every record in it are deleted. This cannot be undone.' : 'This Record Type has not been saved, so nothing is stored yet.'"
-        :confirm-label="recordTypeIsSaved ? 'Delete Record Type' : 'Discard'"
-        :confirm-icon="recordTypeIsSaved ? 'trash-2' : 'x'"
-        :danger="recordTypeIsSaved"
+        :title="`Delete ${currentRecordType.label}?`"
+        body="Its table and every record in it are deleted. This cannot be undone."
+        confirm-label="Delete Record Type"
+        confirm-icon="trash-2"
+        danger
         @confirm="confirmingTypeDelete = false; emit('delete', currentRecordType)"
       />
       <FieldSettingsDialog :field="settingsField" :lifecycle="(currentRecordType.kind === 'document' && currentRecordType.submittable === true) || currentRecordType.kind === 'child'" @close="settingsField = null" />

@@ -292,3 +292,68 @@ func TestRecordTypesShowReportsLocalAdministrator(t *testing.T) {
 		t.Fatalf("show = %q, want a last-save timestamp", out)
 	}
 }
+
+func TestRecordTypesSaveLayoutJSON(t *testing.T) {
+	_, cfg := testdb.NewWithConfig(t)
+	t.Setenv("ATHENA_DATABASE_URL", cfg.FormatDSN())
+	t.Chdir(t.TempDir()) // no home here, so the DSN fallback applies
+	run := func(args ...string) (string, error) {
+		var out bytes.Buffer
+		err := recordTypesCommand(args, &out)
+		return out.String(), err
+	}
+	definition := filepath.Join(t.TempDir(), "page.json")
+	if err := os.WriteFile(definition, []byte(`{"key":"page","label":"Page","fields":[
+		{"key":"title","label":"Title","type":"Text"},
+		{"key":"body","label":"Body","type":"Text"}],
+		"layout":{"sections":[{"title":"Main","columns":2,"visibility":"doc.title != \"\"","items":[
+		{"field":{"fieldKey":"title","width":"half","helpText":"The heading"}},
+		{"text":{"text":"Hello"}}]}]}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if out, err := run("save", "--file", definition); err != nil || !strings.Contains(out, "Saved page at revision 1") {
+		t.Fatalf("save = %q, %v", out, err)
+	}
+	out, err := run("show", "page", "--json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{`"layout"`, `"fieldKey"`, `"width"`, `"helpText"`, `"The heading"`, `"Hello"`, `"visibility"`, `"body"`} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("show = %q, want %s", out, want)
+		}
+	}
+}
+
+func TestRecordsCreateImageValue(t *testing.T) {
+	_, cfg := testdb.NewWithConfig(t)
+	t.Setenv("ATHENA_DATABASE_URL", cfg.FormatDSN())
+	t.Chdir(t.TempDir()) // no home here, so the DSN fallback applies
+	run := func(command func([]string, *bytes.Buffer) error, args ...string) (string, error) {
+		var out bytes.Buffer
+		err := command(args, &out)
+		return out.String(), err
+	}
+	definition := filepath.Join(t.TempDir(), "item.json")
+	if err := os.WriteFile(definition, []byte(`{"key":"item","label":"Item","fields":[{"key":"photo","label":"Photo","type":"Image"}]}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := run(func(a []string, b *bytes.Buffer) error { return recordTypesCommand(a, b) }, "save", "--file", definition); err != nil {
+		t.Fatal(err)
+	}
+	hash := strings.Repeat("ab", 32)
+	out, err := run(func(a []string, b *bytes.Buffer) error { return recordsCommand(a, b) }, "create", "item", "--json",
+		"--values", `{"photo":{"path":"images/logo.png","hash":"`+hash+`","alt_text":"The logo"}}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{`"imageValue"`, `"images/logo.png"`, `"The logo"`} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("create = %q, want %s", out, want)
+		}
+	}
+	if _, err := run(func(a []string, b *bytes.Buffer) error { return recordsCommand(a, b) }, "create", "item",
+		"--values", `{"photo":{"path":"images/logo.png","hash":"`+hash+`"}}`); err == nil {
+		t.Fatal("a value without alt text was accepted")
+	}
+}

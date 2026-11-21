@@ -3,11 +3,12 @@
 // navigation. Route, session, Record Types and theme each live in a
 // composable; the page registry drives nav and the page switch.
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, provide, ref, watch } from 'vue'
 import { useMediaQuery } from '@vueuse/core'
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { Toaster } from '@/components/ui/sonner'
 import ChangePasswordDialog from './components/ChangePasswordDialog.vue'
+import IdleWarningDialog from './components/IdleWarningDialog.vue'
 import MigrationDialog from './components/MigrationDialog.vue'
 import StepUpDialog from './components/StepUpDialog.vue'
 import PageSwitch from './components/PageSwitch.vue'
@@ -31,6 +32,8 @@ const library = useRecordTypes(route)
 route.setDefaultTypeResolver(() => library.viewRecordTypes.value[0]?.name ?? '')
 const session = useSession(route, library)
 const theme = useTheme()
+// The Appearance page offers the theme beside the Workspace choices.
+provide('athena-theme', theme)
 useSwipeNav()
 // Phones toast top-center below the header (§17); larger screens toast
 // bottom-right, or beside an open sheet through the body class in style.css.
@@ -178,6 +181,7 @@ onMounted(async () => {
     />
     <ChangePasswordDialog v-model:open="session.changingPassword.value" />
     <StepUpDialog />
+    <IdleWarningDialog />
   </SidebarProvider>
   <Toaster
     :position="toastTop ? 'top-center' : 'bottom-right'"

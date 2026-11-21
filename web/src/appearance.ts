@@ -5,16 +5,58 @@
 // resolved palette it returns.
 import type { Appearance } from './gen/athena/v1/workspace_pb'
 
-export type AppearanceChoice = { preset: string; accent: string; chartColors: string[] }
+export type AppearanceChoice = { preset: string; accent: string; chartPalette: string; chartColors: string[] }
 export type ResolvedPalette = { light: string; dark: string }
 
-// The server's preset names. They live here (not in the .vue) because the
-// token guard reads 'red' as a color; as identifiers they select token sets,
-// exactly like data-accent="red" which the guard exempts.
+// The one shared accent list (internal/appearance mirrors it): the nine
+// named presets plus custom. They live here (not in the .vue) because the
+// token guard reads 'red' or 'green' as a color; as identifiers they select
+// token sets, exactly like data-accent="red" which the guard exempts.
 export const ACCENT_PRESETS = [
   { value: 'ink', label: 'Ink' },
+  { value: 'slate', label: 'Slate' },
+  { value: 'blue', label: 'Blue' },
+  { value: 'sky', label: 'Sky' },
+  { value: 'green', label: 'Green' },
+  { value: 'amber', label: 'Amber' },
+  { value: 'orange', label: 'Orange' },
+  { value: 'brown', label: 'Brown' },
   { value: 'red', label: 'Red' },
   { value: 'custom', label: 'Custom' },
+]
+
+// What an empty custom chart slot shows in the picker: the ink accent ramp
+// in hex (the exact oklab mixes toward white), so black never poses as a
+// choice. It lives here because the token guard forbids hex in components.
+export const RAMP_FALLBACK_HEX = ['#18181b', '#3f3f42', '#616164', '#818183', '#9e9ea0']
+
+// The match-accent ramp for custom drafts, which scope no data-accent: the
+// same declarations theme.css puts on [data-accent], applied inline so the
+// ramp resolves against the pane-local --primary. appearance.test.ts keeps
+// the two in step.
+export const MATCH_RAMP_VARS: Record<string, string> = {
+  '--chart-1': 'var(--primary)',
+  '--chart-2': 'color-mix(in oklab, var(--primary) 80%, white)',
+  '--chart-3': 'color-mix(in oklab, var(--primary) 64%, white)',
+  '--chart-4': 'color-mix(in oklab, var(--primary) 50%, white)',
+  '--chart-5': 'color-mix(in oklab, var(--primary) 38%, white)',
+}
+
+// Whether stored chart colors apply: explicit custom, or the pre-B4b shape
+// (no palette recorded). Mirrors the server's read rule in Resolve.
+export function chartsAreCustom(chartPalette: string, chartColors: string[]): boolean {
+  return chartPalette === 'custom' || (chartPalette === '' && chartColors.length > 0)
+}
+
+// The one shared chart list: a tonal ramp of the accent, four named
+// palettes, or custom colors.
+export const CHART_PALETTES = [
+  { value: 'match', label: 'Match accent', blurb: 'A tonal ramp of the accent.' },
+  { value: 'neutral', label: 'Neutral', blurb: 'Quiet grays for formal reports.' },
+  { value: 'earth', label: 'Earth', blurb: 'Warm browns and ochres.' },
+  { value: 'ocean', label: 'Ocean', blurb: 'Blues and teals.' },
+  { value: 'forest', label: 'Forest', blurb: 'Leafy greens.' },
+  { value: 'custom', label: 'Custom', blurb: 'Pick each chart color.' },
 ]
 
 const LIGHT_TEXT = 'oklch(0.985 0 0)'
@@ -22,7 +64,7 @@ const DARK_TEXT = 'oklch(0.21 0.006 285.885)'
 const STYLE_ID = 'athena-appearance'
 const CACHE_KEY = 'athena-appearance'
 
-type Cached = { slug: string; preset: string; accent: string; chartColors: string[]; light: string; dark: string }
+type Cached = { slug: string; preset: string; accent: string; chartPalette: string; chartColors: string[]; light: string; dark: string }
 
 function trim(n: number): string {
   return String(Math.round(n * 10000) / 10000)
@@ -168,38 +210,59 @@ export function previewCustom(accent: string): CustomPreview | null {
   return { light: str(show), dark: str(dark), passes }
 }
 
-// The custom <style> block both themes read. Mirrors the red preset: the
-// accent carries buttons, the selected-nav marker and chart-1; empty chart
-// slots fall through to the ink defaults in theme.css.
+// WCAG contrast between two oklch() colors, mirroring the server's math
+// (fit into sRGB, clipped linear luminance). Null when either side fails
+// to parse. The preset test in appearance.test.ts reads theme.css through it.
+export function contrastOf(first: string, second: string): number | null {
+  const a = parseColor(first)
+  const b = parseColor(second)
+  if (!a || !b) return null
+  const la = luminance(fitSRGB(a))
+  const lb = luminance(fitSRGB(b))
+  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05)
+}
+
+// The custom <style> block both themes read. The accent carries buttons and
+// the selected-nav marker; chart-1 follows it through the accent ramp, and
+// empty custom chart slots fall through to that ramp.
 export function customStyle(light: string, dark: string, charts: string[]): string {
   const chartRules = charts
     .slice(0, 5)
     .map((value, i) => (value ? ` --chart-${i + 1}: ${value};` : ''))
     .join('')
-  const chart1 = charts[0] ? '' : ' --chart-1: var(--primary);'
-  return (
-    `:root{--primary:${light};--primary-foreground:${LIGHT_TEXT};` +
-    `--sidebar-primary:${light};--sidebar-primary-foreground:${LIGHT_TEXT};${chart1}${chartRules}}` +
-    `.dark{--primary:${dark};--primary-foreground:${DARK_TEXT};` +
-    `--sidebar-primary:${dark};--sidebar-primary-foreground:${DARK_TEXT};${chart1}${chartRules}}`
-  )
+  // Empty accents (a named preset with legacy custom charts) leave the
+  // preset's own tokens alone.
+  const lightPrimary = light ? `--primary:${light};--primary-foreground:${LIGHT_TEXT};--sidebar-primary:${light};--sidebar-primary-foreground:${LIGHT_TEXT};` : ''
+  const darkPrimary = dark ? `--primary:${dark};--primary-foreground:${DARK_TEXT};--sidebar-primary:${dark};--sidebar-primary-foreground:${DARK_TEXT};` : ''
+  return `:root{${lightPrimary}${chartRules}}` + `.dark{${darkPrimary}${chartRules}}`
 }
 
 export function applyAppearance(choice: AppearanceChoice, palette: ResolvedPalette): void {
   const root = document.documentElement
   document.getElementById(STYLE_ID)?.remove()
   root.removeAttribute('data-accent')
+  root.removeAttribute('data-charts')
   // Inline custom properties from an older application never linger.
   for (const name of ['--primary', '--primary-foreground', '--sidebar-primary', '--sidebar-primary-foreground', '--chart-1', '--chart-2', '--chart-3', '--chart-4', '--chart-5']) {
     root.style.removeProperty(name)
   }
+  const customCharts = chartsAreCustom(choice.chartPalette, choice.chartColors)
   if (choice.preset === 'custom') {
     const el = document.createElement('style')
     el.id = STYLE_ID
-    el.textContent = customStyle(palette.light || choice.accent, palette.dark || choice.accent, choice.chartColors)
+    el.textContent = customStyle(palette.light || choice.accent, palette.dark || choice.accent, customCharts ? choice.chartColors : [])
     document.head.appendChild(el)
   } else {
     root.dataset.accent = choice.preset || 'ink'
+    if (customCharts) {
+      const el = document.createElement('style')
+      el.id = STYLE_ID
+      el.textContent = customStyle('', '', choice.chartColors)
+      document.head.appendChild(el)
+    }
+  }
+  if (choice.chartPalette !== 'custom' && choice.chartPalette !== 'match' && choice.chartPalette !== '') {
+    root.dataset.charts = choice.chartPalette
   }
 }
 
@@ -213,6 +276,7 @@ export function loadCachedAppearance(): Cached | null {
       slug: typeof parsed.slug === 'string' ? parsed.slug : '',
       preset: parsed.preset,
       accent: typeof parsed.accent === 'string' ? parsed.accent : '',
+      chartPalette: typeof parsed.chartPalette === 'string' ? parsed.chartPalette : '',
       chartColors: Array.isArray(parsed.chartColors) ? parsed.chartColors.filter((c): c is string => typeof c === 'string') : [],
       light: typeof parsed.light === 'string' ? parsed.light : '',
       dark: typeof parsed.dark === 'string' ? parsed.dark : '',
@@ -226,7 +290,7 @@ export function saveCachedAppearance(slug: string, appearance: Appearance, palet
   try {
     localStorage.setItem(
       CACHE_KEY,
-      JSON.stringify({ slug, preset: appearance.preset, accent: appearance.accent, chartColors: appearance.chartColors, light: palette.light, dark: palette.dark } satisfies Cached),
+      JSON.stringify({ slug, preset: appearance.preset, accent: appearance.accent, chartPalette: appearance.chartPalette, chartColors: appearance.chartColors, light: palette.light, dark: palette.dark } satisfies Cached),
     )
   } catch {
     // A full or blocked store keeps the default look; the next load refetches.

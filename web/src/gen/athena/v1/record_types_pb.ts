@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file athena/v1/record_types.proto.
  */
 export const file_athena_v1_record_types: GenFile = /*@__PURE__*/
-  fileDesc("ChxhdGhlbmEvdjEvcmVjb3JkX3R5cGVzLnByb3RvEglhdGhlbmEudjEiKQoJRW51bVZhbHVlEg0KBXZhbHVlGAEgASgJEg0KBWxhYmVsGAIgASgJIpUECg9SZWNvcmRUeXBlRmllbGQSCwoDa2V5GAEgASgJEg0KBWxhYmVsGAIgASgJEgwKBHR5cGUYAyABKAkSEAoIcmVxdWlyZWQYBCABKAgSHgoWdGFyZ2V0X3JlY29yZF90eXBlX2tleRgFIAEoCRIOCgZ1bmlxdWUYBiABKAgSFQoNZGVmYXVsdF92YWx1ZRgHIAEoCRILCgNtaW4YCCABKAkSCwoDbWF4GAkgASgJEg8KB3BhdHRlcm4YCiABKAkSEgoKbWF4X2xlbmd0aBgLIAEoBRIRCglyZWFkX29ubHkYDCABKAgSEAoIc2V0X29uY2UYDSABKAgSDwoHbm9fY29weRgOIAEoCBINCgVpbmRleBgPIAEoCBIpCgtlbnVtX3ZhbHVlcxgQIAMoCzIULmF0aGVuYS52MS5FbnVtVmFsdWUSEAoIY3VycmVuY3kYESABKAkSCwoDdW9tGBIgASgJEhIKBXNjYWxlGBMgASgFSACIAQESFwoPYWxsb3dfb25fc3VibWl0GBQgASgIEg8KB2Zvcm11bGEYFSABKAkSEwoLcmVxdWlyZWRfaWYYFiABKAkSFAoMcmVhZF9vbmx5X2lmGBcgASgJEhAKCHZhbGlkYXRlGBggASgJEhIKCmRlcGVuZHNfb24YGSABKAkSGAoQcGVybWlzc2lvbl9sZXZlbBgaIAEoBUIICgZfc2NhbGUizAMKClJlY29yZFR5cGUSCwoDa2V5GAEgASgJEg0KBWxhYmVsGAIgASgJEhMKC2Rlc2NyaXB0aW9uGAMgASgJEioKBmZpZWxkcxgEIAMoCzIaLmF0aGVuYS52MS5SZWNvcmRUeXBlRmllbGQSEAoIcmV2aXNpb24YBSABKAMSDAoEa2luZBgGIAEoCRINCgVjbGFzcxgHIAEoCRIeChZwYXJlbnRfcmVjb3JkX3R5cGVfa2V5GAggASgJEhMKC3N1Ym1pdHRhYmxlGAkgASgIEhEKCWFtZW5kYWJsZRgKIAEoCBIVCg1uYW1pbmdfc2VyaWVzGAsgASgJEhAKCGdhcF9mcmVlGAwgASgIEhkKEWFsbG93X21hbnVhbF9uYW1lGA0gASgIEhMKC2xhYmVsX2ZpZWxkGA4gASgJEisKBmFjY2VzcxgPIAEoCzIbLmF0aGVuYS52MS5SZWNvcmRUeXBlQWNjZXNzEhQKDHJlY29yZF9jb3VudBgQIAEoAxIUCgxjb3VudF9oaWRkZW4YESABKAgSEgoKdXBkYXRlZF9hdBgSIAEoCRISCgp1cGRhdGVkX2J5GBMgASgJEhAKCHBhY2tfa2V5GBQgASgJIj0KEFJlY29yZFR5cGVBY2Nlc3MSDwoHYWN0aW9ucxgBIAMoCRIYChBwZXJtaXNzaW9uX2xldmVsGAIgASgFIhgKFkxpc3RSZWNvcmRUeXBlc1JlcXVlc3QiRgoXTGlzdFJlY29yZFR5cGVzUmVzcG9uc2USKwoMcmVjb3JkX3R5cGVzGAEgAygLMhUuYXRoZW5hLnYxLlJlY29yZFR5cGUirQIKFVNhdmVSZWNvcmRUeXBlUmVxdWVzdBIqCgtyZWNvcmRfdHlwZRgBIAEoCzIVLmF0aGVuYS52MS5SZWNvcmRUeXBlEhkKEWV4cGVjdGVkX3JldmlzaW9uGAIgASgDEhkKEWNvbmZpcm1fZGF0YV9sb3NzGAMgASgIEkIKCWJhY2tmaWxscxgEIAMoCzIvLmF0aGVuYS52MS5TYXZlUmVjb3JkVHlwZVJlcXVlc3QuQmFja2ZpbGxzRW50cnkSJQoGcGFyZW50GAUgASgLMhUuYXRoZW5hLnYxLlJlY29yZFR5cGUaRwoOQmFja2ZpbGxzRW50cnkSCwoDa2V5GAEgASgJEiQKBXZhbHVlGAIgASgLMhUuYXRoZW5hLnYxLkZpZWxkVmFsdWU6AjgBImIKGVBsYW5SZWNvcmRUeXBlU2F2ZVJlcXVlc3QSKgoLcmVjb3JkX3R5cGUYASABKAsyFS5hdGhlbmEudjEuUmVjb3JkVHlwZRIZChFleHBlY3RlZF9yZXZpc2lvbhgCIAEoAyKMAQoNTWlncmF0aW9uU3RlcBIMCgRraW5kGAEgASgJEhEKCWZpZWxkX2tleRgCIAEoCRITCgtkZXNjcmlwdGlvbhgDIAEoCRITCgtkZXN0cnVjdGl2ZRgEIAEoCBIYChBhZmZlY3RlZF9yZWNvcmRzGAUgASgDEhYKDm5lZWRzX2JhY2tmaWxsGAYgASgIImQKGlBsYW5SZWNvcmRUeXBlU2F2ZVJlc3BvbnNlEicKBXN0ZXBzGAEgAygLMhguYXRoZW5hLnYxLk1pZ3JhdGlvblN0ZXASHQoVcmVxdWlyZXNfY29uZmlybWF0aW9uGAIgASgIImsKFlNhdmVSZWNvcmRUeXBlUmVzcG9uc2USKgoLcmVjb3JkX3R5cGUYASABKAsyFS5hdGhlbmEudjEuUmVjb3JkVHlwZRIlCgZwYXJlbnQYAiABKAsyFS5hdGhlbmEudjEuUmVjb3JkVHlwZSJZChdEZWxldGVSZWNvcmRUeXBlUmVxdWVzdBILCgNrZXkYASABKAkSGQoRZXhwZWN0ZWRfcmV2aXNpb24YAiABKAMSFgoOZGVsZXRlX3JlY29yZHMYAyABKAgiGgoYRGVsZXRlUmVjb3JkVHlwZVJlc3BvbnNlMoQDChFSZWNvcmRUeXBlU2VydmljZRJYCg9MaXN0UmVjb3JkVHlwZXMSIS5hdGhlbmEudjEuTGlzdFJlY29yZFR5cGVzUmVxdWVzdBoiLmF0aGVuYS52MS5MaXN0UmVjb3JkVHlwZXNSZXNwb25zZRJhChJQbGFuUmVjb3JkVHlwZVNhdmUSJC5hdGhlbmEudjEuUGxhblJlY29yZFR5cGVTYXZlUmVxdWVzdBolLmF0aGVuYS52MS5QbGFuUmVjb3JkVHlwZVNhdmVSZXNwb25zZRJVCg5TYXZlUmVjb3JkVHlwZRIgLmF0aGVuYS52MS5TYXZlUmVjb3JkVHlwZVJlcXVlc3QaIS5hdGhlbmEudjEuU2F2ZVJlY29yZFR5cGVSZXNwb25zZRJbChBEZWxldGVSZWNvcmRUeXBlEiIuYXRoZW5hLnYxLkRlbGV0ZVJlY29yZFR5cGVSZXF1ZXN0GiMuYXRoZW5hLnYxLkRlbGV0ZVJlY29yZFR5cGVSZXNwb25zZUIjWiFhdGhlbmEtZXJwL2dlbi9hdGhlbmEvdjE7YXRoZW5hdjFiBnByb3RvMw", [file_athena_v1_records]);
+  fileDesc("ChxhdGhlbmEvdjEvcmVjb3JkX3R5cGVzLnByb3RvEglhdGhlbmEudjEiKQoJRW51bVZhbHVlEg0KBXZhbHVlGAEgASgJEg0KBWxhYmVsGAIgASgJIpUECg9SZWNvcmRUeXBlRmllbGQSCwoDa2V5GAEgASgJEg0KBWxhYmVsGAIgASgJEgwKBHR5cGUYAyABKAkSEAoIcmVxdWlyZWQYBCABKAgSHgoWdGFyZ2V0X3JlY29yZF90eXBlX2tleRgFIAEoCRIOCgZ1bmlxdWUYBiABKAgSFQoNZGVmYXVsdF92YWx1ZRgHIAEoCRILCgNtaW4YCCABKAkSCwoDbWF4GAkgASgJEg8KB3BhdHRlcm4YCiABKAkSEgoKbWF4X2xlbmd0aBgLIAEoBRIRCglyZWFkX29ubHkYDCABKAgSEAoIc2V0X29uY2UYDSABKAgSDwoHbm9fY29weRgOIAEoCBINCgVpbmRleBgPIAEoCBIpCgtlbnVtX3ZhbHVlcxgQIAMoCzIULmF0aGVuYS52MS5FbnVtVmFsdWUSEAoIY3VycmVuY3kYESABKAkSCwoDdW9tGBIgASgJEhIKBXNjYWxlGBMgASgFSACIAQESFwoPYWxsb3dfb25fc3VibWl0GBQgASgIEg8KB2Zvcm11bGEYFSABKAkSEwoLcmVxdWlyZWRfaWYYFiABKAkSFAoMcmVhZF9vbmx5X2lmGBcgASgJEhAKCHZhbGlkYXRlGBggASgJEhIKCmRlcGVuZHNfb24YGSABKAkSGAoQcGVybWlzc2lvbl9sZXZlbBgaIAEoBUIICgZfc2NhbGUi8wMKClJlY29yZFR5cGUSCwoDa2V5GAEgASgJEg0KBWxhYmVsGAIgASgJEhMKC2Rlc2NyaXB0aW9uGAMgASgJEioKBmZpZWxkcxgEIAMoCzIaLmF0aGVuYS52MS5SZWNvcmRUeXBlRmllbGQSEAoIcmV2aXNpb24YBSABKAMSDAoEa2luZBgGIAEoCRINCgVjbGFzcxgHIAEoCRIeChZwYXJlbnRfcmVjb3JkX3R5cGVfa2V5GAggASgJEhMKC3N1Ym1pdHRhYmxlGAkgASgIEhEKCWFtZW5kYWJsZRgKIAEoCBIVCg1uYW1pbmdfc2VyaWVzGAsgASgJEhAKCGdhcF9mcmVlGAwgASgIEhkKEWFsbG93X21hbnVhbF9uYW1lGA0gASgIEhMKC2xhYmVsX2ZpZWxkGA4gASgJEisKBmFjY2VzcxgPIAEoCzIbLmF0aGVuYS52MS5SZWNvcmRUeXBlQWNjZXNzEhQKDHJlY29yZF9jb3VudBgQIAEoAxIUCgxjb3VudF9oaWRkZW4YESABKAgSEgoKdXBkYXRlZF9hdBgSIAEoCRISCgp1cGRhdGVkX2J5GBMgASgJEhAKCHBhY2tfa2V5GBQgASgJEiUKBmxheW91dBgVIAEoCzIVLmF0aGVuYS52MS5Gb3JtTGF5b3V0IjYKCkZvcm1MYXlvdXQSKAoIc2VjdGlvbnMYASADKAsyFi5hdGhlbmEudjEuRm9ybVNlY3Rpb24igAEKC0Zvcm1TZWN0aW9uEg0KBXRpdGxlGAEgASgJEhMKC2Rlc2NyaXB0aW9uGAIgASgJEg8KB2NvbHVtbnMYAyABKAUSEgoKdmlzaWJpbGl0eRgEIAEoCRIoCgVpdGVtcxgFIAMoCzIZLmF0aGVuYS52MS5Gb3JtTGF5b3V0SXRlbSLBAQoORm9ybUxheW91dEl0ZW0SKQoFZmllbGQYASABKAsyGC5hdGhlbmEudjEuRm9ybUZpZWxkSXRlbUgAEigKBHRleHQYAiABKAsyGC5hdGhlbmEudjEuRm9ybVRleHRCbG9ja0gAEioKBWltYWdlGAMgASgLMhkuYXRoZW5hLnYxLkZvcm1JbWFnZUJsb2NrSAASJgoDYXJ0GAQgASgLMhcuYXRoZW5hLnYxLkZvcm1BcnRCbG9ja0gAQgYKBGtpbmQiRAoNRm9ybUZpZWxkSXRlbRIRCglmaWVsZF9rZXkYASABKAkSDQoFd2lkdGgYAiABKAkSEQoJaGVscF90ZXh0GAMgASgJIh0KDUZvcm1UZXh0QmxvY2sSDAoEdGV4dBgBIAEoCSIeCg5Gb3JtSW1hZ2VCbG9jaxIMCgRwYXRoGAEgASgJIhsKDEZvcm1BcnRCbG9jaxILCgNrZXkYASABKAkiPQoQUmVjb3JkVHlwZUFjY2VzcxIPCgdhY3Rpb25zGAEgAygJEhgKEHBlcm1pc3Npb25fbGV2ZWwYAiABKAUiGAoWTGlzdFJlY29yZFR5cGVzUmVxdWVzdCJGChdMaXN0UmVjb3JkVHlwZXNSZXNwb25zZRIrCgxyZWNvcmRfdHlwZXMYASADKAsyFS5hdGhlbmEudjEuUmVjb3JkVHlwZSKtAgoVU2F2ZVJlY29yZFR5cGVSZXF1ZXN0EioKC3JlY29yZF90eXBlGAEgASgLMhUuYXRoZW5hLnYxLlJlY29yZFR5cGUSGQoRZXhwZWN0ZWRfcmV2aXNpb24YAiABKAMSGQoRY29uZmlybV9kYXRhX2xvc3MYAyABKAgSQgoJYmFja2ZpbGxzGAQgAygLMi8uYXRoZW5hLnYxLlNhdmVSZWNvcmRUeXBlUmVxdWVzdC5CYWNrZmlsbHNFbnRyeRIlCgZwYXJlbnQYBSABKAsyFS5hdGhlbmEudjEuUmVjb3JkVHlwZRpHCg5CYWNrZmlsbHNFbnRyeRILCgNrZXkYASABKAkSJAoFdmFsdWUYAiABKAsyFS5hdGhlbmEudjEuRmllbGRWYWx1ZToCOAEiYgoZUGxhblJlY29yZFR5cGVTYXZlUmVxdWVzdBIqCgtyZWNvcmRfdHlwZRgBIAEoCzIVLmF0aGVuYS52MS5SZWNvcmRUeXBlEhkKEWV4cGVjdGVkX3JldmlzaW9uGAIgASgDIowBCg1NaWdyYXRpb25TdGVwEgwKBGtpbmQYASABKAkSEQoJZmllbGRfa2V5GAIgASgJEhMKC2Rlc2NyaXB0aW9uGAMgASgJEhMKC2Rlc3RydWN0aXZlGAQgASgIEhgKEGFmZmVjdGVkX3JlY29yZHMYBSABKAMSFgoObmVlZHNfYmFja2ZpbGwYBiABKAgiZAoaUGxhblJlY29yZFR5cGVTYXZlUmVzcG9uc2USJwoFc3RlcHMYASADKAsyGC5hdGhlbmEudjEuTWlncmF0aW9uU3RlcBIdChVyZXF1aXJlc19jb25maXJtYXRpb24YAiABKAgiawoWU2F2ZVJlY29yZFR5cGVSZXNwb25zZRIqCgtyZWNvcmRfdHlwZRgBIAEoCzIVLmF0aGVuYS52MS5SZWNvcmRUeXBlEiUKBnBhcmVudBgCIAEoCzIVLmF0aGVuYS52MS5SZWNvcmRUeXBlIlkKF0RlbGV0ZVJlY29yZFR5cGVSZXF1ZXN0EgsKA2tleRgBIAEoCRIZChFleHBlY3RlZF9yZXZpc2lvbhgCIAEoAxIWCg5kZWxldGVfcmVjb3JkcxgDIAEoCCIaChhEZWxldGVSZWNvcmRUeXBlUmVzcG9uc2UyhAMKEVJlY29yZFR5cGVTZXJ2aWNlElgKD0xpc3RSZWNvcmRUeXBlcxIhLmF0aGVuYS52MS5MaXN0UmVjb3JkVHlwZXNSZXF1ZXN0GiIuYXRoZW5hLnYxLkxpc3RSZWNvcmRUeXBlc1Jlc3BvbnNlEmEKElBsYW5SZWNvcmRUeXBlU2F2ZRIkLmF0aGVuYS52MS5QbGFuUmVjb3JkVHlwZVNhdmVSZXF1ZXN0GiUuYXRoZW5hLnYxLlBsYW5SZWNvcmRUeXBlU2F2ZVJlc3BvbnNlElUKDlNhdmVSZWNvcmRUeXBlEiAuYXRoZW5hLnYxLlNhdmVSZWNvcmRUeXBlUmVxdWVzdBohLmF0aGVuYS52MS5TYXZlUmVjb3JkVHlwZVJlc3BvbnNlElsKEERlbGV0ZVJlY29yZFR5cGUSIi5hdGhlbmEudjEuRGVsZXRlUmVjb3JkVHlwZVJlcXVlc3QaIy5hdGhlbmEudjEuRGVsZXRlUmVjb3JkVHlwZVJlc3BvbnNlQiNaIWF0aGVuYS1lcnAvZ2VuL2F0aGVuYS92MTthdGhlbmF2MWIGcHJvdG8z", [file_athena_v1_records]);
 
 /**
  * EnumValue is one permanent choice of an Enum field.
@@ -58,7 +58,7 @@ export type RecordTypeField = Message<"athena.v1.RecordTypeField"> & {
 
   /**
    * One of Text, Long text, Email, Phone, Number, Currency, Date, Select,
-   * Link, Checkbox, Money, Quantity, Enum.
+   * Link, Checkbox, Money, Quantity, Enum, Image.
    *
    * @generated from field: string type = 3;
    */
@@ -402,6 +402,15 @@ export type RecordType = Message<"athena.v1.RecordType"> & {
    * @generated from field: string pack_key = 20;
    */
   packKey: string;
+
+  /**
+   * The form layout: sections of fields, text, images and art. Stored with
+   * the definition; a layout-only save bumps the revision without touching
+   * the table.
+   *
+   * @generated from field: athena.v1.FormLayout layout = 21;
+   */
+  layout?: FormLayout | undefined;
 };
 
 /**
@@ -410,6 +419,196 @@ export type RecordType = Message<"athena.v1.RecordType"> & {
  */
 export const RecordTypeSchema: GenMessage<RecordType> = /*@__PURE__*/
   messageDesc(file_athena_v1_record_types, 2);
+
+/**
+ * FormLayout arranges a Record Type's fields into titled sections. Fields
+ * the layout does not place are appended to the last section on save.
+ *
+ * @generated from message athena.v1.FormLayout
+ */
+export type FormLayout = Message<"athena.v1.FormLayout"> & {
+  /**
+   * @generated from field: repeated athena.v1.FormSection sections = 1;
+   */
+  sections: FormSection[];
+};
+
+/**
+ * Describes the message athena.v1.FormLayout.
+ * Use `create(FormLayoutSchema)` to create a new message.
+ */
+export const FormLayoutSchema: GenMessage<FormLayout> = /*@__PURE__*/
+  messageDesc(file_athena_v1_record_types, 3);
+
+/**
+ * @generated from message athena.v1.FormSection
+ */
+export type FormSection = Message<"athena.v1.FormSection"> & {
+  /**
+   * @generated from field: string title = 1;
+   */
+  title: string;
+
+  /**
+   * @generated from field: string description = 2;
+   */
+  description: string;
+
+  /**
+   * 1 or 2.
+   *
+   * @generated from field: int32 columns = 3;
+   */
+  columns: number;
+
+  /**
+   * CEL that returns true or false over the Record's fields; empty means the
+   * section always shows. Display-only: the server type-checks it and never
+   * enforces it.
+   *
+   * @generated from field: string visibility = 4;
+   */
+  visibility: string;
+
+  /**
+   * @generated from field: repeated athena.v1.FormLayoutItem items = 5;
+   */
+  items: FormLayoutItem[];
+};
+
+/**
+ * Describes the message athena.v1.FormSection.
+ * Use `create(FormSectionSchema)` to create a new message.
+ */
+export const FormSectionSchema: GenMessage<FormSection> = /*@__PURE__*/
+  messageDesc(file_athena_v1_record_types, 4);
+
+/**
+ * @generated from message athena.v1.FormLayoutItem
+ */
+export type FormLayoutItem = Message<"athena.v1.FormLayoutItem"> & {
+  /**
+   * @generated from oneof athena.v1.FormLayoutItem.kind
+   */
+  kind: {
+    /**
+     * @generated from field: athena.v1.FormFieldItem field = 1;
+     */
+    value: FormFieldItem;
+    case: "field";
+  } | {
+    /**
+     * @generated from field: athena.v1.FormTextBlock text = 2;
+     */
+    value: FormTextBlock;
+    case: "text";
+  } | {
+    /**
+     * @generated from field: athena.v1.FormImageBlock image = 3;
+     */
+    value: FormImageBlock;
+    case: "image";
+  } | {
+    /**
+     * @generated from field: athena.v1.FormArtBlock art = 4;
+     */
+    value: FormArtBlock;
+    case: "art";
+  } | { case: undefined; value?: undefined };
+};
+
+/**
+ * Describes the message athena.v1.FormLayoutItem.
+ * Use `create(FormLayoutItemSchema)` to create a new message.
+ */
+export const FormLayoutItemSchema: GenMessage<FormLayoutItem> = /*@__PURE__*/
+  messageDesc(file_athena_v1_record_types, 5);
+
+/**
+ * @generated from message athena.v1.FormFieldItem
+ */
+export type FormFieldItem = Message<"athena.v1.FormFieldItem"> & {
+  /**
+   * @generated from field: string field_key = 1;
+   */
+  fieldKey: string;
+
+  /**
+   * full or half; empty means full.
+   *
+   * @generated from field: string width = 2;
+   */
+  width: string;
+
+  /**
+   * @generated from field: string help_text = 3;
+   */
+  helpText: string;
+};
+
+/**
+ * Describes the message athena.v1.FormFieldItem.
+ * Use `create(FormFieldItemSchema)` to create a new message.
+ */
+export const FormFieldItemSchema: GenMessage<FormFieldItem> = /*@__PURE__*/
+  messageDesc(file_athena_v1_record_types, 6);
+
+/**
+ * @generated from message athena.v1.FormTextBlock
+ */
+export type FormTextBlock = Message<"athena.v1.FormTextBlock"> & {
+  /**
+   * @generated from field: string text = 1;
+   */
+  text: string;
+};
+
+/**
+ * Describes the message athena.v1.FormTextBlock.
+ * Use `create(FormTextBlockSchema)` to create a new message.
+ */
+export const FormTextBlockSchema: GenMessage<FormTextBlock> = /*@__PURE__*/
+  messageDesc(file_athena_v1_record_types, 7);
+
+/**
+ * FormImageBlock shows a Workspace file from images/. The path must name a
+ * recorded image file when the layout saves.
+ *
+ * @generated from message athena.v1.FormImageBlock
+ */
+export type FormImageBlock = Message<"athena.v1.FormImageBlock"> & {
+  /**
+   * @generated from field: string path = 1;
+   */
+  path: string;
+};
+
+/**
+ * Describes the message athena.v1.FormImageBlock.
+ * Use `create(FormImageBlockSchema)` to create a new message.
+ */
+export const FormImageBlockSchema: GenMessage<FormImageBlock> = /*@__PURE__*/
+  messageDesc(file_athena_v1_record_types, 8);
+
+/**
+ * FormArtBlock shows one figure from the desk's art registry. The key is
+ * validated by the desk, which owns the registry.
+ *
+ * @generated from message athena.v1.FormArtBlock
+ */
+export type FormArtBlock = Message<"athena.v1.FormArtBlock"> & {
+  /**
+   * @generated from field: string key = 1;
+   */
+  key: string;
+};
+
+/**
+ * Describes the message athena.v1.FormArtBlock.
+ * Use `create(FormArtBlockSchema)` to create a new message.
+ */
+export const FormArtBlockSchema: GenMessage<FormArtBlock> = /*@__PURE__*/
+  messageDesc(file_athena_v1_record_types, 9);
 
 /**
  * RecordTypeAccess is the caller's Grants on one Record Type, merged.
@@ -437,7 +636,7 @@ export type RecordTypeAccess = Message<"athena.v1.RecordTypeAccess"> & {
  * Use `create(RecordTypeAccessSchema)` to create a new message.
  */
 export const RecordTypeAccessSchema: GenMessage<RecordTypeAccess> = /*@__PURE__*/
-  messageDesc(file_athena_v1_record_types, 3);
+  messageDesc(file_athena_v1_record_types, 10);
 
 /**
  * @generated from message athena.v1.ListRecordTypesRequest
@@ -450,7 +649,7 @@ export type ListRecordTypesRequest = Message<"athena.v1.ListRecordTypesRequest">
  * Use `create(ListRecordTypesRequestSchema)` to create a new message.
  */
 export const ListRecordTypesRequestSchema: GenMessage<ListRecordTypesRequest> = /*@__PURE__*/
-  messageDesc(file_athena_v1_record_types, 4);
+  messageDesc(file_athena_v1_record_types, 11);
 
 /**
  * @generated from message athena.v1.ListRecordTypesResponse
@@ -467,7 +666,7 @@ export type ListRecordTypesResponse = Message<"athena.v1.ListRecordTypesResponse
  * Use `create(ListRecordTypesResponseSchema)` to create a new message.
  */
 export const ListRecordTypesResponseSchema: GenMessage<ListRecordTypesResponse> = /*@__PURE__*/
-  messageDesc(file_athena_v1_record_types, 5);
+  messageDesc(file_athena_v1_record_types, 12);
 
 /**
  * @generated from message athena.v1.SaveRecordTypeRequest
@@ -519,7 +718,7 @@ export type SaveRecordTypeRequest = Message<"athena.v1.SaveRecordTypeRequest"> &
  * Use `create(SaveRecordTypeRequestSchema)` to create a new message.
  */
 export const SaveRecordTypeRequestSchema: GenMessage<SaveRecordTypeRequest> = /*@__PURE__*/
-  messageDesc(file_athena_v1_record_types, 6);
+  messageDesc(file_athena_v1_record_types, 13);
 
 /**
  * @generated from message athena.v1.PlanRecordTypeSaveRequest
@@ -541,7 +740,7 @@ export type PlanRecordTypeSaveRequest = Message<"athena.v1.PlanRecordTypeSaveReq
  * Use `create(PlanRecordTypeSaveRequestSchema)` to create a new message.
  */
 export const PlanRecordTypeSaveRequestSchema: GenMessage<PlanRecordTypeSaveRequest> = /*@__PURE__*/
-  messageDesc(file_athena_v1_record_types, 7);
+  messageDesc(file_athena_v1_record_types, 14);
 
 /**
  * MigrationStep is one change the save makes to the Record Type's table.
@@ -594,7 +793,7 @@ export type MigrationStep = Message<"athena.v1.MigrationStep"> & {
  * Use `create(MigrationStepSchema)` to create a new message.
  */
 export const MigrationStepSchema: GenMessage<MigrationStep> = /*@__PURE__*/
-  messageDesc(file_athena_v1_record_types, 8);
+  messageDesc(file_athena_v1_record_types, 15);
 
 /**
  * @generated from message athena.v1.PlanRecordTypeSaveResponse
@@ -618,7 +817,7 @@ export type PlanRecordTypeSaveResponse = Message<"athena.v1.PlanRecordTypeSaveRe
  * Use `create(PlanRecordTypeSaveResponseSchema)` to create a new message.
  */
 export const PlanRecordTypeSaveResponseSchema: GenMessage<PlanRecordTypeSaveResponse> = /*@__PURE__*/
-  messageDesc(file_athena_v1_record_types, 9);
+  messageDesc(file_athena_v1_record_types, 16);
 
 /**
  * @generated from message athena.v1.SaveRecordTypeResponse
@@ -642,7 +841,7 @@ export type SaveRecordTypeResponse = Message<"athena.v1.SaveRecordTypeResponse">
  * Use `create(SaveRecordTypeResponseSchema)` to create a new message.
  */
 export const SaveRecordTypeResponseSchema: GenMessage<SaveRecordTypeResponse> = /*@__PURE__*/
-  messageDesc(file_athena_v1_record_types, 10);
+  messageDesc(file_athena_v1_record_types, 17);
 
 /**
  * @generated from message athena.v1.DeleteRecordTypeRequest
@@ -673,7 +872,7 @@ export type DeleteRecordTypeRequest = Message<"athena.v1.DeleteRecordTypeRequest
  * Use `create(DeleteRecordTypeRequestSchema)` to create a new message.
  */
 export const DeleteRecordTypeRequestSchema: GenMessage<DeleteRecordTypeRequest> = /*@__PURE__*/
-  messageDesc(file_athena_v1_record_types, 11);
+  messageDesc(file_athena_v1_record_types, 18);
 
 /**
  * @generated from message athena.v1.DeleteRecordTypeResponse
@@ -686,7 +885,7 @@ export type DeleteRecordTypeResponse = Message<"athena.v1.DeleteRecordTypeRespon
  * Use `create(DeleteRecordTypeResponseSchema)` to create a new message.
  */
 export const DeleteRecordTypeResponseSchema: GenMessage<DeleteRecordTypeResponse> = /*@__PURE__*/
-  messageDesc(file_athena_v1_record_types, 12);
+  messageDesc(file_athena_v1_record_types, 19);
 
 /**
  * RecordTypeService reads and saves Record Types. Saving applies the Record

@@ -34,6 +34,9 @@ func valueText(value *athenav1.FieldValue) *string {
 			text = "true"
 		}
 		return &text
+	case *athenav1.FieldValue_ImageValue:
+		path := v.ImageValue.GetPath()
+		return &path
 	}
 	return nil
 }

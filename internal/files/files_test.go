@@ -1,10 +1,14 @@
 package files_test
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"image"
+	"image/color"
+	"image/png"
 	"os"
 	"path/filepath"
 	"strings"
@@ -464,7 +468,10 @@ func TestBrandLogosHoldBinary(t *testing.T) {
 	if _, err := f.put(t, "brand/logo-dark.svg", `<svg xmlns="http://www.w3.org/2000/svg"></svg>`, ""); err != nil {
 		t.Fatalf("put SVG: %v", err)
 	}
-	if _, err := f.s.Put(context.Background(), "rules/logo.png", []byte("a\x00b"), files.Expect{}, f.meta); !errors.Is(err, files.ErrNotText) {
+	if _, err := f.s.Put(context.Background(), "rules/logo.png", []byte("a\x00b"), files.Expect{}, f.meta); !errors.Is(err, files.ErrInvalidPath) {
+		t.Fatalf("png outside images or brand: %v", err)
+	}
+	if _, err := f.s.Put(context.Background(), "rules/logo.txt", []byte("a\x00b"), files.Expect{}, f.meta); !errors.Is(err, files.ErrNotText) {
 		t.Fatalf("binary outside brand: %v", err)
 	}
 	if _, err := f.put(t, "brand/logo.txt", "x", ""); err != nil {
@@ -487,5 +494,56 @@ func TestBackingMapsFilesToWhatTheyHold(t *testing.T) {
 		if got := kind + ":" + key; got != want {
 			t.Errorf("Backing(%q) = %s, want %s", path, got, want)
 		}
+	}
+}
+
+// testImagePNG encodes a w-by-h image for upload tests.
+func testImagePNG(t *testing.T, w, h int) []byte {
+	t.Helper()
+	img := image.NewRGBA(image.Rect(0, 0, w, h))
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			img.Set(x, y, color.RGBA{uint8(x), uint8(y), 0, 255})
+		}
+	}
+	var out bytes.Buffer
+	if err := png.Encode(&out, img); err != nil {
+		t.Fatal(err)
+	}
+	return out.Bytes()
+}
+
+func TestPutImageRoundTrip(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+	content := testImagePNG(t, 12, 8)
+	result, err := f.s.PutImage(ctx, "images/logo.png", content, files.Expect{}, f.meta)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Width != 12 || result.Height != 8 || result.Info.Path != "images/logo.png" || result.Info.Revision != 1 {
+		t.Fatalf("stored = %+v", result)
+	}
+	got, read, err := f.s.Get(ctx, "images/logo.png", 0)
+	if err != nil || !bytes.Equal(read, content) {
+		t.Fatalf("read back = %d bytes, %v", len(read), err)
+	}
+	if got.Hash != result.Info.Hash {
+		t.Fatal("the stored hash does not match the read hash")
+	}
+	versions, err := f.s.Versions(ctx, "images/logo.png")
+	if err != nil || len(versions) != 1 {
+		t.Fatalf("versions = %d, %v", len(versions), err)
+	}
+	// A stale guard fails without touching the file.
+	if _, err := f.s.PutImage(ctx, "images/logo.png", content, files.Expect{Hash: strings.Repeat("0", 64)}, f.meta); !errors.Is(err, files.ErrStale) {
+		t.Fatalf("stale write = %v", err)
+	}
+	// Images outside images/, and text inside it, are refused.
+	if _, err := f.s.PutImage(ctx, "rules/logo.png", content, files.Expect{}, f.meta); err == nil {
+		t.Fatal("an image outside images/ was accepted")
+	}
+	if _, err := f.s.Put(ctx, "images/note.txt", []byte("hello\n"), files.Expect{}, f.meta); err == nil {
+		t.Fatal("text inside images/ was accepted")
 	}
 }

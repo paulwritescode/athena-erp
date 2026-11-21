@@ -6,6 +6,7 @@ import { authClient } from '../api'
 import type { AccessEvent, AccessUser, Assignment, AssignmentExplanation, Role, RoleHolder, Session } from '../gen/athena/v1/auth_pb'
 import type { RecordType } from '../types'
 import { actionLegend, actionLetter, describeScope, diffAssignments, parseScope, previewRoleGrants } from '../assignmentPreview'
+import { postSessionMessage } from '../sessionChannel'
 import { formatWhen, formatWhenFull } from '../times'
 import { Button } from '@/components/ui/button'
 import ActionButton from '@/components/ActionButton.vue'
@@ -542,6 +543,7 @@ async function confirmSaveAssignment() {
     })
     assignmentOpen.value = false
     toast.success(assignmentForm.value.id ? 'Saved the Assignment.' : 'Assigned the Role.')
+    postSessionMessage('permissions-changed')
     await selectUser(selectedUser.value)
   } catch (err) {
     toast.error(describe(err, 'save the Assignment'))
@@ -561,6 +563,7 @@ async function revoke() {
   try {
     await authClient.revokeAssignment({ id: target.id })
     toast.success(`Revoked ${target.role}.`)
+    postSessionMessage('permissions-changed')
     await selectUser(selectedUser.value)
   } catch (err) {
     toast.error(describe(err, 'revoke the Assignment'))
@@ -653,6 +656,7 @@ async function saveRole() {
     })
     roleDialogOpen.value = false
     toast.success(roleEditing.value ? `Saved ${roleForm.value.name}.` : `Created ${roleForm.value.name}.`)
+    postSessionMessage('permissions-changed')
     await refreshRoles()
   } catch (err) {
     toast.error(describe(err, 'save the Role'))
@@ -672,6 +676,7 @@ async function deleteRole() {
     await authClient.deleteRole({ name: target.name })
     if (selectedRole.value === target.name) selectedRole.value = ''
     toast.success(`Deleted ${target.name}.`)
+    postSessionMessage('permissions-changed')
     await refreshRoles()
   } catch (err) {
     toast.error(describe(err, 'delete the Role'))

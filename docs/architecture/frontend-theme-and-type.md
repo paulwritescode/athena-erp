@@ -19,6 +19,16 @@ The design-system §14 action system (`ActionButton`, `ActionGroup`) builds its 
 
 Two presets ship as `[data-accent]` blocks on `<html>`, per design-system §2.3: `ink` (default, current values) and `red` (one warm primary on actions, with `--chart-1` and `--sidebar-primary` following it). Only the §2.1 accent tokens change between presets; `--ring` and `--sidebar-ring` keep their neutral values until specified. Dark `--sidebar-primary` is `var(--primary)`; every other existing color value is unchanged. Text on `--primary` passes ≥ 4.5:1 in both presets and themes (8.67/5.80 for red, verified at authoring; B4 re-checks with the Settings preview).
 
+## Workspace appearance (B4b)
+
+Settings → Appearance is a 280 px column of choices beside a realistic invoices preview in light and dark: Accent (nine named presets plus Custom, §18), Charts (Match accent — a tonal ramp — Neutral, Earth, Ocean, Forest, or Custom), and Your theme (Light, Dark, System, per user). Each choice opens a popover on desktop and a bottom drawer on touch. The server owns validation and contrast through `internal/appearance`'s one shared preset and palette list; on failure it returns a suggested accent the UI offers one click away, and `SetAppearance` rejects presets carrying colors.
+
+Application lives in `web/src/appearance.ts`. Named presets set `data-accent` on `<html>` and named palettes set `data-charts`; custom writes one `#athena-appearance` `<style>` block with `:root` and `.dark` rules. Every preset is one `[data-accent]` block in `theme.css` (light and dark) and the ramp derives globally from `--primary` through `color-mix`, so custom accents ramp without extra rules. The picker's hex converts to the `oklch()` strings the server parses (`hexToOklch`, reference-checked in `appearance.test.ts`); a client mirror of the server's resolver derives the dark twin for the preview and warns before saving, but the server stays authoritative. A test parses `theme.css` and checks text contrast on every preset in both themes, plus the `.preview-light` scope that forces the light pane true inside a dark page.
+
+The choice applies at load (the public `GetAppearance` call in `useSession`, so the sign-in page wears it) and caches per Workspace in `localStorage`. `web/public/paint.js` — a separate file because the Content-Security-Policy allows scripts from `'self'` only — applies the cache synchronously in `<head>`, so the first paint already wears the accent. The accent selectors omit `:root` so the preview can scope a preset to one pane; on `<html>` they behave exactly as before.
+
+Light/dark/system is per user in `useTheme` (`localStorage`, operating-system default with a live listener), chosen in the user menu, on the Appearance page (provided by `App.vue`) and by the cycling header button. The preset, palette and fallback-hex names live in `appearance.ts`, not in the `.vue`, because the token guard below reads `red` as a color.
+
 ## Browser surfaces
 
 Selection, caret, scrollbars and the focus ring come from tokens in the `style.css` base layer: a subtle primary selection tint, `caret-color: var(--primary)` in fields, thin neutral scrollbars, and a 2 px `--ring` focus outline. `prefers-reduced-motion` collapses transitions and animations.

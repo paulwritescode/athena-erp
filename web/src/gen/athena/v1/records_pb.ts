@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file athena/v1/records.proto.
  */
 export const file_athena_v1_records: GenFile = /*@__PURE__*/
-  fileDesc("ChdhdGhlbmEvdjEvcmVjb3Jkcy5wcm90bxIJYXRoZW5hLnYxIlgKCkZpZWxkVmFsdWUSFgoMc3RyaW5nX3ZhbHVlGAEgASgJSAASFAoKYm9vbF92YWx1ZRgCIAEoCEgAEhQKCm51bGxfdmFsdWUYAyABKAhIAEIGCgRraW5kIvoCCgZSZWNvcmQSCgoCaWQYASABKAkSEAoIcmV2aXNpb24YAiABKAMSLQoGdmFsdWVzGAMgAygLMh0uYXRoZW5hLnYxLlJlY29yZC5WYWx1ZXNFbnRyeRISCgpjcmVhdGVkX2F0GAQgASgJEhIKCnVwZGF0ZWRfYXQYBSABKAkSEgoKY3JlYXRlZF9ieRgGIAEoCRITCgttb2RpZmllZF9ieRgHIAEoCRINCgVvd25lchgIIAEoCRITCgtkZWZfdmVyc2lvbhgJIAEoAxISCgpyZXF1ZXN0X2lkGAogASgJEhEKCXBhcmVudF9pZBgLIAEoCRILCgNpZHgYDCABKAMSEAoIZG9jc3RhdGUYDSABKAUSDAoEbmFtZRgOIAEoCRIUCgxhbWVuZGVkX2Zyb20YDyABKAkaRAoLVmFsdWVzRW50cnkSCwoDa2V5GAEgASgJEiQKBXZhbHVlGAIgASgLMhUuYXRoZW5hLnYxLkZpZWxkVmFsdWU6AjgBIncKEkxpc3RSZWNvcmRzUmVxdWVzdBIXCg9yZWNvcmRfdHlwZV9rZXkYASABKAkSEQoJcGFnZV9zaXplGAIgASgFEhIKCnBhZ2VfdG9rZW4YAyABKAkSEQoJcGFyZW50X2lkGAQgASgJEg4KBmZpbHRlchgFIAEoCSJSChNMaXN0UmVjb3Jkc1Jlc3BvbnNlEiIKB3JlY29yZHMYASADKAsyES5hdGhlbmEudjEuUmVjb3JkEhcKD25leHRfcGFnZV90b2tlbhgCIAEoCSI3ChBHZXRSZWNvcmRSZXF1ZXN0EhcKD3JlY29yZF90eXBlX2tleRgBIAEoCRIKCgJpZBgCIAEoCSI2ChFHZXRSZWNvcmRSZXNwb25zZRIhCgZyZWNvcmQYASABKAsyES5hdGhlbmEudjEuUmVjb3JkItEBChNDcmVhdGVSZWNvcmRSZXF1ZXN0EhcKD3JlY29yZF90eXBlX2tleRgBIAEoCRI6CgZ2YWx1ZXMYAiADKAsyKi5hdGhlbmEudjEuQ3JlYXRlUmVjb3JkUmVxdWVzdC5WYWx1ZXNFbnRyeRIRCglwYXJlbnRfaWQYAyABKAkSDAoEbmFtZRgEIAEoCRpECgtWYWx1ZXNFbnRyeRILCgNrZXkYASABKAkSJAoFdmFsdWUYAiABKAsyFS5hdGhlbmEudjEuRmllbGRWYWx1ZToCOAEiOQoUQ3JlYXRlUmVjb3JkUmVzcG9uc2USIQoGcmVjb3JkGAEgASgLMhEuYXRoZW5hLnYxLlJlY29yZCLXAQoTVXBkYXRlUmVjb3JkUmVxdWVzdBIXCg9yZWNvcmRfdHlwZV9rZXkYASABKAkSCgoCaWQYAiABKAkSGQoRZXhwZWN0ZWRfcmV2aXNpb24YAyABKAMSOgoGdmFsdWVzGAQgAygLMiouYXRoZW5hLnYxLlVwZGF0ZVJlY29yZFJlcXVlc3QuVmFsdWVzRW50cnkaRAoLVmFsdWVzRW50cnkSCwoDa2V5GAEgASgJEiQKBXZhbHVlGAIgASgLMhUuYXRoZW5hLnYxLkZpZWxkVmFsdWU6AjgBIjkKFFVwZGF0ZVJlY29yZFJlc3BvbnNlEiEKBnJlY29yZBgBIAEoCzIRLmF0aGVuYS52MS5SZWNvcmQiVQoTRGVsZXRlUmVjb3JkUmVxdWVzdBIXCg9yZWNvcmRfdHlwZV9rZXkYASABKAkSCgoCaWQYAiABKAkSGQoRZXhwZWN0ZWRfcmV2aXNpb24YAyABKAMiFgoURGVsZXRlUmVjb3JkUmVzcG9uc2UiPwoYTGlzdFJlY29yZEhpc3RvcnlSZXF1ZXN0EhcKD3JlY29yZF90eXBlX2tleRgBIAEoCRIKCgJpZBgCIAEoCSJ4CgtGaWVsZENoYW5nZRINCgVmaWVsZBgBIAEoCRIWCglvbGRfdmFsdWUYAiABKAlIAIgBARIWCgluZXdfdmFsdWUYAyABKAlIAYgBARIOCgZtYXNrZWQYBCABKAhCDAoKX29sZF92YWx1ZUIMCgpfbmV3X3ZhbHVlIsoBCgtSZWNvcmRFdmVudBIOCgZhY3Rpb24YASABKAkSEAoIcmV2aXNpb24YAiABKAMSFgoOY2hhbmdlZF9maWVsZHMYAyADKAkSDQoFYWN0b3IYBCABKAkSCgoCYXQYBSABKAkSJwoHY2hhbmdlcxgGIAMoCzIWLmF0aGVuYS52MS5GaWVsZENoYW5nZRISCgpyZXF1ZXN0X2lkGAcgASgJEg4KBnNvdXJjZRgIIAEoCRILCgNzZXEYCSABKAMSDAoEaGFzaBgKIAEoCSJDChlMaXN0UmVjb3JkSGlzdG9yeVJlc3BvbnNlEiYKBmV2ZW50cxgBIAMoCzIWLmF0aGVuYS52MS5SZWNvcmRFdmVudCJVChNTdWJtaXRSZWNvcmRSZXF1ZXN0EhcKD3JlY29yZF90eXBlX2tleRgBIAEoCRIKCgJpZBgCIAEoCRIZChFleHBlY3RlZF9yZXZpc2lvbhgDIAEoAyI5ChRTdWJtaXRSZWNvcmRSZXNwb25zZRIhCgZyZWNvcmQYASABKAsyES5hdGhlbmEudjEuUmVjb3JkIlUKE0NhbmNlbFJlY29yZFJlcXVlc3QSFwoPcmVjb3JkX3R5cGVfa2V5GAEgASgJEgoKAmlkGAIgASgJEhkKEWV4cGVjdGVkX3JldmlzaW9uGAMgASgDIjkKFENhbmNlbFJlY29yZFJlc3BvbnNlEiEKBnJlY29yZBgBIAEoCzIRLmF0aGVuYS52MS5SZWNvcmQiVAoSQW1lbmRSZWNvcmRSZXF1ZXN0EhcKD3JlY29yZF90eXBlX2tleRgBIAEoCRIKCgJpZBgCIAEoCRIZChFleHBlY3RlZF9yZXZpc2lvbhgDIAEoAyI4ChNBbWVuZFJlY29yZFJlc3BvbnNlEiEKBnJlY29yZBgBIAEoCzIRLmF0aGVuYS52MS5SZWNvcmQiQAoZTGlzdFJlY29yZFZlcnNpb25zUmVxdWVzdBIXCg9yZWNvcmRfdHlwZV9rZXkYASABKAkSCgoCaWQYAiABKAkijgEKDVJlY29yZFZlcnNpb24SDwoHdmVyc2lvbhgBIAEoAxIQCghyZXZpc2lvbhgCIAEoAxINCgVldmVudBgDIAEoCRIQCghkb2NzdGF0ZRgEIAEoBRIQCghzbmFwc2hvdBgFIAEoCRIMCgRkaWZmGAYgASgJEg0KBWFjdG9yGAcgASgJEgoKAmF0GAggASgJIkgKGkxpc3RSZWNvcmRWZXJzaW9uc1Jlc3BvbnNlEioKCHZlcnNpb25zGAEgAygLMhguYXRoZW5hLnYxLlJlY29yZFZlcnNpb24iQAoZTGlzdFJlY29yZEFjdGl2aXR5UmVxdWVzdBIXCg9yZWNvcmRfdHlwZV9rZXkYASABKAkSCgoCaWQYAiABKAkiiwEKDUFjdGl2aXR5RXZlbnQSDQoFZXZlbnQYASABKAkSDQoFYWN0b3IYAiABKAkSEgoKZnJvbV9zdGF0ZRgDIAEoBRIQCgh0b19zdGF0ZRgEIAEoBRIWCg5jaGFuZ2VkX2ZpZWxkcxgFIAMoCRISCgpyZWxhdGVkX2lkGAYgASgJEgoKAmF0GAcgASgJIkYKGkxpc3RSZWNvcmRBY3Rpdml0eVJlc3BvbnNlEigKBmV2ZW50cxgBIAMoCzIYLmF0aGVuYS52MS5BY3Rpdml0eUV2ZW50InIKFExvb2t1cFJlY29yZHNSZXF1ZXN0EhcKD3JlY29yZF90eXBlX2tleRgBIAEoCRINCgVxdWVyeRgCIAEoCRIRCglwYWdlX3NpemUYAyABKAUSEgoKcGFnZV90b2tlbhgEIAEoCRILCgNpZHMYBSADKAkiNgoKTG9va3VwSXRlbRIKCgJpZBgBIAEoCRINCgVsYWJlbBgCIAEoCRINCgVzdGF0ZRgDIAEoCSJWChVMb29rdXBSZWNvcmRzUmVzcG9uc2USJAoFaXRlbXMYASADKAsyFS5hdGhlbmEudjEuTG9va3VwSXRlbRIXCg9uZXh0X3BhZ2VfdG9rZW4YAiABKAkivgEKFFByZXZpZXdSZWNvcmRSZXF1ZXN0EhcKD3JlY29yZF90eXBlX2tleRgBIAEoCRIKCgJpZBgCIAEoCRI7CgZ2YWx1ZXMYAyADKAsyKy5hdGhlbmEudjEuUHJldmlld1JlY29yZFJlcXVlc3QuVmFsdWVzRW50cnkaRAoLVmFsdWVzRW50cnkSCwoDa2V5GAEgASgJEiQKBXZhbHVlGAIgASgLMhUuYXRoZW5hLnYxLkZpZWxkVmFsdWU6AjgBIl0KCkZpZWxkU3RhdGUSCwoDa2V5GAEgASgJEhAKCHJlcXVpcmVkGAIgASgIEhEKCXJlYWRfb25seRgDIAEoCBIOCgZoaWRkZW4YBCABKAgSDQoFZXJyb3IYBSABKAkiyAEKFVByZXZpZXdSZWNvcmRSZXNwb25zZRJACghjb21wdXRlZBgBIAMoCzIuLmF0aGVuYS52MS5QcmV2aWV3UmVjb3JkUmVzcG9uc2UuQ29tcHV0ZWRFbnRyeRIlCgZzdGF0ZXMYAiADKAsyFS5hdGhlbmEudjEuRmllbGRTdGF0ZRpGCg1Db21wdXRlZEVudHJ5EgsKA2tleRgBIAEoCRIkCgV2YWx1ZRgCIAEoCzIVLmF0aGVuYS52MS5GaWVsZFZhbHVlOgI4ASJUChlFdmFsdWF0ZUV4cHJlc3Npb25SZXF1ZXN0EhcKD3JlY29yZF90eXBlX2tleRgBIAEoCRISCgpleHByZXNzaW9uGAIgASgJEgoKAmlkGAMgASgJIrwBChpFdmFsdWF0ZUV4cHJlc3Npb25SZXNwb25zZRITCgtyZXN1bHRfdHlwZRgBIAEoCRIUCgxkZXBlbmRlbmNpZXMYAiADKAkSEgoKdXNlc190b2RheRgDIAEoCBIRCglldmFsdWF0ZWQYBCABKAgSDwoHaXNfbnVsbBgFIAEoCBINCgV2YWx1ZRgGIAEoCRIYChBzcWxfdHJhbnNsYXRhYmxlGAcgASgIEhIKCnNxbF9yZWFzb24YCCABKAkyuQkKDVJlY29yZFNlcnZpY2USTAoLTGlzdFJlY29yZHMSHS5hdGhlbmEudjEuTGlzdFJlY29yZHNSZXF1ZXN0Gh4uYXRoZW5hLnYxLkxpc3RSZWNvcmRzUmVzcG9uc2USRgoJR2V0UmVjb3JkEhsuYXRoZW5hLnYxLkdldFJlY29yZFJlcXVlc3QaHC5hdGhlbmEudjEuR2V0UmVjb3JkUmVzcG9uc2USTwoMQ3JlYXRlUmVjb3JkEh4uYXRoZW5hLnYxLkNyZWF0ZVJlY29yZFJlcXVlc3QaHy5hdGhlbmEudjEuQ3JlYXRlUmVjb3JkUmVzcG9uc2USTwoMVXBkYXRlUmVjb3JkEh4uYXRoZW5hLnYxLlVwZGF0ZVJlY29yZFJlcXVlc3QaHy5hdGhlbmEudjEuVXBkYXRlUmVjb3JkUmVzcG9uc2USTwoMRGVsZXRlUmVjb3JkEh4uYXRoZW5hLnYxLkRlbGV0ZVJlY29yZFJlcXVlc3QaHy5hdGhlbmEudjEuRGVsZXRlUmVjb3JkUmVzcG9uc2USUgoNTG9va3VwUmVjb3JkcxIfLmF0aGVuYS52MS5Mb29rdXBSZWNvcmRzUmVxdWVzdBogLmF0aGVuYS52MS5Mb29rdXBSZWNvcmRzUmVzcG9uc2USXgoRTGlzdFJlY29yZEhpc3RvcnkSIy5hdGhlbmEudjEuTGlzdFJlY29yZEhpc3RvcnlSZXF1ZXN0GiQuYXRoZW5hLnYxLkxpc3RSZWNvcmRIaXN0b3J5UmVzcG9uc2USTwoMU3VibWl0UmVjb3JkEh4uYXRoZW5hLnYxLlN1Ym1pdFJlY29yZFJlcXVlc3QaHy5hdGhlbmEudjEuU3VibWl0UmVjb3JkUmVzcG9uc2USTwoMQ2FuY2VsUmVjb3JkEh4uYXRoZW5hLnYxLkNhbmNlbFJlY29yZFJlcXVlc3QaHy5hdGhlbmEudjEuQ2FuY2VsUmVjb3JkUmVzcG9uc2USTAoLQW1lbmRSZWNvcmQSHS5hdGhlbmEudjEuQW1lbmRSZWNvcmRSZXF1ZXN0Gh4uYXRoZW5hLnYxLkFtZW5kUmVjb3JkUmVzcG9uc2USYQoSTGlzdFJlY29yZFZlcnNpb25zEiQuYXRoZW5hLnYxLkxpc3RSZWNvcmRWZXJzaW9uc1JlcXVlc3QaJS5hdGhlbmEudjEuTGlzdFJlY29yZFZlcnNpb25zUmVzcG9uc2USYQoSTGlzdFJlY29yZEFjdGl2aXR5EiQuYXRoZW5hLnYxLkxpc3RSZWNvcmRBY3Rpdml0eVJlcXVlc3QaJS5hdGhlbmEudjEuTGlzdFJlY29yZEFjdGl2aXR5UmVzcG9uc2USUgoNUHJldmlld1JlY29yZBIfLmF0aGVuYS52MS5QcmV2aWV3UmVjb3JkUmVxdWVzdBogLmF0aGVuYS52MS5QcmV2aWV3UmVjb3JkUmVzcG9uc2USYQoSRXZhbHVhdGVFeHByZXNzaW9uEiQuYXRoZW5hLnYxLkV2YWx1YXRlRXhwcmVzc2lvblJlcXVlc3QaJS5hdGhlbmEudjEuRXZhbHVhdGVFeHByZXNzaW9uUmVzcG9uc2VCI1ohYXRoZW5hLWVycC9nZW4vYXRoZW5hL3YxO2F0aGVuYXYxYgZwcm90bzM");
+  fileDesc("ChdhdGhlbmEvdjEvcmVjb3Jkcy5wcm90bxIJYXRoZW5hLnYxIoYBCgpGaWVsZFZhbHVlEhYKDHN0cmluZ192YWx1ZRgBIAEoCUgAEhQKCmJvb2xfdmFsdWUYAiABKAhIABIUCgpudWxsX3ZhbHVlGAMgASgISAASLAoLaW1hZ2VfdmFsdWUYBCABKAsyFS5hdGhlbmEudjEuSW1hZ2VWYWx1ZUgAQgYKBGtpbmQiOgoKSW1hZ2VWYWx1ZRIMCgRwYXRoGAEgASgJEgwKBGhhc2gYAiABKAkSEAoIYWx0X3RleHQYAyABKAki+gIKBlJlY29yZBIKCgJpZBgBIAEoCRIQCghyZXZpc2lvbhgCIAEoAxItCgZ2YWx1ZXMYAyADKAsyHS5hdGhlbmEudjEuUmVjb3JkLlZhbHVlc0VudHJ5EhIKCmNyZWF0ZWRfYXQYBCABKAkSEgoKdXBkYXRlZF9hdBgFIAEoCRISCgpjcmVhdGVkX2J5GAYgASgJEhMKC21vZGlmaWVkX2J5GAcgASgJEg0KBW93bmVyGAggASgJEhMKC2RlZl92ZXJzaW9uGAkgASgDEhIKCnJlcXVlc3RfaWQYCiABKAkSEQoJcGFyZW50X2lkGAsgASgJEgsKA2lkeBgMIAEoAxIQCghkb2NzdGF0ZRgNIAEoBRIMCgRuYW1lGA4gASgJEhQKDGFtZW5kZWRfZnJvbRgPIAEoCRpECgtWYWx1ZXNFbnRyeRILCgNrZXkYASABKAkSJAoFdmFsdWUYAiABKAsyFS5hdGhlbmEudjEuRmllbGRWYWx1ZToCOAEidwoSTGlzdFJlY29yZHNSZXF1ZXN0EhcKD3JlY29yZF90eXBlX2tleRgBIAEoCRIRCglwYWdlX3NpemUYAiABKAUSEgoKcGFnZV90b2tlbhgDIAEoCRIRCglwYXJlbnRfaWQYBCABKAkSDgoGZmlsdGVyGAUgASgJIlIKE0xpc3RSZWNvcmRzUmVzcG9uc2USIgoHcmVjb3JkcxgBIAMoCzIRLmF0aGVuYS52MS5SZWNvcmQSFwoPbmV4dF9wYWdlX3Rva2VuGAIgASgJIjcKEEdldFJlY29yZFJlcXVlc3QSFwoPcmVjb3JkX3R5cGVfa2V5GAEgASgJEgoKAmlkGAIgASgJIjYKEUdldFJlY29yZFJlc3BvbnNlEiEKBnJlY29yZBgBIAEoCzIRLmF0aGVuYS52MS5SZWNvcmQi0QEKE0NyZWF0ZVJlY29yZFJlcXVlc3QSFwoPcmVjb3JkX3R5cGVfa2V5GAEgASgJEjoKBnZhbHVlcxgCIAMoCzIqLmF0aGVuYS52MS5DcmVhdGVSZWNvcmRSZXF1ZXN0LlZhbHVlc0VudHJ5EhEKCXBhcmVudF9pZBgDIAEoCRIMCgRuYW1lGAQgASgJGkQKC1ZhbHVlc0VudHJ5EgsKA2tleRgBIAEoCRIkCgV2YWx1ZRgCIAEoCzIVLmF0aGVuYS52MS5GaWVsZFZhbHVlOgI4ASI5ChRDcmVhdGVSZWNvcmRSZXNwb25zZRIhCgZyZWNvcmQYASABKAsyES5hdGhlbmEudjEuUmVjb3JkItcBChNVcGRhdGVSZWNvcmRSZXF1ZXN0EhcKD3JlY29yZF90eXBlX2tleRgBIAEoCRIKCgJpZBgCIAEoCRIZChFleHBlY3RlZF9yZXZpc2lvbhgDIAEoAxI6CgZ2YWx1ZXMYBCADKAsyKi5hdGhlbmEudjEuVXBkYXRlUmVjb3JkUmVxdWVzdC5WYWx1ZXNFbnRyeRpECgtWYWx1ZXNFbnRyeRILCgNrZXkYASABKAkSJAoFdmFsdWUYAiABKAsyFS5hdGhlbmEudjEuRmllbGRWYWx1ZToCOAEiOQoUVXBkYXRlUmVjb3JkUmVzcG9uc2USIQoGcmVjb3JkGAEgASgLMhEuYXRoZW5hLnYxLlJlY29yZCJVChNEZWxldGVSZWNvcmRSZXF1ZXN0EhcKD3JlY29yZF90eXBlX2tleRgBIAEoCRIKCgJpZBgCIAEoCRIZChFleHBlY3RlZF9yZXZpc2lvbhgDIAEoAyIWChREZWxldGVSZWNvcmRSZXNwb25zZSI/ChhMaXN0UmVjb3JkSGlzdG9yeVJlcXVlc3QSFwoPcmVjb3JkX3R5cGVfa2V5GAEgASgJEgoKAmlkGAIgASgJIngKC0ZpZWxkQ2hhbmdlEg0KBWZpZWxkGAEgASgJEhYKCW9sZF92YWx1ZRgCIAEoCUgAiAEBEhYKCW5ld192YWx1ZRgDIAEoCUgBiAEBEg4KBm1hc2tlZBgEIAEoCEIMCgpfb2xkX3ZhbHVlQgwKCl9uZXdfdmFsdWUiygEKC1JlY29yZEV2ZW50Eg4KBmFjdGlvbhgBIAEoCRIQCghyZXZpc2lvbhgCIAEoAxIWCg5jaGFuZ2VkX2ZpZWxkcxgDIAMoCRINCgVhY3RvchgEIAEoCRIKCgJhdBgFIAEoCRInCgdjaGFuZ2VzGAYgAygLMhYuYXRoZW5hLnYxLkZpZWxkQ2hhbmdlEhIKCnJlcXVlc3RfaWQYByABKAkSDgoGc291cmNlGAggASgJEgsKA3NlcRgJIAEoAxIMCgRoYXNoGAogASgJIkMKGUxpc3RSZWNvcmRIaXN0b3J5UmVzcG9uc2USJgoGZXZlbnRzGAEgAygLMhYuYXRoZW5hLnYxLlJlY29yZEV2ZW50IlUKE1N1Ym1pdFJlY29yZFJlcXVlc3QSFwoPcmVjb3JkX3R5cGVfa2V5GAEgASgJEgoKAmlkGAIgASgJEhkKEWV4cGVjdGVkX3JldmlzaW9uGAMgASgDIjkKFFN1Ym1pdFJlY29yZFJlc3BvbnNlEiEKBnJlY29yZBgBIAEoCzIRLmF0aGVuYS52MS5SZWNvcmQiVQoTQ2FuY2VsUmVjb3JkUmVxdWVzdBIXCg9yZWNvcmRfdHlwZV9rZXkYASABKAkSCgoCaWQYAiABKAkSGQoRZXhwZWN0ZWRfcmV2aXNpb24YAyABKAMiOQoUQ2FuY2VsUmVjb3JkUmVzcG9uc2USIQoGcmVjb3JkGAEgASgLMhEuYXRoZW5hLnYxLlJlY29yZCJUChJBbWVuZFJlY29yZFJlcXVlc3QSFwoPcmVjb3JkX3R5cGVfa2V5GAEgASgJEgoKAmlkGAIgASgJEhkKEWV4cGVjdGVkX3JldmlzaW9uGAMgASgDIjgKE0FtZW5kUmVjb3JkUmVzcG9uc2USIQoGcmVjb3JkGAEgASgLMhEuYXRoZW5hLnYxLlJlY29yZCJAChlMaXN0UmVjb3JkVmVyc2lvbnNSZXF1ZXN0EhcKD3JlY29yZF90eXBlX2tleRgBIAEoCRIKCgJpZBgCIAEoCSKOAQoNUmVjb3JkVmVyc2lvbhIPCgd2ZXJzaW9uGAEgASgDEhAKCHJldmlzaW9uGAIgASgDEg0KBWV2ZW50GAMgASgJEhAKCGRvY3N0YXRlGAQgASgFEhAKCHNuYXBzaG90GAUgASgJEgwKBGRpZmYYBiABKAkSDQoFYWN0b3IYByABKAkSCgoCYXQYCCABKAkiSAoaTGlzdFJlY29yZFZlcnNpb25zUmVzcG9uc2USKgoIdmVyc2lvbnMYASADKAsyGC5hdGhlbmEudjEuUmVjb3JkVmVyc2lvbiJAChlMaXN0UmVjb3JkQWN0aXZpdHlSZXF1ZXN0EhcKD3JlY29yZF90eXBlX2tleRgBIAEoCRIKCgJpZBgCIAEoCSKLAQoNQWN0aXZpdHlFdmVudBINCgVldmVudBgBIAEoCRINCgVhY3RvchgCIAEoCRISCgpmcm9tX3N0YXRlGAMgASgFEhAKCHRvX3N0YXRlGAQgASgFEhYKDmNoYW5nZWRfZmllbGRzGAUgAygJEhIKCnJlbGF0ZWRfaWQYBiABKAkSCgoCYXQYByABKAkiRgoaTGlzdFJlY29yZEFjdGl2aXR5UmVzcG9uc2USKAoGZXZlbnRzGAEgAygLMhguYXRoZW5hLnYxLkFjdGl2aXR5RXZlbnQicgoUTG9va3VwUmVjb3Jkc1JlcXVlc3QSFwoPcmVjb3JkX3R5cGVfa2V5GAEgASgJEg0KBXF1ZXJ5GAIgASgJEhEKCXBhZ2Vfc2l6ZRgDIAEoBRISCgpwYWdlX3Rva2VuGAQgASgJEgsKA2lkcxgFIAMoCSI2CgpMb29rdXBJdGVtEgoKAmlkGAEgASgJEg0KBWxhYmVsGAIgASgJEg0KBXN0YXRlGAMgASgJIlYKFUxvb2t1cFJlY29yZHNSZXNwb25zZRIkCgVpdGVtcxgBIAMoCzIVLmF0aGVuYS52MS5Mb29rdXBJdGVtEhcKD25leHRfcGFnZV90b2tlbhgCIAEoCSK+AQoUUHJldmlld1JlY29yZFJlcXVlc3QSFwoPcmVjb3JkX3R5cGVfa2V5GAEgASgJEgoKAmlkGAIgASgJEjsKBnZhbHVlcxgDIAMoCzIrLmF0aGVuYS52MS5QcmV2aWV3UmVjb3JkUmVxdWVzdC5WYWx1ZXNFbnRyeRpECgtWYWx1ZXNFbnRyeRILCgNrZXkYASABKAkSJAoFdmFsdWUYAiABKAsyFS5hdGhlbmEudjEuRmllbGRWYWx1ZToCOAEiXQoKRmllbGRTdGF0ZRILCgNrZXkYASABKAkSEAoIcmVxdWlyZWQYAiABKAgSEQoJcmVhZF9vbmx5GAMgASgIEg4KBmhpZGRlbhgEIAEoCBINCgVlcnJvchgFIAEoCSLIAQoVUHJldmlld1JlY29yZFJlc3BvbnNlEkAKCGNvbXB1dGVkGAEgAygLMi4uYXRoZW5hLnYxLlByZXZpZXdSZWNvcmRSZXNwb25zZS5Db21wdXRlZEVudHJ5EiUKBnN0YXRlcxgCIAMoCzIVLmF0aGVuYS52MS5GaWVsZFN0YXRlGkYKDUNvbXB1dGVkRW50cnkSCwoDa2V5GAEgASgJEiQKBXZhbHVlGAIgASgLMhUuYXRoZW5hLnYxLkZpZWxkVmFsdWU6AjgBIlQKGUV2YWx1YXRlRXhwcmVzc2lvblJlcXVlc3QSFwoPcmVjb3JkX3R5cGVfa2V5GAEgASgJEhIKCmV4cHJlc3Npb24YAiABKAkSCgoCaWQYAyABKAkivAEKGkV2YWx1YXRlRXhwcmVzc2lvblJlc3BvbnNlEhMKC3Jlc3VsdF90eXBlGAEgASgJEhQKDGRlcGVuZGVuY2llcxgCIAMoCRISCgp1c2VzX3RvZGF5GAMgASgIEhEKCWV2YWx1YXRlZBgEIAEoCBIPCgdpc19udWxsGAUgASgIEg0KBXZhbHVlGAYgASgJEhgKEHNxbF90cmFuc2xhdGFibGUYByABKAgSEgoKc3FsX3JlYXNvbhgIIAEoCTK5CQoNUmVjb3JkU2VydmljZRJMCgtMaXN0UmVjb3JkcxIdLmF0aGVuYS52MS5MaXN0UmVjb3Jkc1JlcXVlc3QaHi5hdGhlbmEudjEuTGlzdFJlY29yZHNSZXNwb25zZRJGCglHZXRSZWNvcmQSGy5hdGhlbmEudjEuR2V0UmVjb3JkUmVxdWVzdBocLmF0aGVuYS52MS5HZXRSZWNvcmRSZXNwb25zZRJPCgxDcmVhdGVSZWNvcmQSHi5hdGhlbmEudjEuQ3JlYXRlUmVjb3JkUmVxdWVzdBofLmF0aGVuYS52MS5DcmVhdGVSZWNvcmRSZXNwb25zZRJPCgxVcGRhdGVSZWNvcmQSHi5hdGhlbmEudjEuVXBkYXRlUmVjb3JkUmVxdWVzdBofLmF0aGVuYS52MS5VcGRhdGVSZWNvcmRSZXNwb25zZRJPCgxEZWxldGVSZWNvcmQSHi5hdGhlbmEudjEuRGVsZXRlUmVjb3JkUmVxdWVzdBofLmF0aGVuYS52MS5EZWxldGVSZWNvcmRSZXNwb25zZRJSCg1Mb29rdXBSZWNvcmRzEh8uYXRoZW5hLnYxLkxvb2t1cFJlY29yZHNSZXF1ZXN0GiAuYXRoZW5hLnYxLkxvb2t1cFJlY29yZHNSZXNwb25zZRJeChFMaXN0UmVjb3JkSGlzdG9yeRIjLmF0aGVuYS52MS5MaXN0UmVjb3JkSGlzdG9yeVJlcXVlc3QaJC5hdGhlbmEudjEuTGlzdFJlY29yZEhpc3RvcnlSZXNwb25zZRJPCgxTdWJtaXRSZWNvcmQSHi5hdGhlbmEudjEuU3VibWl0UmVjb3JkUmVxdWVzdBofLmF0aGVuYS52MS5TdWJtaXRSZWNvcmRSZXNwb25zZRJPCgxDYW5jZWxSZWNvcmQSHi5hdGhlbmEudjEuQ2FuY2VsUmVjb3JkUmVxdWVzdBofLmF0aGVuYS52MS5DYW5jZWxSZWNvcmRSZXNwb25zZRJMCgtBbWVuZFJlY29yZBIdLmF0aGVuYS52MS5BbWVuZFJlY29yZFJlcXVlc3QaHi5hdGhlbmEudjEuQW1lbmRSZWNvcmRSZXNwb25zZRJhChJMaXN0UmVjb3JkVmVyc2lvbnMSJC5hdGhlbmEudjEuTGlzdFJlY29yZFZlcnNpb25zUmVxdWVzdBolLmF0aGVuYS52MS5MaXN0UmVjb3JkVmVyc2lvbnNSZXNwb25zZRJhChJMaXN0UmVjb3JkQWN0aXZpdHkSJC5hdGhlbmEudjEuTGlzdFJlY29yZEFjdGl2aXR5UmVxdWVzdBolLmF0aGVuYS52MS5MaXN0UmVjb3JkQWN0aXZpdHlSZXNwb25zZRJSCg1QcmV2aWV3UmVjb3JkEh8uYXRoZW5hLnYxLlByZXZpZXdSZWNvcmRSZXF1ZXN0GiAuYXRoZW5hLnYxLlByZXZpZXdSZWNvcmRSZXNwb25zZRJhChJFdmFsdWF0ZUV4cHJlc3Npb24SJC5hdGhlbmEudjEuRXZhbHVhdGVFeHByZXNzaW9uUmVxdWVzdBolLmF0aGVuYS52MS5FdmFsdWF0ZUV4cHJlc3Npb25SZXNwb25zZUIjWiFhdGhlbmEtZXJwL2dlbi9hdGhlbmEvdjE7YXRoZW5hdjFiBnByb3RvMw");
 
 /**
  * FieldValue carries one typed field value. Number and Currency use exact
@@ -42,6 +42,14 @@ export type FieldValue = Message<"athena.v1.FieldValue"> & {
      */
     value: boolean;
     case: "nullValue";
+  } | {
+    /**
+     * The value of an Image field.
+     *
+     * @generated from field: athena.v1.ImageValue image_value = 4;
+     */
+    value: ImageValue;
+    case: "imageValue";
   } | { case: undefined; value?: undefined };
 };
 
@@ -51,6 +59,36 @@ export type FieldValue = Message<"athena.v1.FieldValue"> & {
  */
 export const FieldValueSchema: GenMessage<FieldValue> = /*@__PURE__*/
   messageDesc(file_athena_v1_records, 0);
+
+/**
+ * ImageValue references one Workspace file from images/. The hash pins the
+ * content the writer saw; reads follow the file's current content.
+ *
+ * @generated from message athena.v1.ImageValue
+ */
+export type ImageValue = Message<"athena.v1.ImageValue"> & {
+  /**
+   * @generated from field: string path = 1;
+   */
+  path: string;
+
+  /**
+   * @generated from field: string hash = 2;
+   */
+  hash: string;
+
+  /**
+   * @generated from field: string alt_text = 3;
+   */
+  altText: string;
+};
+
+/**
+ * Describes the message athena.v1.ImageValue.
+ * Use `create(ImageValueSchema)` to create a new message.
+ */
+export const ImageValueSchema: GenMessage<ImageValue> = /*@__PURE__*/
+  messageDesc(file_athena_v1_records, 1);
 
 /**
  * @generated from message athena.v1.Record
@@ -163,7 +201,7 @@ export type Record = Message<"athena.v1.Record"> & {
  * Use `create(RecordSchema)` to create a new message.
  */
 export const RecordSchema: GenMessage<Record> = /*@__PURE__*/
-  messageDesc(file_athena_v1_records, 1);
+  messageDesc(file_athena_v1_records, 2);
 
 /**
  * @generated from message athena.v1.ListRecordsRequest
@@ -210,7 +248,7 @@ export type ListRecordsRequest = Message<"athena.v1.ListRecordsRequest"> & {
  * Use `create(ListRecordsRequestSchema)` to create a new message.
  */
 export const ListRecordsRequestSchema: GenMessage<ListRecordsRequest> = /*@__PURE__*/
-  messageDesc(file_athena_v1_records, 2);
+  messageDesc(file_athena_v1_records, 3);
 
 /**
  * @generated from message athena.v1.ListRecordsResponse
@@ -234,7 +272,7 @@ export type ListRecordsResponse = Message<"athena.v1.ListRecordsResponse"> & {
  * Use `create(ListRecordsResponseSchema)` to create a new message.
  */
 export const ListRecordsResponseSchema: GenMessage<ListRecordsResponse> = /*@__PURE__*/
-  messageDesc(file_athena_v1_records, 3);
+  messageDesc(file_athena_v1_records, 4);
 
 /**
  * @generated from message athena.v1.GetRecordRequest
@@ -256,7 +294,7 @@ export type GetRecordRequest = Message<"athena.v1.GetRecordRequest"> & {
  * Use `create(GetRecordRequestSchema)` to create a new message.
  */
 export const GetRecordRequestSchema: GenMessage<GetRecordRequest> = /*@__PURE__*/
-  messageDesc(file_athena_v1_records, 4);
+  messageDesc(file_athena_v1_records, 5);
 
 /**
  * @generated from message athena.v1.GetRecordResponse
@@ -273,7 +311,7 @@ export type GetRecordResponse = Message<"athena.v1.GetRecordResponse"> & {
  * Use `create(GetRecordResponseSchema)` to create a new message.
  */
 export const GetRecordResponseSchema: GenMessage<GetRecordResponse> = /*@__PURE__*/
-  messageDesc(file_athena_v1_records, 5);
+  messageDesc(file_athena_v1_records, 6);
 
 /**
  * @generated from message athena.v1.CreateRecordRequest
@@ -310,7 +348,7 @@ export type CreateRecordRequest = Message<"athena.v1.CreateRecordRequest"> & {
  * Use `create(CreateRecordRequestSchema)` to create a new message.
  */
 export const CreateRecordRequestSchema: GenMessage<CreateRecordRequest> = /*@__PURE__*/
-  messageDesc(file_athena_v1_records, 6);
+  messageDesc(file_athena_v1_records, 7);
 
 /**
  * @generated from message athena.v1.CreateRecordResponse
@@ -327,7 +365,7 @@ export type CreateRecordResponse = Message<"athena.v1.CreateRecordResponse"> & {
  * Use `create(CreateRecordResponseSchema)` to create a new message.
  */
 export const CreateRecordResponseSchema: GenMessage<CreateRecordResponse> = /*@__PURE__*/
-  messageDesc(file_athena_v1_records, 7);
+  messageDesc(file_athena_v1_records, 8);
 
 /**
  * UpdateRecordRequest changes only the fields present in values.
@@ -361,7 +399,7 @@ export type UpdateRecordRequest = Message<"athena.v1.UpdateRecordRequest"> & {
  * Use `create(UpdateRecordRequestSchema)` to create a new message.
  */
 export const UpdateRecordRequestSchema: GenMessage<UpdateRecordRequest> = /*@__PURE__*/
-  messageDesc(file_athena_v1_records, 8);
+  messageDesc(file_athena_v1_records, 9);
 
 /**
  * @generated from message athena.v1.UpdateRecordResponse
@@ -378,7 +416,7 @@ export type UpdateRecordResponse = Message<"athena.v1.UpdateRecordResponse"> & {
  * Use `create(UpdateRecordResponseSchema)` to create a new message.
  */
 export const UpdateRecordResponseSchema: GenMessage<UpdateRecordResponse> = /*@__PURE__*/
-  messageDesc(file_athena_v1_records, 9);
+  messageDesc(file_athena_v1_records, 10);
 
 /**
  * @generated from message athena.v1.DeleteRecordRequest
@@ -405,7 +443,7 @@ export type DeleteRecordRequest = Message<"athena.v1.DeleteRecordRequest"> & {
  * Use `create(DeleteRecordRequestSchema)` to create a new message.
  */
 export const DeleteRecordRequestSchema: GenMessage<DeleteRecordRequest> = /*@__PURE__*/
-  messageDesc(file_athena_v1_records, 10);
+  messageDesc(file_athena_v1_records, 11);
 
 /**
  * @generated from message athena.v1.DeleteRecordResponse
@@ -418,7 +456,7 @@ export type DeleteRecordResponse = Message<"athena.v1.DeleteRecordResponse"> & {
  * Use `create(DeleteRecordResponseSchema)` to create a new message.
  */
 export const DeleteRecordResponseSchema: GenMessage<DeleteRecordResponse> = /*@__PURE__*/
-  messageDesc(file_athena_v1_records, 11);
+  messageDesc(file_athena_v1_records, 12);
 
 /**
  * @generated from message athena.v1.ListRecordHistoryRequest
@@ -440,7 +478,7 @@ export type ListRecordHistoryRequest = Message<"athena.v1.ListRecordHistoryReque
  * Use `create(ListRecordHistoryRequestSchema)` to create a new message.
  */
 export const ListRecordHistoryRequestSchema: GenMessage<ListRecordHistoryRequest> = /*@__PURE__*/
-  messageDesc(file_athena_v1_records, 12);
+  messageDesc(file_athena_v1_records, 13);
 
 /**
  * FieldChange is one field of an Audit Log row. Rows imported from the history
@@ -478,7 +516,7 @@ export type FieldChange = Message<"athena.v1.FieldChange"> & {
  * Use `create(FieldChangeSchema)` to create a new message.
  */
 export const FieldChangeSchema: GenMessage<FieldChange> = /*@__PURE__*/
-  messageDesc(file_athena_v1_records, 13);
+  messageDesc(file_athena_v1_records, 14);
 
 /**
  * RecordEvent is one Audit Log row of a Record.
@@ -562,7 +600,7 @@ export type RecordEvent = Message<"athena.v1.RecordEvent"> & {
  * Use `create(RecordEventSchema)` to create a new message.
  */
 export const RecordEventSchema: GenMessage<RecordEvent> = /*@__PURE__*/
-  messageDesc(file_athena_v1_records, 14);
+  messageDesc(file_athena_v1_records, 15);
 
 /**
  * @generated from message athena.v1.ListRecordHistoryResponse
@@ -579,7 +617,7 @@ export type ListRecordHistoryResponse = Message<"athena.v1.ListRecordHistoryResp
  * Use `create(ListRecordHistoryResponseSchema)` to create a new message.
  */
 export const ListRecordHistoryResponseSchema: GenMessage<ListRecordHistoryResponse> = /*@__PURE__*/
-  messageDesc(file_athena_v1_records, 15);
+  messageDesc(file_athena_v1_records, 16);
 
 /**
  * @generated from message athena.v1.SubmitRecordRequest
@@ -606,7 +644,7 @@ export type SubmitRecordRequest = Message<"athena.v1.SubmitRecordRequest"> & {
  * Use `create(SubmitRecordRequestSchema)` to create a new message.
  */
 export const SubmitRecordRequestSchema: GenMessage<SubmitRecordRequest> = /*@__PURE__*/
-  messageDesc(file_athena_v1_records, 16);
+  messageDesc(file_athena_v1_records, 17);
 
 /**
  * @generated from message athena.v1.SubmitRecordResponse
@@ -623,7 +661,7 @@ export type SubmitRecordResponse = Message<"athena.v1.SubmitRecordResponse"> & {
  * Use `create(SubmitRecordResponseSchema)` to create a new message.
  */
 export const SubmitRecordResponseSchema: GenMessage<SubmitRecordResponse> = /*@__PURE__*/
-  messageDesc(file_athena_v1_records, 17);
+  messageDesc(file_athena_v1_records, 18);
 
 /**
  * @generated from message athena.v1.CancelRecordRequest
@@ -650,7 +688,7 @@ export type CancelRecordRequest = Message<"athena.v1.CancelRecordRequest"> & {
  * Use `create(CancelRecordRequestSchema)` to create a new message.
  */
 export const CancelRecordRequestSchema: GenMessage<CancelRecordRequest> = /*@__PURE__*/
-  messageDesc(file_athena_v1_records, 18);
+  messageDesc(file_athena_v1_records, 19);
 
 /**
  * @generated from message athena.v1.CancelRecordResponse
@@ -667,7 +705,7 @@ export type CancelRecordResponse = Message<"athena.v1.CancelRecordResponse"> & {
  * Use `create(CancelRecordResponseSchema)` to create a new message.
  */
 export const CancelRecordResponseSchema: GenMessage<CancelRecordResponse> = /*@__PURE__*/
-  messageDesc(file_athena_v1_records, 19);
+  messageDesc(file_athena_v1_records, 20);
 
 /**
  * @generated from message athena.v1.AmendRecordRequest
@@ -694,7 +732,7 @@ export type AmendRecordRequest = Message<"athena.v1.AmendRecordRequest"> & {
  * Use `create(AmendRecordRequestSchema)` to create a new message.
  */
 export const AmendRecordRequestSchema: GenMessage<AmendRecordRequest> = /*@__PURE__*/
-  messageDesc(file_athena_v1_records, 20);
+  messageDesc(file_athena_v1_records, 21);
 
 /**
  * AmendRecordResponse carries the new draft.
@@ -713,7 +751,7 @@ export type AmendRecordResponse = Message<"athena.v1.AmendRecordResponse"> & {
  * Use `create(AmendRecordResponseSchema)` to create a new message.
  */
 export const AmendRecordResponseSchema: GenMessage<AmendRecordResponse> = /*@__PURE__*/
-  messageDesc(file_athena_v1_records, 21);
+  messageDesc(file_athena_v1_records, 22);
 
 /**
  * @generated from message athena.v1.ListRecordVersionsRequest
@@ -735,7 +773,7 @@ export type ListRecordVersionsRequest = Message<"athena.v1.ListRecordVersionsReq
  * Use `create(ListRecordVersionsRequestSchema)` to create a new message.
  */
 export const ListRecordVersionsRequestSchema: GenMessage<ListRecordVersionsRequest> = /*@__PURE__*/
-  messageDesc(file_athena_v1_records, 22);
+  messageDesc(file_athena_v1_records, 23);
 
 /**
  * RecordVersion is a snapshot of a document taken at submit, cancel or amend.
@@ -799,7 +837,7 @@ export type RecordVersion = Message<"athena.v1.RecordVersion"> & {
  * Use `create(RecordVersionSchema)` to create a new message.
  */
 export const RecordVersionSchema: GenMessage<RecordVersion> = /*@__PURE__*/
-  messageDesc(file_athena_v1_records, 23);
+  messageDesc(file_athena_v1_records, 24);
 
 /**
  * @generated from message athena.v1.ListRecordVersionsResponse
@@ -816,7 +854,7 @@ export type ListRecordVersionsResponse = Message<"athena.v1.ListRecordVersionsRe
  * Use `create(ListRecordVersionsResponseSchema)` to create a new message.
  */
 export const ListRecordVersionsResponseSchema: GenMessage<ListRecordVersionsResponse> = /*@__PURE__*/
-  messageDesc(file_athena_v1_records, 24);
+  messageDesc(file_athena_v1_records, 25);
 
 /**
  * @generated from message athena.v1.ListRecordActivityRequest
@@ -838,7 +876,7 @@ export type ListRecordActivityRequest = Message<"athena.v1.ListRecordActivityReq
  * Use `create(ListRecordActivityRequestSchema)` to create a new message.
  */
 export const ListRecordActivityRequestSchema: GenMessage<ListRecordActivityRequest> = /*@__PURE__*/
-  messageDesc(file_athena_v1_records, 25);
+  messageDesc(file_athena_v1_records, 26);
 
 /**
  * ActivityEvent is one step in a document's timeline.
@@ -895,7 +933,7 @@ export type ActivityEvent = Message<"athena.v1.ActivityEvent"> & {
  * Use `create(ActivityEventSchema)` to create a new message.
  */
 export const ActivityEventSchema: GenMessage<ActivityEvent> = /*@__PURE__*/
-  messageDesc(file_athena_v1_records, 26);
+  messageDesc(file_athena_v1_records, 27);
 
 /**
  * @generated from message athena.v1.ListRecordActivityResponse
@@ -912,7 +950,7 @@ export type ListRecordActivityResponse = Message<"athena.v1.ListRecordActivityRe
  * Use `create(ListRecordActivityResponseSchema)` to create a new message.
  */
 export const ListRecordActivityResponseSchema: GenMessage<ListRecordActivityResponse> = /*@__PURE__*/
-  messageDesc(file_athena_v1_records, 27);
+  messageDesc(file_athena_v1_records, 28);
 
 /**
  * @generated from message athena.v1.LookupRecordsRequest
@@ -959,7 +997,7 @@ export type LookupRecordsRequest = Message<"athena.v1.LookupRecordsRequest"> & {
  * Use `create(LookupRecordsRequestSchema)` to create a new message.
  */
 export const LookupRecordsRequestSchema: GenMessage<LookupRecordsRequest> = /*@__PURE__*/
-  messageDesc(file_athena_v1_records, 28);
+  messageDesc(file_athena_v1_records, 29);
 
 /**
  * LookupItem is one Record as a picker shows it. The ID is the stored value;
@@ -992,7 +1030,7 @@ export type LookupItem = Message<"athena.v1.LookupItem"> & {
  * Use `create(LookupItemSchema)` to create a new message.
  */
 export const LookupItemSchema: GenMessage<LookupItem> = /*@__PURE__*/
-  messageDesc(file_athena_v1_records, 29);
+  messageDesc(file_athena_v1_records, 30);
 
 /**
  * @generated from message athena.v1.LookupRecordsResponse
@@ -1016,7 +1054,7 @@ export type LookupRecordsResponse = Message<"athena.v1.LookupRecordsResponse"> &
  * Use `create(LookupRecordsResponseSchema)` to create a new message.
  */
 export const LookupRecordsResponseSchema: GenMessage<LookupRecordsResponse> = /*@__PURE__*/
-  messageDesc(file_athena_v1_records, 30);
+  messageDesc(file_athena_v1_records, 31);
 
 /**
  * @generated from message athena.v1.PreviewRecordRequest
@@ -1047,7 +1085,7 @@ export type PreviewRecordRequest = Message<"athena.v1.PreviewRecordRequest"> & {
  * Use `create(PreviewRecordRequestSchema)` to create a new message.
  */
 export const PreviewRecordRequestSchema: GenMessage<PreviewRecordRequest> = /*@__PURE__*/
-  messageDesc(file_athena_v1_records, 31);
+  messageDesc(file_athena_v1_records, 32);
 
 /**
  * FieldState is what the rules say about one field for the previewed values.
@@ -1096,7 +1134,7 @@ export type FieldState = Message<"athena.v1.FieldState"> & {
  * Use `create(FieldStateSchema)` to create a new message.
  */
 export const FieldStateSchema: GenMessage<FieldState> = /*@__PURE__*/
-  messageDesc(file_athena_v1_records, 32);
+  messageDesc(file_athena_v1_records, 33);
 
 /**
  * @generated from message athena.v1.PreviewRecordResponse
@@ -1120,7 +1158,7 @@ export type PreviewRecordResponse = Message<"athena.v1.PreviewRecordResponse"> &
  * Use `create(PreviewRecordResponseSchema)` to create a new message.
  */
 export const PreviewRecordResponseSchema: GenMessage<PreviewRecordResponse> = /*@__PURE__*/
-  messageDesc(file_athena_v1_records, 33);
+  messageDesc(file_athena_v1_records, 34);
 
 /**
  * @generated from message athena.v1.EvaluateExpressionRequest
@@ -1149,7 +1187,7 @@ export type EvaluateExpressionRequest = Message<"athena.v1.EvaluateExpressionReq
  * Use `create(EvaluateExpressionRequestSchema)` to create a new message.
  */
 export const EvaluateExpressionRequestSchema: GenMessage<EvaluateExpressionRequest> = /*@__PURE__*/
-  messageDesc(file_athena_v1_records, 34);
+  messageDesc(file_athena_v1_records, 35);
 
 /**
  * @generated from message athena.v1.EvaluateExpressionResponse
@@ -1212,7 +1250,7 @@ export type EvaluateExpressionResponse = Message<"athena.v1.EvaluateExpressionRe
  * Use `create(EvaluateExpressionResponseSchema)` to create a new message.
  */
 export const EvaluateExpressionResponseSchema: GenMessage<EvaluateExpressionResponse> = /*@__PURE__*/
-  messageDesc(file_athena_v1_records, 35);
+  messageDesc(file_athena_v1_records, 36);
 
 /**
  * RecordService reads and writes Records. Each Record is one row in the table

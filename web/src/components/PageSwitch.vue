@@ -10,10 +10,11 @@ import ErrorState from '@/components/ErrorState.vue'
 import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
 import PermissionDenied from '@/components/PermissionDenied.vue'
 import ActionButton from '@/components/ActionButton.vue'
+import RecordTypeCreateDialog from '@/components/record-types/RecordTypeCreateDialog.vue'
 import RecordsPage from '@/pages/RecordsPage.vue'
 import { isEntryVisible, pageEntry, visibleBuildKeys, type PageContext } from '@/pages/registry'
 import type { DeskRoute } from '@/composables/useDeskRoute'
-import type { RecordTypeLibrary } from '@/composables/useRecordTypes'
+import type { NewRecordTypeInput, RecordTypeLibrary } from '@/composables/useRecordTypes'
 import type { SessionState } from '@/composables/useSession'
 import type { Page, RecordType } from '@/types'
 
@@ -77,7 +78,10 @@ const listProps = computed<Record<string, unknown>>(() => ({
 }))
 const asyncPage = computed(() => (entry.value ? defineAsyncComponent(entry.value.load) : null))
 const asyncEditor = defineAsyncComponent(() => import('@/pages/RecordTypeEditorPage.vue'))
-const showEditor = computed(() => route.mode.value === 'build' && route.page.value === 'record-types' && route.recordTypeRoute.value !== '')
+// /new is the list with the create dialog; every other key is the editor.
+const showCreate = computed(() => route.mode.value === 'build' && route.page.value === 'record-types' && route.recordTypeRoute.value === 'new')
+const createOpen = computed({ get: () => showCreate.value, set: (open: boolean) => { if (!open) route.openBuildPage('record-types') } })
+const showEditor = computed(() => route.mode.value === 'build' && route.page.value === 'record-types' && route.recordTypeRoute.value !== '' && route.recordTypeRoute.value !== 'new')
 const editorProps = computed(() => ({
   recordTypes: library.recordTypes.value,
   currentRecordType: library.currentRecordType.value,
@@ -116,22 +120,13 @@ function goHome() {
 // their own; the rest stay quiet.
 const listeners = {
   navigate: (page: Page) => route.openBuildPage(page),
-  createRecordType: () => {
-    library.addRecordType()
-    route.openRecordTypeEditor('new')
-  },
+  createRecordType: () => route.openRecordTypeEditor('new'),
   openEditor: (key: string) => route.openRecordTypeEditor(key),
   closeEditor: () => route.openBuildPage('record-types'),
   viewRecords: (key: string) => route.openRecordType(key),
   openRules: () => route.openBuildPage('rules'),
-  savedAs: (key: string) => route.replaceRecordTypeEditor(key),
   reloadRecordTypes: () => { void library.load() },
-  addRecordType: () => {
-    library.addRecordType()
-    route.openRecordTypeEditor('new')
-  },
   addField: () => library.addField(),
-  rename: (from: string, to: string) => library.renameRecordType(from, to),
   delete: (recordType: RecordType) => { void removeFromEditor(recordType) },
   save: (complete: (saved: boolean) => void) => { void library.saveCurrent(complete, () => session.databaseState.value === 'Connected') },
   openRecordTypes: () => route.openBuildPage('record-types'),
@@ -144,6 +139,15 @@ const listeners = {
 async function removeFromEditor(recordType: RecordType) {
   await library.removeRecordType(recordType)
   if (!library.recordTypes.value.includes(recordType) && route.recordTypeRoute.value) route.openBuildPage('record-types')
+}
+
+// A created type replaces /new with its own key, so a refresh lands on the
+// saved editor and the dialog cannot be reopened by going back to it.
+function createFromDialog(input: NewRecordTypeInput, complete: (saved: boolean) => void) {
+  void library.createRecordType(input, (saved, key) => {
+    complete(saved)
+    if (saved && key) route.replaceRecordTypeEditor(key)
+  }, () => session.databaseState.value === 'Connected')
 }
 </script>
 
@@ -166,6 +170,7 @@ async function removeFromEditor(recordType: RecordType) {
       :record-type="library.viewRecordType.value"
       :record-type-key="route.selectedRecordType.value"
       :record-types="library.viewRecordTypes.value"
+      :username="session.user.value?.username ?? ''"
       @back="route.setMode('build')"
     />
     <PermissionDenied v-else-if="denied" :page-title="deniedTitle" @go-home="goHome" />
@@ -180,5 +185,6 @@ async function removeFromEditor(recordType: RecordType) {
         <LoadingSkeleton />
       </template>
     </Suspense>
+    <RecordTypeCreateDialog v-if="showCreate" v-model:open="createOpen" :record-types="library.recordTypes.value" @create="createFromDialog" />
   </div>
 </template>

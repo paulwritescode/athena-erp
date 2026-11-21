@@ -130,29 +130,65 @@ func nearest(c color, dark bool) color {
 
 type Palette struct{ Light, Dark string }
 
-// Resolve validates the saved choice and derives displayable custom tokens.
-func Resolve(a *v1.Appearance) (Palette, error) {
-	switch a.GetPreset() {
-	case "ink", "red":
-		if a.Accent != "" || len(a.ChartColors) > 0 {
-			return Palette{}, fmt.Errorf("%w: choose Custom to set colors", ErrInvalid)
+// Presets is the one shared accent list: the nine named presets plus custom.
+// The Desk mirrors it in web/src/appearance.ts; the tokens live once in
+// web/src/theme.css as [data-accent] blocks.
+var Presets = []string{"ink", "slate", "blue", "sky", "green", "amber", "orange", "brown", "red", "custom"}
+
+// ChartPalettes is the one shared chart list: a tonal ramp of the accent,
+// four named palettes, or custom colors. The Desk mirrors it in
+// web/src/appearance.ts; the tokens live once in web/src/theme.css.
+var ChartPalettes = []string{"match", "neutral", "earth", "ocean", "forest", "custom"}
+
+func in(list []string, name string) bool {
+	for _, n := range list {
+		if n == name {
+			return true
 		}
-		return Palette{}, nil
-	case "custom":
-	default:
-		return Palette{}, fmt.Errorf("%w: choose ink, red or custom", ErrInvalid)
 	}
-	if len(a.ChartColors) > 5 {
+	return false
+}
+
+// Resolve validates the saved choice and derives displayable custom tokens.
+// An empty chart palette reads as match, or custom when chart colors are
+// stored (appearances saved before B4b knew palettes).
+func Resolve(a *v1.Appearance) (Palette, error) {
+	if a == nil {
+		return Palette{}, fmt.Errorf("%w: choose an accent preset", ErrInvalid)
+	}
+	if !in(Presets, a.GetPreset()) {
+		return Palette{}, fmt.Errorf("%w: choose an accent preset", ErrInvalid)
+	}
+	charts := a.GetChartPalette()
+	if charts == "" {
+		charts = "match"
+		if len(a.GetChartColors()) > 0 {
+			charts = "custom"
+		}
+	}
+	if !in(ChartPalettes, charts) {
+		return Palette{}, fmt.Errorf("%w: choose a chart palette", ErrInvalid)
+	}
+	if a.GetPreset() != "custom" && a.GetAccent() != "" {
+		return Palette{}, fmt.Errorf("%w: choose a Custom accent to set its color", ErrInvalid)
+	}
+	if charts != "custom" && len(a.GetChartColors()) > 0 {
+		return Palette{}, fmt.Errorf("%w: choose Custom charts to set colors", ErrInvalid)
+	}
+	if len(a.GetChartColors()) > 5 {
 		return Palette{}, fmt.Errorf("%w: choose up to five chart colors", ErrInvalid)
 	}
-	for i, s := range a.ChartColors {
+	for i, s := range a.GetChartColors() {
 		if s != "" {
 			if _, err := parse(s); err != nil {
 				return Palette{}, fmt.Errorf("chart %d: %w", i+1, err)
 			}
 		}
 	}
-	c, err := parse(a.Accent)
+	if a.GetPreset() != "custom" {
+		return Palette{}, nil
+	}
+	c, err := parse(a.GetAccent())
 	if err != nil {
 		return Palette{}, err
 	}

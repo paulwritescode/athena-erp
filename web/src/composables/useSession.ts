@@ -2,11 +2,13 @@
 // the sign-in page until the server reports a session; every call is checked
 // again on the server. Behaviour matches the pre-B2 App.vue exactly.
 import { computed, ref, watch } from 'vue'
-import { ConnectError } from '@connectrpc/connect'
+import { Code, ConnectError } from '@connectrpc/connect'
 import { toast } from 'vue-sonner'
-import { classify, describeFailure, type Failure } from '@/apiErrors'
+import { classify, describeFailure, sessionEndNote, type Failure } from '@/apiErrors'
 import { authClient, onSessionEnded, setCsrfToken, systemClient, workspaceClient } from '@/api'
 import { applyAppearance, saveCachedAppearance } from '@/appearance'
+import { clearIdleWarning, noteAlive, rescheduleIdleWarning, setIdleSignOut, startIdleTracking } from '@/idleWarning'
+import { onSessionMessage, postSessionMessage } from '@/sessionChannel'
 import type { SessionInfo } from '@/gen/athena/v1/auth_pb'
 import type { SessionUser } from '@/types'
 import { visibleBuildKeys } from '@/pages/registry'
@@ -75,11 +77,13 @@ export function useSession(route: DeskRoute, library: RecordTypeLibrary) {
       setCsrfToken(info.csrfToken)
       user.value = { username: info.username, displayName: info.displayName, owner: info.owner, systemPermissions: info.systemPermissions }
       authState.value = 'signed-in'
+      rescheduleIdleWarning(info.idleExpiresAt)
     } else {
       setCsrfToken('')
       user.value = null
       library.clear()
       authState.value = 'signed-out'
+      clearIdleWarning()
     }
   }
 
@@ -106,15 +110,51 @@ export function useSession(route: DeskRoute, library: RecordTypeLibrary) {
       toast.error(err instanceof ConnectError ? `Could not sign out: ${err.rawMessage}` : 'Could not sign out.')
       return
     }
+    postSessionMessage('signed-out')
     applySession(undefined)
     toast.success('Signed out.')
   }
 
-  onSessionEnded(() => {
+  onSessionEnded((reason) => {
     if (authState.value !== 'signed-in') return
     applySession(undefined)
-    signInNote.value = 'Your session ended. Sign in again.'
+    signInNote.value = sessionEndNote(reason)
   })
+
+  // Same-browser tabs stay in step: a sign-out, Workspace change or access
+  // change in one reaches the others within 2 seconds.
+  onSessionMessage((message) => {
+    if (message.kind === 'signed-out') {
+      if (authState.value !== 'signed-in') return
+      applySession(undefined)
+      signInNote.value = 'Signed out in another tab.'
+    } else if (message.kind === 'workspace-changed') {
+      window.location.reload()
+    } else if (message.kind === 'permissions-changed') {
+      void refreshPermissions()
+    } else {
+      noteAlive()
+    }
+  })
+
+  async function refreshPermissions() {
+    if (authState.value !== 'signed-in') return
+    try {
+      const res = await authClient.getSession({})
+      const before = [...(user.value?.systemPermissions ?? [])].sort().join(',')
+      applySession(res.session ?? undefined)
+      const after = [...(user.value?.systemPermissions ?? [])].sort().join(',')
+      if (authState.value === 'signed-in' && before !== after) toast.info('Your access changed.')
+    } catch (err) {
+      // Unauthenticated is already handled globally by the interceptor.
+      if (!(err instanceof ConnectError) || err.code !== Code.Unauthenticated) {
+        toast.error(err instanceof ConnectError ? `Could not refresh your access: ${err.rawMessage}` : 'Could not refresh your access.')
+      }
+    }
+  }
+
+  setIdleSignOut(() => void signOut())
+  startIdleTracking()
 
   // startDesk finds out what state the server is in and opens the right page. It
   // runs at start and again from "Check again" on the sign-in card.
@@ -153,7 +193,7 @@ export function useSession(route: DeskRoute, library: RecordTypeLibrary) {
         const fetched = await workspaceClient.getAppearance({})
         if (fetched.appearance) {
           const palette = { light: fetched.lightAccent, dark: fetched.darkAccent }
-          applyAppearance({ preset: fetched.appearance.preset, accent: fetched.appearance.accent, chartColors: [...fetched.appearance.chartColors] }, palette)
+          applyAppearance({ preset: fetched.appearance.preset, accent: fetched.appearance.accent, chartPalette: fetched.appearance.chartPalette, chartColors: [...fetched.appearance.chartColors] }, palette)
           saveCachedAppearance(info.workspaceSlug, fetched.appearance, palette)
         }
       } catch {

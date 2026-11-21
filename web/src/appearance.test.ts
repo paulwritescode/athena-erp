@@ -1,9 +1,26 @@
 // @vitest-environment jsdom
+import { readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
-import { applyAppearance, customStyle, hexToOklch, loadCachedAppearance, oklchToHex, previewCustom, saveCachedAppearance } from './appearance'
+import {
+  ACCENT_PRESETS,
+  CHART_PALETTES,
+  MATCH_RAMP_VARS,
+  applyAppearance,
+  chartsAreCustom,
+  contrastOf,
+  customStyle,
+  hexToOklch,
+  loadCachedAppearance,
+  oklchToHex,
+  previewCustom,
+  saveCachedAppearance,
+} from './appearance'
 
 afterEach(() => {
   document.documentElement.removeAttribute('data-accent')
+  document.documentElement.removeAttribute('data-charts')
   document.getElementById('athena-appearance')?.remove()
   localStorage.clear()
 })
@@ -50,8 +67,8 @@ describe('appearance colors', () => {
     const css = customStyle('oklch(0.5 0.1 250)', 'oklch(0.7 0.1 250)', ['', '', '', '', ''])
     expect(css).toContain(':root{--primary:oklch(0.5 0.1 250)')
     expect(css).toContain('.dark{--primary:oklch(0.7 0.1 250)')
-    expect(css).toContain('--chart-1: var(--primary)')
-    expect(css).not.toContain('--chart-2')
+    // Empty slots fall through to the accent ramp in theme.css.
+    expect(css).not.toContain('--chart-1')
     const charts = customStyle('oklch(0.5 0.1 250)', 'oklch(0.7 0.1 250)', ['oklch(0.4 0.1 20)', 'oklch(0.6 0.1 140)', '', '', ''])
     expect(charts).toContain('--chart-1: oklch(0.4 0.1 20)')
     expect(charts).toContain('--chart-2: oklch(0.6 0.1 140)')
@@ -59,15 +76,34 @@ describe('appearance colors', () => {
   })
 
   it('applies presets as data-accent and custom as a style block', () => {
-    applyAppearance({ preset: 'red', accent: '', chartColors: [] }, { light: '', dark: '' })
+    applyAppearance({ preset: 'red', accent: '', chartPalette: 'match', chartColors: [] }, { light: '', dark: '' })
     expect(document.documentElement.dataset.accent).toBe('red')
     expect(document.getElementById('athena-appearance')).toBeNull()
-    applyAppearance({ preset: 'custom', accent: 'oklch(0.5 0.1 250)', chartColors: [] }, { light: 'oklch(0.5 0.1 250)', dark: 'oklch(0.7 0.1 250)' })
+    applyAppearance(
+      { preset: 'custom', accent: 'oklch(0.5 0.1 250)', chartPalette: 'match', chartColors: [] },
+      { light: 'oklch(0.5 0.1 250)', dark: 'oklch(0.7 0.1 250)' },
+    )
     expect(document.documentElement.dataset.accent).toBeUndefined()
     expect(document.getElementById('athena-appearance')?.textContent).toContain('--primary:oklch(0.5 0.1 250)')
-    applyAppearance({ preset: 'ink', accent: '', chartColors: [] }, { light: '', dark: '' })
+    applyAppearance({ preset: 'ink', accent: '', chartPalette: 'match', chartColors: [] }, { light: '', dark: '' })
     expect(document.documentElement.dataset.accent).toBe('ink')
     expect(document.getElementById('athena-appearance')).toBeNull()
+  })
+
+  it('applies named chart palettes as data-charts, match and custom as none', () => {
+    applyAppearance({ preset: 'blue', accent: '', chartPalette: 'ocean', chartColors: [] }, { light: '', dark: '' })
+    expect(document.documentElement.dataset.charts).toBe('ocean')
+    applyAppearance({ preset: 'blue', accent: '', chartPalette: 'match', chartColors: [] }, { light: '', dark: '' })
+    expect(document.documentElement.dataset.charts).toBeUndefined()
+    applyAppearance(
+      { preset: 'custom', accent: 'oklch(0.5 0.1 250)', chartPalette: 'custom', chartColors: ['oklch(0.4 0.1 20)', '', '', '', ''] },
+      { light: 'oklch(0.5 0.1 250)', dark: 'oklch(0.7 0.1 250)' },
+    )
+    expect(document.documentElement.dataset.charts).toBeUndefined()
+    expect(document.getElementById('athena-appearance')?.textContent).toContain('--chart-1: oklch(0.4 0.1 20)')
+    // A stale palette never lingers behind a custom style block.
+    applyAppearance({ preset: 'ink', accent: '', chartPalette: 'match', chartColors: [] }, { light: '', dark: '' })
+    expect(document.documentElement.dataset.charts).toBeUndefined()
   })
 
   it('previews a passing accent with a lighter dark twin', () => {
@@ -97,16 +133,119 @@ describe('appearance colors', () => {
     expect(loadCachedAppearance()).toBeNull()
     saveCachedAppearance(
       'acme',
-      { preset: 'custom', accent: 'oklch(0.5 0.1 250)', chartColors: [] } as never,
+      { preset: 'custom', accent: 'oklch(0.5 0.1 250)', chartPalette: 'ocean', chartColors: [] } as never,
       { light: 'oklch(0.5 0.1 250)', dark: 'oklch(0.7 0.1 250)' },
     )
     expect(loadCachedAppearance()).toEqual({
       slug: 'acme',
       preset: 'custom',
       accent: 'oklch(0.5 0.1 250)',
+      chartPalette: 'ocean',
       chartColors: [],
       light: 'oklch(0.5 0.1 250)',
       dark: 'oklch(0.7 0.1 250)',
     })
+    // Caches from before palettes existed read back without one.
+    localStorage.setItem('athena-appearance', JSON.stringify({ slug: 'acme', preset: 'ink' }))
+    expect(loadCachedAppearance()?.chartPalette).toBe('')
+  })
+})
+
+describe('preset tokens in theme.css', () => {
+  const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'theme.css'), 'utf8')
+
+  function block(selector: string): string {
+    const m = new RegExp(`^${selector} \\{([^}]*)\\}`, 'm').exec(css)
+    if (!m) throw new Error(`missing ${selector}`)
+    return m[1]
+  }
+
+  function prop(blockText: string, name: string): string {
+    const m = new RegExp(`${name}:\\s*([^;]+);`).exec(blockText)
+    if (!m) throw new Error(`missing ${name}`)
+    return m[1].trim()
+  }
+
+  it('lists the nine presets and six chart choices both sides share', () => {
+    expect(ACCENT_PRESETS.map((p) => p.value)).toEqual(['ink', 'slate', 'blue', 'sky', 'green', 'amber', 'orange', 'brown', 'red', 'custom'])
+    expect(CHART_PALETTES.map((p) => p.value)).toEqual(['match', 'neutral', 'earth', 'ocean', 'forest', 'custom'])
+  })
+
+  it('passes text contrast on every preset in both themes', () => {
+    for (const { value } of ACCENT_PRESETS) {
+      if (value === 'custom') continue
+      const light = block(`\\[data-accent="${value}"\\]`)
+      const dark = block(`\\.dark\\[data-accent="${value}"\\]`)
+      const lightRatio = contrastOf(prop(light, '--primary'), prop(light, '--primary-foreground'))
+      const darkRatio = contrastOf(prop(dark, '--primary'), prop(dark, '--primary-foreground'))
+      expect(lightRatio, `${value} light`).not.toBeNull()
+      expect(darkRatio, `${value} dark`).not.toBeNull()
+      expect(lightRatio!).toBeGreaterThanOrEqual(4.5)
+      expect(darkRatio!).toBeGreaterThanOrEqual(4.5)
+    }
+  })
+
+  it('declares the match ramp on the scoped accent before the palettes', () => {
+    // Custom properties substitute var() where they are declared: without
+    // this rule a preview pane scoping data-accent would inherit the saved
+    // accent's ramp from :root instead of the draft's.
+    const scoped = block('\\[data-accent\\]')
+    for (let i = 1; i <= 5; i++) {
+      expect(prop(scoped, `--chart-${i}`), `chart-${i}`).toBe(MATCH_RAMP_VARS[`--chart-${i}`])
+    }
+    expect(css.indexOf('[data-accent] {')).toBeLessThan(css.indexOf('[data-charts='))
+  })
+
+  it('applies pre-B4b custom charts recorded without a palette', () => {
+    expect(chartsAreCustom('', ['oklch(0.4 0.1 20)'])).toBe(true)
+    expect(chartsAreCustom('', [])).toBe(false)
+    expect(chartsAreCustom('match', [])).toBe(false)
+    applyAppearance(
+      { preset: 'custom', accent: 'oklch(0.5 0.1 250)', chartPalette: '', chartColors: ['oklch(0.4 0.1 20)', 'oklch(0.6 0.1 140)', '', '', ''] },
+      { light: 'oklch(0.5 0.1 250)', dark: 'oklch(0.7 0.1 250)' },
+    )
+    const cssText = document.getElementById('athena-appearance')?.textContent ?? ''
+    expect(cssText).toContain('--chart-1: oklch(0.4 0.1 20)')
+    expect(cssText).toContain('--chart-2: oklch(0.6 0.1 140)')
+    // A named preset with legacy colors keeps its tokens and gains charts.
+    applyAppearance({ preset: 'blue', accent: '', chartPalette: '', chartColors: ['oklch(0.4 0.1 20)', '', '', '', ''] }, { light: '', dark: '' })
+    expect(document.documentElement.dataset.accent).toBe('blue')
+    const chartsOnly = document.getElementById('athena-appearance')?.textContent ?? ''
+    expect(chartsOnly).toContain('--chart-1: oklch(0.4 0.1 20)')
+    expect(chartsOnly).not.toContain('--primary')
+  })
+
+  it('defines the four named chart palettes in both themes', () => {
+    for (const name of ['neutral', 'earth', 'ocean', 'forest']) {
+      for (const selector of [`\\[data-charts="${name}"\\]`, `\\.dark\\[data-charts="${name}"\\]`]) {
+        const text = block(selector)
+        for (let i = 1; i <= 5; i++) {
+          expect(prop(text, `--chart-${i}`), `${selector} chart-${i}`).toMatch(/^oklch\(/)
+        }
+      }
+    }
+  })
+
+  it('keeps the forced-light preview scope in step with the light blocks', () => {
+    for (const { value } of ACCENT_PRESETS) {
+      if (value === 'custom') continue
+      const light = block(`\\[data-accent="${value}"\\]`)
+      const forced = block(`\\.preview-light\\[data-accent="${value}"\\]`)
+      for (const name of ['--primary', '--primary-foreground', '--sidebar-primary']) {
+        expect(prop(forced, name), `${value} ${name}`).toBe(prop(light, name))
+      }
+    }
+    for (const name of ['neutral', 'earth', 'ocean', 'forest']) {
+      const light = block(`\\[data-charts="${name}"\\]`)
+      const forced = block(`\\.preview-light\\[data-charts="${name}"\\]`)
+      for (let i = 1; i <= 5; i++) {
+        expect(prop(forced, `--chart-${i}`), `${name} chart-${i}`).toBe(prop(light, `--chart-${i}`))
+      }
+    }
+    const root = block(':root')
+    const forced = block('\\.preview-light')
+    for (const name of ['--background', '--foreground', '--card', '--secondary', '--muted-foreground', '--border', '--ring', '--sidebar-accent']) {
+      expect(prop(forced, name), name).toBe(prop(root, name))
+    }
   })
 })

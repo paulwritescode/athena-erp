@@ -143,6 +143,14 @@ func (s authService) GetSession(ctx context.Context, _ *athenav1.GetSessionReque
 	return &athenav1.GetSessionResponse{Session: sessionInfo(auth.PrincipalFrom(ctx), sessionTokenFrom(ctx)), HasUsers: has}, nil
 }
 
+// Touch extends the caller's idle expiry: the gate authenticates actively
+// for it (it is deliberately absent from passiveProcedures), so by the time
+// this runs last_seen_at already moved and the principal carries the fresh
+// IdleExpiresAt.
+func (s authService) Touch(ctx context.Context, _ *athenav1.TouchRequest) (*athenav1.TouchResponse, error) {
+	return &athenav1.TouchResponse{Session: sessionInfo(auth.PrincipalFrom(ctx), sessionTokenFrom(ctx))}, nil
+}
+
 func (s authService) ChangePassword(ctx context.Context, req *athenav1.ChangePasswordRequest) (res *athenav1.ChangePasswordResponse, err error) {
 	ctx, requestID, end := startKernelSpan(ctx, "change_password", "")
 	defer func() { end(err) }()

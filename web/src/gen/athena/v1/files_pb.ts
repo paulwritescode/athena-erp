@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file athena/v1/files.proto.
  */
 export const file_athena_v1_files: GenFile = /*@__PURE__*/
-  fileDesc("ChVhdGhlbmEvdjEvZmlsZXMucHJvdG8SCWF0aGVuYS52MSI3CgtGaWxlQmFja2luZxIMCgRraW5kGAEgASgJEgsKA2tleRgCIAEoCRINCgVzYXZlZBgDIAEoCCKrAQoIRmlsZUluZm8SDAoEcGF0aBgBIAEoCRIMCgRzaXplGAIgASgDEgwKBGhhc2gYAyABKAkSEAoIcmV2aXNpb24YBCABKAMSEwoLbW9kaWZpZWRfYXQYBSABKAkSEwoLbW9kaWZpZWRfYnkYBiABKAkSEAoIcmVjb3JkZWQYByABKAgSJwoHYmFja2luZxgIIAEoCzIWLmF0aGVuYS52MS5GaWxlQmFja2luZyISChBMaXN0RmlsZXNSZXF1ZXN0IqoBChFMaXN0RmlsZXNSZXNwb25zZRIiCgVmaWxlcxgBIAMoCzITLmF0aGVuYS52MS5GaWxlSW5mbxIhChlyZWNvcmRfdHlwZXNfd2l0aG91dF9maWxlGAIgAygJEhYKDm1heF9maWxlX2J5dGVzGAMgASgDEhEKCW1heF9maWxlcxgEIAEoAxIPCgdmb2xkZXJzGAUgAygJEhIKCmV4dGVuc2lvbnMYBiADKAkiMAoOR2V0RmlsZVJlcXVlc3QSDAoEcGF0aBgBIAEoCRIQCghyZXZpc2lvbhgCIAEoAyJFCg9HZXRGaWxlUmVzcG9uc2USIQoEaW5mbxgBIAEoCzITLmF0aGVuYS52MS5GaWxlSW5mbxIPCgdjb250ZW50GAIgASgMIkYKDlB1dEZpbGVSZXF1ZXN0EgwKBHBhdGgYASABKAkSDwoHY29udGVudBgCIAEoDBIVCg1leHBlY3RlZF9oYXNoGAMgASgJIjQKD1B1dEZpbGVSZXNwb25zZRIhCgRpbmZvGAEgASgLMhMuYXRoZW5hLnYxLkZpbGVJbmZvIkIKD01vdmVGaWxlUmVxdWVzdBIMCgRmcm9tGAEgASgJEgoKAnRvGAIgASgJEhUKDWV4cGVjdGVkX2hhc2gYAyABKAkiNQoQTW92ZUZpbGVSZXNwb25zZRIhCgRpbmZvGAEgASgLMhMuYXRoZW5hLnYxLkZpbGVJbmZvIjgKEURlbGV0ZUZpbGVSZXF1ZXN0EgwKBHBhdGgYASABKAkSFQoNZXhwZWN0ZWRfaGFzaBgCIAEoCSIUChJEZWxldGVGaWxlUmVzcG9uc2UiJwoXTGlzdEZpbGVWZXJzaW9uc1JlcXVlc3QSDAoEcGF0aBgBIAEoCSK1AQoLRmlsZVZlcnNpb24SEAoIcmV2aXNpb24YASABKAMSDgoGYWN0aW9uGAIgASgJEgwKBHBhdGgYAyABKAkSDAoEaGFzaBgEIAEoCRIMCgRzaXplGAUgASgDEg0KBWFjdG9yGAYgASgJEg4KBnNvdXJjZRgHIAEoCRISCgpyZXF1ZXN0X2lkGAggASgJEhIKCmNyZWF0ZWRfYXQYCSABKAkSEwoLaGFzX2NvbnRlbnQYCiABKAgiRAoYTGlzdEZpbGVWZXJzaW9uc1Jlc3BvbnNlEigKCHZlcnNpb25zGAEgAygLMhYuYXRoZW5hLnYxLkZpbGVWZXJzaW9uMsYDCgtGaWxlU2VydmljZRJGCglMaXN0RmlsZXMSGy5hdGhlbmEudjEuTGlzdEZpbGVzUmVxdWVzdBocLmF0aGVuYS52MS5MaXN0RmlsZXNSZXNwb25zZRJACgdHZXRGaWxlEhkuYXRoZW5hLnYxLkdldEZpbGVSZXF1ZXN0GhouYXRoZW5hLnYxLkdldEZpbGVSZXNwb25zZRJACgdQdXRGaWxlEhkuYXRoZW5hLnYxLlB1dEZpbGVSZXF1ZXN0GhouYXRoZW5hLnYxLlB1dEZpbGVSZXNwb25zZRJDCghNb3ZlRmlsZRIaLmF0aGVuYS52MS5Nb3ZlRmlsZVJlcXVlc3QaGy5hdGhlbmEudjEuTW92ZUZpbGVSZXNwb25zZRJJCgpEZWxldGVGaWxlEhwuYXRoZW5hLnYxLkRlbGV0ZUZpbGVSZXF1ZXN0Gh0uYXRoZW5hLnYxLkRlbGV0ZUZpbGVSZXNwb25zZRJbChBMaXN0RmlsZVZlcnNpb25zEiIuYXRoZW5hLnYxLkxpc3RGaWxlVmVyc2lvbnNSZXF1ZXN0GiMuYXRoZW5hLnYxLkxpc3RGaWxlVmVyc2lvbnNSZXNwb25zZUIjWiFhdGhlbmEtZXJwL2dlbi9hdGhlbmEvdjE7YXRoZW5hdjFiBnByb3RvMw");
+  fileDesc("ChVhdGhlbmEvdjEvZmlsZXMucHJvdG8SCWF0aGVuYS52MSI3CgtGaWxlQmFja2luZxIMCgRraW5kGAEgASgJEgsKA2tleRgCIAEoCRINCgVzYXZlZBgDIAEoCCKrAQoIRmlsZUluZm8SDAoEcGF0aBgBIAEoCRIMCgRzaXplGAIgASgDEgwKBGhhc2gYAyABKAkSEAoIcmV2aXNpb24YBCABKAMSEwoLbW9kaWZpZWRfYXQYBSABKAkSEwoLbW9kaWZpZWRfYnkYBiABKAkSEAoIcmVjb3JkZWQYByABKAgSJwoHYmFja2luZxgIIAEoCzIWLmF0aGVuYS52MS5GaWxlQmFja2luZyISChBMaXN0RmlsZXNSZXF1ZXN0IqoBChFMaXN0RmlsZXNSZXNwb25zZRIiCgVmaWxlcxgBIAMoCzITLmF0aGVuYS52MS5GaWxlSW5mbxIhChlyZWNvcmRfdHlwZXNfd2l0aG91dF9maWxlGAIgAygJEhYKDm1heF9maWxlX2J5dGVzGAMgASgDEhEKCW1heF9maWxlcxgEIAEoAxIPCgdmb2xkZXJzGAUgAygJEhIKCmV4dGVuc2lvbnMYBiADKAkiQwoOR2V0RmlsZVJlcXVlc3QSDAoEcGF0aBgBIAEoCRIQCghyZXZpc2lvbhgCIAEoAxIRCgl0aHVtYm5haWwYAyABKAgiRQoPR2V0RmlsZVJlc3BvbnNlEiEKBGluZm8YASABKAsyEy5hdGhlbmEudjEuRmlsZUluZm8SDwoHY29udGVudBgCIAEoDCJGCg5QdXRGaWxlUmVxdWVzdBIMCgRwYXRoGAEgASgJEg8KB2NvbnRlbnQYAiABKAwSFQoNZXhwZWN0ZWRfaGFzaBgDIAEoCSI0Cg9QdXRGaWxlUmVzcG9uc2USIQoEaW5mbxgBIAEoCzITLmF0aGVuYS52MS5GaWxlSW5mbyJHCg9QdXRJbWFnZVJlcXVlc3QSDAoEcGF0aBgBIAEoCRIPCgdjb250ZW50GAIgASgMEhUKDWV4cGVjdGVkX2hhc2gYAyABKAkiVAoQUHV0SW1hZ2VSZXNwb25zZRIhCgRpbmZvGAEgASgLMhMuYXRoZW5hLnYxLkZpbGVJbmZvEg0KBXdpZHRoGAIgASgFEg4KBmhlaWdodBgDIAEoBSJCCg9Nb3ZlRmlsZVJlcXVlc3QSDAoEZnJvbRgBIAEoCRIKCgJ0bxgCIAEoCRIVCg1leHBlY3RlZF9oYXNoGAMgASgJIjUKEE1vdmVGaWxlUmVzcG9uc2USIQoEaW5mbxgBIAEoCzITLmF0aGVuYS52MS5GaWxlSW5mbyI4ChFEZWxldGVGaWxlUmVxdWVzdBIMCgRwYXRoGAEgASgJEhUKDWV4cGVjdGVkX2hhc2gYAiABKAkiFAoSRGVsZXRlRmlsZVJlc3BvbnNlIicKF0xpc3RGaWxlVmVyc2lvbnNSZXF1ZXN0EgwKBHBhdGgYASABKAkitQEKC0ZpbGVWZXJzaW9uEhAKCHJldmlzaW9uGAEgASgDEg4KBmFjdGlvbhgCIAEoCRIMCgRwYXRoGAMgASgJEgwKBGhhc2gYBCABKAkSDAoEc2l6ZRgFIAEoAxINCgVhY3RvchgGIAEoCRIOCgZzb3VyY2UYByABKAkSEgoKcmVxdWVzdF9pZBgIIAEoCRISCgpjcmVhdGVkX2F0GAkgASgJEhMKC2hhc19jb250ZW50GAogASgIIkQKGExpc3RGaWxlVmVyc2lvbnNSZXNwb25zZRIoCgh2ZXJzaW9ucxgBIAMoCzIWLmF0aGVuYS52MS5GaWxlVmVyc2lvbjKLBAoLRmlsZVNlcnZpY2USRgoJTGlzdEZpbGVzEhsuYXRoZW5hLnYxLkxpc3RGaWxlc1JlcXVlc3QaHC5hdGhlbmEudjEuTGlzdEZpbGVzUmVzcG9uc2USQAoHR2V0RmlsZRIZLmF0aGVuYS52MS5HZXRGaWxlUmVxdWVzdBoaLmF0aGVuYS52MS5HZXRGaWxlUmVzcG9uc2USQAoHUHV0RmlsZRIZLmF0aGVuYS52MS5QdXRGaWxlUmVxdWVzdBoaLmF0aGVuYS52MS5QdXRGaWxlUmVzcG9uc2USQwoIUHV0SW1hZ2USGi5hdGhlbmEudjEuUHV0SW1hZ2VSZXF1ZXN0GhsuYXRoZW5hLnYxLlB1dEltYWdlUmVzcG9uc2USQwoITW92ZUZpbGUSGi5hdGhlbmEudjEuTW92ZUZpbGVSZXF1ZXN0GhsuYXRoZW5hLnYxLk1vdmVGaWxlUmVzcG9uc2USSQoKRGVsZXRlRmlsZRIcLmF0aGVuYS52MS5EZWxldGVGaWxlUmVxdWVzdBodLmF0aGVuYS52MS5EZWxldGVGaWxlUmVzcG9uc2USWwoQTGlzdEZpbGVWZXJzaW9ucxIiLmF0aGVuYS52MS5MaXN0RmlsZVZlcnNpb25zUmVxdWVzdBojLmF0aGVuYS52MS5MaXN0RmlsZVZlcnNpb25zUmVzcG9uc2VCI1ohYXRoZW5hLWVycC9nZW4vYXRoZW5hL3YxO2F0aGVuYXYxYgZwcm90bzM");
 
 /**
  * @generated from message athena.v1.FileBacking
@@ -180,6 +180,13 @@ export type GetFileRequest = Message<"athena.v1.GetFileRequest"> & {
    * @generated from field: int64 revision = 2;
    */
   revision: bigint;
+
+  /**
+   * Return a 256 px thumbnail instead of the file. Images only.
+   *
+   * @generated from field: bool thumbnail = 3;
+   */
+  thumbnail: boolean;
 };
 
 /**
@@ -258,6 +265,66 @@ export const PutFileResponseSchema: GenMessage<PutFileResponse> = /*@__PURE__*/
   messageDesc(file_athena_v1_files, 7);
 
 /**
+ * @generated from message athena.v1.PutImageRequest
+ */
+export type PutImageRequest = Message<"athena.v1.PutImageRequest"> & {
+  /**
+   * Under images/ (images/logo.png).
+   *
+   * @generated from field: string path = 1;
+   */
+  path: string;
+
+  /**
+   * @generated from field: bytes content = 2;
+   */
+  content: Uint8Array;
+
+  /**
+   * Hash of the content the caller read. Empty creates a new file.
+   *
+   * @generated from field: string expected_hash = 3;
+   */
+  expectedHash: string;
+};
+
+/**
+ * Describes the message athena.v1.PutImageRequest.
+ * Use `create(PutImageRequestSchema)` to create a new message.
+ */
+export const PutImageRequestSchema: GenMessage<PutImageRequest> = /*@__PURE__*/
+  messageDesc(file_athena_v1_files, 8);
+
+/**
+ * @generated from message athena.v1.PutImageResponse
+ */
+export type PutImageResponse = Message<"athena.v1.PutImageResponse"> & {
+  /**
+   * @generated from field: athena.v1.FileInfo info = 1;
+   */
+  info?: FileInfo | undefined;
+
+  /**
+   * Pixel dimensions of the stored image.
+   *
+   * @generated from field: int32 width = 2;
+   */
+  width: number;
+
+  /**
+   * @generated from field: int32 height = 3;
+   */
+  height: number;
+};
+
+/**
+ * Describes the message athena.v1.PutImageResponse.
+ * Use `create(PutImageResponseSchema)` to create a new message.
+ */
+export const PutImageResponseSchema: GenMessage<PutImageResponse> = /*@__PURE__*/
+  messageDesc(file_athena_v1_files, 9);
+
+/**
  * @generated from message athena.v1.MoveFileRequest
  */
 export type MoveFileRequest = Message<"athena.v1.MoveFileRequest"> & {
@@ -282,7 +349,7 @@ export type MoveFileRequest = Message<"athena.v1.MoveFileRequest"> & {
  * Use `create(MoveFileRequestSchema)` to create a new message.
  */
 export const MoveFileRequestSchema: GenMessage<MoveFileRequest> = /*@__PURE__*/
-  messageDesc(file_athena_v1_files, 8);
+  messageDesc(file_athena_v1_files, 10);
 
 /**
  * @generated from message athena.v1.MoveFileResponse
@@ -299,7 +366,7 @@ export type MoveFileResponse = Message<"athena.v1.MoveFileResponse"> & {
  * Use `create(MoveFileResponseSchema)` to create a new message.
  */
 export const MoveFileResponseSchema: GenMessage<MoveFileResponse> = /*@__PURE__*/
-  messageDesc(file_athena_v1_files, 9);
+  messageDesc(file_athena_v1_files, 11);
 
 /**
  * @generated from message athena.v1.DeleteFileRequest
@@ -321,7 +388,7 @@ export type DeleteFileRequest = Message<"athena.v1.DeleteFileRequest"> & {
  * Use `create(DeleteFileRequestSchema)` to create a new message.
  */
 export const DeleteFileRequestSchema: GenMessage<DeleteFileRequest> = /*@__PURE__*/
-  messageDesc(file_athena_v1_files, 10);
+  messageDesc(file_athena_v1_files, 12);
 
 /**
  * @generated from message athena.v1.DeleteFileResponse
@@ -334,7 +401,7 @@ export type DeleteFileResponse = Message<"athena.v1.DeleteFileResponse"> & {
  * Use `create(DeleteFileResponseSchema)` to create a new message.
  */
 export const DeleteFileResponseSchema: GenMessage<DeleteFileResponse> = /*@__PURE__*/
-  messageDesc(file_athena_v1_files, 11);
+  messageDesc(file_athena_v1_files, 13);
 
 /**
  * @generated from message athena.v1.ListFileVersionsRequest
@@ -351,7 +418,7 @@ export type ListFileVersionsRequest = Message<"athena.v1.ListFileVersionsRequest
  * Use `create(ListFileVersionsRequestSchema)` to create a new message.
  */
 export const ListFileVersionsRequestSchema: GenMessage<ListFileVersionsRequest> = /*@__PURE__*/
-  messageDesc(file_athena_v1_files, 12);
+  messageDesc(file_athena_v1_files, 14);
 
 /**
  * @generated from message athena.v1.FileVersion
@@ -424,7 +491,7 @@ export type FileVersion = Message<"athena.v1.FileVersion"> & {
  * Use `create(FileVersionSchema)` to create a new message.
  */
 export const FileVersionSchema: GenMessage<FileVersion> = /*@__PURE__*/
-  messageDesc(file_athena_v1_files, 13);
+  messageDesc(file_athena_v1_files, 15);
 
 /**
  * @generated from message athena.v1.ListFileVersionsResponse
@@ -441,7 +508,7 @@ export type ListFileVersionsResponse = Message<"athena.v1.ListFileVersionsRespon
  * Use `create(ListFileVersionsResponseSchema)` to create a new message.
  */
 export const ListFileVersionsResponseSchema: GenMessage<ListFileVersionsResponse> = /*@__PURE__*/
-  messageDesc(file_athena_v1_files, 14);
+  messageDesc(file_athena_v1_files, 16);
 
 /**
  * FileService manages the source files of the running Workspace: Record Type
@@ -486,6 +553,18 @@ export const FileService: GenService<{
     methodKind: "unary";
     input: typeof PutFileRequestSchema;
     output: typeof PutFileResponseSchema;
+  },
+  /**
+   * PutImage uploads a PNG, JPEG or WebP image under images/. The content is
+   * sniffed, EXIF metadata is stripped, and the response carries the stored
+   * file with its pixel dimensions.
+   *
+   * @generated from rpc athena.v1.FileService.PutImage
+   */
+  putImage: {
+    methodKind: "unary";
+    input: typeof PutImageRequestSchema;
+    output: typeof PutImageResponseSchema;
   },
   /**
    * MoveFile renames a file inside the allowed folders.

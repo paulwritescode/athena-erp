@@ -6,17 +6,18 @@ import { recordClient } from '../api'
 import { keyMatchesRoute } from '../composables/useRecordTypes'
 import { docstates, fieldEditable, isCalculated, validateField, validateManualName } from '../fieldRules'
 import { gloss } from '../copy/glossary'
-import { forgetLabels } from '../lookup'
+import { forgetLabels, labelWithState, resolveRecords } from '../lookup'
 import { formatWhen, formatWhenFull } from '../times'
 import { FieldValueSchema, type ActivityEvent, type FieldChange, type FieldState, type Record as RecordMessage, type RecordEvent, type RecordVersion, type FieldValue } from '../gen/athena/v1/records_pb'
 import type { Field, RecordType } from '../types'
 import { Badge } from '@/components/ui/badge'
-import { Input } from '@/components/ui/input'
 import ActionButton from '@/components/ActionButton.vue'
+import type { ActionItem } from '@/components/actions'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
-import BottomDrawer from '@/components/BottomDrawer.vue'
+import DataTable, { type TableFilter } from '@/components/DataTable.vue'
 import PullToRefresh from '@/components/PullToRefresh.vue'
-import RecordsTable from '../components/RecordsTable.vue'
+import { buildRecordColumns, combineRecordFilter } from '@/components/records/recordColumns'
+import { loadPageSize, savePageSize } from '@/tablePrefs'
 import CheckboxField from '@/components/fields/CheckboxField.vue'
 import DateField from '@/components/fields/DateField.vue'
 import LinkField from '@/components/fields/LinkField.vue'
@@ -32,13 +33,26 @@ import { toast } from 'vue-sonner'
 // URL: '' for the table, 'new' for the create form, or an record ID.
 // recordTypeKey is the key the address names; writes send it, and a record
 // type that does not match it never saves.
-const props = defineProps<{ recordType: RecordType | null; recordTypeKey: string; recordId: string; recordTypes?: RecordType[] }>()
+const props = withDefaults(defineProps<{ recordType: RecordType | null; recordTypeKey: string; recordId: string; recordTypes?: RecordType[]; username?: string }>(), { username: '' })
 const emit = defineEmits<{ back: []; 'update:recordId': [id: string] }>()
 
 const records = ref<RecordMessage[]>([])
-const nextPageToken = ref('')
 const loading = ref(false)
 const loadError = ref('')
+// Server keyset paging: the API returns opaque forward tokens with no
+// total, so the desk remembers the token that opened each page to walk
+// back. Page size persists per user under the table id.
+const page = ref(1)
+const hasNext = ref(false)
+const pageTokens = ref<string[]>([''])
+const tableId = computed(() => props.recordType ? `records:${props.recordType.name}` : '')
+const pageSize = ref(25)
+watch(tableId, (id) => { pageSize.value = id ? loadPageSize(id, props.username) : 25 }, { immediate: true })
+const serverPaging = computed(() => ({ page: page.value, total: null as number | null, hasNext: hasNext.value }))
+const selectedIds = ref<string[]>([])
+// Revisions seen on loaded pages, for bulk deletes of rows still in view;
+// anything older is fetched before it is deleted.
+const knownRevisions = new Map<string, bigint>()
 const editing = ref<RecordMessage | 'new' | null>(null)
 const texts = reactive<Record<string, string>>({})
 const checks = reactive<Record<string, boolean>>({})
@@ -57,7 +71,7 @@ const activity = ref<ActivityEvent[]>([])
 const states = reactive<Record<string, FieldState>>({})
 const filterText = ref('')
 const appliedFilter = ref('')
-const filterOpen = ref(false)
+const statusSelected = ref<string[]>([])
 let previewTimer: ReturnType<typeof setTimeout> | undefined
 let previewRequest = 0
 let lastPreview = ''
@@ -70,31 +84,76 @@ function message(err: unknown) {
   return err instanceof ConnectError ? err.rawMessage : 'Something went wrong.'
 }
 
-async function load(more = false) {
+async function load(reset = true) {
   const recordType = props.recordType
-  if (!recordType) { records.value = []; nextPageToken.value = ''; return }
+  if (!recordType) { records.value = []; pageTokens.value = ['']; page.value = 1; hasNext.value = false; return }
+  if (reset) { page.value = 1; pageTokens.value = [''] }
   const request = ++listRequest
   loading.value = true
   loadError.value = ''
   try {
-    const res = await recordClient.listRecords({ recordTypeKey: recordType.name, pageSize: 50, pageToken: more ? nextPageToken.value : '', filter: appliedFilter.value })
+    const res = await recordClient.listRecords({ recordTypeKey: recordType.name, pageSize: pageSize.value, pageToken: pageTokens.value[page.value - 1] ?? '', filter: appliedFilter.value })
     if (request !== listRequest) return
-    records.value = more ? [...records.value, ...res.records] : res.records
-    nextPageToken.value = res.nextPageToken
+    records.value = res.records
+    for (const item of res.records) knownRevisions.set(item.id, item.revision)
+    hasNext.value = res.nextPageToken !== ''
+    if (res.nextPageToken && page.value === pageTokens.value.length) pageTokens.value.push(res.nextPageToken)
   } catch (err) {
     if (request !== listRequest) return
     loadError.value = message(err)
-    toast.error(`Could not load records: ${loadError.value}`, { action: { label: 'Retry', onClick: () => { void load() } } })
+    // A filter error shows inline only: the search applies while typing,
+    // and a toast per half-written expression would nag.
+    if (!appliedFilter.value) toast.error(`Could not load records: ${loadError.value}`, { action: { label: 'Retry', onClick: () => { void load(false) } } })
   } finally {
     if (request === listRequest) loading.value = false
   }
 }
 
-watch(() => props.recordType?.name, () => { filterText.value = ''; appliedFilter.value = ''; void load() }, { immediate: true })
-function applyFilter(text: string) {
-  filterText.value = text
-  appliedFilter.value = text.trim()
-  void load()
+function prevPage() {
+  if (page.value <= 1) return
+  page.value -= 1
+  void load(false)
+}
+
+function nextPage() {
+  if (!hasNext.value) return
+  page.value += 1
+  void load(false)
+}
+
+function changePageSize(size: number) {
+  pageSize.value = size
+  if (tableId.value) savePageSize(tableId.value, props.username, size)
+  void load(true)
+}
+
+watch(() => props.recordType?.name, () => {
+  filterText.value = ''
+  appliedFilter.value = ''
+  statusSelected.value = []
+  selectedIds.value = []
+  knownRevisions.clear()
+  void load(true)
+}, { immediate: true })
+
+// The search applies after a pause in typing; the Status filter applies at
+// once. Both combine into the one server expression.
+let filterTimer: ReturnType<typeof setTimeout> | undefined
+function applyListFilter() {
+  appliedFilter.value = combineRecordFilter(filterText.value, statusSelected.value.map(Number).filter((state) => Number.isInteger(state)))
+  void load(true)
+}
+watch(filterText, () => {
+  clearTimeout(filterTimer)
+  filterTimer = setTimeout(applyListFilter, 500)
+})
+function onFiltersChanged(next: TableFilter[]) {
+  statusSelected.value = next.find((filter) => filter.id === 'status')?.selected ?? []
+  clearTimeout(filterTimer)
+  applyListFilter()
+}
+function onClearFilters() {
+  clearTimeout(filterTimer)
 }
 
 // Opening an record changes the URL; the watcher below fills the form, so a
@@ -223,6 +282,128 @@ function can(action: string): boolean {
 }
 const canCreate = computed(() => can('create') && (!isSetting.value || (records.value.length === 0 && !loading.value && !loadError.value)))
 
+// Link cells show the linked Record's label, never its ID. Labels load once
+// per page of Records and fill in as they arrive.
+const linkLabels = ref<Record<string, string>>({})
+watch(records, async (items) => {
+  if (!props.recordType) return
+  for (const field of props.recordType.fields) {
+    if (field.type !== 'Link' || !field.target_record_type) continue
+    const ids = items.flatMap((record) => { const kind = record.values[field.name]?.kind; return kind?.case === 'stringValue' ? [kind.value] : [] })
+    if (ids.length === 0) continue
+    try {
+      const found = await resolveRecords(field.target_record_type, ids)
+      linkLabels.value = { ...linkLabels.value, ...Object.fromEntries([...found].map(([id, item]) => [id, labelWithState(item)])) }
+    } catch {
+      // The cell stays empty; opening the Record shows the error toast if the lookup keeps failing.
+    }
+  }
+}, { immediate: true })
+
+const tableColumns = computed(() => props.recordType
+  ? buildRecordColumns({
+    fields: props.recordType.fields,
+    submittable: submittable.value,
+    linkLabels: linkLabels.value,
+    primaryField: props.recordType.label_field,
+    updatedLine: (item) => formatWhen(item.updatedAt),
+  })
+  : [])
+const recordFilters = computed<TableFilter[]>(() => submittable.value
+  ? [{ id: 'status', label: 'Status', options: [{ value: '0', label: 'Draft' }, { value: '1', label: 'Submitted' }, { value: '2', label: 'Cancelled' }], selected: statusSelected.value }]
+  : [])
+
+const bulkDeleting = ref(false)
+const confirmingBulkDelete = ref(false)
+const bulkActions = computed<ActionItem[]>(() => [
+  { id: 'delete', label: 'Delete', kind: 'destructive', icon: 'trash-2', busy: bulkDeleting.value },
+])
+const pendingDelete = ref<RecordMessage | null>(null)
+const confirmingSingleDelete = computed({
+  get: () => pendingDelete.value !== null,
+  set: (open: boolean) => { if (!open) pendingDelete.value = null },
+})
+
+function rowActions(target: RecordMessage): ActionItem[] {
+  const settled = submittable.value && target.docstate !== docstates.draft
+  return [
+    { id: 'open', label: 'Open', kind: 'quiet', icon: 'eye' },
+    {
+      id: 'delete',
+      label: 'Delete',
+      kind: 'destructive',
+      icon: 'trash-2',
+      disabledReason: isSetting.value ? 'A setting is edited, not deleted.' : settled ? 'Only a draft can be deleted.' : null,
+    },
+  ]
+}
+
+function onRowAction(id: string, target: RecordMessage) {
+  if (id === 'open') openRecord(target)
+  else if (id === 'delete') pendingDelete.value = target
+}
+
+function onBulkAction(id: string) {
+  if (id === 'delete') confirmingBulkDelete.value = true
+}
+
+// After a delete the page reloads; a page left empty steps back first.
+function reloadAfterDelete() {
+  if (records.value.length <= 1 && page.value > 1) page.value -= 1
+  void load(false)
+}
+
+async function deleteOne(target: RecordMessage) {
+  const recordType = props.recordType
+  if (!recordType) return
+  busy.value = true
+  try {
+    await recordClient.deleteRecord({ recordTypeKey: recordType.name, id: target.id, expectedRevision: target.revision })
+    selectedIds.value = selectedIds.value.filter((id) => id !== target.id)
+    knownRevisions.delete(target.id)
+    forgetLabels(recordType.name)
+    toast.success('Record deleted.')
+    reloadAfterDelete()
+  } catch (err) {
+    reportWriteError(err)
+  } finally {
+    pendingDelete.value = null
+    busy.value = false
+  }
+}
+
+async function deleteSelected() {
+  const recordType = props.recordType
+  const ids = [...selectedIds.value]
+  if (!recordType || ids.length === 0) return
+  bulkDeleting.value = true
+  let done = 0
+  let failed = 0
+  for (const id of ids) {
+    try {
+      let revision = knownRevisions.get(id)
+      if (revision === undefined) {
+        const res = await recordClient.getRecord({ recordTypeKey: recordType.name, id })
+        revision = res.record?.revision
+      }
+      if (revision === undefined) throw new Error('Record not found.')
+      await recordClient.deleteRecord({ recordTypeKey: recordType.name, id, expectedRevision: revision })
+      knownRevisions.delete(id)
+      done += 1
+    } catch {
+      failed += 1
+    }
+  }
+  bulkDeleting.value = false
+  confirmingBulkDelete.value = false
+  selectedIds.value = []
+  forgetLabels(recordType.name)
+  if (failed === 0) toast.success(done === 1 ? 'Record deleted.' : `${done} records deleted.`)
+  else if (done === 0) toast.error(failed === 1 ? 'Could not delete the record.' : `Could not delete ${failed} records.`)
+  else toast.error(`Deleted ${done} of ${done + failed} records; the rest could not be deleted.`)
+  void load(true)
+}
+
 function fieldLabel(field: Field): string {
   if (field.type === 'Money' && field.currency) return `${field.label} (${field.currency})`
   if (field.type === 'Quantity' && field.uom) return `${field.label} (${field.uom})`
@@ -327,21 +508,19 @@ async function submit() {
   const values = Object.fromEntries(recordType.fields.filter((field) => !locked(field) && !states[field.name]?.hidden).map((field) => [field.name, toValue(field)]))
   try {
     if (editing.value === 'new') {
-      const res = await recordClient.createRecord({ recordTypeKey: props.recordTypeKey, values, parentId: isChild.value ? parentId.value.trim() : '', name: allowsManualName.value ? manualName.value.trim() : '' })
-      if (res.record) records.value = [...records.value, res.record]
+      await recordClient.createRecord({ recordTypeKey: props.recordTypeKey, values, parentId: isChild.value ? parentId.value.trim() : '', name: allowsManualName.value ? manualName.value.trim() : '' })
       forgetLabels(recordType.name)
       toast.success('Record created.')
+      void load(true)
       close()
     } else {
       const current = editing.value
       const res = await recordClient.updateRecord({ recordTypeKey: props.recordTypeKey, id: current.id, expectedRevision: current.revision, values })
       const updated = res.record
-      if (updated) {
-        records.value = records.value.map((item) => item.id === current.id ? updated : item)
-        open(updated)
-      }
+      if (updated) open(updated)
       forgetLabels(recordType.name)
       toast.success('Record saved.')
+      void load(false)
     }
   } catch (err) {
     reportWriteError(err)
@@ -369,12 +548,11 @@ async function runTransition(action: Transition) {
       const fresh = record
       // An amend returns the new draft; the other two return the changed document.
       if (action === 'amend') {
-        const original = await recordClient.getRecord({ recordTypeKey: recordType.name, id: current.id })
-        records.value = [...records.value.map((item) => item.id === current.id && original.record ? original.record : item), fresh]
         emit('update:recordId', fresh.id)
+        void load(true)
       } else {
-        records.value = records.value.map((item) => item.id === fresh.id ? fresh : item)
         open(fresh)
+        void load(false)
       }
     }
     forgetLabels(recordType.name)
@@ -393,10 +571,9 @@ async function reloadRecord() {
   try {
     const res = await recordClient.getRecord({ recordTypeKey: recordType.name, id: editing.value.id })
     if (res.record) {
-      const fresh = res.record
-      records.value = records.value.map((item) => item.id === fresh.id ? fresh : item)
-      open(fresh)
+      open(res.record)
       toast.info('Record reloaded with the latest changes.')
+      void load(false)
     }
   } catch (err) {
     toast.error(message(err))
@@ -410,9 +587,11 @@ async function remove() {
   busy.value = true
   try {
     await recordClient.deleteRecord({ recordTypeKey: recordType.name, id: current.id, expectedRevision: current.revision })
-    records.value = records.value.filter((item) => item.id !== current.id)
+    knownRevisions.delete(current.id)
+    selectedIds.value = selectedIds.value.filter((id) => id !== current.id)
     forgetLabels(recordType.name)
     toast.success('Record deleted.')
+    reloadAfterDelete()
     close()
   } catch (err) {
     reportWriteError(err)
@@ -636,30 +815,60 @@ function calculatedError(field: Field): string | undefined {
 
     <template v-else>
       <div class="view-head"><div><h1>{{ recordType.label }}</h1><p v-if="recordType.description" class="lead">{{ recordType.description }}</p></div><ActionButton v-if="canCreate" kind="primary" label="New record" icon="plus" @press="openRecord('new')" /></div>
-      <form class="entries-filter" role="search" @submit.prevent="applyFilter(filterText)">
-        <Input :model-value="filterText" aria-label="Filter records with an expression" placeholder='Filter, for example doc.total > dec("100")' @update:model-value="filterText = String($event)" />
-        <ActionButton type="submit" kind="secondary" density="row" label="Filter" icon="list-filter" />
-        <ActionButton v-if="appliedFilter" kind="quiet" density="row" label="Clear" icon="x" @press="applyFilter('')" />
-      </form>
-      <div class="mb-3 min-[640px]:hidden">
-        <ActionButton kind="secondary" :label="appliedFilter ? 'Filtered' : 'Filter'" icon="list-filter" full-bleed @press="filterOpen = true" />
-        <BottomDrawer v-model:open="filterOpen" title="Filter records">
-          <TextField id="entries-filter-text" label="Filter expression" optional v-model="filterText" placeholder='For example doc.total > dec("100")' help="Only matching records list." />
-          <template #footer>
-            <ActionButton v-if="appliedFilter" kind="quiet" label="Clear" icon="x" @press="applyFilter(''); filterOpen = false" />
-            <ActionButton kind="primary" label="Apply filter" icon="list-filter" full-bleed @press="applyFilter(filterText); filterOpen = false" />
+      <PullToRefresh :refreshing="loading" @refresh="load(false)">
+        <DataTable
+          :key="recordType.name"
+          :columns="tableColumns"
+          :data="records"
+          :table-id="tableId"
+          :username="username"
+          :get-row-id="(record) => record.id"
+          v-model:selected-ids="selectedIds"
+          :bulk-actions="bulkActions"
+          :row-actions="rowActions"
+          v-model:search="filterText"
+          search-placeholder='Filter records, for example doc.total > dec("100")'
+          :filters="recordFilters"
+          :server-paging="serverPaging"
+          :loading="loading"
+          :error="loadError || null"
+          :filtered="appliedFilter !== ''"
+          clickable
+          resizable
+          :width-key="`athena-entry-columns:${recordType.name}`"
+          empty-title="No records yet"
+          empty-body="Create the first record to see it here."
+          @row-click="openRecord"
+          @row-action="onRowAction"
+          @bulk-action="onBulkAction"
+          @update:filters="onFiltersChanged"
+          @clear-filters="onClearFilters"
+          @prev-page="prevPage"
+          @next-page="nextPage"
+          @update:page-size="changePageSize"
+          @retry="load(false)"
+        >
+          <template v-if="canCreate" #empty-action>
+            <ActionButton kind="primary" label="Create the first record" icon="plus" @press="openRecord('new')" />
           </template>
-        </BottomDrawer>
-      </div>
-      <PullToRefresh :refreshing="loading" @refresh="load()">
-        <div class="entries-panel">
-          <RecordsTable v-if="records.length > 0" :key="recordType.name" :record-type-key="recordType.name" :fields="recordType.fields" :records="records" :submittable="submittable" @open="openRecord" />
-          <p v-else-if="loading && records.length === 0" class="empty-state">Loading…</p>
-          <p v-else-if="loadError" class="empty-state">Records could not be loaded. <ActionButton kind="secondary" density="row" label="Retry" icon="refresh-ccw" @press="load()" /></p>
-          <div v-else class="entries-empty"><p>{{ appliedFilter ? 'No records match the filter.' : 'No records yet.' }}</p><ActionButton v-if="canCreate && !appliedFilter" kind="primary" label="Create the first record" icon="plus" @press="openRecord('new')" /></div>
-          <div v-if="nextPageToken && !loading" class="entries-more"><ActionButton kind="secondary" density="row" label="Load more" icon="chevron-down" @press="load(true)" /></div>
-        </div>
+        </DataTable>
       </PullToRefresh>
+      <ConfirmDialog
+        v-model:open="confirmingBulkDelete"
+        :title="selectedIds.length === 1 ? 'Delete this record?' : `Delete ${selectedIds.length} records?`"
+        body="They disappear from lists at once. This cannot be undone."
+        :confirm-label="selectedIds.length === 1 ? 'Delete record' : `Delete ${selectedIds.length} records`"
+        :busy="bulkDeleting"
+        @confirm="deleteSelected"
+      />
+      <ConfirmDialog
+        v-model:open="confirmingSingleDelete"
+        title="Delete this record?"
+        :body="recordType.kind === 'master' ? 'It disappears from lists. The row is kept, so its history stays.' : 'This cannot be undone.'"
+        confirm-label="Delete record"
+        :busy="busy"
+        @confirm="pendingDelete && deleteOne(pendingDelete)"
+      />
     </template>
   </section>
 </template>

@@ -100,7 +100,7 @@ describe('glossary', () => {
       'pages/RecordsPage.vue',
       'pages/WorkQueuePage.vue',
       'pages/CountPage.vue',
-      'components/RecordsTable.vue',
+      'components/records/recordColumns.ts',
       'components/shell/InboxBody.vue',
     ]
     const builderOnly = [/\bRecord Types?\b/, /\bPacks?\b/, /\bRules?\b/, /\bGrants?\b/]

@@ -24,7 +24,7 @@ import type { RecordType } from '@/types'
 
 const props = defineProps<{ recordTypes: RecordType[]; typesLoaded: boolean; typesLoadFailed: boolean }>()
 const emit = defineEmits<{
-  addRecordType: []
+  createRecordType: []
   openEditor: [key: string]
   viewRecords: [key: string]
   reloadRecordTypes: []
@@ -127,7 +127,7 @@ const columns = [
   <section class="page-content builder-page">
     <PageHeader title="Record Types" description="Each Record Type defines the fields of one kind of record.">
       <template #actions>
-        <ActionButton kind="primary" label="New Record Type" icon="plus" @press="emit('addRecordType')" />
+        <ActionButton kind="primary" label="New Record Type" icon="plus" @press="emit('createRecordType')" />
       </template>
     </PageHeader>
     <EmptyState
@@ -137,7 +137,7 @@ const columns = [
       body="Create a Record Type, add its fields and save it to start adding records."
     >
       <template #action>
-        <ActionButton kind="primary" label="Create your first Record Type" icon="plus" @press="emit('addRecordType')" />
+        <ActionButton kind="primary" label="Create your first Record Type" icon="plus" @press="emit('createRecordType')" />
       </template>
     </EmptyState>
     <PullToRefresh v-else v-model:refreshing="refreshing" @refresh="onRefresh">

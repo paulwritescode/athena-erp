@@ -23,12 +23,15 @@ const (
 
 type Appearance struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// ink, red or custom. Named presets use the Desk's preset tokens.
+	// One of the nine named presets or custom. Named presets use the Desk's preset tokens.
 	Preset string `protobuf:"bytes,1,opt,name=preset,proto3" json:"preset,omitempty"`
 	// Custom light-theme accent. The server derives the dark-theme lightness.
 	Accent string `protobuf:"bytes,2,opt,name=accent,proto3" json:"accent,omitempty"`
 	// Index zero corresponds to chart-1. Empty slots keep preset defaults.
-	ChartColors   []string `protobuf:"bytes,3,rep,name=chart_colors,json=chartColors,proto3" json:"chart_colors,omitempty"`
+	ChartColors []string `protobuf:"bytes,3,rep,name=chart_colors,json=chartColors,proto3" json:"chart_colors,omitempty"`
+	// match, neutral, earth, ocean, forest or custom. Empty reads as match,
+	// or custom when chart_colors are stored (appearances saved before B4b).
+	ChartPalette  string `protobuf:"bytes,4,opt,name=chart_palette,json=chartPalette,proto3" json:"chart_palette,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -82,6 +85,13 @@ func (x *Appearance) GetChartColors() []string {
 		return x.ChartColors
 	}
 	return nil
+}
+
+func (x *Appearance) GetChartPalette() string {
+	if x != nil {
+		return x.ChartPalette
+	}
+	return ""
 }
 
 type GetAppearanceRequest struct {
@@ -679,12 +689,13 @@ var File_athena_v1_workspace_proto protoreflect.FileDescriptor
 
 const file_athena_v1_workspace_proto_rawDesc = "" +
 	"\n" +
-	"\x19athena/v1/workspace.proto\x12\tathena.v1\"_\n" +
+	"\x19athena/v1/workspace.proto\x12\tathena.v1\"\x84\x01\n" +
 	"\n" +
 	"Appearance\x12\x16\n" +
 	"\x06preset\x18\x01 \x01(\tR\x06preset\x12\x16\n" +
 	"\x06accent\x18\x02 \x01(\tR\x06accent\x12!\n" +
-	"\fchart_colors\x18\x03 \x03(\tR\vchartColors\"\x16\n" +
+	"\fchart_colors\x18\x03 \x03(\tR\vchartColors\x12#\n" +
+	"\rchart_palette\x18\x04 \x01(\tR\fchartPalette\"\x16\n" +
 	"\x14GetAppearanceRequest\"\x92\x01\n" +
 	"\x15GetAppearanceResponse\x125\n" +
 	"\n" +

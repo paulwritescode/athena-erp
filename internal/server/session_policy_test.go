@@ -387,3 +387,70 @@ func TestRPCRateLimitsAndAudit(t *testing.T) {
 	_, err = b.auth.StepUp(call, &v1.StepUpRequest{Password: testPassword})
 	check(err, info, auth.SessionWrites)
 }
+
+func TestPassiveProcedureCoverage(t *testing.T) {
+	for proc := range passiveProcedures {
+		if _, ok := procedurePolicies[proc]; !ok {
+			t.Errorf("passive procedure %s has no gate policy", proc)
+		}
+		if passiveProcedures[athenav1connect.AuthServiceTouchProcedure] {
+			t.Error("Touch must stay active: the Stay button calls it to extend idle")
+		}
+	}
+}
+
+func TestPassivePollingEndsIdleSession(t *testing.T) {
+	f := newAccessFixture(t)
+	ctx := context.Background()
+	f.user(t, "ordinary")
+	if _, err := f.users.EnsureRoot(ctx, testPassword); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC().Truncate(time.Second)
+	svc := &auth.Service{DB: f.db, Now: func() time.Time { return now }}
+	if err := svc.SetSecurity(ctx, auth.IdleMinutes, 5); err != nil {
+		t.Fatal(err)
+	}
+
+	res, err := svc.Login(ctx, "ordinary", testPassword, newRequestID())
+	if err != nil {
+		t.Fatal(err)
+	}
+	authenticate := func(token string) error {
+		ctx := context.Background()
+		_, err := svc.AuthenticatePassive(ctx, token)
+		return err
+	}
+	// Polling for longer than the idle window without any active call ends it.
+	loginAt := now
+	for now = now.Add(30 * time.Second); now.Before(loginAt.Add(5 * time.Minute)); now = now.Add(30 * time.Second) {
+		if err := authenticate(res.Token); err != nil {
+			t.Fatalf("passive poll at +%v failed: %v", now.Sub(loginAt), err)
+		}
+	}
+	now = loginAt.Add(6 * time.Minute)
+	var ended *auth.SessionEnded
+	if err := authenticate(res.Token); !errors.As(err, &ended) || ended.Reason != "idle" {
+		t.Fatalf("passive polling kept the session alive: %v", err)
+	}
+
+	// One active call resets the idle window; passive polls then survive
+	// until the new window lapses.
+	res, err = svc.Login(ctx, "ordinary", testPassword, newRequestID())
+	if err != nil {
+		t.Fatal(err)
+	}
+	loginAt = now
+	now = now.Add(4 * time.Minute)
+	if _, err := svc.Authenticate(context.Background(), res.Token); err != nil {
+		t.Fatal(err)
+	}
+	now = loginAt.Add(9 * time.Minute).Add(-time.Second)
+	if err := authenticate(res.Token); err != nil {
+		t.Fatalf("passive poll inside the reset window failed: %v", err)
+	}
+	now = loginAt.Add(10 * time.Minute)
+	if err := authenticate(res.Token); !errors.As(err, &ended) || ended.Reason != "idle" {
+		t.Fatalf("session survived the reset idle window: %v", err)
+	}
+}

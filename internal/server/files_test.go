@@ -3,9 +3,13 @@ package server
 import (
 	"bytes"
 	"context"
+	"image"
+	"image/color"
+	"image/png"
 	"log"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -46,6 +50,8 @@ func TestFileServiceDeniesWithoutTheSystemPermissionAndLogsIt(t *testing.T) {
 		b.login(t, name)
 		_, err := b.files.PutFile(ctx, put)
 		requireCode(t, err, connect.CodePermissionDenied)
+		_, err = b.files.PutImage(ctx, &athenav1.PutImageRequest{Path: "images/a.png", Content: []byte("x\n")})
+		requireCode(t, err, connect.CodePermissionDenied)
 		_, err = b.files.MoveFile(ctx, &athenav1.MoveFileRequest{From: "rules/a.star", To: "rules/b.star"})
 		requireCode(t, err, connect.CodePermissionDenied)
 		_, err = b.files.DeleteFile(ctx, &athenav1.DeleteFileRequest{Path: "rules/a.star"})
@@ -64,9 +70,9 @@ func TestFileServiceDeniesWithoutTheSystemPermissionAndLogsIt(t *testing.T) {
 	if entries, _ := os.ReadDir(dir); len(entries) != 0 {
 		t.Fatalf("a denied call wrote %v", entries)
 	}
-	// 3 users x 3 writes, and 3 users x 3 reads.
-	if denials := f.accessEvents(t, auth.EventDenied); len(denials) != 18 {
-		t.Fatalf("denials = %d, want 18", len(denials))
+	// 3 users x 4 writes, and 3 users x 3 reads.
+	if denials := f.accessEvents(t, auth.EventDenied); len(denials) != 21 {
+		t.Fatalf("denials = %d, want 21", len(denials))
 	}
 	denial := f.accessEvents(t, auth.EventDenied)[0]
 	if denial.Procedure == "" || denial.RequestID == "" || (denial.Action != auth.PermissionFilesRead && denial.Action != auth.PermissionFilesWrite) {
@@ -86,6 +92,62 @@ func TestFileServiceDeniesWithoutTheSystemPermissionAndLogsIt(t *testing.T) {
 	// Signed-out calls are refused too.
 	_, err := f.browser(t).files.ListFiles(ctx, &athenav1.ListFilesRequest{})
 	requireCode(t, err, connect.CodeUnauthenticated)
+}
+
+func testImageBytes(t *testing.T, w, h int) []byte {
+	t.Helper()
+	img := image.NewRGBA(image.Rect(0, 0, w, h))
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			img.Set(x, y, color.RGBA{uint8(x), uint8(y), 0, 255})
+		}
+	}
+	var out bytes.Buffer
+	if err := png.Encode(&out, img); err != nil {
+		t.Fatal(err)
+	}
+	return out.Bytes()
+}
+
+func TestFileServicePutImageOverTheAPI(t *testing.T) {
+	dir := t.TempDir()
+	f := newAccessFixtureAt(t, dir)
+	f.role(t, "writer", []string{auth.PermissionFilesWrite})
+	f.role(t, "reader", []string{auth.PermissionFilesRead})
+	f.user(t, "walt", "writer")
+	f.user(t, "rita", "reader")
+	ctx := context.Background()
+	w := f.browser(t)
+	w.login(t, "walt")
+	content := testImageBytes(t, 400, 200)
+	stored, err := w.files.PutImage(ctx, &athenav1.PutImageRequest{Path: "images/logo.png", Content: content})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored.GetInfo().GetPath() != "images/logo.png" || stored.GetWidth() != 400 || stored.GetHeight() != 200 {
+		t.Fatalf("stored = %+v", stored)
+	}
+	r := f.browser(t)
+	r.login(t, "rita")
+	got, err := r.files.GetFile(ctx, &athenav1.GetFileRequest{Path: "images/logo.png"})
+	if err != nil || !bytes.Equal(got.GetContent(), content) {
+		t.Fatalf("read back = %d bytes, %v", len(got.GetContent()), err)
+	}
+	thumb, err := r.files.GetFile(ctx, &athenav1.GetFileRequest{Path: "images/logo.png", Thumbnail: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	img, format, err := image.Decode(bytes.NewReader(thumb.GetContent()))
+	if err != nil || format != "png" || img.Bounds().Dx() != 256 || img.Bounds().Dy() != 128 {
+		t.Fatalf("thumbnail = %s %v, %v", format, img.Bounds(), err)
+	}
+	if _, err := w.files.PutFile(ctx, &athenav1.PutFileRequest{Path: "rules/a.star", Content: []byte("x\n")}); err != nil {
+		t.Fatal(err)
+	}
+	_, err = r.files.GetFile(ctx, &athenav1.GetFileRequest{Path: "rules/a.star", Thumbnail: true})
+	requireCode(t, err, connect.CodeInvalidArgument)
+	_, err = w.files.PutImage(ctx, &athenav1.PutImageRequest{Path: "images/evil.png", Content: []byte("#!/bin/sh\n")})
+	requireCode(t, err, connect.CodeInvalidArgument)
 }
 
 func TestFileServiceOverTheAPI(t *testing.T) {
@@ -147,7 +209,7 @@ func TestFileServiceOverTheAPI(t *testing.T) {
 	if got := strings.Join(list.GetRecordTypesWithoutFile(), ","); got != "lonely" {
 		t.Fatalf("record types without a file = %q", got)
 	}
-	if list.GetMaxFileBytes() != files.MaxFileBytes || len(list.GetFolders()) != 5 {
+	if list.GetMaxFileBytes() != files.MaxFileBytes || len(list.GetFolders()) != 6 || !slices.Contains(list.GetFolders(), "images") || !slices.Contains(list.GetFolders(), "brand") {
 		t.Fatalf("limits = %d, %v", list.GetMaxFileBytes(), list.GetFolders())
 	}
 

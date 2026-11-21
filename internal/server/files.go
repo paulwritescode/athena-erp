@@ -71,7 +71,7 @@ func fileError(action string, err error) error {
 		code = connect.CodeAborted
 	case errors.Is(err, files.ErrLimit):
 		code = connect.CodeResourceExhausted
-	case errors.Is(err, files.ErrInvalidPath), errors.Is(err, files.ErrTooLarge), errors.Is(err, files.ErrNotText), errors.Is(err, files.ErrInvalidFile):
+	case errors.Is(err, files.ErrInvalidPath), errors.Is(err, files.ErrTooLarge), errors.Is(err, files.ErrNotText), errors.Is(err, files.ErrNotImage), errors.Is(err, files.ErrInvalidFile):
 	default:
 		return internalError(action, err)
 	}
@@ -179,6 +179,9 @@ func (s fileService) GetFile(ctx context.Context, req *athenav1.GetFileRequest) 
 	}
 	ctx, _, end := fileOp(ctx, "file_get", req.GetPath())
 	info, content, err := s.files.Get(ctx, req.GetPath(), req.GetRevision())
+	if err == nil && req.GetThumbnail() {
+		content, err = files.Thumbnail(content)
+	}
 	err = fileError("read the file", err)
 	end(err, len(content), 1)
 	if err != nil {
@@ -205,6 +208,23 @@ func (s fileService) PutFile(ctx context.Context, req *athenav1.PutFileRequest) 
 		return nil, err
 	}
 	return &athenav1.PutFileResponse{Info: fileInfoMessage(info, nil)}, nil
+}
+
+func (s fileService) PutImage(ctx context.Context, req *athenav1.PutImageRequest) (*athenav1.PutImageResponse, error) {
+	if err := s.ready(); err != nil {
+		return nil, err
+	}
+	if _, err := requireSystem(ctx, auth.PermissionFilesWrite); err != nil {
+		return nil, err
+	}
+	ctx, meta, end := fileOp(ctx, "file_put_image", req.GetPath())
+	result, err := s.files.PutImage(ctx, req.GetPath(), req.GetContent(), files.Expect{Hash: req.GetExpectedHash()}, meta)
+	err = fileError("save the image", err)
+	end(err, len(req.GetContent()), 1)
+	if err != nil {
+		return nil, err
+	}
+	return &athenav1.PutImageResponse{Info: fileInfoMessage(result.Info, nil), Width: int32(result.Width), Height: int32(result.Height)}, nil
 }
 
 func (s fileService) MoveFile(ctx context.Context, req *athenav1.MoveFileRequest) (*athenav1.MoveFileResponse, error) {
