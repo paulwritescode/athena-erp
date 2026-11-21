@@ -685,6 +685,54 @@ func (s authService) ListAccessLog(ctx context.Context, req *athenav1.ListAccess
 	return res, nil
 }
 
+// securitySettingMessage converts one setting for the API and the Desk.
+func securitySettingMessage(s auth.SettingInfo) *athenav1.SecuritySetting {
+	return &athenav1.SecuritySetting{Key: s.Key, Value: int32(s.Value), DefaultValue: int32(s.Default),
+		MinValue: int32(s.Min), MaxValue: int32(s.Max), Unit: s.Unit, Description: s.Description}
+}
+
+func (s authService) GetSecuritySettings(ctx context.Context, _ *athenav1.GetSecuritySettingsRequest) (*athenav1.GetSecuritySettingsResponse, error) {
+	p := auth.PrincipalFrom(ctx)
+	if p == nil {
+		return nil, connect.NewError(connect.CodeUnauthenticated, "sign in to continue")
+	}
+	if !p.HasSystem(auth.PermissionAccessSessions) && !p.HasSystem(auth.PermissionSecurity) {
+		return nil, connect.NewError(connect.CodePermissionDenied, "you do not have permission to do this")
+	}
+	infos, err := s.auth.SecurityInfo(ctx)
+	if err != nil {
+		return nil, authError("read security settings", err)
+	}
+	res := &athenav1.GetSecuritySettingsResponse{}
+	for _, info := range infos {
+		res.Settings = append(res.Settings, securitySettingMessage(info))
+	}
+	return res, nil
+}
+
+func (s authService) SetSecuritySettings(ctx context.Context, req *athenav1.SetSecuritySettingsRequest) (res *athenav1.SetSecuritySettingsResponse, err error) {
+	ctx, requestID, end := startKernelSpan(ctx, "set_security_settings", "")
+	defer func() { end(err) }()
+	updates := make(map[string]int, len(req.GetSettings()))
+	for key, value := range req.GetSettings() {
+		updates[key] = int(value)
+	}
+	// The same write path as athena security set: one validated, atomic,
+	// audited batch. The gate already checked settings:security and step-up.
+	if err := s.auth.SetSecuritySettings(ctx, updates, requestID); err != nil {
+		return nil, authError("save security settings", err)
+	}
+	infos, err := s.auth.SecurityInfo(ctx)
+	if err != nil {
+		return nil, authError("read security settings", err)
+	}
+	res = &athenav1.SetSecuritySettingsResponse{}
+	for _, info := range infos {
+		res.Settings = append(res.Settings, securitySettingMessage(info))
+	}
+	return res, nil
+}
+
 // failureError attaches an AuthFailure detail to an error.
 func failureError(code connect.Code, message string, failure *athenav1.AuthFailure) error {
 	err := connect.NewError(code, message)

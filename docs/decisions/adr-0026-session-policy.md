@@ -30,3 +30,7 @@ Login, CompleteChallenge and StartReset share buckets for the socket peer IP and
 ## Consequences and revisit conditions
 
 A policy edit affects newly created sessions and the next rate-limited call. Restarting the single server resets in-memory buckets. Review shared limiter state and trusted peer addresses before introducing multiple replicas or a reverse proxy. Desk tab coordination, warning and password prompts are a separate B7 deliverable.
+
+## Addendum: security settings RPC (2026-11-21)
+
+`AuthService.GetSecuritySettings` returns every setting with its value, default, bounds, unit and a one-line explanation; it needs `access:sessions` or `settings:security`. `AuthService.SetSecuritySettings` applies a partial update through the same validated, atomic, audited function as `athena security set`; it needs `settings:security` (a new system permission, counted as build access) and fresh step-up proof, and writes a `security_settings_changed` Access Log row naming each key with its old and new value. No new service: the settings belong to AuthService, which already owns them.

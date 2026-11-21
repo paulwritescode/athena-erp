@@ -81,6 +81,10 @@ var procedurePolicies = map[string]policy{
 	athenav1connect.AuthServiceTransferOwnershipProcedure: {kind: policySystem, permission: auth.PermissionAccessOwnership},
 	athenav1connect.AuthServiceListRoleHoldersProcedure:   {kind: policySystem, permission: auth.PermissionAccessRoles},
 	athenav1connect.AuthServiceListAccessLogProcedure:     {kind: policySystem, permission: auth.PermissionAudit},
+	// Security settings stay open to signed-in callers: the get handler
+	// requires access:sessions or settings:security.
+	athenav1connect.AuthServiceGetSecuritySettingsProcedure: {kind: policySession},
+	athenav1connect.AuthServiceSetSecuritySettingsProcedure: {kind: policySystem, permission: auth.PermissionSecurity},
 
 	athenav1connect.FileServiceListFilesProcedure:        {kind: policySystem, permission: auth.PermissionFilesRead},
 	athenav1connect.FileServiceGetFileProcedure:          {kind: policySystem, permission: auth.PermissionFilesRead},
@@ -156,8 +160,10 @@ var procedurePolicies = map[string]policy{
 // destructiveProcedures covers deletes, reversals, replacement of executable
 // code, access changes and publication/discard of settings. A Record Type save
 // is destructive only when the caller explicitly confirms data loss, and an
-// invite only when it grants Roles with the invitation.
+// invite only when it grants Roles with the invitation. Security settings
+// weaken every account, so changing them needs fresh proof too.
 var destructiveProcedures = map[string]bool{
+	athenav1connect.AuthServiceSetSecuritySettingsProcedure:    true,
 	athenav1connect.AuthServiceStartResetProcedure:             true,
 	athenav1connect.AuthServiceInviteUserProcedure:             true,
 	athenav1connect.AuthServiceUpdateUserProcedure:             true,

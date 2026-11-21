@@ -295,7 +295,7 @@ func TestPrivilegedActorPasswordFailuresCountTowardLockout(t *testing.T) {
 func TestDestructiveProcedureCoverage(t *testing.T) {
 	for proc := range procedurePolicies {
 		_, method, _ := strings.Cut(strings.TrimPrefix(proc, "/"), "/")
-		for _, verb := range []string{"Delete", "Cancel", "Revoke", "Discard", "Transfer", "StartReset", "Resend", "Invite", "Publish", "SetPeriodStatus", "SaveRecordType", "SaveRole", "SaveAssignment", "UpdateUser", "SaveRule", "MoveFile", "PutFile"} {
+		for _, verb := range []string{"Delete", "Cancel", "Revoke", "Discard", "Transfer", "StartReset", "Resend", "Invite", "Publish", "SetPeriodStatus", "SetSecuritySettings", "SaveRecordType", "SaveRole", "SaveAssignment", "UpdateUser", "SaveRule", "MoveFile", "PutFile"} {
 			if strings.HasPrefix(method, verb) && !destructiveProcedures[proc] {
 				t.Errorf("%s has no step-up classification", proc)
 			}

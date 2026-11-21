@@ -40,6 +40,10 @@ const (
 	// never carry the password.
 	EventStepUp       = "step_up"
 	EventStepUpFailed = "step_up_failed"
+	// EventSecuritySettingsChanged records a Workspace security settings
+	// change. The detail names each key with its old and new value; these
+	// are policy numbers, not secrets.
+	EventSecuritySettingsChanged = "security_settings_changed"
 )
 
 // Outcomes of a logged event.

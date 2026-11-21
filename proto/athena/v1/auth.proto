@@ -67,6 +67,13 @@ service AuthService {
   rpc ListRoleHolders(ListRoleHoldersRequest) returns (ListRoleHoldersResponse);
   // ListAccessLog reads the Access Log. It needs the audit permission.
   rpc ListAccessLog(ListAccessLogRequest) returns (ListAccessLogResponse);
+  // GetSecuritySettings returns every Workspace security setting with its
+  // current value, default, bounds, unit and a one-line explanation. It
+  // needs access:sessions or settings:security.
+  rpc GetSecuritySettings(GetSecuritySettingsRequest) returns (GetSecuritySettingsResponse);
+  // SetSecuritySettings changes named security settings atomically. It
+  // needs settings:security and fresh step-up proof.
+  rpc SetSecuritySettings(SetSecuritySettingsRequest) returns (SetSecuritySettingsResponse);
 }
 message LoginRequest {
   string username = 1;
@@ -360,6 +367,29 @@ message AccessEvent {
 }
 message ListAccessLogResponse {
   repeated AccessEvent events = 1;
+}
+// SecuritySetting is one Workspace security setting with the metadata the
+// Desk shows beside its value.
+message SecuritySetting {
+  string key = 1;
+  int32 value = 2;
+  int32 default_value = 3;
+  int32 min_value = 4;
+  int32 max_value = 5;
+  string unit = 6;
+  string description = 7;
+}
+message GetSecuritySettingsRequest {}
+message GetSecuritySettingsResponse {
+  repeated SecuritySetting settings = 1;
+}
+message SetSecuritySettingsRequest {
+  // Named keys to change; every key is validated before any is stored.
+  map<string, int32> settings = 1;
+}
+message SetSecuritySettingsResponse {
+  // Every setting after the change.
+  repeated SecuritySetting settings = 1;
 }
 
 // AuthFailure is attached as an error detail to an authentication, session,

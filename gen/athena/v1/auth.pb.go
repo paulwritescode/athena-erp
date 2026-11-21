@@ -3315,6 +3315,270 @@ func (x *ListAccessLogResponse) GetEvents() []*AccessEvent {
 	return nil
 }
 
+// SecuritySetting is one Workspace security setting with the metadata the
+// Desk shows beside its value.
+type SecuritySetting struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Key           string                 `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
+	Value         int32                  `protobuf:"varint,2,opt,name=value,proto3" json:"value,omitempty"`
+	DefaultValue  int32                  `protobuf:"varint,3,opt,name=default_value,json=defaultValue,proto3" json:"default_value,omitempty"`
+	MinValue      int32                  `protobuf:"varint,4,opt,name=min_value,json=minValue,proto3" json:"min_value,omitempty"`
+	MaxValue      int32                  `protobuf:"varint,5,opt,name=max_value,json=maxValue,proto3" json:"max_value,omitempty"`
+	Unit          string                 `protobuf:"bytes,6,opt,name=unit,proto3" json:"unit,omitempty"`
+	Description   string                 `protobuf:"bytes,7,opt,name=description,proto3" json:"description,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SecuritySetting) Reset() {
+	*x = SecuritySetting{}
+	mi := &file_athena_v1_auth_proto_msgTypes[61]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SecuritySetting) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SecuritySetting) ProtoMessage() {}
+
+func (x *SecuritySetting) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_auth_proto_msgTypes[61]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SecuritySetting.ProtoReflect.Descriptor instead.
+func (*SecuritySetting) Descriptor() ([]byte, []int) {
+	return file_athena_v1_auth_proto_rawDescGZIP(), []int{61}
+}
+
+func (x *SecuritySetting) GetKey() string {
+	if x != nil {
+		return x.Key
+	}
+	return ""
+}
+
+func (x *SecuritySetting) GetValue() int32 {
+	if x != nil {
+		return x.Value
+	}
+	return 0
+}
+
+func (x *SecuritySetting) GetDefaultValue() int32 {
+	if x != nil {
+		return x.DefaultValue
+	}
+	return 0
+}
+
+func (x *SecuritySetting) GetMinValue() int32 {
+	if x != nil {
+		return x.MinValue
+	}
+	return 0
+}
+
+func (x *SecuritySetting) GetMaxValue() int32 {
+	if x != nil {
+		return x.MaxValue
+	}
+	return 0
+}
+
+func (x *SecuritySetting) GetUnit() string {
+	if x != nil {
+		return x.Unit
+	}
+	return ""
+}
+
+func (x *SecuritySetting) GetDescription() string {
+	if x != nil {
+		return x.Description
+	}
+	return ""
+}
+
+type GetSecuritySettingsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetSecuritySettingsRequest) Reset() {
+	*x = GetSecuritySettingsRequest{}
+	mi := &file_athena_v1_auth_proto_msgTypes[62]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetSecuritySettingsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetSecuritySettingsRequest) ProtoMessage() {}
+
+func (x *GetSecuritySettingsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_auth_proto_msgTypes[62]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetSecuritySettingsRequest.ProtoReflect.Descriptor instead.
+func (*GetSecuritySettingsRequest) Descriptor() ([]byte, []int) {
+	return file_athena_v1_auth_proto_rawDescGZIP(), []int{62}
+}
+
+type GetSecuritySettingsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Settings      []*SecuritySetting     `protobuf:"bytes,1,rep,name=settings,proto3" json:"settings,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetSecuritySettingsResponse) Reset() {
+	*x = GetSecuritySettingsResponse{}
+	mi := &file_athena_v1_auth_proto_msgTypes[63]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetSecuritySettingsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetSecuritySettingsResponse) ProtoMessage() {}
+
+func (x *GetSecuritySettingsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_auth_proto_msgTypes[63]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetSecuritySettingsResponse.ProtoReflect.Descriptor instead.
+func (*GetSecuritySettingsResponse) Descriptor() ([]byte, []int) {
+	return file_athena_v1_auth_proto_rawDescGZIP(), []int{63}
+}
+
+func (x *GetSecuritySettingsResponse) GetSettings() []*SecuritySetting {
+	if x != nil {
+		return x.Settings
+	}
+	return nil
+}
+
+type SetSecuritySettingsRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Named keys to change; every key is validated before any is stored.
+	Settings      map[string]int32 `protobuf:"bytes,1,rep,name=settings,proto3" json:"settings,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"varint,2,opt,name=value"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetSecuritySettingsRequest) Reset() {
+	*x = SetSecuritySettingsRequest{}
+	mi := &file_athena_v1_auth_proto_msgTypes[64]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetSecuritySettingsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetSecuritySettingsRequest) ProtoMessage() {}
+
+func (x *SetSecuritySettingsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_auth_proto_msgTypes[64]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetSecuritySettingsRequest.ProtoReflect.Descriptor instead.
+func (*SetSecuritySettingsRequest) Descriptor() ([]byte, []int) {
+	return file_athena_v1_auth_proto_rawDescGZIP(), []int{64}
+}
+
+func (x *SetSecuritySettingsRequest) GetSettings() map[string]int32 {
+	if x != nil {
+		return x.Settings
+	}
+	return nil
+}
+
+type SetSecuritySettingsResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Every setting after the change.
+	Settings      []*SecuritySetting `protobuf:"bytes,1,rep,name=settings,proto3" json:"settings,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetSecuritySettingsResponse) Reset() {
+	*x = SetSecuritySettingsResponse{}
+	mi := &file_athena_v1_auth_proto_msgTypes[65]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetSecuritySettingsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetSecuritySettingsResponse) ProtoMessage() {}
+
+func (x *SetSecuritySettingsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_auth_proto_msgTypes[65]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetSecuritySettingsResponse.ProtoReflect.Descriptor instead.
+func (*SetSecuritySettingsResponse) Descriptor() ([]byte, []int) {
+	return file_athena_v1_auth_proto_rawDescGZIP(), []int{65}
+}
+
+func (x *SetSecuritySettingsResponse) GetSettings() []*SecuritySetting {
+	if x != nil {
+		return x.Settings
+	}
+	return nil
+}
+
 // AuthFailure is attached as an error detail to an authentication, session,
 // step-up or rate-limit failure the server may describe: locked and disabled
 // are sent only when the correct password was given, so they reveal nothing
@@ -3332,7 +3596,7 @@ type AuthFailure struct {
 
 func (x *AuthFailure) Reset() {
 	*x = AuthFailure{}
-	mi := &file_athena_v1_auth_proto_msgTypes[61]
+	mi := &file_athena_v1_auth_proto_msgTypes[66]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3344,7 +3608,7 @@ func (x *AuthFailure) String() string {
 func (*AuthFailure) ProtoMessage() {}
 
 func (x *AuthFailure) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_auth_proto_msgTypes[61]
+	mi := &file_athena_v1_auth_proto_msgTypes[66]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3357,7 +3621,7 @@ func (x *AuthFailure) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AuthFailure.ProtoReflect.Descriptor instead.
 func (*AuthFailure) Descriptor() ([]byte, []int) {
-	return file_athena_v1_auth_proto_rawDescGZIP(), []int{61}
+	return file_athena_v1_auth_proto_rawDescGZIP(), []int{66}
 }
 
 func (x *AuthFailure) GetReason() string {
@@ -3608,12 +3872,30 @@ const file_athena_v1_auth_proto_rawDesc = "" +
 	"\x06detail\x18\n" +
 	" \x01(\tR\x06detail\"G\n" +
 	"\x15ListAccessLogResponse\x12.\n" +
-	"\x06events\x18\x01 \x03(\v2\x16.athena.v1.AccessEventR\x06events\"t\n" +
+	"\x06events\x18\x01 \x03(\v2\x16.athena.v1.AccessEventR\x06events\"\xce\x01\n" +
+	"\x0fSecuritySetting\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\x05R\x05value\x12#\n" +
+	"\rdefault_value\x18\x03 \x01(\x05R\fdefaultValue\x12\x1b\n" +
+	"\tmin_value\x18\x04 \x01(\x05R\bminValue\x12\x1b\n" +
+	"\tmax_value\x18\x05 \x01(\x05R\bmaxValue\x12\x12\n" +
+	"\x04unit\x18\x06 \x01(\tR\x04unit\x12 \n" +
+	"\vdescription\x18\a \x01(\tR\vdescription\"\x1c\n" +
+	"\x1aGetSecuritySettingsRequest\"U\n" +
+	"\x1bGetSecuritySettingsResponse\x126\n" +
+	"\bsettings\x18\x01 \x03(\v2\x1a.athena.v1.SecuritySettingR\bsettings\"\xaa\x01\n" +
+	"\x1aSetSecuritySettingsRequest\x12O\n" +
+	"\bsettings\x18\x01 \x03(\v23.athena.v1.SetSecuritySettingsRequest.SettingsEntryR\bsettings\x1a;\n" +
+	"\rSettingsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\x05R\x05value:\x028\x01\"U\n" +
+	"\x1bSetSecuritySettingsResponse\x126\n" +
+	"\bsettings\x18\x01 \x03(\v2\x1a.athena.v1.SecuritySettingR\bsettings\"t\n" +
 	"\vAuthFailure\x12\x16\n" +
 	"\x06reason\x18\x01 \x01(\tR\x06reason\x12\x1d\n" +
 	"\n" +
 	"unlocks_at\x18\x02 \x01(\tR\tunlocksAt\x12.\n" +
-	"\x13retry_after_seconds\x18\x03 \x01(\rR\x11retryAfterSeconds2\xcf\x0f\n" +
+	"\x13retry_after_seconds\x18\x03 \x01(\rR\x11retryAfterSeconds2\x9b\x11\n" +
 	"\vAuthService\x12:\n" +
 	"\x05Login\x12\x17.athena.v1.LoginRequest\x1a\x18.athena.v1.LoginResponse\x12=\n" +
 	"\x06StepUp\x12\x18.athena.v1.StepUpRequest\x1a\x19.athena.v1.StepUpResponse\x12=\n" +
@@ -3645,7 +3927,9 @@ const file_athena_v1_auth_proto_rawDesc = "" +
 	"\rRevokeSession\x12\x1f.athena.v1.RevokeSessionRequest\x1a .athena.v1.RevokeSessionResponse\x12^\n" +
 	"\x11TransferOwnership\x12#.athena.v1.TransferOwnershipRequest\x1a$.athena.v1.TransferOwnershipResponse\x12X\n" +
 	"\x0fListRoleHolders\x12!.athena.v1.ListRoleHoldersRequest\x1a\".athena.v1.ListRoleHoldersResponse\x12R\n" +
-	"\rListAccessLog\x12\x1f.athena.v1.ListAccessLogRequest\x1a .athena.v1.ListAccessLogResponseB#Z!athena-erp/gen/athena/v1;athenav1b\x06proto3"
+	"\rListAccessLog\x12\x1f.athena.v1.ListAccessLogRequest\x1a .athena.v1.ListAccessLogResponse\x12d\n" +
+	"\x13GetSecuritySettings\x12%.athena.v1.GetSecuritySettingsRequest\x1a&.athena.v1.GetSecuritySettingsResponse\x12d\n" +
+	"\x13SetSecuritySettings\x12%.athena.v1.SetSecuritySettingsRequest\x1a&.athena.v1.SetSecuritySettingsResponseB#Z!athena-erp/gen/athena/v1;athenav1b\x06proto3"
 
 var (
 	file_athena_v1_auth_proto_rawDescOnce sync.Once
@@ -3659,72 +3943,78 @@ func file_athena_v1_auth_proto_rawDescGZIP() []byte {
 	return file_athena_v1_auth_proto_rawDescData
 }
 
-var file_athena_v1_auth_proto_msgTypes = make([]protoimpl.MessageInfo, 64)
+var file_athena_v1_auth_proto_msgTypes = make([]protoimpl.MessageInfo, 70)
 var file_athena_v1_auth_proto_goTypes = []any{
-	(*LoginRequest)(nil),              // 0: athena.v1.LoginRequest
-	(*LoginResponse)(nil),             // 1: athena.v1.LoginResponse
-	(*StepUpRequest)(nil),             // 2: athena.v1.StepUpRequest
-	(*StepUpResponse)(nil),            // 3: athena.v1.StepUpResponse
-	(*LogoutRequest)(nil),             // 4: athena.v1.LogoutRequest
-	(*LogoutResponse)(nil),            // 5: athena.v1.LogoutResponse
-	(*GetSessionRequest)(nil),         // 6: athena.v1.GetSessionRequest
-	(*GetSessionResponse)(nil),        // 7: athena.v1.GetSessionResponse
-	(*SessionInfo)(nil),               // 8: athena.v1.SessionInfo
-	(*ChangePasswordRequest)(nil),     // 9: athena.v1.ChangePasswordRequest
-	(*ChangePasswordResponse)(nil),    // 10: athena.v1.ChangePasswordResponse
-	(*AccessUser)(nil),                // 11: athena.v1.AccessUser
-	(*ListUsersRequest)(nil),          // 12: athena.v1.ListUsersRequest
-	(*ListUsersResponse)(nil),         // 13: athena.v1.ListUsersResponse
-	(*InviteUserRequest)(nil),         // 14: athena.v1.InviteUserRequest
-	(*InviteUserResponse)(nil),        // 15: athena.v1.InviteUserResponse
-	(*CompleteChallengeRequest)(nil),  // 16: athena.v1.CompleteChallengeRequest
-	(*CompleteChallengeResponse)(nil), // 17: athena.v1.CompleteChallengeResponse
-	(*ResendInviteRequest)(nil),       // 18: athena.v1.ResendInviteRequest
-	(*ResendInviteResponse)(nil),      // 19: athena.v1.ResendInviteResponse
-	(*StartResetRequest)(nil),         // 20: athena.v1.StartResetRequest
-	(*StartResetResponse)(nil),        // 21: athena.v1.StartResetResponse
-	(*CreateUserRequest)(nil),         // 22: athena.v1.CreateUserRequest
-	(*CreateUserResponse)(nil),        // 23: athena.v1.CreateUserResponse
-	(*UpdateUserRequest)(nil),         // 24: athena.v1.UpdateUserRequest
-	(*RoleNames)(nil),                 // 25: athena.v1.RoleNames
-	(*UpdateUserResponse)(nil),        // 26: athena.v1.UpdateUserResponse
-	(*ResetPasswordRequest)(nil),      // 27: athena.v1.ResetPasswordRequest
-	(*ResetPasswordResponse)(nil),     // 28: athena.v1.ResetPasswordResponse
-	(*ScopeValues)(nil),               // 29: athena.v1.ScopeValues
-	(*Assignment)(nil),                // 30: athena.v1.Assignment
-	(*ListAssignmentsRequest)(nil),    // 31: athena.v1.ListAssignmentsRequest
-	(*ListAssignmentsResponse)(nil),   // 32: athena.v1.ListAssignmentsResponse
-	(*SaveAssignmentRequest)(nil),     // 33: athena.v1.SaveAssignmentRequest
-	(*SaveAssignmentResponse)(nil),    // 34: athena.v1.SaveAssignmentResponse
-	(*RevokeAssignmentRequest)(nil),   // 35: athena.v1.RevokeAssignmentRequest
-	(*RevokeAssignmentResponse)(nil),  // 36: athena.v1.RevokeAssignmentResponse
-	(*ExplainAccessRequest)(nil),      // 37: athena.v1.ExplainAccessRequest
-	(*AssignmentExplanation)(nil),     // 38: athena.v1.AssignmentExplanation
-	(*ExplainAccessResponse)(nil),     // 39: athena.v1.ExplainAccessResponse
-	(*Session)(nil),                   // 40: athena.v1.Session
-	(*ListSessionsRequest)(nil),       // 41: athena.v1.ListSessionsRequest
-	(*ListSessionsResponse)(nil),      // 42: athena.v1.ListSessionsResponse
-	(*RevokeSessionRequest)(nil),      // 43: athena.v1.RevokeSessionRequest
-	(*RevokeSessionResponse)(nil),     // 44: athena.v1.RevokeSessionResponse
-	(*TransferOwnershipRequest)(nil),  // 45: athena.v1.TransferOwnershipRequest
-	(*TransferOwnershipResponse)(nil), // 46: athena.v1.TransferOwnershipResponse
-	(*ListRoleHoldersRequest)(nil),    // 47: athena.v1.ListRoleHoldersRequest
-	(*RoleHolder)(nil),                // 48: athena.v1.RoleHolder
-	(*ListRoleHoldersResponse)(nil),   // 49: athena.v1.ListRoleHoldersResponse
-	(*Grant)(nil),                     // 50: athena.v1.Grant
-	(*Role)(nil),                      // 51: athena.v1.Role
-	(*ListRolesRequest)(nil),          // 52: athena.v1.ListRolesRequest
-	(*ListRolesResponse)(nil),         // 53: athena.v1.ListRolesResponse
-	(*SaveRoleRequest)(nil),           // 54: athena.v1.SaveRoleRequest
-	(*SaveRoleResponse)(nil),          // 55: athena.v1.SaveRoleResponse
-	(*DeleteRoleRequest)(nil),         // 56: athena.v1.DeleteRoleRequest
-	(*DeleteRoleResponse)(nil),        // 57: athena.v1.DeleteRoleResponse
-	(*ListAccessLogRequest)(nil),      // 58: athena.v1.ListAccessLogRequest
-	(*AccessEvent)(nil),               // 59: athena.v1.AccessEvent
-	(*ListAccessLogResponse)(nil),     // 60: athena.v1.ListAccessLogResponse
-	(*AuthFailure)(nil),               // 61: athena.v1.AuthFailure
-	nil,                               // 62: athena.v1.Assignment.ScopeEntry
-	nil,                               // 63: athena.v1.RoleHolder.ScopeEntry
+	(*LoginRequest)(nil),                // 0: athena.v1.LoginRequest
+	(*LoginResponse)(nil),               // 1: athena.v1.LoginResponse
+	(*StepUpRequest)(nil),               // 2: athena.v1.StepUpRequest
+	(*StepUpResponse)(nil),              // 3: athena.v1.StepUpResponse
+	(*LogoutRequest)(nil),               // 4: athena.v1.LogoutRequest
+	(*LogoutResponse)(nil),              // 5: athena.v1.LogoutResponse
+	(*GetSessionRequest)(nil),           // 6: athena.v1.GetSessionRequest
+	(*GetSessionResponse)(nil),          // 7: athena.v1.GetSessionResponse
+	(*SessionInfo)(nil),                 // 8: athena.v1.SessionInfo
+	(*ChangePasswordRequest)(nil),       // 9: athena.v1.ChangePasswordRequest
+	(*ChangePasswordResponse)(nil),      // 10: athena.v1.ChangePasswordResponse
+	(*AccessUser)(nil),                  // 11: athena.v1.AccessUser
+	(*ListUsersRequest)(nil),            // 12: athena.v1.ListUsersRequest
+	(*ListUsersResponse)(nil),           // 13: athena.v1.ListUsersResponse
+	(*InviteUserRequest)(nil),           // 14: athena.v1.InviteUserRequest
+	(*InviteUserResponse)(nil),          // 15: athena.v1.InviteUserResponse
+	(*CompleteChallengeRequest)(nil),    // 16: athena.v1.CompleteChallengeRequest
+	(*CompleteChallengeResponse)(nil),   // 17: athena.v1.CompleteChallengeResponse
+	(*ResendInviteRequest)(nil),         // 18: athena.v1.ResendInviteRequest
+	(*ResendInviteResponse)(nil),        // 19: athena.v1.ResendInviteResponse
+	(*StartResetRequest)(nil),           // 20: athena.v1.StartResetRequest
+	(*StartResetResponse)(nil),          // 21: athena.v1.StartResetResponse
+	(*CreateUserRequest)(nil),           // 22: athena.v1.CreateUserRequest
+	(*CreateUserResponse)(nil),          // 23: athena.v1.CreateUserResponse
+	(*UpdateUserRequest)(nil),           // 24: athena.v1.UpdateUserRequest
+	(*RoleNames)(nil),                   // 25: athena.v1.RoleNames
+	(*UpdateUserResponse)(nil),          // 26: athena.v1.UpdateUserResponse
+	(*ResetPasswordRequest)(nil),        // 27: athena.v1.ResetPasswordRequest
+	(*ResetPasswordResponse)(nil),       // 28: athena.v1.ResetPasswordResponse
+	(*ScopeValues)(nil),                 // 29: athena.v1.ScopeValues
+	(*Assignment)(nil),                  // 30: athena.v1.Assignment
+	(*ListAssignmentsRequest)(nil),      // 31: athena.v1.ListAssignmentsRequest
+	(*ListAssignmentsResponse)(nil),     // 32: athena.v1.ListAssignmentsResponse
+	(*SaveAssignmentRequest)(nil),       // 33: athena.v1.SaveAssignmentRequest
+	(*SaveAssignmentResponse)(nil),      // 34: athena.v1.SaveAssignmentResponse
+	(*RevokeAssignmentRequest)(nil),     // 35: athena.v1.RevokeAssignmentRequest
+	(*RevokeAssignmentResponse)(nil),    // 36: athena.v1.RevokeAssignmentResponse
+	(*ExplainAccessRequest)(nil),        // 37: athena.v1.ExplainAccessRequest
+	(*AssignmentExplanation)(nil),       // 38: athena.v1.AssignmentExplanation
+	(*ExplainAccessResponse)(nil),       // 39: athena.v1.ExplainAccessResponse
+	(*Session)(nil),                     // 40: athena.v1.Session
+	(*ListSessionsRequest)(nil),         // 41: athena.v1.ListSessionsRequest
+	(*ListSessionsResponse)(nil),        // 42: athena.v1.ListSessionsResponse
+	(*RevokeSessionRequest)(nil),        // 43: athena.v1.RevokeSessionRequest
+	(*RevokeSessionResponse)(nil),       // 44: athena.v1.RevokeSessionResponse
+	(*TransferOwnershipRequest)(nil),    // 45: athena.v1.TransferOwnershipRequest
+	(*TransferOwnershipResponse)(nil),   // 46: athena.v1.TransferOwnershipResponse
+	(*ListRoleHoldersRequest)(nil),      // 47: athena.v1.ListRoleHoldersRequest
+	(*RoleHolder)(nil),                  // 48: athena.v1.RoleHolder
+	(*ListRoleHoldersResponse)(nil),     // 49: athena.v1.ListRoleHoldersResponse
+	(*Grant)(nil),                       // 50: athena.v1.Grant
+	(*Role)(nil),                        // 51: athena.v1.Role
+	(*ListRolesRequest)(nil),            // 52: athena.v1.ListRolesRequest
+	(*ListRolesResponse)(nil),           // 53: athena.v1.ListRolesResponse
+	(*SaveRoleRequest)(nil),             // 54: athena.v1.SaveRoleRequest
+	(*SaveRoleResponse)(nil),            // 55: athena.v1.SaveRoleResponse
+	(*DeleteRoleRequest)(nil),           // 56: athena.v1.DeleteRoleRequest
+	(*DeleteRoleResponse)(nil),          // 57: athena.v1.DeleteRoleResponse
+	(*ListAccessLogRequest)(nil),        // 58: athena.v1.ListAccessLogRequest
+	(*AccessEvent)(nil),                 // 59: athena.v1.AccessEvent
+	(*ListAccessLogResponse)(nil),       // 60: athena.v1.ListAccessLogResponse
+	(*SecuritySetting)(nil),             // 61: athena.v1.SecuritySetting
+	(*GetSecuritySettingsRequest)(nil),  // 62: athena.v1.GetSecuritySettingsRequest
+	(*GetSecuritySettingsResponse)(nil), // 63: athena.v1.GetSecuritySettingsResponse
+	(*SetSecuritySettingsRequest)(nil),  // 64: athena.v1.SetSecuritySettingsRequest
+	(*SetSecuritySettingsResponse)(nil), // 65: athena.v1.SetSecuritySettingsResponse
+	(*AuthFailure)(nil),                 // 66: athena.v1.AuthFailure
+	nil,                                 // 67: athena.v1.Assignment.ScopeEntry
+	nil,                                 // 68: athena.v1.RoleHolder.ScopeEntry
+	nil,                                 // 69: athena.v1.SetSecuritySettingsRequest.SettingsEntry
 }
 var file_athena_v1_auth_proto_depIdxs = []int32{
 	8,  // 0: athena.v1.LoginResponse.session:type_name -> athena.v1.SessionInfo
@@ -3738,77 +4028,84 @@ var file_athena_v1_auth_proto_depIdxs = []int32{
 	11, // 8: athena.v1.CreateUserResponse.user:type_name -> athena.v1.AccessUser
 	25, // 9: athena.v1.UpdateUserRequest.roles:type_name -> athena.v1.RoleNames
 	11, // 10: athena.v1.UpdateUserResponse.user:type_name -> athena.v1.AccessUser
-	62, // 11: athena.v1.Assignment.scope:type_name -> athena.v1.Assignment.ScopeEntry
+	67, // 11: athena.v1.Assignment.scope:type_name -> athena.v1.Assignment.ScopeEntry
 	30, // 12: athena.v1.ListAssignmentsResponse.assignments:type_name -> athena.v1.Assignment
 	30, // 13: athena.v1.SaveAssignmentRequest.assignment:type_name -> athena.v1.Assignment
 	30, // 14: athena.v1.SaveAssignmentResponse.assignment:type_name -> athena.v1.Assignment
 	38, // 15: athena.v1.ExplainAccessResponse.assignments:type_name -> athena.v1.AssignmentExplanation
 	40, // 16: athena.v1.ListSessionsResponse.sessions:type_name -> athena.v1.Session
 	11, // 17: athena.v1.TransferOwnershipResponse.user:type_name -> athena.v1.AccessUser
-	63, // 18: athena.v1.RoleHolder.scope:type_name -> athena.v1.RoleHolder.ScopeEntry
+	68, // 18: athena.v1.RoleHolder.scope:type_name -> athena.v1.RoleHolder.ScopeEntry
 	48, // 19: athena.v1.ListRoleHoldersResponse.holders:type_name -> athena.v1.RoleHolder
 	50, // 20: athena.v1.Role.grants:type_name -> athena.v1.Grant
 	51, // 21: athena.v1.ListRolesResponse.roles:type_name -> athena.v1.Role
 	51, // 22: athena.v1.SaveRoleRequest.role:type_name -> athena.v1.Role
 	51, // 23: athena.v1.SaveRoleResponse.role:type_name -> athena.v1.Role
 	59, // 24: athena.v1.ListAccessLogResponse.events:type_name -> athena.v1.AccessEvent
-	29, // 25: athena.v1.Assignment.ScopeEntry.value:type_name -> athena.v1.ScopeValues
-	29, // 26: athena.v1.RoleHolder.ScopeEntry.value:type_name -> athena.v1.ScopeValues
-	0,  // 27: athena.v1.AuthService.Login:input_type -> athena.v1.LoginRequest
-	2,  // 28: athena.v1.AuthService.StepUp:input_type -> athena.v1.StepUpRequest
-	4,  // 29: athena.v1.AuthService.Logout:input_type -> athena.v1.LogoutRequest
-	6,  // 30: athena.v1.AuthService.GetSession:input_type -> athena.v1.GetSessionRequest
-	9,  // 31: athena.v1.AuthService.ChangePassword:input_type -> athena.v1.ChangePasswordRequest
-	14, // 32: athena.v1.AuthService.InviteUser:input_type -> athena.v1.InviteUserRequest
-	16, // 33: athena.v1.AuthService.CompleteChallenge:input_type -> athena.v1.CompleteChallengeRequest
-	18, // 34: athena.v1.AuthService.ResendInvite:input_type -> athena.v1.ResendInviteRequest
-	20, // 35: athena.v1.AuthService.StartReset:input_type -> athena.v1.StartResetRequest
-	12, // 36: athena.v1.AuthService.ListUsers:input_type -> athena.v1.ListUsersRequest
-	22, // 37: athena.v1.AuthService.CreateUser:input_type -> athena.v1.CreateUserRequest
-	24, // 38: athena.v1.AuthService.UpdateUser:input_type -> athena.v1.UpdateUserRequest
-	27, // 39: athena.v1.AuthService.ResetPassword:input_type -> athena.v1.ResetPasswordRequest
-	52, // 40: athena.v1.AuthService.ListRoles:input_type -> athena.v1.ListRolesRequest
-	54, // 41: athena.v1.AuthService.SaveRole:input_type -> athena.v1.SaveRoleRequest
-	56, // 42: athena.v1.AuthService.DeleteRole:input_type -> athena.v1.DeleteRoleRequest
-	31, // 43: athena.v1.AuthService.ListAssignments:input_type -> athena.v1.ListAssignmentsRequest
-	33, // 44: athena.v1.AuthService.SaveAssignment:input_type -> athena.v1.SaveAssignmentRequest
-	35, // 45: athena.v1.AuthService.RevokeAssignment:input_type -> athena.v1.RevokeAssignmentRequest
-	37, // 46: athena.v1.AuthService.ExplainAccess:input_type -> athena.v1.ExplainAccessRequest
-	41, // 47: athena.v1.AuthService.ListSessions:input_type -> athena.v1.ListSessionsRequest
-	43, // 48: athena.v1.AuthService.RevokeSession:input_type -> athena.v1.RevokeSessionRequest
-	45, // 49: athena.v1.AuthService.TransferOwnership:input_type -> athena.v1.TransferOwnershipRequest
-	47, // 50: athena.v1.AuthService.ListRoleHolders:input_type -> athena.v1.ListRoleHoldersRequest
-	58, // 51: athena.v1.AuthService.ListAccessLog:input_type -> athena.v1.ListAccessLogRequest
-	1,  // 52: athena.v1.AuthService.Login:output_type -> athena.v1.LoginResponse
-	3,  // 53: athena.v1.AuthService.StepUp:output_type -> athena.v1.StepUpResponse
-	5,  // 54: athena.v1.AuthService.Logout:output_type -> athena.v1.LogoutResponse
-	7,  // 55: athena.v1.AuthService.GetSession:output_type -> athena.v1.GetSessionResponse
-	10, // 56: athena.v1.AuthService.ChangePassword:output_type -> athena.v1.ChangePasswordResponse
-	15, // 57: athena.v1.AuthService.InviteUser:output_type -> athena.v1.InviteUserResponse
-	17, // 58: athena.v1.AuthService.CompleteChallenge:output_type -> athena.v1.CompleteChallengeResponse
-	19, // 59: athena.v1.AuthService.ResendInvite:output_type -> athena.v1.ResendInviteResponse
-	21, // 60: athena.v1.AuthService.StartReset:output_type -> athena.v1.StartResetResponse
-	13, // 61: athena.v1.AuthService.ListUsers:output_type -> athena.v1.ListUsersResponse
-	23, // 62: athena.v1.AuthService.CreateUser:output_type -> athena.v1.CreateUserResponse
-	26, // 63: athena.v1.AuthService.UpdateUser:output_type -> athena.v1.UpdateUserResponse
-	28, // 64: athena.v1.AuthService.ResetPassword:output_type -> athena.v1.ResetPasswordResponse
-	53, // 65: athena.v1.AuthService.ListRoles:output_type -> athena.v1.ListRolesResponse
-	55, // 66: athena.v1.AuthService.SaveRole:output_type -> athena.v1.SaveRoleResponse
-	57, // 67: athena.v1.AuthService.DeleteRole:output_type -> athena.v1.DeleteRoleResponse
-	32, // 68: athena.v1.AuthService.ListAssignments:output_type -> athena.v1.ListAssignmentsResponse
-	34, // 69: athena.v1.AuthService.SaveAssignment:output_type -> athena.v1.SaveAssignmentResponse
-	36, // 70: athena.v1.AuthService.RevokeAssignment:output_type -> athena.v1.RevokeAssignmentResponse
-	39, // 71: athena.v1.AuthService.ExplainAccess:output_type -> athena.v1.ExplainAccessResponse
-	42, // 72: athena.v1.AuthService.ListSessions:output_type -> athena.v1.ListSessionsResponse
-	44, // 73: athena.v1.AuthService.RevokeSession:output_type -> athena.v1.RevokeSessionResponse
-	46, // 74: athena.v1.AuthService.TransferOwnership:output_type -> athena.v1.TransferOwnershipResponse
-	49, // 75: athena.v1.AuthService.ListRoleHolders:output_type -> athena.v1.ListRoleHoldersResponse
-	60, // 76: athena.v1.AuthService.ListAccessLog:output_type -> athena.v1.ListAccessLogResponse
-	52, // [52:77] is the sub-list for method output_type
-	27, // [27:52] is the sub-list for method input_type
-	27, // [27:27] is the sub-list for extension type_name
-	27, // [27:27] is the sub-list for extension extendee
-	0,  // [0:27] is the sub-list for field type_name
+	61, // 25: athena.v1.GetSecuritySettingsResponse.settings:type_name -> athena.v1.SecuritySetting
+	69, // 26: athena.v1.SetSecuritySettingsRequest.settings:type_name -> athena.v1.SetSecuritySettingsRequest.SettingsEntry
+	61, // 27: athena.v1.SetSecuritySettingsResponse.settings:type_name -> athena.v1.SecuritySetting
+	29, // 28: athena.v1.Assignment.ScopeEntry.value:type_name -> athena.v1.ScopeValues
+	29, // 29: athena.v1.RoleHolder.ScopeEntry.value:type_name -> athena.v1.ScopeValues
+	0,  // 30: athena.v1.AuthService.Login:input_type -> athena.v1.LoginRequest
+	2,  // 31: athena.v1.AuthService.StepUp:input_type -> athena.v1.StepUpRequest
+	4,  // 32: athena.v1.AuthService.Logout:input_type -> athena.v1.LogoutRequest
+	6,  // 33: athena.v1.AuthService.GetSession:input_type -> athena.v1.GetSessionRequest
+	9,  // 34: athena.v1.AuthService.ChangePassword:input_type -> athena.v1.ChangePasswordRequest
+	14, // 35: athena.v1.AuthService.InviteUser:input_type -> athena.v1.InviteUserRequest
+	16, // 36: athena.v1.AuthService.CompleteChallenge:input_type -> athena.v1.CompleteChallengeRequest
+	18, // 37: athena.v1.AuthService.ResendInvite:input_type -> athena.v1.ResendInviteRequest
+	20, // 38: athena.v1.AuthService.StartReset:input_type -> athena.v1.StartResetRequest
+	12, // 39: athena.v1.AuthService.ListUsers:input_type -> athena.v1.ListUsersRequest
+	22, // 40: athena.v1.AuthService.CreateUser:input_type -> athena.v1.CreateUserRequest
+	24, // 41: athena.v1.AuthService.UpdateUser:input_type -> athena.v1.UpdateUserRequest
+	27, // 42: athena.v1.AuthService.ResetPassword:input_type -> athena.v1.ResetPasswordRequest
+	52, // 43: athena.v1.AuthService.ListRoles:input_type -> athena.v1.ListRolesRequest
+	54, // 44: athena.v1.AuthService.SaveRole:input_type -> athena.v1.SaveRoleRequest
+	56, // 45: athena.v1.AuthService.DeleteRole:input_type -> athena.v1.DeleteRoleRequest
+	31, // 46: athena.v1.AuthService.ListAssignments:input_type -> athena.v1.ListAssignmentsRequest
+	33, // 47: athena.v1.AuthService.SaveAssignment:input_type -> athena.v1.SaveAssignmentRequest
+	35, // 48: athena.v1.AuthService.RevokeAssignment:input_type -> athena.v1.RevokeAssignmentRequest
+	37, // 49: athena.v1.AuthService.ExplainAccess:input_type -> athena.v1.ExplainAccessRequest
+	41, // 50: athena.v1.AuthService.ListSessions:input_type -> athena.v1.ListSessionsRequest
+	43, // 51: athena.v1.AuthService.RevokeSession:input_type -> athena.v1.RevokeSessionRequest
+	45, // 52: athena.v1.AuthService.TransferOwnership:input_type -> athena.v1.TransferOwnershipRequest
+	47, // 53: athena.v1.AuthService.ListRoleHolders:input_type -> athena.v1.ListRoleHoldersRequest
+	58, // 54: athena.v1.AuthService.ListAccessLog:input_type -> athena.v1.ListAccessLogRequest
+	62, // 55: athena.v1.AuthService.GetSecuritySettings:input_type -> athena.v1.GetSecuritySettingsRequest
+	64, // 56: athena.v1.AuthService.SetSecuritySettings:input_type -> athena.v1.SetSecuritySettingsRequest
+	1,  // 57: athena.v1.AuthService.Login:output_type -> athena.v1.LoginResponse
+	3,  // 58: athena.v1.AuthService.StepUp:output_type -> athena.v1.StepUpResponse
+	5,  // 59: athena.v1.AuthService.Logout:output_type -> athena.v1.LogoutResponse
+	7,  // 60: athena.v1.AuthService.GetSession:output_type -> athena.v1.GetSessionResponse
+	10, // 61: athena.v1.AuthService.ChangePassword:output_type -> athena.v1.ChangePasswordResponse
+	15, // 62: athena.v1.AuthService.InviteUser:output_type -> athena.v1.InviteUserResponse
+	17, // 63: athena.v1.AuthService.CompleteChallenge:output_type -> athena.v1.CompleteChallengeResponse
+	19, // 64: athena.v1.AuthService.ResendInvite:output_type -> athena.v1.ResendInviteResponse
+	21, // 65: athena.v1.AuthService.StartReset:output_type -> athena.v1.StartResetResponse
+	13, // 66: athena.v1.AuthService.ListUsers:output_type -> athena.v1.ListUsersResponse
+	23, // 67: athena.v1.AuthService.CreateUser:output_type -> athena.v1.CreateUserResponse
+	26, // 68: athena.v1.AuthService.UpdateUser:output_type -> athena.v1.UpdateUserResponse
+	28, // 69: athena.v1.AuthService.ResetPassword:output_type -> athena.v1.ResetPasswordResponse
+	53, // 70: athena.v1.AuthService.ListRoles:output_type -> athena.v1.ListRolesResponse
+	55, // 71: athena.v1.AuthService.SaveRole:output_type -> athena.v1.SaveRoleResponse
+	57, // 72: athena.v1.AuthService.DeleteRole:output_type -> athena.v1.DeleteRoleResponse
+	32, // 73: athena.v1.AuthService.ListAssignments:output_type -> athena.v1.ListAssignmentsResponse
+	34, // 74: athena.v1.AuthService.SaveAssignment:output_type -> athena.v1.SaveAssignmentResponse
+	36, // 75: athena.v1.AuthService.RevokeAssignment:output_type -> athena.v1.RevokeAssignmentResponse
+	39, // 76: athena.v1.AuthService.ExplainAccess:output_type -> athena.v1.ExplainAccessResponse
+	42, // 77: athena.v1.AuthService.ListSessions:output_type -> athena.v1.ListSessionsResponse
+	44, // 78: athena.v1.AuthService.RevokeSession:output_type -> athena.v1.RevokeSessionResponse
+	46, // 79: athena.v1.AuthService.TransferOwnership:output_type -> athena.v1.TransferOwnershipResponse
+	49, // 80: athena.v1.AuthService.ListRoleHolders:output_type -> athena.v1.ListRoleHoldersResponse
+	60, // 81: athena.v1.AuthService.ListAccessLog:output_type -> athena.v1.ListAccessLogResponse
+	63, // 82: athena.v1.AuthService.GetSecuritySettings:output_type -> athena.v1.GetSecuritySettingsResponse
+	65, // 83: athena.v1.AuthService.SetSecuritySettings:output_type -> athena.v1.SetSecuritySettingsResponse
+	57, // [57:84] is the sub-list for method output_type
+	30, // [30:57] is the sub-list for method input_type
+	30, // [30:30] is the sub-list for extension type_name
+	30, // [30:30] is the sub-list for extension extendee
+	0,  // [0:30] is the sub-list for field type_name
 }
 
 func init() { file_athena_v1_auth_proto_init() }
@@ -3823,7 +4120,7 @@ func file_athena_v1_auth_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_athena_v1_auth_proto_rawDesc), len(file_athena_v1_auth_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   64,
+			NumMessages:   70,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

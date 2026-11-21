@@ -79,6 +79,12 @@ const (
 	AuthServiceListRoleHoldersProcedure = "/athena.v1.AuthService/ListRoleHolders"
 	// AuthServiceListAccessLogProcedure is the procedure name of the AuthService's ListAccessLog RPC.
 	AuthServiceListAccessLogProcedure = "/athena.v1.AuthService/ListAccessLog"
+	// AuthServiceGetSecuritySettingsProcedure is the procedure name of the AuthService's
+	// GetSecuritySettings RPC.
+	AuthServiceGetSecuritySettingsProcedure = "/athena.v1.AuthService/GetSecuritySettings"
+	// AuthServiceSetSecuritySettingsProcedure is the procedure name of the AuthService's
+	// SetSecuritySettings RPC.
+	AuthServiceSetSecuritySettingsProcedure = "/athena.v1.AuthService/SetSecuritySettings"
 )
 
 var (
@@ -257,6 +263,20 @@ var (
 			Procedure:  AuthServiceListAccessLogProcedure,
 		}
 	})
+	authServiceGetSecuritySettingsSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_athena_v1_auth_proto.Services().ByName("AuthService").Methods().ByName("GetSecuritySettings"),
+			Procedure:  AuthServiceGetSecuritySettingsProcedure,
+		}
+	})
+	authServiceSetSecuritySettingsSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_athena_v1_auth_proto.Services().ByName("AuthService").Methods().ByName("SetSecuritySettings"),
+			Procedure:  AuthServiceSetSecuritySettingsProcedure,
+		}
+	})
 )
 
 // AuthServiceClient is a client for the athena.v1.AuthService service.
@@ -321,6 +341,13 @@ type AuthServiceClient interface {
 	ListRoleHolders(context.Context, *v1.ListRoleHoldersRequest) (*v1.ListRoleHoldersResponse, error)
 	// ListAccessLog reads the Access Log. It needs the audit permission.
 	ListAccessLog(context.Context, *v1.ListAccessLogRequest) (*v1.ListAccessLogResponse, error)
+	// GetSecuritySettings returns every Workspace security setting with its
+	// current value, default, bounds, unit and a one-line explanation. It
+	// needs access:sessions or settings:security.
+	GetSecuritySettings(context.Context, *v1.GetSecuritySettingsRequest) (*v1.GetSecuritySettingsResponse, error)
+	// SetSecuritySettings changes named security settings atomically. It
+	// needs settings:security and fresh step-up proof.
+	SetSecuritySettings(context.Context, *v1.SetSecuritySettingsRequest) (*v1.SetSecuritySettingsResponse, error)
 }
 
 // NewAuthServiceClient constructs a client for the athena.v1.AuthService service. Multiple service
@@ -391,6 +418,13 @@ type AuthServiceHandler interface {
 	ListRoleHolders(context.Context, *v1.ListRoleHoldersRequest) (*v1.ListRoleHoldersResponse, error)
 	// ListAccessLog reads the Access Log. It needs the audit permission.
 	ListAccessLog(context.Context, *v1.ListAccessLogRequest) (*v1.ListAccessLogResponse, error)
+	// GetSecuritySettings returns every Workspace security setting with its
+	// current value, default, bounds, unit and a one-line explanation. It
+	// needs access:sessions or settings:security.
+	GetSecuritySettings(context.Context, *v1.GetSecuritySettingsRequest) (*v1.GetSecuritySettingsResponse, error)
+	// SetSecuritySettings changes named security settings atomically. It
+	// needs settings:security and fresh step-up proof.
+	SetSecuritySettings(context.Context, *v1.SetSecuritySettingsRequest) (*v1.SetSecuritySettingsResponse, error)
 }
 
 // RegisterAuthServiceHandler registers svc as the athena.v1.AuthService implementation on server.
@@ -422,6 +456,8 @@ func RegisterAuthServiceHandler(server *connect.Server, svc AuthServiceHandler) 
 		connect.Method{Spec: authServiceTransferOwnershipSpec(), Handler: adapter.transferOwnership},
 		connect.Method{Spec: authServiceListRoleHoldersSpec(), Handler: adapter.listRoleHolders},
 		connect.Method{Spec: authServiceListAccessLogSpec(), Handler: adapter.listAccessLog},
+		connect.Method{Spec: authServiceGetSecuritySettingsSpec(), Handler: adapter.getSecuritySettings},
+		connect.Method{Spec: authServiceSetSecuritySettingsSpec(), Handler: adapter.setSecuritySettings},
 	)
 }
 
@@ -526,6 +562,14 @@ func (UnimplementedAuthServiceHandler) ListRoleHolders(context.Context, *v1.List
 
 func (UnimplementedAuthServiceHandler) ListAccessLog(context.Context, *v1.ListAccessLogRequest) (*v1.ListAccessLogResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, "athena.v1.AuthService.ListAccessLog is not implemented")
+}
+
+func (UnimplementedAuthServiceHandler) GetSecuritySettings(context.Context, *v1.GetSecuritySettingsRequest) (*v1.GetSecuritySettingsResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "athena.v1.AuthService.GetSecuritySettings is not implemented")
+}
+
+func (UnimplementedAuthServiceHandler) SetSecuritySettings(context.Context, *v1.SetSecuritySettingsRequest) (*v1.SetSecuritySettingsResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "athena.v1.AuthService.SetSecuritySettings is not implemented")
 }
 
 type authServiceClient struct {
@@ -727,6 +771,22 @@ func (c *authServiceClient) ListRoleHolders(ctx context.Context, req *v1.ListRol
 func (c *authServiceClient) ListAccessLog(ctx context.Context, req *v1.ListAccessLogRequest) (*v1.ListAccessLogResponse, error) {
 	var res v1.ListAccessLogResponse
 	if err := c.client.CallUnary(ctx, authServiceListAccessLogSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *authServiceClient) GetSecuritySettings(ctx context.Context, req *v1.GetSecuritySettingsRequest) (*v1.GetSecuritySettingsResponse, error) {
+	var res v1.GetSecuritySettingsResponse
+	if err := c.client.CallUnary(ctx, authServiceGetSecuritySettingsSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *authServiceClient) SetSecuritySettings(ctx context.Context, req *v1.SetSecuritySettingsRequest) (*v1.SetSecuritySettingsResponse, error) {
+	var res v1.SetSecuritySettingsResponse
+	if err := c.client.CallUnary(ctx, authServiceSetSecuritySettingsSpec(), req, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -1028,6 +1088,30 @@ func (h authServiceHandler) listAccessLog(ctx context.Context, _ connect.Spec, s
 		return err
 	}
 	res, err := h.svc.ListAccessLog(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h authServiceHandler) getSecuritySettings(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.GetSecuritySettingsRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.GetSecuritySettings(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h authServiceHandler) setSecuritySettings(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.SetSecuritySettingsRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.SetSecuritySettings(ctx, &req)
 	if err != nil {
 		return err
 	}
