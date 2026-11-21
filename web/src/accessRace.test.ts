@@ -71,7 +71,7 @@ describe('AccessPage selection race', () => {
     cleanups.push(() => app.unmount())
     await flush()
 
-    const rows = [...document.querySelectorAll('tbody .row-open')]
+    const rows = [...document.querySelectorAll('tbody tr')]
     expect(rows).toHaveLength(2)
     // Open Amy's sheet, then Bob's before Amy's assignments arrive.
     ;(rows[0] as HTMLElement).click()

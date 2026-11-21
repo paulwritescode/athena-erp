@@ -10,7 +10,7 @@
 // hideOnMobile (drops from stacked rows), numeric (right-aligned tabular),
 // center, hideable (in the Columns list, default true).
 <script setup lang="ts" generic="TData extends RowData">
-import { computed, ref, useSlots, watch } from 'vue'
+import { computed, onUnmounted, ref, useSlots, watch } from 'vue'
 import { useMediaQuery } from '@vueuse/core'
 import {
   FlexRender,
@@ -369,6 +369,7 @@ const selectMode = ref(false)
 let pressTimer: ReturnType<typeof setTimeout> | undefined
 let suppressClickUntil = 0
 watch(selected, (value) => { if (value.size === 0) selectMode.value = false })
+onUnmounted(() => clearTimeout(pressTimer))
 
 function onTouchStart(id: string) {
   if (!isPhone.value || !hasBulk.value) return
@@ -438,9 +439,9 @@ const activeFilterCount = computed(() => props.filters.reduce((count, filter) =>
         <ActionButton kind="quiet" density="row" label="Clear selection" icon="x" @press="clearSelection" />
       </template>
       <template v-else>
-        <div v-if="showSearch" class="relative w-full min-w-40 flex-1 sm:max-w-md">
+        <div v-if="showSearch" class="relative w-full min-w-40 flex-1 sm:max-w-[480px]">
           <Search class="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" aria-hidden="true" />
-          <Input v-model="searchDraft" type="text" :placeholder="searchPlaceholder" :aria-label="searchPlaceholder" class="pr-8 pl-9" />
+          <Input v-model="searchDraft" type="text" :placeholder="searchPlaceholder" :aria-label="searchPlaceholder" class="pr-8! pl-9!" />
           <button
             v-if="searchDraft"
             type="button"
@@ -581,7 +582,7 @@ const activeFilterCount = computed(() => props.filters.reduce((count, filter) =>
             <TableRow v-for="index in 5" :key="index" class="hover:bg-transparent">
               <TableCell v-if="hasBulk" class="datatable-select-cell px-0 text-center"><Skeleton class="mx-auto size-4" /></TableCell>
               <TableCell v-if="showRowNumbers" class="datatable-rownum-cell"><Skeleton class="ml-auto h-4 w-6" /></TableCell>
-              <TableCell v-for="column in table.getAllColumns()" :key="column.id" class="px-4 py-3">
+              <TableCell v-for="column in table.getAllColumns()" :key="column.id" class="pt-3 pr-4 pb-3 pl-4">
                 <Skeleton class="h-5 w-full" />
               </TableCell>
               <TableCell v-if="hasRowActions" class="datatable-actions-cell px-0"><Skeleton class="mx-auto size-6" /></TableCell>
@@ -624,7 +625,7 @@ const activeFilterCount = computed(() => props.filters.reduce((count, filter) =>
                 v-for="cell in row.getAllCells()"
                 :key="cell.id"
                 :data-label="stackLabel(cell.column)"
-                :class="['px-4 py-3', hiddenOnMobile(cell.column) ? 'datatable-hide-mobile' : undefined, numericColumn(cell.column) ? 'text-right tabular-nums' : centerColumn(cell.column) ? 'text-center' : undefined]"
+                :class="['pt-3 pr-4 pb-3 pl-4', hiddenOnMobile(cell.column) ? 'datatable-hide-mobile' : undefined, numericColumn(cell.column) ? 'text-right tabular-nums' : centerColumn(cell.column) ? 'text-center' : undefined]"
               >
                 <FlexRender :cell="cell" />
               </TableCell>

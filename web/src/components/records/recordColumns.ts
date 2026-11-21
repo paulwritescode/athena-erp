@@ -8,10 +8,12 @@ import PrimaryCell from '@/components/PrimaryCell.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import type { DataTableColumn } from '@/components/dataTableFeatures'
 import type { DataTableColumnMeta } from '@/components/DataTable.vue'
+import { gloss } from '@/copy/glossary'
 import type { Record as RecordMessage } from '@/gen/athena/v1/records_pb'
 import type { Field } from '@/types'
 
-export const stateLabels = ['Draft', 'Submitted', 'Cancelled']
+const stateKeys = ['draft', 'submitted', 'cancelled'] as const
+export const stateLabels = stateKeys.map((key) => gloss(key).label)
 
 // Starting widths in pixels by field type; people can drag any column wider.
 const defaultWidths: Record<string, number> = {
@@ -66,7 +68,7 @@ export function buildRecordColumns(input: RecordColumnsInput): DataTableColumn<R
       id: 'docstate',
       header: 'Status',
       accessorFn: (record) => stateLabels[record.docstate] ?? '',
-      cell: ({ row }) => h(StatusBadge, { status: (stateLabels[row.original.docstate] ?? '').toLowerCase(), label: stateLabels[row.original.docstate] ?? '' }),
+      cell: ({ row }) => h(StatusBadge, { status: stateKeys[row.original.docstate] ?? '', label: stateLabels[row.original.docstate] ?? '' }),
       meta: { label: 'Status' },
       size: 130,
       minSize: 80,

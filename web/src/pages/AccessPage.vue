@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, h, onMounted, ref, watch } from 'vue'
 import { Code, ConnectError } from '@connectrpc/connect'
 import { toast } from 'vue-sonner'
 import { authClient } from '../api'
@@ -13,7 +13,9 @@ import ActionButton from '@/components/ActionButton.vue'
 import HelpHint from '@/copy/HelpHint.vue'
 import ActionGroup from '@/components/ActionGroup.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import DataTable, { type TableFilter } from '@/components/DataTable.vue'
 import DetailSheet from '@/components/DetailSheet.vue'
+import PrimaryCell from '@/components/PrimaryCell.vue'
 import MultiSelectField from '@/components/fields/MultiSelectField.vue'
 import SelectField from '@/components/fields/SelectField.vue'
 import type { ActionItem } from '@/components/actions'
@@ -221,29 +223,98 @@ const selected = computed(() => users.value.find((user) => user.username === sel
 const rootUsername = 'administrator'
 const isRootSelected = computed(() => selected.value?.username === rootUsername)
 
-// The user sheet footer: Assign first, then the secondary pair, then the
-// caution or its restore opposite. The root account gets no actions.
-const userActions = computed<ActionItem[]>(() => {
-  if (!selected.value || isRootSelected.value) return []
+// The user actions: Assign first, then the secondary pair, then the
+// caution or its restore opposite. The root account gets no actions. The
+// sheet footer and the row menu share them.
+function userActionsFor(user: AccessUser | null): ActionItem[] {
+  if (!user || user.username === rootUsername) return []
   const items: ActionItem[] = []
   if (canAssign.value) items.push({ id: 'assign', label: 'Assign Role', kind: 'primary', icon: 'plus', busy: busy.value })
-  if (canUsers.value && selected.value.state === 'invited') items.push({ id: 'resend', label: 'Resend invite', kind: 'secondary', icon: 'send', busy: busy.value })
-  if (canUsers.value && (selected.value.state === 'active' || selected.value.state === 'reset_required')) {
+  if (canUsers.value && user.state === 'invited') items.push({ id: 'resend', label: 'Resend invite', kind: 'secondary', icon: 'send', busy: busy.value })
+  if (canUsers.value && (user.state === 'active' || user.state === 'reset_required')) {
     items.push({ id: 'reset', label: 'Reset', kind: 'secondary', icon: 'key-round', busy: busy.value })
   }
-  if (canUsers.value && !selected.value.disabled) items.push({ id: 'suspend', label: 'Suspend', kind: 'caution', icon: 'pause', busy: busy.value })
-  if (canUsers.value && selected.value.disabled) items.push({ id: 'reactivate', label: 'Reactivate', kind: 'restore', icon: 'play', busy: busy.value })
+  if (canUsers.value && !user.disabled) items.push({ id: 'suspend', label: 'Suspend', kind: 'caution', icon: 'pause', busy: busy.value })
+  if (canUsers.value && user.disabled) items.push({ id: 'reactivate', label: 'Reactivate', kind: 'restore', icon: 'play', busy: busy.value })
   return items
-})
+}
+const userActions = computed<ActionItem[]>(() => userActionsFor(selected.value))
 
+// Dialogs act on actionUser, set by the sheet footer (the open user) or by
+// the row menu (its row) without opening the sheet: opening a sheet and a
+// dialog in the same tick breaks modal pointer events.
+const actionUser = ref('')
 function onUserAction(id: string) {
   if (!selected.value) return
+  actionUser.value = selectedUser.value
+  runUserAction(id)
+}
+
+function onUserRowAction(id: string, user: AccessUser) {
+  actionUser.value = user.username
+  runUserAction(id)
+}
+
+function runUserAction(id: string) {
   if (id === 'assign') openNewAssignment()
-  else if (id === 'resend') void resend(selected.value.username)
+  else if (id === 'resend') void resend(actionUser.value)
   else if (id === 'reset') resetting.value = true
   else if (id === 'suspend') suspending.value = true
   else if (id === 'reactivate') void reactivate()
 }
+
+// Users table: search across names, a State filter from the states
+// present, and the same actions as the sheet in the row menu.
+const userSearch = ref('')
+const userStateSelected = ref<string[]>([])
+const userFilters = computed<TableFilter[]>(() => {
+  const states = [...new Set(users.value.map((user) => user.state || 'active'))].sort()
+  return [{ id: 'state', label: 'State', options: states.map((state) => ({ value: state, label: state })), selected: userStateSelected.value }]
+})
+const userFilteredActive = computed(() => userSearch.value.trim() !== '' || userStateSelected.value.length > 0)
+const filteredUsers = computed(() => {
+  const needle = userSearch.value.trim().toLowerCase()
+  return users.value.filter((user) => {
+    if (userStateSelected.value.length > 0 && !userStateSelected.value.includes(user.state || 'active')) return false
+    return !needle || `${user.username} ${user.displayName}`.toLowerCase().includes(needle)
+  })
+})
+function onUserFiltersChanged(next: TableFilter[]) {
+  userStateSelected.value = next.find((filter) => filter.id === 'state')?.selected ?? []
+}
+
+const userColumns = [
+  {
+    id: 'user', header: 'User', accessorFn: (user: AccessUser) => user.username.toLowerCase(), meta: { label: 'User' },
+    cell: ({ row }: { row: { original: AccessUser } }) => {
+      const user = row.original
+      const second = [user.displayName, user.owner ? 'Owner' : ''].filter((part) => part !== '').join(' · ')
+      return h(PrimaryCell, { title: user.username, subtitle: second || null })
+    },
+  },
+  {
+    id: 'state', header: 'State', accessorFn: (user: AccessUser) => user.state || 'active', meta: { label: 'State' },
+    cell: ({ row }: { row: { original: AccessUser } }) => {
+      const user = row.original
+      const badges = [h(Badge, { variant: stateVariant(user.state) }, () => user.state || 'active')]
+      if (user.locked) badges.push(h(Badge, { variant: 'destructive' }, () => 'Locked'))
+      return h('span', { class: 'inline-flex gap-1' }, badges)
+    },
+  },
+  {
+    id: 'roles', header: 'Roles', accessorFn: (user: AccessUser) => user.roles.join(', '), meta: { label: 'Roles', hideOnMobile: true },
+    cell: ({ row }: { row: { original: AccessUser } }) => {
+      const user = row.original
+      if (user.roles.length > 0) return user.roles.join(', ')
+      if (user.username === rootUsername) return h('span', { class: 'text-muted-foreground' }, 'Full access')
+      return h('span', { class: 'text-muted-foreground' }, 'No roles')
+    },
+  },
+  {
+    id: 'lastLogin', header: 'Last sign-in', accessorFn: (user: AccessUser) => user.lastLoginAt, meta: { label: 'Last sign-in', hideOnMobile: true },
+    cell: ({ row }: { row: { original: AccessUser } }) => h('span', { title: formatWhenFull(row.original.lastLoginAt) }, formatWhen(row.original.lastLoginAt)),
+  },
+]
 
 // Field names across Record Types feed the Scope dimension suggestions: a
 // dimension only ever matches a field of the same name.
@@ -343,12 +414,12 @@ async function startReset() {
   }
   busy.value = true
   try {
-    const res = await authClient.startReset({ username: selectedUser.value, actorPassword: actorPassword.value })
+    const res = await authClient.startReset({ username: actionUser.value, actorPassword: actorPassword.value })
     actorPassword.value = ''
     resetting.value = false
     await refreshUsers()
-    if (res.challenge) showChallenge(`Reset for ${selectedUser.value}`, res.challenge)
-    toast.success(`Started a reset for ${selectedUser.value}.`)
+    if (res.challenge) showChallenge(`Reset for ${actionUser.value}`, res.challenge)
+    toast.success(`Started a reset for ${actionUser.value}.`)
   } catch (err) {
     actorPassword.value = ''
     toast.error(describe(err, 'start the reset'))
@@ -363,8 +434,8 @@ async function suspend() {
   suspending.value = false
   busy.value = true
   try {
-    await authClient.updateUser({ username: selectedUser.value, disabled: true })
-    toast.success(`Suspended ${selectedUser.value}.`)
+    await authClient.updateUser({ username: actionUser.value, disabled: true })
+    toast.success(`Suspended ${actionUser.value}.`)
     await refreshUsers()
   } catch (err) {
     toast.error(describe(err, 'suspend the user'))
@@ -376,8 +447,8 @@ async function suspend() {
 async function reactivate() {
   busy.value = true
   try {
-    await authClient.updateUser({ username: selectedUser.value, disabled: false })
-    toast.success(`Reactivated ${selectedUser.value}. Review their privileged assignments.`)
+    await authClient.updateUser({ username: actionUser.value, disabled: false })
+    toast.success(`Reactivated ${actionUser.value}. Review their privileged assignments.`)
     await refreshUsers()
   } catch (err) {
     toast.error(describe(err, 'reactivate the user'))
@@ -531,7 +602,7 @@ async function confirmSaveAssignment() {
     const message: Record<string, { values: string[] }> = {}
     for (const [dimension, values] of Object.entries(scope)) message[dimension] = { values: [...values] }
     await authClient.saveAssignment({
-      username: selectedUser.value,
+      username: actionUser.value,
       assignment: {
         id: assignmentForm.value.id,
         role: assignmentForm.value.role,
@@ -544,6 +615,7 @@ async function confirmSaveAssignment() {
     assignmentOpen.value = false
     toast.success(assignmentForm.value.id ? 'Saved the Assignment.' : 'Assigned the Role.')
     postSessionMessage('permissions-changed')
+    await refreshUsers()
     await selectUser(selectedUser.value)
   } catch (err) {
     toast.error(describe(err, 'save the Assignment'))
@@ -578,19 +650,50 @@ async function revoke() {
 const selectedRole = ref('')
 const roleDetail = computed(() => roles.value.find((role) => role.name === selectedRole.value) ?? null)
 
-const roleActions = computed<ActionItem[]>(() => {
-  if (!roleDetail.value) return []
+function roleActionsFor(role: Role | null): ActionItem[] {
+  if (!role) return []
   return [
     { id: 'edit', label: 'Edit', kind: 'secondary', icon: 'pencil', busy: busy.value },
     { id: 'delete', label: 'Delete', kind: 'destructive', icon: 'trash-2', busy: busy.value },
   ]
-})
+}
+const roleActions = computed<ActionItem[]>(() => roleActionsFor(roleDetail.value))
 
 function onRoleAction(id: string) {
   if (!roleDetail.value) return
   if (id === 'edit') openEditRole(roleDetail.value)
   else if (id === 'delete') deletingRole.value = roleDetail.value
 }
+
+function onRoleRowAction(id: string, role: Role) {
+  if (id === 'edit') openEditRole(role)
+  else if (id === 'delete') deletingRole.value = role
+}
+
+// Roles table: search across names and descriptions; the Grants header
+// keeps its HelpHint, so that column does not sort.
+const roleSearch = ref('')
+const roleFilteredActive = computed(() => roleSearch.value.trim() !== '')
+const filteredRoles = computed(() => {
+  const needle = roleSearch.value.trim().toLowerCase()
+  return roles.value.filter((role) => !needle || `${role.name} ${role.description}`.toLowerCase().includes(needle))
+})
+
+const roleColumns = [
+  {
+    id: 'role', header: 'Role', accessorFn: (role: Role) => role.name.toLowerCase(), meta: { label: 'Role' },
+    cell: ({ row }: { row: { original: Role } }) => h(PrimaryCell, { title: row.original.name, subtitle: row.original.description || null }),
+  },
+  {
+    id: 'permissions', header: 'System permissions', accessorFn: (role: Role) => role.systemPermissions.join(', '), meta: { label: 'System permissions', hideOnMobile: true },
+    cell: ({ row }: { row: { original: Role } }) => row.original.systemPermissions.join(', '),
+  },
+  {
+    id: 'grants', header: () => h('span', { class: 'inline-flex items-center gap-1' }, ['Grants', h(HelpHint, { term: 'grant' })]),
+    accessorFn: (role: Role) => role.grants.length, meta: { label: 'Grants', numeric: true }, enableSorting: false,
+    cell: ({ row }: { row: { original: Role } }) => String(row.original.grants.length),
+  },
+]
 
 const systemPermissionOptions = [
   'build',
@@ -758,14 +861,51 @@ const sessions = ref<Session[]>([])
 const selectedSession = ref('')
 const sessionDetail = computed(() => sessions.value.find((session) => session.id === selectedSession.value) ?? null)
 
-const sessionActions = computed<ActionItem[]>(() => {
-  if (!sessionDetail.value) return []
+function sessionActionsFor(session: Session | null): ActionItem[] {
+  if (!session) return []
   return [{ id: 'end', label: 'End session', kind: 'caution', icon: 'log-out', busy: busy.value }]
-})
+}
+const sessionActions = computed<ActionItem[]>(() => sessionActionsFor(sessionDetail.value))
 
 function onSessionAction(id: string) {
   if (id === 'end' && sessionDetail.value) endingSession.value = sessionDetail.value
 }
+
+function onSessionRowAction(id: string, session: Session) {
+  if (id === 'end') endingSession.value = session
+}
+
+// Sessions table: the User field above scopes the server query; the
+// search narrows the loaded rows by device or session id.
+const sessionSearch = ref('')
+const sessionFilteredActive = computed(() => sessionSearch.value.trim() !== '')
+const filteredSessions = computed(() => {
+  const needle = sessionSearch.value.trim().toLowerCase()
+  return sessions.value.filter((session) => !needle || `${session.device} ${session.id}`.toLowerCase().includes(needle))
+})
+
+const sessionColumns = [
+  {
+    id: 'device', header: 'Device', accessorFn: (session: Session) => (session.device || '').toLowerCase(), meta: { label: 'Device' },
+    cell: ({ row }: { row: { original: Session } }) => {
+      const session = row.original
+      const id = session.id.slice(0, 8)
+      return h(PrimaryCell, { title: session.device || '—', subtitle: session.current ? `This device · ${id}` : `Session ${id}` })
+    },
+  },
+  {
+    id: 'lastSeen', header: 'Last seen', accessorFn: (session: Session) => session.lastSeenAt, meta: { label: 'Last seen' },
+    cell: ({ row }: { row: { original: Session } }) => h('span', { title: formatWhenFull(row.original.lastSeenAt) }, formatWhen(row.original.lastSeenAt)),
+  },
+  {
+    id: 'started', header: 'Started', accessorFn: (session: Session) => session.createdAt, meta: { label: 'Started', hideOnMobile: true },
+    cell: ({ row }: { row: { original: Session } }) => h('span', { title: formatWhenFull(row.original.createdAt) }, formatWhen(row.original.createdAt)),
+  },
+  {
+    id: 'expires', header: 'Expires', accessorFn: (session: Session) => session.expiresAt, meta: { label: 'Expires', hideOnMobile: true },
+    cell: ({ row }: { row: { original: Session } }) => h('span', { title: formatWhenFull(row.original.expiresAt) }, formatWhen(row.original.expiresAt)),
+  },
+]
 
 async function loadSessions() {
   const username = sessionUser.value.trim()
@@ -865,19 +1005,29 @@ onMounted(async () => {
         <TabsTrigger v-if="canExplore" value="explore">Explore</TabsTrigger>
       </TabsList>
       <TabsContent value="users">
-        <p v-if="loaded && users.length === 0" class="files-empty">No users yet.</p>
-        <Table v-else class="datatable-stacked">
-              <TableHeader><TableRow><TableHead>Username</TableHead><TableHead>Display name</TableHead><TableHead>State</TableHead><TableHead>Roles</TableHead><TableHead>Last sign-in</TableHead></TableRow></TableHeader>
-              <TableBody>
-                <TableRow v-for="user in users" :key="user.username" class="cursor-pointer" :data-state="user.username === selectedUser ? 'selected' : undefined" @click="selectUser(user.username === selectedUser ? '' : user.username)">
-                  <TableCell data-label="Username"><button type="button" class="row-open" :aria-expanded="user.username === selectedUser" :aria-label="`Open details for ${user.username}`" @click.stop="selectUser(user.username === selectedUser ? '' : user.username)">{{ user.username }}</button> <Badge v-if="user.owner" variant="secondary">Owner</Badge></TableCell>
-                  <TableCell data-label="Display name">{{ user.displayName }}</TableCell>
-                  <TableCell data-label="State"><Badge :variant="stateVariant(user.state)">{{ user.state || 'active' }}</Badge><Badge v-if="user.locked" variant="destructive">Locked</Badge></TableCell>
-                  <TableCell data-label="Roles" class="datatable-hide-mobile"><span v-if="user.roles.length > 0">{{ user.roles.join(', ') }}</span><span v-else-if="user.username === rootUsername" class="muted-label">Full access</span><span v-else class="muted-label">No roles</span></TableCell>
-                  <TableCell data-label="Last sign-in" class="datatable-hide-mobile" :title="formatWhenFull(user.lastLoginAt)">{{ formatWhen(user.lastLoginAt) }}</TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
+        <DataTable
+          :columns="userColumns"
+          :data="filteredUsers"
+          table-id="access-users"
+          :username="username"
+          :get-row-id="(user) => user.username"
+          :row-actions="userActionsFor"
+          v-model:search="userSearch"
+          search-placeholder="Find users…"
+          :filters="userFilters"
+          :loading="!loaded"
+          :filtered="userFilteredActive"
+          clickable
+          empty-title="No users yet"
+          empty-body="Invite a user to see them here."
+          @row-click="(user) => selectUser(user.username === selectedUser ? '' : user.username)"
+          @row-action="onUserRowAction"
+          @update:filters="onUserFiltersChanged"
+        >
+          <template v-if="canUsers" #empty-action>
+            <ActionButton kind="primary" label="Invite user" icon="plus" @press="inviting = true" />
+          </template>
+        </DataTable>
         <DetailSheet
           v-if="selected"
           :open="true"
@@ -936,19 +1086,30 @@ onMounted(async () => {
         </DetailSheet>
       </TabsContent>
       <TabsContent value="roles">
-        <div class="toolbar-actions access-tab-actions"><ActionButton kind="primary" density="row" label="New Role" icon="plus" :busy="busy" @press="openNewRole" /></div>
-        <p v-if="loaded && roles.length === 0" class="files-empty">No Roles yet.</p>
-        <Table v-else class="datatable-stacked">
-              <TableHeader><TableRow><TableHead>Role</TableHead><TableHead>Description</TableHead><TableHead>System permissions</TableHead><TableHead>Grants <HelpHint term="grant" /></TableHead></TableRow></TableHeader>
-              <TableBody>
-                <TableRow v-for="role in roles" :key="role.name" class="cursor-pointer" :data-state="role.name === selectedRole ? 'selected' : undefined" @click="selectedRole = role.name === selectedRole ? '' : role.name">
-                  <TableCell data-label="Role"><button type="button" class="row-open" :aria-expanded="role.name === selectedRole" :aria-label="`Open details for ${role.name}`" @click.stop="selectedRole = role.name === selectedRole ? '' : role.name">{{ role.name }}</button></TableCell>
-                  <TableCell data-label="Description" class="datatable-hide-mobile">{{ role.description }}</TableCell>
-                  <TableCell data-label="System permissions" class="datatable-hide-mobile">{{ role.systemPermissions.join(', ') }}</TableCell>
-                  <TableCell data-label="Grants">{{ role.grants.length }}</TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
+        <DataTable
+          :columns="roleColumns"
+          :data="filteredRoles"
+          table-id="access-roles"
+          :username="username"
+          :get-row-id="(role) => role.name"
+          :row-actions="roleActionsFor"
+          v-model:search="roleSearch"
+          search-placeholder="Find roles…"
+          :loading="!loaded"
+          :filtered="roleFilteredActive"
+          clickable
+          empty-title="No Roles yet"
+          empty-body="Create one to get started."
+          @row-click="(role) => { selectedRole = role.name === selectedRole ? '' : role.name }"
+          @row-action="onRoleRowAction"
+        >
+          <template #toolbar-actions>
+            <ActionButton kind="primary" density="row" label="New Role" icon="plus" :busy="busy" @press="openNewRole" />
+          </template>
+          <template #empty-action>
+            <ActionButton kind="primary" label="Create your first Role" icon="plus" :busy="busy" @press="openNewRole" />
+          </template>
+        </DataTable>
         <DetailSheet
           v-if="roleDetail"
           :open="true"
@@ -1001,20 +1162,23 @@ onMounted(async () => {
           </div>
           <div class="toolbar-actions"><ActionButton kind="secondary" label="List sessions" icon="refresh-ccw" :busy="busy" @press="loadSessions" /></div>
         </div>
-        <p v-if="sessions.length === 0" class="files-empty">No live sessions.</p>
-        <Table v-else class="datatable-stacked">
-              <TableHeader><TableRow><TableHead>Started</TableHead><TableHead>Last seen</TableHead><TableHead>Expires</TableHead><TableHead>Device</TableHead><TableHead></TableHead><TableHead></TableHead></TableRow></TableHeader>
-              <TableBody>
-                <TableRow v-for="session in sessions" :key="session.id" class="cursor-pointer" :data-state="session.id === selectedSession ? 'selected' : undefined" @click="selectedSession = session.id === selectedSession ? '' : session.id">
-                  <TableCell data-label="Started" class="datatable-hide-mobile" :title="formatWhenFull(session.createdAt)">{{ formatWhen(session.createdAt) }}</TableCell>
-                  <TableCell data-label="Last seen" :title="formatWhenFull(session.lastSeenAt)">{{ formatWhen(session.lastSeenAt) }}</TableCell>
-                  <TableCell data-label="Expires" class="datatable-hide-mobile" :title="formatWhenFull(session.expiresAt)">{{ formatWhen(session.expiresAt) }}</TableCell>
-                  <TableCell data-label="Device"><button type="button" class="row-open" :aria-expanded="session.id === selectedSession" :aria-label="`Open details for session ${session.id.slice(0, 8)}`" @click.stop="selectedSession = session.id === selectedSession ? '' : session.id">{{ session.device || '—' }}</button></TableCell>
-                  <TableCell data-label="Status" :class="!session.current ? 'datatable-hide-mobile' : undefined"><Badge v-if="session.current" variant="secondary">This device</Badge></TableCell>
-                  <TableCell><span @click.stop="() => {}"><ActionButton kind="caution" density="row" label="End" icon="log-out" :disabled-reason="busy ? 'Please wait.' : null" class="max-sm:hidden" @press="endingSession = session" /></span></TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
+        <DataTable
+          :columns="sessionColumns"
+          :data="filteredSessions"
+          table-id="access-sessions"
+          :username="username"
+          :get-row-id="(session) => session.id"
+          :row-actions="sessionActionsFor"
+          v-model:search="sessionSearch"
+          search-placeholder="Find sessions…"
+          :loading="busy && sessions.length === 0"
+          :filtered="sessionFilteredActive"
+          clickable
+          empty-title="No live sessions"
+          empty-body="Nobody has signed in as this user yet."
+          @row-click="(session) => { selectedSession = session.id === selectedSession ? '' : session.id }"
+          @row-action="onSessionRowAction"
+        />
         <DetailSheet
           v-if="sessionDetail"
           :open="true"
@@ -1087,7 +1251,7 @@ onMounted(async () => {
         <template #footer><ActionButton kind="secondary" label="Copy code" icon="copy" @press="copyChallenge" /><ActionButton kind="primary" label="Done" icon="check" @press="challengeOpen = false" /></template>
     </ResponsiveDialog>
 
-    <ResponsiveDialog v-model:open="resetting" :title="`Reset ${selectedUser}`" description="A reset ends their sessions. Prove it is you with your own password first." :dirty="resetDirty">
+    <ResponsiveDialog v-model:open="resetting" :title="`Reset ${actionUser}`" description="A reset ends their sessions. Prove it is you with your own password first." :dirty="resetDirty">
         <div class="settings-field"><Label for="reset-password">Your password</Label><Input id="reset-password" v-model="actorPassword" type="password" autocomplete="current-password" :disabled="busy" /></div>
         <small v-if="resetProblem" class="files-problem">{{ resetProblem }}</small>
         <template #footer><ActionButton kind="secondary" label="Cancel" icon="x" :busy="busy" @press="resetting = false" /><ActionButton kind="primary" label="Start reset" icon="key-round" :busy="busy" @press="startReset" /></template>
@@ -1095,7 +1259,7 @@ onMounted(async () => {
 
     <ConfirmDialog
       v-model:open="suspending"
-      :title="`Suspend ${selectedUser}?`"
+      :title="`Suspend ${actionUser}?`"
       body="Their sessions end at once. Reactivating later needs a review of their privileged assignments."
       confirm-label="Suspend user"
       cancel-label="Keep them"
@@ -1104,7 +1268,7 @@ onMounted(async () => {
       @confirm="suspend"
     />
 
-    <ResponsiveDialog v-model:open="assignmentOpen" :title="assignmentForm.id ? 'Edit assignment' : 'Assign a Role to ' + selectedUser" description="One Role with its own limits and dates. Nothing applies before the preview is confirmed." :dirty="assignmentDirty">
+    <ResponsiveDialog v-model:open="assignmentOpen" :title="assignmentForm.id ? 'Edit assignment' : 'Assign a Role to ' + actionUser" description="One Role with its own limits and dates. Nothing applies before the preview is confirmed." :dirty="assignmentDirty">
         <SelectField
           v-if="roles.length > 0"
           id="assignment-role"
@@ -1151,7 +1315,7 @@ onMounted(async () => {
         <template #footer><ActionButton kind="secondary" label="Cancel" icon="x" :busy="busy" @press="assignmentOpen = false" /><ActionButton kind="primary" label="Preview" icon="eye" :busy="busy" @press="openPreview" /></template>
     </ResponsiveDialog>
 
-    <ResponsiveDialog v-model:open="previewOpen" title="Confirm the change" :description="`Affects ${selectedUser}.`">
+    <ResponsiveDialog v-model:open="previewOpen" title="Confirm the change" :description="`Affects ${actionUser}.`">
         <ul class="access-diff">
           <li v-for="line in previewLines" :key="line">{{ line }}</li>
           <li v-if="previewLines.length === 0">No changes.</li>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, h, onMounted, ref, watch } from 'vue'
 import { Code, ConnectError } from '@connectrpc/connect'
 import { toast } from 'vue-sonner'
 import { fileClient } from '../api'
@@ -9,7 +9,9 @@ import ActionButton from '@/components/ActionButton.vue'
 import ActionGroup from '@/components/ActionGroup.vue'
 import type { ActionItem } from '@/components/actions'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import DataTable, { type TableFilter } from '@/components/DataTable.vue'
 import DetailSheet from '@/components/DetailSheet.vue'
+import PrimaryCell from '@/components/PrimaryCell.vue'
 import { formatWhen } from '../times'
 import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/textarea'
@@ -21,7 +23,7 @@ import TextField from '@/components/fields/TextField.vue'
 // The Files page manages the Workspace files through FileService. The server
 // checks every path, size and type, and Record Type files against their file
 // format; filePaths.ts only repeats the path rules so a mistake shows early.
-const props = defineProps<{ canWrite: boolean }>()
+const props = withDefaults(defineProps<{ canWrite: boolean; username?: string }>(), { username: '' })
 
 const encoder = new TextEncoder()
 const decoder = new TextDecoder('utf-8', { fatal: true })
@@ -30,7 +32,6 @@ const files = ref<FileInfo[]>([])
 const withoutFile = ref<string[]>([])
 const loaded = ref(false)
 const unavailable = ref('')
-const collapsed = ref(new Set<string>())
 
 const selected = ref('')
 const text = ref('')
@@ -44,34 +45,6 @@ const versions = ref<FileVersion[]>([])
 const view = ref<'files' | 'mapping'>('files')
 
 const current = computed(() => files.value.find((file) => file.path === selected.value))
-
-type Row = { kind: 'folder'; path: string; name: string; depth: number } | { kind: 'file'; path: string; name: string; depth: number; file: FileInfo }
-// Folders and files in path order; a collapsed folder hides what is inside it.
-const rows = computed<Row[]>(() => {
-  const out: Row[] = []
-  const seen = new Set<string>()
-  for (const folder of fileFolders) {
-    out.push({ kind: 'folder', path: folder, name: folder, depth: 0 })
-    seen.add(folder)
-  }
-  for (const file of files.value) {
-    const parts = file.path.split('/')
-    for (let i = 1; i < parts.length; i++) {
-      const folder = parts.slice(0, i).join('/')
-      if (!seen.has(folder)) {
-        seen.add(folder)
-        out.push({ kind: 'folder', path: folder, name: parts[i - 1] ?? folder, depth: i - 1 })
-      }
-    }
-    out.push({ kind: 'file', path: file.path, name: parts[parts.length - 1] ?? file.path, depth: parts.length - 1, file })
-  }
-  out.sort((a, b) => sortKey(a).localeCompare(sortKey(b)))
-  return out.filter((row) => ![...collapsed.value].some((folder) => row.path.startsWith(`${folder}/`)))
-})
-// Folders sort before the files beside them.
-function sortKey(row: Row): string {
-  return row.kind === 'folder' ? `${row.path}/` : row.path.replace(/\/([^/]*)$/, '/~$1')
-}
 
 function describe(err: unknown, action: string): string {
   if (!(err instanceof ConnectError)) return `Could not ${action}.`
@@ -248,6 +221,10 @@ function download() {
 async function downloadDetail() {
   const path = detailPath.value
   if (!path) return
+  await downloadPath(path)
+}
+
+async function downloadPath(path: string) {
   try {
     const body = path === selected.value ? text.value : decoder.decode((await fileClient.getFile({ path })).content)
     const link = document.createElement('a')
@@ -346,11 +323,14 @@ async function submitDialog() {
 
 const deleting = ref(false)
 // The editor sits behind the sheet overlay, so a Delete press with the sheet
-// open always means the sheet file.
+// open always means the sheet file. The row menu freezes its own target:
+// opening a sheet and a dialog in the same tick breaks modal pointer events.
 const deleteTarget = computed(() => detailPath.value || selected.value)
+const deletingPath = ref<string | null>(null)
 async function remove() {
   deleting.value = false
-  const path = deleteTarget.value
+  const path = deletingPath.value ?? deleteTarget.value
+  deletingPath.value = null
   if (!path) return
   busy.value = true
   try {
@@ -396,6 +376,129 @@ function backingStatus(file: FileInfo): string {
 }
 const kindLabels: Record<string, string> = { record_type: 'Record Type', rule: 'Rule', report: 'Report', generated_source: 'Generated source' }
 
+// Files table: search across paths, a Folder filter over the enforced
+// top-level folders, and the detail sheet actions in the row menu.
+const fileSearch = ref('')
+const folderSelected = ref<string[]>([])
+const fileFilters = computed<TableFilter[]>(() => [
+  { id: 'folder', label: 'Folder', options: fileFolders.map((folder) => ({ value: folder, label: folder })), selected: folderSelected.value },
+])
+const fileFilteredActive = computed(() => fileSearch.value.trim() !== '' || folderSelected.value.length > 0)
+const filteredFiles = computed(() => {
+  const needle = fileSearch.value.trim().toLowerCase()
+  return files.value.filter((file) => {
+    if (folderSelected.value.length > 0 && !folderSelected.value.includes(file.path.split('/')[0] ?? '')) return false
+    return !needle || file.path.toLowerCase().includes(needle)
+  })
+})
+function onFileFiltersChanged(next: TableFilter[]) {
+  folderSelected.value = next.find((filter) => filter.id === 'folder')?.selected ?? []
+}
+
+function editedOutside(file: FileInfo): boolean {
+  return !file.recorded && Number(file.revision) > 0
+}
+function fileDisplayName(path: string): string {
+  return path.split('/').pop() ?? path
+}
+function fileFolder(path: string): string {
+  return path.split('/').slice(0, -1).join('/') || path
+}
+
+const fileColumns = [
+  {
+    id: 'file', header: 'File', accessorFn: (file: FileInfo) => file.path.toLowerCase(), meta: { label: 'File' },
+    cell: ({ row }: { row: { original: FileInfo } }) => {
+      const file = row.original
+      const folder = fileFolder(file.path)
+      return h(PrimaryCell, { title: fileDisplayName(file.path), subtitle: editedOutside(file) ? `${folder} · Changed outside Athena` : folder })
+    },
+  },
+  {
+    id: 'size', header: 'Size', accessorFn: (file: FileInfo) => Number(file.size), meta: { label: 'Size', numeric: true },
+    cell: ({ row }: { row: { original: FileInfo } }) => formatSize(row.original.size),
+  },
+  {
+    id: 'changed', header: 'Changed', accessorFn: (file: FileInfo) => file.modifiedAt, meta: { label: 'Changed' },
+    cell: ({ row }: { row: { original: FileInfo } }) => formatWhen(row.original.modifiedAt),
+  },
+  {
+    id: 'revision', header: 'Revision', accessorFn: (file: FileInfo) => Number(file.revision), meta: { label: 'Revision', numeric: true, hideOnMobile: true },
+    cell: ({ row }: { row: { original: FileInfo } }) => `r${row.original.revision}`,
+  },
+  {
+    id: 'backing', header: 'Backing', accessorFn: (file: FileInfo) => file.backing ? `${file.backing.kind} ${file.backing.key}` : '', meta: { label: 'Backing', hideOnMobile: true },
+    cell: ({ row }: { row: { original: FileInfo } }) => {
+      const backing = row.original.backing
+      if (!backing) return h('span', { class: 'text-muted-foreground' }, '—')
+      return `${kindLabels[backing.kind] ?? backing.kind} ${backing.key}`
+    },
+  },
+]
+
+function onFileRowAction(id: string, file: FileInfo) {
+  if (id === 'open') choose(file.path)
+  else if (id === 'download') void downloadPath(file.path)
+  else if (id === 'rename') startRename(file.path)
+  else if (id === 'delete') {
+    deletingPath.value = file.path
+    deleting.value = true
+  }
+}
+
+// Mapping table: backed files plus the saved Record Types that have no
+// file. Only file rows open; the others carry no path to jump to.
+type MapRow = { id: string; path: string; backs: string; key: string; status: string; filePath: string | null }
+const mapRows = computed<MapRow[]>(() => [
+  ...backed.value.map((file): MapRow => ({
+    id: `file:${file.path}`,
+    path: file.path,
+    backs: kindLabels[file.backing?.kind ?? ''] ?? '',
+    key: file.backing?.key ?? '',
+    status: backingStatus(file),
+    filePath: file.path,
+  })),
+  ...withoutFile.value.map((name): MapRow => ({
+    id: `type:${name}`,
+    path: 'No file',
+    backs: 'Record Type',
+    key: name,
+    status: 'Saved, but no file under record_types/',
+    filePath: null,
+  })),
+])
+const mapSearch = ref('')
+const mapFilteredActive = computed(() => mapSearch.value.trim() !== '')
+const filteredMapRows = computed(() => {
+  const needle = mapSearch.value.trim().toLowerCase()
+  return mapRows.value.filter((row) => !needle || `${row.path} ${row.backs} ${row.key} ${row.status}`.toLowerCase().includes(needle))
+})
+const mapColumns = [
+  {
+    id: 'file', header: 'File', accessorFn: (row: MapRow) => row.path.toLowerCase(), meta: { label: 'File' },
+    cell: ({ row }: { row: { original: MapRow } }) => row.original.filePath === null
+      ? h('span', { class: 'text-muted-foreground' }, row.original.path)
+      : h(PrimaryCell, { title: fileDisplayName(row.original.path), subtitle: fileFolder(row.original.path) }),
+  },
+  {
+    id: 'backs', header: 'Backs', accessorFn: (row: MapRow) => row.backs, meta: { label: 'Backs', hideOnMobile: true },
+    cell: ({ row }: { row: { original: MapRow } }) => row.original.backs,
+  },
+  {
+    id: 'key', header: 'Key', accessorFn: (row: MapRow) => row.key, meta: { label: 'Key' },
+    cell: ({ row }: { row: { original: MapRow } }) => h('code', null, row.original.key),
+  },
+  {
+    id: 'status', header: 'Status', accessorFn: (row: MapRow) => row.status, meta: { label: 'Status', hideOnMobile: true },
+    cell: ({ row }: { row: { original: MapRow } }) => row.original.status,
+  },
+]
+function onMapRowClick(row: MapRow) {
+  if (!row.filePath) return
+  detailPath.value = row.filePath
+  view.value = 'files'
+}
+
 onMounted(refresh)
 </script>
 
@@ -419,21 +522,32 @@ onMounted(refresh)
         </TabsList>
 
         <TabsContent value="files">
-          <div class="files-layout">
-            <nav class="files-tree" aria-label="Workspace files">
-              <p v-if="loaded && files.length === 0" class="files-empty">No files yet. {{ canWrite ? 'Create one or upload one.' : '' }}</p>
-              <template v-for="row in rows" :key="row.path">
-                <button v-if="row.kind === 'folder'" class="files-node is-folder" :style="{ paddingLeft: `${8 + row.depth * 14}px` }" @click="collapsed.has(row.path) ? collapsed.delete(row.path) : collapsed.add(row.path)">
-                  <span aria-hidden="true">{{ collapsed.has(row.path) ? '▸' : '▾' }}</span>{{ row.name }}
-                </button>
-                <button v-else class="files-node" :class="{ chosen: row.path === detailPath || row.path === selected }" :style="{ paddingLeft: `${8 + row.depth * 14}px` }" :title="row.path" @click="openDetail(row.path)">
-                  <span class="files-name">{{ row.name }}</span>
-                  <span v-if="!row.file.recorded && row.file.revision > 0" class="files-flag" title="Changed outside Athena">edited</span>
-                </button>
+          <div>
+            <DataTable
+              :columns="fileColumns"
+              :data="filteredFiles"
+              table-id="files-list"
+              :username="username"
+              :get-row-id="(file) => file.path"
+              :row-actions="() => detailActions"
+              v-model:search="fileSearch"
+              search-placeholder="Find files…"
+              :filters="fileFilters"
+              :loading="!loaded"
+              :filtered="fileFilteredActive"
+              clickable
+              empty-title="No files yet"
+              empty-body="Create one or upload one."
+              @row-click="(file) => openDetail(file.path)"
+              @row-action="onFileRowAction"
+              @update:filters="onFileFiltersChanged"
+            >
+              <template v-if="canWrite" #empty-action>
+                <ActionButton kind="primary" label="Create your first file" icon="plus" @press="startNew" />
               </template>
-            </nav>
+            </DataTable>
 
-            <div class="record-editor files-editor-card">
+            <div class="record-editor files-editor-card mt-4">
               <p v-if="!selected" class="files-empty">Select a file to read it.</p>
               <template v-else>
                 <div class="record-editor-head">
@@ -483,24 +597,21 @@ onMounted(refresh)
         <TabsContent value="mapping">
           <div class="record-editor">
             <p class="files-hint">Which file backs which Record Type, Rule or Report, taken from the folder and file name. Rules and Reports are not implemented yet, so they have no saved definition.</p>
-            <Table class="files-table">
-              <TableHeader><TableRow><TableHead>File</TableHead><TableHead>Backs</TableHead><TableHead>Key</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
-              <TableBody>
-                <TableRow v-for="file in backed" :key="file.path" class="files-map-row" tabindex="0" @click="detailPath = file.path; view = 'files'" @keydown.enter="detailPath = file.path; view = 'files'">
-                  <TableCell>{{ file.path }}</TableCell>
-                  <TableCell>{{ kindLabels[file.backing?.kind ?? ''] }}</TableCell>
-                  <TableCell><code>{{ file.backing?.key }}</code></TableCell>
-                  <TableCell>{{ backingStatus(file) }}</TableCell>
-                </TableRow>
-                <TableRow v-for="name in withoutFile" :key="name">
-                  <TableCell class="files-sub">No file</TableCell>
-                  <TableCell>Record Type</TableCell>
-                  <TableCell><code>{{ name }}</code></TableCell>
-                  <TableCell>Saved, but no file under record_types/</TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
-            <p v-if="backed.length === 0 && withoutFile.length === 0" class="files-hint">Nothing to map yet.</p>
+            <DataTable
+              :columns="mapColumns"
+              :data="filteredMapRows"
+              table-id="files-mapping"
+              :username="username"
+              :get-row-id="(row) => row.id"
+              v-model:search="mapSearch"
+              search-placeholder="Find mappings…"
+              :loading="!loaded"
+              :filtered="mapFilteredActive"
+              clickable
+              empty-title="Nothing mapped yet"
+              empty-body="No file backs a Record Type, Rule or Report yet."
+              @row-click="onMapRowClick"
+            />
           </div>
         </TabsContent>
       </Tabs>
@@ -524,7 +635,7 @@ onMounted(refresh)
 
     <ConfirmDialog
       v-model:open="deleting"
-      :title="`Delete ${deleteTarget}?`"
+      :title="`Delete ${deletingPath ?? deleteTarget}?`"
       body="The file is removed from disk. Its versions stay in the history."
       confirm-label="Delete file"
       cancel-label="Keep it"

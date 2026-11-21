@@ -156,12 +156,6 @@ body,.page-content{background:var(--background);color:var(--foreground)}
 .foundation-card{min-height:140px;padding:16px 16px 0;border-radius:var(--radius-lg)}
 .panel{border-radius:var(--radius-lg)}
 .panel-heading h2,.section-heading h2{font-size:var(--type-title-md-size)}
-.entries-panel{display:grid;gap:12px;align-content:start}
-.entries-table{width:100%;border-collapse:collapse;font-size:var(--type-body-sm-size)}
-.entries-table th{text-align:left;font-weight:500;font-size:var(--type-caption-size);color:var(--muted-foreground);padding:8px 10px;border-bottom:1px solid var(--border)}
-.entries-table td{padding:10px;border-bottom:1px solid var(--border);max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.entries-table tbody tr{cursor:pointer}
-.entries-table tbody tr:hover,.entries-table tbody tr:focus-visible{background:var(--accent);outline:none}
 .record-preview{border-radius:var(--radius-lg)}
 .view-menu{border-radius:var(--radius-lg)}
 .record-editor{display:grid;gap:16px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px}
@@ -222,35 +216,8 @@ body,.page-content{background:var(--background);color:var(--foreground)}
 .record-preview .record-bottom{margin-top:24px}
 .view-menu button{font-weight:400;color:var(--muted-foreground)}
 .view-menu button.selected{font-weight:500;color:var(--foreground)}
-/* Entries data table: fixed layout so column widths come from the resizable
-   column sizes; wide tables scroll inside the card instead of overflowing it. */
 .view-layout{grid-template-columns:190px minmax(0,1fr)}
-.entries-panel{min-width:0;padding:0;overflow:hidden}
-.entries-panel>.empty-state,.entries-panel>[data-slot=button]{margin:16px 20px}
-.entries-scroll{overflow:auto;max-height:calc(100vh - 260px)}
-.entries-scroll [data-slot=table-container]{overflow:visible}
-.entries-grid{table-layout:fixed;border-collapse:separate;border-spacing:0;min-width:100%}
-.entries-grid thead th{position:sticky;top:0;z-index:1;background:var(--card);height:40px;padding:0 12px;border-bottom:1px solid var(--border);font-size:var(--type-caption-size);font-weight:500;color:var(--muted-foreground);text-align:left;white-space:nowrap}
-.entries-grid th,.entries-grid td{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.entries-grid td{height:44px;padding:0 12px;border-bottom:1px solid var(--border);font-size:var(--type-body-sm-size);color:var(--foreground)}
-.entries-grid th:first-child,.entries-grid td:first-child{padding-left:20px}
-.entries-grid .is-right{text-align:right;font-variant-numeric:tabular-nums}
-.entries-grid .is-center{text-align:center}
-.entries-grid thead th{position:sticky}
-.entries-head-label{display:block;overflow:hidden;text-overflow:ellipsis}
-.entries-resizer{position:absolute;top:8px;right:0;bottom:8px;width:9px;cursor:col-resize;touch-action:none;user-select:none;display:flex;justify-content:center}
-.entries-resizer::after{content:'';width:1px;height:100%;background:var(--border);transition:background .15s}
-.entries-grid th:hover .entries-resizer::after{background:var(--app-border-strong)}
-.entries-resizer.is-resizing::after{width:2px;background:var(--ring)}
-.entries-row{cursor:pointer}
-.entries-row:hover td,.entries-row:focus-visible td{background:var(--accent)}
-.entries-row:focus-visible{outline:none}
-.entries-row:last-child td{border-bottom:0}
 .brand{align-items:flex-start}
-/* Keep a thin, always-visible scrollbar so wide tables show they scroll. */
-.entries-scroll{scrollbar-width:thin;scrollbar-color:var(--app-border-strong) transparent}
-.entries-scroll::-webkit-scrollbar{height:8px;width:8px}
-.entries-scroll::-webkit-scrollbar-thumb{background:var(--app-border-strong);border-radius:var(--radius-md)}
 /* Shell: the header holds only the mode switch and theme toggle. */
 .topbar{justify-content:flex-end;height:52px}
 .nav-heading{padding:0 10px 6px;font-size:var(--type-caption-size);font-weight:500;color:var(--muted-foreground)}
@@ -260,11 +227,6 @@ body,.page-content{background:var(--background);color:var(--foreground)}
 /* View pages. */
 .view-page{max-width:1200px}
 .view-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:24px}
-.entries-panel{background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;min-width:0}
-.entries-empty{display:grid;justify-items:start;gap:12px;padding:24px 20px;color:var(--muted-foreground);font-size:var(--type-body-sm-size)}
-.entries-panel>.empty-state{padding:24px 20px;margin:0}
-.entries-more{padding:12px 20px;border-top:1px solid var(--border)}
-.entries-scroll{max-height:calc(100vh - 230px)}
 
 /* Entry form: one card, two columns of short fields, long text full width. */
 .back-link{border:0;background:none;padding:0;margin-bottom:12px;font-size:var(--type-body-sm-size);color:var(--muted-foreground)}
@@ -339,8 +301,6 @@ body,.page-content{background:var(--background);color:var(--foreground)}
 .picker-content{width:var(--reka-popover-trigger-width);min-width:240px;padding:4px}.picker-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.picker-check{margin-left:auto;width:16px;height:16px}.picker-note{padding:12px;text-align:center;font-size:var(--type-body-sm-size);color:var(--muted-foreground)}
 .audit-changes{margin:4px 0 0;padding-left:16px;list-style:disc;font-size:var(--type-body-sm-size);color:var(--muted-foreground)}
 
-.entries-filter{display:flex;align-items:center;gap:8px;margin-bottom:12px}.entries-filter>input{max-width:420px}
-@media(max-width:639px){.entries-filter{display:none}}
 /* Ledger setup: one card per section with even spacing. */
 .ledger-stack{display:grid;gap:24px;margin-top:16px}
 .ledger-actions{display:flex;align-items:center;gap:8px;margin-top:16px}.ledger-new{justify-content:flex-end;margin:0 0 12px}.sheet-form{display:grid;gap:16px}
@@ -356,16 +316,8 @@ body,.page-content{background:var(--background);color:var(--foreground)}
 .sign-in-setup code{padding:8px 10px;border-radius:var(--radius-md);background:var(--secondary);color:var(--foreground);font-size:var(--type-caption-size)}
 .user-menu-name{display:grid;gap:2px}
 .user-menu-name small{font-size:var(--type-caption-size);color:var(--muted-foreground);font-weight:400}
-/* Files page: a file tree beside an editor, on semantic tokens only. */
+/* Files page: shared text, titles and editor chrome, on semantic tokens only. */
 .files-tabs{display:grid;gap:16px}
-.files-layout{display:grid;grid-template-columns:260px minmax(0,1fr);gap:24px;align-items:start}
-.files-tree{display:grid;gap:1px;align-content:start;max-height:calc(100vh - 220px);overflow:auto;padding:8px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg)}
-.files-node{display:flex;align-items:center;gap:6px;width:100%;height:30px;padding-right:8px;border:0;border-radius:var(--radius-md);background:transparent;color:var(--muted-foreground);text-align:left;font-size:var(--type-body-sm-size)}
-.files-node:hover{color:var(--foreground);background:var(--accent)}
-.files-node.is-folder{color:var(--foreground);font-weight:500}
-.files-node.chosen{background:var(--accent);color:var(--foreground);font-weight:500}
-.files-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.files-flag{margin-left:auto;font-size:var(--type-caption-size);color:var(--muted-foreground)}
 .files-empty,.files-hint,.files-sub{font-size:var(--type-caption-size);color:var(--muted-foreground)}
 .files-empty{padding:12px 8px}
 .files-title{font-family:var(--font-code);font-size:var(--type-body-sm-size);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
@@ -373,10 +325,8 @@ body,.page-content{background:var(--background);color:var(--foreground)}
 [data-slot=sidebar-wrapper] .files-editor{min-height:calc(100vh - 380px);font-family:var(--font-code);font-size:var(--type-code-size);line-height:1.6;resize:vertical;tab-size:2;white-space:pre}
 .files-hint{display:flex;align-items:center;gap:8px;margin-top:8px}
 .files-table{width:100%}
-.files-map-row{cursor:pointer}
 .files-problem{color:var(--destructive);font-size:var(--type-caption-size)}
 .files-picker{display:none}
-@media(max-width:760px){.files-layout{grid-template-columns:1fr}.files-tree{max-height:240px}}
 .access-assignments,.access-grants,.access-verdicts,.access-diff,.access-holders{list-style:none;margin:12px 0 0;padding:0;display:grid;gap:8px}
 .access-holders li{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .access-letter{padding-left:8px;padding-right:8px;min-width:0}
@@ -435,8 +385,6 @@ table.datatable-stacked{display:block;width:100%;max-width:100%}
 .datatable-stacked td::before{content:attr(data-label);display:block;font-size:var(--type-caption-size);font-weight:500;color:var(--muted-foreground)}
 .datatable-stacked td[data-label=""]::before{display:none}
 .datatable-stacked td.is-right,.datatable-stacked td.is-center{text-align:left}
-.datatable-stacked .entries-grid{width:100%!important}
-.datatable-stacked .entries-grid td{height:auto;min-height:0;white-space:normal;padding:6px 16px}
 .datatable-stacked .datatable-hide-mobile{display:none}
 }
 /* DataTable frame (§21): tall tables scroll inside the frame under a sticky

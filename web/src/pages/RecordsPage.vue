@@ -141,14 +141,20 @@ watch(() => props.recordType?.name, () => {
 }, { immediate: true })
 
 // The search applies after a pause in typing; the Status filter applies at
-// once. Both combine into the one server expression.
+// once. Both combine into the one server expression. The watcher skips a
+// trailing call when the expression already applied (clearing filters, or
+// switching Record Types, applies at once through the same path).
 let filterTimer: ReturnType<typeof setTimeout> | undefined
+function currentExpression(): string {
+  return combineRecordFilter(filterText.value, statusSelected.value.map(Number).filter((state) => Number.isInteger(state)))
+}
 function applyListFilter() {
-  appliedFilter.value = combineRecordFilter(filterText.value, statusSelected.value.map(Number).filter((state) => Number.isInteger(state)))
+  appliedFilter.value = currentExpression()
   void load(true)
 }
 watch(filterText, () => {
   clearTimeout(filterTimer)
+  if (currentExpression() === appliedFilter.value) return
   filterTimer = setTimeout(applyListFilter, 500)
 })
 function onFiltersChanged(next: TableFilter[]) {
@@ -317,7 +323,7 @@ const tableColumns = computed(() => props.recordType
   })
   : [])
 const recordFilters = computed<TableFilter[]>(() => submittable.value
-  ? [{ id: 'status', label: 'Status', options: [{ value: '0', label: 'Draft' }, { value: '1', label: 'Submitted' }, { value: '2', label: 'Cancelled' }], selected: statusSelected.value }]
+  ? [{ id: 'status', label: 'Status', options: [{ value: '0', label: gloss('draft').label }, { value: '1', label: gloss('submitted').label }, { value: '2', label: gloss('cancelled').label }], selected: statusSelected.value }]
   : [])
 
 const bulkDeleting = ref(false)

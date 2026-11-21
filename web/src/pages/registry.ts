@@ -69,13 +69,13 @@ export const pageEntries: PageEntry[] = [
     key: 'rules', title: 'Rules', shortTitle: 'Rules', blurb: 'Configured checks and small automations.', icon: icon('scroll-text'),
     modes: ['build'], gate: { anyPermission: ['rules:read'] }, nav: true, group: 'build',
     load: () => import('@/pages/RulesPage.vue'),
-    props: (ctx) => ({ canWrite: ctx.canWriteRules, recordTypes: ctx.recordTypes }),
+    props: (ctx) => ({ canWrite: ctx.canWriteRules, recordTypes: ctx.recordTypes, username: ctx.username }),
   },
   {
     key: 'files', title: 'Files', shortTitle: 'Files', blurb: 'Documents attached to Records.', icon: icon('folder'),
     modes: ['build'], gate: { anyPermission: ['files:read'] }, nav: true, group: 'build',
     load: () => import('@/pages/FilesPage.vue'),
-    props: (ctx) => ({ canWrite: ctx.canWriteFiles }),
+    props: (ctx) => ({ canWrite: ctx.canWriteFiles, username: ctx.username }),
   },
   {
     key: 'access', title: 'Access', shortTitle: 'Access', blurb: 'People, roles and who may do what.', icon: icon('users'),

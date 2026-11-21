@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, h, onMounted, ref, watch } from 'vue'
 import { Code, ConnectError } from '@connectrpc/connect'
 import { toast } from 'vue-sonner'
 import { ruleClient } from '../api'
@@ -9,7 +9,9 @@ import type { RecordType } from '../types'
 import ActionButton from '@/components/ActionButton.vue'
 import HelpHint from '@/copy/HelpHint.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import DataTable, { type TableFilter } from '@/components/DataTable.vue'
 import DetailSheet from '@/components/DetailSheet.vue'
+import PrimaryCell from '@/components/PrimaryCell.vue'
 import { formatWhen } from '../times'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -25,7 +27,7 @@ import ResponsiveDialog from '@/components/ResponsiveDialog.vue'
 // every source on save and returns the line of a mistake; ruleDefinitions.ts
 // only repeats the definition rules so a slip shows early. Starlark Rules are
 // not production-ready (ADR-0016, Proposed).
-const props = defineProps<{ canWrite: boolean; recordTypes: RecordType[] }>()
+const props = withDefaults(defineProps<{ canWrite: boolean; recordTypes: RecordType[]; username?: string }>(), { username: '' })
 
 type Form = { key: string; label: string; ruleType: string; recordTypeKey: string; event: string; priority: number; enabled: boolean; source: string }
 const blank = (): Form => ({ key: '', label: '', ruleType: 'validation', recordTypeKey: '', event: 'validate', priority: 100, enabled: true, source: starterSource.validation })
@@ -182,15 +184,17 @@ function loadVersion(item: RuleVersion) {
 }
 
 const deleting = ref(false)
-async function remove() {
-  deleting.value = false
+const deletingRule = ref<{ key: string; version: bigint } | null>(null)
+async function removeRule(key: string, version: bigint) {
   busy.value = true
   try {
-    await ruleClient.deleteRule({ key: selected.value, expectedVersion: BigInt(version.value) })
-    toast.success(`Deleted ${selected.value}. Its versions and runs are kept.`)
-    selected.value = ''
-    form.value = blank()
-    saved.value = blank()
+    await ruleClient.deleteRule({ key, expectedVersion: version })
+    toast.success(`Deleted ${key}. Its versions and runs are kept.`)
+    if (selected.value === key) {
+      selected.value = ''
+      form.value = blank()
+      saved.value = blank()
+    }
     await refresh()
   } catch (err) {
     toast.error(describe(err, 'delete the Rule'))
@@ -198,6 +202,139 @@ async function remove() {
     busy.value = false
   }
 }
+async function remove() {
+  deleting.value = false
+  const target = deletingRule.value ?? { key: selected.value, version: BigInt(version.value) }
+  deletingRule.value = null
+  if (!target.key) return
+  await removeRule(target.key, target.version)
+}
+
+function onRuleRowAction(id: string, rule: Rule) {
+  if (id !== 'delete') return
+  deletingRule.value = { key: rule.definition?.key ?? '', version: rule.version }
+  deleting.value = true
+}
+
+// Rules table: search across keys and labels, Type and Status filters,
+// and the editor's Delete in the row menu.
+const ruleSearch = ref('')
+const ruleTypeSelected = ref<string[]>([])
+const ruleEnabledSelected = ref<string[]>([])
+const ruleFilters = computed<TableFilter[]>(() => [
+  { id: 'type', label: 'Type', options: ruleTypes.map((type) => ({ value: type, label: type })), selected: ruleTypeSelected.value },
+  { id: 'status', label: 'Status', options: [{ value: 'on', label: 'Enabled' }, { value: 'off', label: 'Disabled' }], selected: ruleEnabledSelected.value },
+])
+const ruleFilteredActive = computed(() => ruleSearch.value.trim() !== '' || ruleTypeSelected.value.length > 0 || ruleEnabledSelected.value.length > 0)
+const filteredRules = computed(() => {
+  const needle = ruleSearch.value.trim().toLowerCase()
+  return rules.value.filter((rule) => {
+    const d = rule.definition
+    if (ruleTypeSelected.value.length > 0 && !ruleTypeSelected.value.includes(d?.ruleType ?? '')) return false
+    if (ruleEnabledSelected.value.length > 0 && !ruleEnabledSelected.value.includes(d?.enabled ? 'on' : 'off')) return false
+    return !needle || `${d?.key ?? ''} ${d?.label ?? ''}`.toLowerCase().includes(needle)
+  })
+})
+function onRuleFiltersChanged(next: TableFilter[]) {
+  ruleTypeSelected.value = next.find((filter) => filter.id === 'type')?.selected ?? []
+  ruleEnabledSelected.value = next.find((filter) => filter.id === 'status')?.selected ?? []
+}
+
+const ruleColumns = [
+  {
+    id: 'rule', header: 'Rule', accessorFn: (rule: Rule) => (rule.definition?.key ?? '').toLowerCase(), meta: { label: 'Rule' },
+    cell: ({ row }: { row: { original: Rule } }) => h(PrimaryCell, { title: row.original.definition?.key ?? '', subtitle: row.original.definition?.label || null }),
+  },
+  {
+    id: 'type', header: 'Type', accessorFn: (rule: Rule) => rule.definition?.ruleType ?? '', meta: { label: 'Type' },
+    cell: ({ row }: { row: { original: Rule } }) => row.original.definition?.ruleType ?? '',
+  },
+  {
+    id: 'recordType', header: 'Record Type', accessorFn: (rule: Rule) => rule.definition?.recordTypeKey ?? '', meta: { label: 'Record Type', hideOnMobile: true },
+    cell: ({ row }: { row: { original: Rule } }) => {
+      const key = row.original.definition?.recordTypeKey ?? ''
+      return key === '' ? h('span', { class: 'text-muted-foreground' }, '—') : key
+    },
+  },
+  {
+    id: 'event', header: 'Event', accessorFn: (rule: Rule) => rule.definition?.event ?? '', meta: { label: 'Event', hideOnMobile: true },
+    cell: ({ row }: { row: { original: Rule } }) => row.original.definition?.event || 'called',
+  },
+  {
+    id: 'priority', header: 'Priority', accessorFn: (rule: Rule) => rule.definition?.priority ?? 0, meta: { label: 'Priority', numeric: true, hideOnMobile: true },
+    cell: ({ row }: { row: { original: Rule } }) => String(row.original.definition?.priority ?? 0),
+  },
+  {
+    id: 'enabled', header: 'Enabled', accessorFn: (rule: Rule) => (rule.definition?.enabled ? 1 : 0), meta: { label: 'Enabled', center: true },
+    cell: ({ row }: { row: { original: Rule } }) => (row.original.definition?.enabled ? 'Yes' : 'No'),
+  },
+]
+
+// Runs table: the loaded runs (the API pages beyond 50, which the desk
+// leaves alone, as before) with Outcome and Event filters.
+const runSearch = ref('')
+const runOutcomeSelected = ref<string[]>([])
+const runEventSelected = ref<string[]>([])
+const runFilters = computed<TableFilter[]>(() => [
+  { id: 'outcome', label: 'Outcome', options: ['ok', 'rejected', 'error'].map((outcome) => ({ value: outcome, label: outcome })), selected: runOutcomeSelected.value },
+  {
+    id: 'event', label: 'Event',
+    options: [...new Set(runs.value.map((run) => run.event))].sort().map((event) => ({ value: event, label: event || 'called' })),
+    selected: runEventSelected.value,
+  },
+])
+const runFilteredActive = computed(() => runSearch.value.trim() !== '' || runOutcomeSelected.value.length > 0 || runEventSelected.value.length > 0)
+const filteredRuns = computed(() => {
+  const needle = runSearch.value.trim().toLowerCase()
+  return runs.value.filter((run) => {
+    if (runOutcomeSelected.value.length > 0 && !runOutcomeSelected.value.includes(run.outcome)) return false
+    if (runEventSelected.value.length > 0 && !runEventSelected.value.includes(run.event)) return false
+    return !needle || `${run.actor} ${run.code} ${run.message} ${run.event}`.toLowerCase().includes(needle)
+  })
+})
+function onRunFiltersChanged(next: TableFilter[]) {
+  runOutcomeSelected.value = next.find((filter) => filter.id === 'outcome')?.selected ?? []
+  runEventSelected.value = next.find((filter) => filter.id === 'event')?.selected ?? []
+}
+
+const runColumns = [
+  {
+    id: 'when', header: 'When', accessorFn: (run: RuleRun) => run.createdAt, meta: { label: 'When' },
+    cell: ({ row }: { row: { original: RuleRun } }) => h(PrimaryCell, { title: formatWhen(row.original.createdAt), subtitle: row.original.actor || null }),
+  },
+  {
+    id: 'version', header: 'Version', accessorFn: (run: RuleRun) => Number(run.ruleVersion), meta: { label: 'Version', numeric: true, hideOnMobile: true },
+    cell: ({ row }: { row: { original: RuleRun } }) => `v${row.original.ruleVersion}`,
+  },
+  {
+    id: 'event', header: 'Event', accessorFn: (run: RuleRun) => run.event, meta: { label: 'Event' },
+    cell: ({ row }: { row: { original: RuleRun } }) => {
+      const run = row.original
+      return run.dryRun ? h('span', null, [run.event || 'called', h('small', { class: 'files-sub' }, ' dry run')]) : (run.event || 'called')
+    },
+  },
+  {
+    id: 'outcome', header: 'Outcome', accessorFn: (run: RuleRun) => run.outcome, meta: { label: 'Outcome' },
+    cell: ({ row }: { row: { original: RuleRun } }) => {
+      const run = row.original
+      const parts: Array<ReturnType<typeof h>> = [h(Badge, { variant: run.outcome === 'ok' ? 'secondary' : 'outline' }, () => run.outcome)]
+      if (run.code) parts.push(h('small', { class: 'files-sub' }, ` ${run.code}`))
+      return h('span', { class: 'inline-flex items-center gap-1' }, parts)
+    },
+  },
+  {
+    id: 'steps', header: 'Steps', accessorFn: (run: RuleRun) => Number(run.steps), meta: { label: 'Steps', numeric: true, hideOnMobile: true },
+    cell: ({ row }: { row: { original: RuleRun } }) => String(row.original.steps),
+  },
+  {
+    id: 'duration', header: 'Duration', accessorFn: (run: RuleRun) => Number(run.durationMicros), meta: { label: 'Duration', numeric: true, hideOnMobile: true },
+    cell: ({ row }: { row: { original: RuleRun } }) => microseconds(row.original.durationMicros),
+  },
+  {
+    id: 'input', header: 'Input', accessorFn: (run: RuleRun) => run.inputHash, meta: { label: 'Input', hideOnMobile: true },
+    cell: ({ row }: { row: { original: RuleRun } }) => h('code', null, row.original.inputHash.slice(0, 10)),
+  },
+]
 
 // Simulate: a rolled-back dry run of the edited source.
 const simulating = ref(false)
@@ -247,15 +384,31 @@ onMounted(refresh)
       <div v-if="canWrite && !unavailable" class="toolbar-actions"><ActionButton kind="primary" label="New Rule" icon="plus" @press="startNew" /></div>
     </div>
     <div v-if="unavailable" class="empty-builder"><div class="card-icon">⌘</div><h2>Rules are unavailable</h2><p>{{ unavailable }}</p></div>
-    <div v-else class="files-layout">
-      <nav class="files-tree" aria-label="Rules">
-        <p v-if="loaded && rules.length === 0" class="files-empty">No Rules yet. {{ canWrite ? 'Create one.' : '' }}</p>
-        <button v-for="rule in rules" :key="rule.definition?.key" class="files-node" :class="{ chosen: rule.definition?.key === selected && !creating }" :title="rule.definition?.label" @click="choose(rule)">
-          <span class="files-name">{{ rule.definition?.key }}</span>
-          <span class="files-flag">{{ rule.definition?.enabled ? rule.definition?.ruleType : 'off' }}</span>
-        </button>
-      </nav>
-      <div class="record-editor files-editor-card">
+    <div v-else>
+      <DataTable
+        :columns="ruleColumns"
+        :data="filteredRules"
+        table-id="rules-list"
+        :username="username"
+        :get-row-id="(rule) => rule.definition?.key ?? ''"
+        :row-actions="() => canWrite ? [{ id: 'delete', label: 'Delete', kind: 'destructive', icon: 'trash-2', busy: busy }] : []"
+        v-model:search="ruleSearch"
+        search-placeholder="Find rules…"
+        :filters="ruleFilters"
+        :loading="!loaded"
+        :filtered="ruleFilteredActive"
+        clickable
+        empty-title="No Rules yet"
+        empty-body="Create one to get started."
+        @row-click="choose"
+        @row-action="onRuleRowAction"
+        @update:filters="onRuleFiltersChanged"
+      >
+        <template v-if="canWrite" #empty-action>
+          <ActionButton kind="primary" label="Create your first Rule" icon="plus" @press="startNew" />
+        </template>
+      </DataTable>
+      <div class="record-editor files-editor-card mt-4">
         <p v-if="!isOpen" class="files-empty">{{ loaded && rules.length === 0 ? 'Rules calculate from the record itself; they cannot reach files, the network or the time of day.' : 'Select a Rule, or create one.' }}</p>
         <template v-else>
           <div class="record-editor-head">
@@ -309,22 +462,23 @@ onMounted(refresh)
               <p v-else class="files-hint">The server compiles the source on save and reports the line of a mistake.</p>
             </TabsContent>
             <TabsContent value="runs">
-              <Table class="files-table">
-                <TableHeader><TableRow><TableHead>When</TableHead><TableHead>Version</TableHead><TableHead>Event</TableHead><TableHead>Outcome</TableHead><TableHead>Steps</TableHead><TableHead>Duration</TableHead><TableHead>By</TableHead><TableHead>Input</TableHead></TableRow></TableHeader>
-                <TableBody>
-                  <TableRow v-for="run in runs" :key="run.id" class="cursor-pointer" :data-state="selectedRun?.id === run.id ? 'selected' : undefined" @click="openRun(run)">
-                    <TableCell><button type="button" class="row-open" :aria-expanded="selectedRun?.id === run.id" :aria-label="`Open details for the run at ${formatWhen(run.createdAt)}`" @click.stop="openRun(run)">{{ formatWhen(run.createdAt) }}</button></TableCell>
-                    <TableCell>v{{ run.ruleVersion }}</TableCell>
-                    <TableCell>{{ run.event || 'called' }}<small v-if="run.dryRun" class="files-sub"> dry run</small></TableCell>
-                    <TableCell><Badge :variant="run.outcome === 'ok' ? 'secondary' : 'outline'">{{ run.outcome }}</Badge><small v-if="run.code" class="files-sub"> {{ run.code }}</small></TableCell>
-                    <TableCell>{{ run.steps }}</TableCell>
-                    <TableCell>{{ microseconds(run.durationMicros) }}</TableCell>
-                    <TableCell>{{ run.actor }}</TableCell>
-                    <TableCell><code>{{ run.inputHash.slice(0, 10) }}</code></TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
-              <p v-if="runs.length === 0" class="files-hint">This Rule has not run yet.</p>
+              <DataTable
+                :key="selected"
+                :columns="runColumns"
+                :data="filteredRuns"
+                table-id="rule-runs"
+                :username="username"
+                :get-row-id="(run) => run.id"
+                v-model:search="runSearch"
+                search-placeholder="Find runs…"
+                :filters="runFilters"
+                :filtered="runFilteredActive"
+                clickable
+                empty-title="No runs yet"
+                empty-body="This Rule has not run yet."
+                @row-click="openRun"
+                @update:filters="onRunFiltersChanged"
+              />
             </TabsContent>
             <TabsContent value="versions">
               <Table class="files-table">
@@ -371,7 +525,7 @@ onMounted(refresh)
     </ResponsiveDialog>
     <ConfirmDialog
       v-model:open="deleting"
-      :title="`Delete ${selected}?`"
+      :title="`Delete ${deletingRule?.key ?? selected}?`"
       body="The Rule stops running. Its versions and Rule Runs stay in the log."
       confirm-label="Delete Rule"
       cancel-label="Keep it"
