@@ -521,6 +521,7 @@ function openNewAssignment() {
 }
 
 function openEditAssignment(assignment: Assignment) {
+  actionUser.value = selectedUser.value
   assignmentForm.value = toForm(assignment)
   assignmentRevision.value = assignment.revision
   assignmentProblem.value = ''

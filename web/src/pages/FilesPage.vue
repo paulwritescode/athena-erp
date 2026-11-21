@@ -175,7 +175,15 @@ function onDetailAction(id: string) {
   if (id === 'open') openInEditor()
   else if (id === 'download') void downloadDetail()
   else if (id === 'rename') startRename(detailPath.value)
-  else if (id === 'delete') deleting.value = true
+  else if (id === 'delete') {
+    deletingPath.value = null
+    deleting.value = true
+  }
+}
+
+function askDeleteEditor() {
+  deletingPath.value = null
+  deleting.value = true
 }
 function discard() {
   const path = discardFor.value
@@ -328,9 +336,9 @@ const deleting = ref(false)
 const deleteTarget = computed(() => detailPath.value || selected.value)
 const deletingPath = ref<string | null>(null)
 async function remove() {
-  deleting.value = false
   const path = deletingPath.value ?? deleteTarget.value
   deletingPath.value = null
+  deleting.value = false
   if (!path) return
   busy.value = true
   try {
@@ -558,7 +566,7 @@ onMounted(refresh)
                     <ActionButton v-if="canWrite" kind="primary" label="Save" icon="save" :busy="busy" :disabled-reason="!dirty ? 'No changes to save.' : null" @press="save" />
                     <ActionButton kind="secondary" label="Download" icon="download" @press="download" />
                     <ActionButton v-if="canWrite" kind="secondary" label="Rename" icon="pencil" :busy="busy" @press="startRename" />
-                    <ActionButton v-if="canWrite" kind="destructive" label="Delete" icon="trash-2" :busy="busy" @press="deleting = true" />
+                    <ActionButton v-if="canWrite" kind="destructive" label="Delete" icon="trash-2" :busy="busy" @press="askDeleteEditor" />
                   </div>
                 </div>
                 <Tabs :model-value="detail" @update:model-value="onDetail">
@@ -641,6 +649,7 @@ onMounted(refresh)
       cancel-label="Keep it"
       :busy="busy"
       @confirm="remove"
+      @update:open="(value: boolean) => { if (!value) deletingPath = null }"
     />
 
     <ConfirmDialog

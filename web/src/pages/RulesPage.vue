@@ -203,11 +203,16 @@ async function removeRule(key: string, version: bigint) {
   }
 }
 async function remove() {
-  deleting.value = false
   const target = deletingRule.value ?? { key: selected.value, version: BigInt(version.value) }
   deletingRule.value = null
+  deleting.value = false
   if (!target.key) return
   await removeRule(target.key, target.version)
+}
+
+function askDeleteSelected() {
+  deletingRule.value = null
+  deleting.value = true
 }
 
 function onRuleRowAction(id: string, rule: Rule) {
@@ -418,7 +423,7 @@ onMounted(refresh)
             <div class="toolbar-actions">
               <ActionButton v-if="canWrite" kind="primary" label="Save" icon="save" :busy="busy" :disabled-reason="!dirty ? 'No changes to save.' : problem" @press="save" />
               <ActionButton v-if="canWrite" kind="secondary" label="Simulate" icon="play" :busy="busy" :disabled-reason="problem" @press="simulation = null; simulating = true" />
-              <ActionButton v-if="canWrite && !creating" kind="destructive" label="Delete" icon="trash-2" :busy="busy" @press="deleting = true" />
+              <ActionButton v-if="canWrite && !creating" kind="destructive" label="Delete" icon="trash-2" :busy="busy" @press="askDeleteSelected" />
             </div>
           </div>
           <Tabs :model-value="detail" @update:model-value="onDetail">
@@ -531,6 +536,7 @@ onMounted(refresh)
       cancel-label="Keep it"
       :busy="busy"
       @confirm="remove"
+      @update:open="(value: boolean) => { if (!value) deletingRule = null }"
     />
     <ConfirmDialog
       :open="pending !== null"
