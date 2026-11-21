@@ -138,8 +138,9 @@ func (s *Store) stat(rel string) (fs.FileInfo, error) {
 	return nil, fs.ErrNotExist
 }
 
-// read loads a file for rel, or fs.ErrNotExist. A file over the size limit or
-// that is not text is refused.
+// read loads a file for rel, or fs.ErrNotExist. A file over the size limit
+// is refused, as is one that is not text unless it is a PNG logo under
+// brand/.
 func (s *Store) read(rel string) (diskFile, error) {
 	info, err := s.stat(rel)
 	if err != nil {
@@ -157,8 +158,10 @@ func (s *Store) read(rel string) (diskFile, error) {
 	if err != nil {
 		return diskFile{}, err
 	}
-	if err := checkText(content); err != nil {
-		return diskFile{}, err
+	if !AllowBinary(rel) {
+		if err := checkText(content); err != nil {
+			return diskFile{}, err
+		}
 	}
 	return diskFile{content: content, hash: Hash(content), modTime: info.ModTime()}, nil
 }
@@ -655,7 +658,8 @@ func (s *Store) info(rel string, row fileRow, disk diskFile) Info {
 
 // List returns every managed file, sorted by path. Anything Athena would
 // refuse to open is left out: names that fail CleanPath, symbolic links,
-// files over the size limit and files that are not text.
+// files over the size limit and files that are not text (except a PNG logo
+// under brand/).
 func (s *Store) List(ctx context.Context) ([]Info, error) {
 	rows, err := s.rows(ctx)
 	if err != nil {

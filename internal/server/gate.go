@@ -47,6 +47,8 @@ type policy struct {
 var procedurePolicies = map[string]policy{
 	athenav1connect.WorkspaceServiceGetAppearanceProcedure:  {kind: policyPublic},
 	athenav1connect.WorkspaceServiceSetAppearanceProcedure:  {kind: policySystem, permission: auth.PermissionAppearance},
+	athenav1connect.WorkspaceServiceGetIdentityProcedure:    {kind: policyPublic},
+	athenav1connect.WorkspaceServiceSetIdentityProcedure:    {kind: policySystem, permission: auth.PermissionWorkspace},
 	athenav1connect.NotificationServiceListProcedure:        {kind: policySession},
 	athenav1connect.NotificationServiceUnreadCountProcedure: {kind: policySession},
 	athenav1connect.NotificationServiceMarkReadProcedure:    {kind: policySession},

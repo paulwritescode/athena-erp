@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"sort"
+	"strings"
 	"time"
 
 	athenav1 "athena-erp/gen/athena/v1"
@@ -15,6 +16,17 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
+
+// isBrandPath reports whether p names a Workspace logo. Logos are written
+// only through the Workspace identity, which validates and sanitizes them;
+// the file service only reads them.
+func isBrandPath(p string) bool {
+	return strings.HasPrefix(p, "brand/")
+}
+
+func brandWriteRefused() error {
+	return connect.NewError(connect.CodePermissionDenied, "brand files are managed through the Workspace identity, not the file service")
+}
 
 // fileService is the FileService handler. The CLI uses the same type through
 // Kernel.Files, so both apply the same path, size, type and version rules.
@@ -140,6 +152,9 @@ func (s fileService) list(ctx context.Context) (*athenav1.ListFilesResponse, int
 	res := &athenav1.ListFilesResponse{MaxFileBytes: files.MaxFileBytes, MaxFiles: files.MaxFiles, Folders: files.Folders, Extensions: files.Extensions}
 	backed := map[string]bool{}
 	for _, info := range infos {
+		if isBrandPath(info.Path) {
+			continue
+		}
 		backing := backingOf(info.Path, saved)
 		if backing.GetKind() == "record_type" {
 			backed[backing.GetKey()] = true
@@ -179,6 +194,9 @@ func (s fileService) PutFile(ctx context.Context, req *athenav1.PutFileRequest) 
 	if _, err := requireSystem(ctx, auth.PermissionFilesWrite); err != nil {
 		return nil, err
 	}
+	if isBrandPath(req.GetPath()) {
+		return nil, brandWriteRefused()
+	}
 	ctx, meta, end := fileOp(ctx, "file_put", req.GetPath())
 	info, err := s.files.Put(ctx, req.GetPath(), req.GetContent(), files.Expect{Hash: req.GetExpectedHash()}, meta)
 	err = fileError("save the file", err)
@@ -196,6 +214,9 @@ func (s fileService) MoveFile(ctx context.Context, req *athenav1.MoveFileRequest
 	if _, err := requireSystem(ctx, auth.PermissionFilesWrite); err != nil {
 		return nil, err
 	}
+	if isBrandPath(req.GetFrom()) || isBrandPath(req.GetTo()) {
+		return nil, brandWriteRefused()
+	}
 	ctx, meta, end := fileOp(ctx, "file_move", req.GetFrom())
 	info, err := s.files.Move(ctx, req.GetFrom(), req.GetTo(), files.Expect{Hash: req.GetExpectedHash()}, meta)
 	err = fileError("move the file", err)
@@ -212,6 +233,9 @@ func (s fileService) DeleteFile(ctx context.Context, req *athenav1.DeleteFileReq
 	}
 	if _, err := requireSystem(ctx, auth.PermissionFilesWrite); err != nil {
 		return nil, err
+	}
+	if isBrandPath(req.GetPath()) {
+		return nil, brandWriteRefused()
 	}
 	ctx, meta, end := fileOp(ctx, "file_delete", req.GetPath())
 	err := fileError("delete the file", s.files.Delete(ctx, req.GetPath(), files.Expect{Hash: req.GetExpectedHash()}, meta))

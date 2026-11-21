@@ -11,19 +11,30 @@ import (
 
 const appearanceUsage = "usage: athena workspace appearance show | set (--preset ink|red | --accent 'oklch(...)' [--chart1 ...] ... [--chart5 ...]) [--workspace slug]"
 
+const identityUsage = "usage: athena workspace identity show | set [--name text] [--logo-light file] [--logo-dark file] [--workspace slug]"
+
 func workspaceCommand(args []string, out io.Writer) error {
+	if isHelp(args) {
+		fmt.Fprintln(out, appearanceUsage)
+		fmt.Fprintln(out, identityUsage)
+		return nil
+	}
+	switch args[0] {
+	case "appearance":
+		return appearanceCommand(args[1:], out)
+	case "identity":
+		return identityCommand(args[1:], out)
+	default:
+		return errors.New(appearanceUsage + "\n" + identityUsage)
+	}
+}
+
+func appearanceCommand(args []string, out io.Writer) error {
 	if isHelp(args) {
 		fmt.Fprintln(out, appearanceUsage)
 		return nil
 	}
-	if args[0] != "appearance" {
-		return errors.New(appearanceUsage)
-	}
-	if isHelp(args[1:]) {
-		fmt.Fprintln(out, appearanceUsage)
-		return nil
-	}
-	verb, args := args[1], args[2:]
+	verb, args := args[0], args[1:]
 	f := flag.NewFlagSet("workspace appearance "+verb, flag.ContinueOnError)
 	slug := f.String("workspace", "", "Workspace slug")
 	a := &v1.Appearance{}

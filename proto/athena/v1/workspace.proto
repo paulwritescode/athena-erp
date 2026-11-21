@@ -5,6 +5,12 @@ option go_package = "athena-erp/gen/athena/v1;athenav1";
 service WorkspaceService {
   rpc GetAppearance(GetAppearanceRequest) returns (GetAppearanceResponse);
   rpc SetAppearance(SetAppearanceRequest) returns (SetAppearanceResponse);
+  // GetIdentity is public: the sign-in page shows the name and logo before
+  // anyone signs in. It returns the identity and nothing else.
+  rpc GetIdentity(GetIdentityRequest) returns (GetIdentityResponse);
+  // SetIdentity needs settings:workspace. Logos are PNG or sanitized SVG of
+  // at most 512 KB, stored as Workspace files under brand/.
+  rpc SetIdentity(SetIdentityRequest) returns (SetIdentityResponse);
 }
 message Appearance {
   // ink, red or custom. Named presets use the Desk's preset tokens.
@@ -31,4 +37,39 @@ message SetAppearanceResponse {
 message AppearanceContrastFailure {
   string suggested_accent = 1;
   string dark_accent = 2;
+}
+
+// Identity is what the Workspace calls itself and what mark it wears. Logo
+// and favicon URLs are same-origin content-hashed paths under /brand/ served
+// by the Go server; a logo URL is empty when no logo is set for that theme.
+message Identity {
+  string display_name = 1;
+  string logo_light_url = 2;
+  string logo_dark_url = 3;
+  // Always set: the light logo resized, or the Athena mark when none is set.
+  string favicon_32_url = 4;
+  string favicon_180_url = 5;
+}
+message GetIdentityRequest {}
+message GetIdentityResponse {
+  Identity identity = 1;
+}
+// LogoUpload carries one logo file. The server takes the file type from the
+// filename extension (.png or .svg, any case).
+message LogoUpload {
+  bytes content = 1;
+  string filename = 2;
+}
+message SetIdentityRequest {
+  // Empty leaves the name unchanged. Otherwise 1 to 80 characters.
+  string display_name = 1;
+  // Set to replace that theme's logo. Setting both the upload and the clear
+  // flag for one theme is refused.
+  LogoUpload logo_light = 2;
+  LogoUpload logo_dark = 3;
+  bool clear_logo_light = 4;
+  bool clear_logo_dark = 5;
+}
+message SetIdentityResponse {
+  Identity identity = 1;
 }

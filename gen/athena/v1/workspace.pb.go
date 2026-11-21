@@ -338,6 +338,343 @@ func (x *AppearanceContrastFailure) GetDarkAccent() string {
 	return ""
 }
 
+// Identity is what the Workspace calls itself and what mark it wears. Logo
+// and favicon URLs are same-origin content-hashed paths under /brand/ served
+// by the Go server; a logo URL is empty when no logo is set for that theme.
+type Identity struct {
+	state        protoimpl.MessageState `protogen:"open.v1"`
+	DisplayName  string                 `protobuf:"bytes,1,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	LogoLightUrl string                 `protobuf:"bytes,2,opt,name=logo_light_url,json=logoLightUrl,proto3" json:"logo_light_url,omitempty"`
+	LogoDarkUrl  string                 `protobuf:"bytes,3,opt,name=logo_dark_url,json=logoDarkUrl,proto3" json:"logo_dark_url,omitempty"`
+	// Always set: the light logo resized, or the Athena mark when none is set.
+	Favicon_32Url  string `protobuf:"bytes,4,opt,name=favicon_32_url,json=favicon32Url,proto3" json:"favicon_32_url,omitempty"`
+	Favicon_180Url string `protobuf:"bytes,5,opt,name=favicon_180_url,json=favicon180Url,proto3" json:"favicon_180_url,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *Identity) Reset() {
+	*x = Identity{}
+	mi := &file_athena_v1_workspace_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Identity) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Identity) ProtoMessage() {}
+
+func (x *Identity) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_workspace_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Identity.ProtoReflect.Descriptor instead.
+func (*Identity) Descriptor() ([]byte, []int) {
+	return file_athena_v1_workspace_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *Identity) GetDisplayName() string {
+	if x != nil {
+		return x.DisplayName
+	}
+	return ""
+}
+
+func (x *Identity) GetLogoLightUrl() string {
+	if x != nil {
+		return x.LogoLightUrl
+	}
+	return ""
+}
+
+func (x *Identity) GetLogoDarkUrl() string {
+	if x != nil {
+		return x.LogoDarkUrl
+	}
+	return ""
+}
+
+func (x *Identity) GetFavicon_32Url() string {
+	if x != nil {
+		return x.Favicon_32Url
+	}
+	return ""
+}
+
+func (x *Identity) GetFavicon_180Url() string {
+	if x != nil {
+		return x.Favicon_180Url
+	}
+	return ""
+}
+
+type GetIdentityRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetIdentityRequest) Reset() {
+	*x = GetIdentityRequest{}
+	mi := &file_athena_v1_workspace_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetIdentityRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetIdentityRequest) ProtoMessage() {}
+
+func (x *GetIdentityRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_workspace_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetIdentityRequest.ProtoReflect.Descriptor instead.
+func (*GetIdentityRequest) Descriptor() ([]byte, []int) {
+	return file_athena_v1_workspace_proto_rawDescGZIP(), []int{7}
+}
+
+type GetIdentityResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Identity      *Identity              `protobuf:"bytes,1,opt,name=identity,proto3" json:"identity,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetIdentityResponse) Reset() {
+	*x = GetIdentityResponse{}
+	mi := &file_athena_v1_workspace_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetIdentityResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetIdentityResponse) ProtoMessage() {}
+
+func (x *GetIdentityResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_workspace_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetIdentityResponse.ProtoReflect.Descriptor instead.
+func (*GetIdentityResponse) Descriptor() ([]byte, []int) {
+	return file_athena_v1_workspace_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *GetIdentityResponse) GetIdentity() *Identity {
+	if x != nil {
+		return x.Identity
+	}
+	return nil
+}
+
+// LogoUpload carries one logo file. The server takes the file type from the
+// filename extension (.png or .svg, any case).
+type LogoUpload struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Content       []byte                 `protobuf:"bytes,1,opt,name=content,proto3" json:"content,omitempty"`
+	Filename      string                 `protobuf:"bytes,2,opt,name=filename,proto3" json:"filename,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *LogoUpload) Reset() {
+	*x = LogoUpload{}
+	mi := &file_athena_v1_workspace_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *LogoUpload) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*LogoUpload) ProtoMessage() {}
+
+func (x *LogoUpload) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_workspace_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use LogoUpload.ProtoReflect.Descriptor instead.
+func (*LogoUpload) Descriptor() ([]byte, []int) {
+	return file_athena_v1_workspace_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *LogoUpload) GetContent() []byte {
+	if x != nil {
+		return x.Content
+	}
+	return nil
+}
+
+func (x *LogoUpload) GetFilename() string {
+	if x != nil {
+		return x.Filename
+	}
+	return ""
+}
+
+type SetIdentityRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Empty leaves the name unchanged. Otherwise 1 to 80 characters.
+	DisplayName string `protobuf:"bytes,1,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	// Set to replace that theme's logo. Setting both the upload and the clear
+	// flag for one theme is refused.
+	LogoLight      *LogoUpload `protobuf:"bytes,2,opt,name=logo_light,json=logoLight,proto3" json:"logo_light,omitempty"`
+	LogoDark       *LogoUpload `protobuf:"bytes,3,opt,name=logo_dark,json=logoDark,proto3" json:"logo_dark,omitempty"`
+	ClearLogoLight bool        `protobuf:"varint,4,opt,name=clear_logo_light,json=clearLogoLight,proto3" json:"clear_logo_light,omitempty"`
+	ClearLogoDark  bool        `protobuf:"varint,5,opt,name=clear_logo_dark,json=clearLogoDark,proto3" json:"clear_logo_dark,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *SetIdentityRequest) Reset() {
+	*x = SetIdentityRequest{}
+	mi := &file_athena_v1_workspace_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetIdentityRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetIdentityRequest) ProtoMessage() {}
+
+func (x *SetIdentityRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_workspace_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetIdentityRequest.ProtoReflect.Descriptor instead.
+func (*SetIdentityRequest) Descriptor() ([]byte, []int) {
+	return file_athena_v1_workspace_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *SetIdentityRequest) GetDisplayName() string {
+	if x != nil {
+		return x.DisplayName
+	}
+	return ""
+}
+
+func (x *SetIdentityRequest) GetLogoLight() *LogoUpload {
+	if x != nil {
+		return x.LogoLight
+	}
+	return nil
+}
+
+func (x *SetIdentityRequest) GetLogoDark() *LogoUpload {
+	if x != nil {
+		return x.LogoDark
+	}
+	return nil
+}
+
+func (x *SetIdentityRequest) GetClearLogoLight() bool {
+	if x != nil {
+		return x.ClearLogoLight
+	}
+	return false
+}
+
+func (x *SetIdentityRequest) GetClearLogoDark() bool {
+	if x != nil {
+		return x.ClearLogoDark
+	}
+	return false
+}
+
+type SetIdentityResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Identity      *Identity              `protobuf:"bytes,1,opt,name=identity,proto3" json:"identity,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetIdentityResponse) Reset() {
+	*x = SetIdentityResponse{}
+	mi := &file_athena_v1_workspace_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetIdentityResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetIdentityResponse) ProtoMessage() {}
+
+func (x *SetIdentityResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_workspace_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetIdentityResponse.ProtoReflect.Descriptor instead.
+func (*SetIdentityResponse) Descriptor() ([]byte, []int) {
+	return file_athena_v1_workspace_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *SetIdentityResponse) GetIdentity() *Identity {
+	if x != nil {
+		return x.Identity
+	}
+	return nil
+}
+
 var File_athena_v1_workspace_proto protoreflect.FileDescriptor
 
 const file_athena_v1_workspace_proto_rawDesc = "" +
@@ -370,10 +707,34 @@ const file_athena_v1_workspace_proto_rawDesc = "" +
 	"\x19AppearanceContrastFailure\x12)\n" +
 	"\x10suggested_accent\x18\x01 \x01(\tR\x0fsuggestedAccent\x12\x1f\n" +
 	"\vdark_accent\x18\x02 \x01(\tR\n" +
-	"darkAccent2\xba\x01\n" +
+	"darkAccent\"\xc5\x01\n" +
+	"\bIdentity\x12!\n" +
+	"\fdisplay_name\x18\x01 \x01(\tR\vdisplayName\x12$\n" +
+	"\x0elogo_light_url\x18\x02 \x01(\tR\flogoLightUrl\x12\"\n" +
+	"\rlogo_dark_url\x18\x03 \x01(\tR\vlogoDarkUrl\x12$\n" +
+	"\x0efavicon_32_url\x18\x04 \x01(\tR\ffavicon32Url\x12&\n" +
+	"\x0ffavicon_180_url\x18\x05 \x01(\tR\rfavicon180Url\"\x14\n" +
+	"\x12GetIdentityRequest\"F\n" +
+	"\x13GetIdentityResponse\x12/\n" +
+	"\bidentity\x18\x01 \x01(\v2\x13.athena.v1.IdentityR\bidentity\"B\n" +
+	"\n" +
+	"LogoUpload\x12\x18\n" +
+	"\acontent\x18\x01 \x01(\fR\acontent\x12\x1a\n" +
+	"\bfilename\x18\x02 \x01(\tR\bfilename\"\xf3\x01\n" +
+	"\x12SetIdentityRequest\x12!\n" +
+	"\fdisplay_name\x18\x01 \x01(\tR\vdisplayName\x124\n" +
+	"\n" +
+	"logo_light\x18\x02 \x01(\v2\x15.athena.v1.LogoUploadR\tlogoLight\x122\n" +
+	"\tlogo_dark\x18\x03 \x01(\v2\x15.athena.v1.LogoUploadR\blogoDark\x12(\n" +
+	"\x10clear_logo_light\x18\x04 \x01(\bR\x0eclearLogoLight\x12&\n" +
+	"\x0fclear_logo_dark\x18\x05 \x01(\bR\rclearLogoDark\"F\n" +
+	"\x13SetIdentityResponse\x12/\n" +
+	"\bidentity\x18\x01 \x01(\v2\x13.athena.v1.IdentityR\bidentity2\xd6\x02\n" +
 	"\x10WorkspaceService\x12R\n" +
 	"\rGetAppearance\x12\x1f.athena.v1.GetAppearanceRequest\x1a .athena.v1.GetAppearanceResponse\x12R\n" +
-	"\rSetAppearance\x12\x1f.athena.v1.SetAppearanceRequest\x1a .athena.v1.SetAppearanceResponseB#Z!athena-erp/gen/athena/v1;athenav1b\x06proto3"
+	"\rSetAppearance\x12\x1f.athena.v1.SetAppearanceRequest\x1a .athena.v1.SetAppearanceResponse\x12L\n" +
+	"\vGetIdentity\x12\x1d.athena.v1.GetIdentityRequest\x1a\x1e.athena.v1.GetIdentityResponse\x12L\n" +
+	"\vSetIdentity\x12\x1d.athena.v1.SetIdentityRequest\x1a\x1e.athena.v1.SetIdentityResponseB#Z!athena-erp/gen/athena/v1;athenav1b\x06proto3"
 
 var (
 	file_athena_v1_workspace_proto_rawDescOnce sync.Once
@@ -387,7 +748,7 @@ func file_athena_v1_workspace_proto_rawDescGZIP() []byte {
 	return file_athena_v1_workspace_proto_rawDescData
 }
 
-var file_athena_v1_workspace_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_athena_v1_workspace_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
 var file_athena_v1_workspace_proto_goTypes = []any{
 	(*Appearance)(nil),                // 0: athena.v1.Appearance
 	(*GetAppearanceRequest)(nil),      // 1: athena.v1.GetAppearanceRequest
@@ -395,20 +756,34 @@ var file_athena_v1_workspace_proto_goTypes = []any{
 	(*SetAppearanceRequest)(nil),      // 3: athena.v1.SetAppearanceRequest
 	(*SetAppearanceResponse)(nil),     // 4: athena.v1.SetAppearanceResponse
 	(*AppearanceContrastFailure)(nil), // 5: athena.v1.AppearanceContrastFailure
+	(*Identity)(nil),                  // 6: athena.v1.Identity
+	(*GetIdentityRequest)(nil),        // 7: athena.v1.GetIdentityRequest
+	(*GetIdentityResponse)(nil),       // 8: athena.v1.GetIdentityResponse
+	(*LogoUpload)(nil),                // 9: athena.v1.LogoUpload
+	(*SetIdentityRequest)(nil),        // 10: athena.v1.SetIdentityRequest
+	(*SetIdentityResponse)(nil),       // 11: athena.v1.SetIdentityResponse
 }
 var file_athena_v1_workspace_proto_depIdxs = []int32{
-	0, // 0: athena.v1.GetAppearanceResponse.appearance:type_name -> athena.v1.Appearance
-	0, // 1: athena.v1.SetAppearanceRequest.appearance:type_name -> athena.v1.Appearance
-	0, // 2: athena.v1.SetAppearanceResponse.appearance:type_name -> athena.v1.Appearance
-	1, // 3: athena.v1.WorkspaceService.GetAppearance:input_type -> athena.v1.GetAppearanceRequest
-	3, // 4: athena.v1.WorkspaceService.SetAppearance:input_type -> athena.v1.SetAppearanceRequest
-	2, // 5: athena.v1.WorkspaceService.GetAppearance:output_type -> athena.v1.GetAppearanceResponse
-	4, // 6: athena.v1.WorkspaceService.SetAppearance:output_type -> athena.v1.SetAppearanceResponse
-	5, // [5:7] is the sub-list for method output_type
-	3, // [3:5] is the sub-list for method input_type
-	3, // [3:3] is the sub-list for extension type_name
-	3, // [3:3] is the sub-list for extension extendee
-	0, // [0:3] is the sub-list for field type_name
+	0,  // 0: athena.v1.GetAppearanceResponse.appearance:type_name -> athena.v1.Appearance
+	0,  // 1: athena.v1.SetAppearanceRequest.appearance:type_name -> athena.v1.Appearance
+	0,  // 2: athena.v1.SetAppearanceResponse.appearance:type_name -> athena.v1.Appearance
+	6,  // 3: athena.v1.GetIdentityResponse.identity:type_name -> athena.v1.Identity
+	9,  // 4: athena.v1.SetIdentityRequest.logo_light:type_name -> athena.v1.LogoUpload
+	9,  // 5: athena.v1.SetIdentityRequest.logo_dark:type_name -> athena.v1.LogoUpload
+	6,  // 6: athena.v1.SetIdentityResponse.identity:type_name -> athena.v1.Identity
+	1,  // 7: athena.v1.WorkspaceService.GetAppearance:input_type -> athena.v1.GetAppearanceRequest
+	3,  // 8: athena.v1.WorkspaceService.SetAppearance:input_type -> athena.v1.SetAppearanceRequest
+	7,  // 9: athena.v1.WorkspaceService.GetIdentity:input_type -> athena.v1.GetIdentityRequest
+	10, // 10: athena.v1.WorkspaceService.SetIdentity:input_type -> athena.v1.SetIdentityRequest
+	2,  // 11: athena.v1.WorkspaceService.GetAppearance:output_type -> athena.v1.GetAppearanceResponse
+	4,  // 12: athena.v1.WorkspaceService.SetAppearance:output_type -> athena.v1.SetAppearanceResponse
+	8,  // 13: athena.v1.WorkspaceService.GetIdentity:output_type -> athena.v1.GetIdentityResponse
+	11, // 14: athena.v1.WorkspaceService.SetIdentity:output_type -> athena.v1.SetIdentityResponse
+	11, // [11:15] is the sub-list for method output_type
+	7,  // [7:11] is the sub-list for method input_type
+	7,  // [7:7] is the sub-list for extension type_name
+	7,  // [7:7] is the sub-list for extension extendee
+	0,  // [0:7] is the sub-list for field type_name
 }
 
 func init() { file_athena_v1_workspace_proto_init() }
@@ -422,7 +797,7 @@ func file_athena_v1_workspace_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_athena_v1_workspace_proto_rawDesc), len(file_athena_v1_workspace_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   6,
+			NumMessages:   12,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file athena/v1/workspace.proto.
  */
 export const file_athena_v1_workspace: GenFile = /*@__PURE__*/
-  fileDesc("ChlhdGhlbmEvdjEvd29ya3NwYWNlLnByb3RvEglhdGhlbmEudjEiQgoKQXBwZWFyYW5jZRIOCgZwcmVzZXQYASABKAkSDgoGYWNjZW50GAIgASgJEhQKDGNoYXJ0X2NvbG9ycxgDIAMoCSIWChRHZXRBcHBlYXJhbmNlUmVxdWVzdCJtChVHZXRBcHBlYXJhbmNlUmVzcG9uc2USKQoKYXBwZWFyYW5jZRgBIAEoCzIVLmF0aGVuYS52MS5BcHBlYXJhbmNlEhMKC2RhcmtfYWNjZW50GAIgASgJEhQKDGxpZ2h0X2FjY2VudBgDIAEoCSJBChRTZXRBcHBlYXJhbmNlUmVxdWVzdBIpCgphcHBlYXJhbmNlGAEgASgLMhUuYXRoZW5hLnYxLkFwcGVhcmFuY2UibQoVU2V0QXBwZWFyYW5jZVJlc3BvbnNlEikKCmFwcGVhcmFuY2UYASABKAsyFS5hdGhlbmEudjEuQXBwZWFyYW5jZRITCgtkYXJrX2FjY2VudBgCIAEoCRIUCgxsaWdodF9hY2NlbnQYAyABKAkiSgoZQXBwZWFyYW5jZUNvbnRyYXN0RmFpbHVyZRIYChBzdWdnZXN0ZWRfYWNjZW50GAEgASgJEhMKC2RhcmtfYWNjZW50GAIgASgJMroBChBXb3Jrc3BhY2VTZXJ2aWNlElIKDUdldEFwcGVhcmFuY2USHy5hdGhlbmEudjEuR2V0QXBwZWFyYW5jZVJlcXVlc3QaIC5hdGhlbmEudjEuR2V0QXBwZWFyYW5jZVJlc3BvbnNlElIKDVNldEFwcGVhcmFuY2USHy5hdGhlbmEudjEuU2V0QXBwZWFyYW5jZVJlcXVlc3QaIC5hdGhlbmEudjEuU2V0QXBwZWFyYW5jZVJlc3BvbnNlQiNaIWF0aGVuYS1lcnAvZ2VuL2F0aGVuYS92MTthdGhlbmF2MWIGcHJvdG8z");
+  fileDesc("ChlhdGhlbmEvdjEvd29ya3NwYWNlLnByb3RvEglhdGhlbmEudjEiQgoKQXBwZWFyYW5jZRIOCgZwcmVzZXQYASABKAkSDgoGYWNjZW50GAIgASgJEhQKDGNoYXJ0X2NvbG9ycxgDIAMoCSIWChRHZXRBcHBlYXJhbmNlUmVxdWVzdCJtChVHZXRBcHBlYXJhbmNlUmVzcG9uc2USKQoKYXBwZWFyYW5jZRgBIAEoCzIVLmF0aGVuYS52MS5BcHBlYXJhbmNlEhMKC2RhcmtfYWNjZW50GAIgASgJEhQKDGxpZ2h0X2FjY2VudBgDIAEoCSJBChRTZXRBcHBlYXJhbmNlUmVxdWVzdBIpCgphcHBlYXJhbmNlGAEgASgLMhUuYXRoZW5hLnYxLkFwcGVhcmFuY2UibQoVU2V0QXBwZWFyYW5jZVJlc3BvbnNlEikKCmFwcGVhcmFuY2UYASABKAsyFS5hdGhlbmEudjEuQXBwZWFyYW5jZRITCgtkYXJrX2FjY2VudBgCIAEoCRIUCgxsaWdodF9hY2NlbnQYAyABKAkiSgoZQXBwZWFyYW5jZUNvbnRyYXN0RmFpbHVyZRIYChBzdWdnZXN0ZWRfYWNjZW50GAEgASgJEhMKC2RhcmtfYWNjZW50GAIgASgJIoABCghJZGVudGl0eRIUCgxkaXNwbGF5X25hbWUYASABKAkSFgoObG9nb19saWdodF91cmwYAiABKAkSFQoNbG9nb19kYXJrX3VybBgDIAEoCRIWCg5mYXZpY29uXzMyX3VybBgEIAEoCRIXCg9mYXZpY29uXzE4MF91cmwYBSABKAkiFAoSR2V0SWRlbnRpdHlSZXF1ZXN0IjwKE0dldElkZW50aXR5UmVzcG9uc2USJQoIaWRlbnRpdHkYASABKAsyEy5hdGhlbmEudjEuSWRlbnRpdHkiLwoKTG9nb1VwbG9hZBIPCgdjb250ZW50GAEgASgMEhAKCGZpbGVuYW1lGAIgASgJIrIBChJTZXRJZGVudGl0eVJlcXVlc3QSFAoMZGlzcGxheV9uYW1lGAEgASgJEikKCmxvZ29fbGlnaHQYAiABKAsyFS5hdGhlbmEudjEuTG9nb1VwbG9hZBIoCglsb2dvX2RhcmsYAyABKAsyFS5hdGhlbmEudjEuTG9nb1VwbG9hZBIYChBjbGVhcl9sb2dvX2xpZ2h0GAQgASgIEhcKD2NsZWFyX2xvZ29fZGFyaxgFIAEoCCI8ChNTZXRJZGVudGl0eVJlc3BvbnNlEiUKCGlkZW50aXR5GAEgASgLMhMuYXRoZW5hLnYxLklkZW50aXR5MtYCChBXb3Jrc3BhY2VTZXJ2aWNlElIKDUdldEFwcGVhcmFuY2USHy5hdGhlbmEudjEuR2V0QXBwZWFyYW5jZVJlcXVlc3QaIC5hdGhlbmEudjEuR2V0QXBwZWFyYW5jZVJlc3BvbnNlElIKDVNldEFwcGVhcmFuY2USHy5hdGhlbmEudjEuU2V0QXBwZWFyYW5jZVJlcXVlc3QaIC5hdGhlbmEudjEuU2V0QXBwZWFyYW5jZVJlc3BvbnNlEkwKC0dldElkZW50aXR5Eh0uYXRoZW5hLnYxLkdldElkZW50aXR5UmVxdWVzdBoeLmF0aGVuYS52MS5HZXRJZGVudGl0eVJlc3BvbnNlEkwKC1NldElkZW50aXR5Eh0uYXRoZW5hLnYxLlNldElkZW50aXR5UmVxdWVzdBoeLmF0aGVuYS52MS5TZXRJZGVudGl0eVJlc3BvbnNlQiNaIWF0aGVuYS1lcnAvZ2VuL2F0aGVuYS92MTthdGhlbmF2MWIGcHJvdG8z");
 
 /**
  * @generated from message athena.v1.Appearance
@@ -156,6 +156,163 @@ export const AppearanceContrastFailureSchema: GenMessage<AppearanceContrastFailu
   messageDesc(file_athena_v1_workspace, 5);
 
 /**
+ * Identity is what the Workspace calls itself and what mark it wears. Logo
+ * and favicon URLs are same-origin content-hashed paths under /brand/ served
+ * by the Go server; a logo URL is empty when no logo is set for that theme.
+ *
+ * @generated from message athena.v1.Identity
+ */
+export type Identity = Message<"athena.v1.Identity"> & {
+  /**
+   * @generated from field: string display_name = 1;
+   */
+  displayName: string;
+
+  /**
+   * @generated from field: string logo_light_url = 2;
+   */
+  logoLightUrl: string;
+
+  /**
+   * @generated from field: string logo_dark_url = 3;
+   */
+  logoDarkUrl: string;
+
+  /**
+   * Always set: the light logo resized, or the Athena mark when none is set.
+   *
+   * @generated from field: string favicon_32_url = 4;
+   */
+  favicon32Url: string;
+
+  /**
+   * @generated from field: string favicon_180_url = 5;
+   */
+  favicon180Url: string;
+};
+
+/**
+ * Describes the message athena.v1.Identity.
+ * Use `create(IdentitySchema)` to create a new message.
+ */
+export const IdentitySchema: GenMessage<Identity> = /*@__PURE__*/
+  messageDesc(file_athena_v1_workspace, 6);
+
+/**
+ * @generated from message athena.v1.GetIdentityRequest
+ */
+export type GetIdentityRequest = Message<"athena.v1.GetIdentityRequest"> & {
+};
+
+/**
+ * Describes the message athena.v1.GetIdentityRequest.
+ * Use `create(GetIdentityRequestSchema)` to create a new message.
+ */
+export const GetIdentityRequestSchema: GenMessage<GetIdentityRequest> = /*@__PURE__*/
+  messageDesc(file_athena_v1_workspace, 7);
+
+/**
+ * @generated from message athena.v1.GetIdentityResponse
+ */
+export type GetIdentityResponse = Message<"athena.v1.GetIdentityResponse"> & {
+  /**
+   * @generated from field: athena.v1.Identity identity = 1;
+   */
+  identity?: Identity | undefined;
+};
+
+/**
+ * Describes the message athena.v1.GetIdentityResponse.
+ * Use `create(GetIdentityResponseSchema)` to create a new message.
+ */
+export const GetIdentityResponseSchema: GenMessage<GetIdentityResponse> = /*@__PURE__*/
+  messageDesc(file_athena_v1_workspace, 8);
+
+/**
+ * LogoUpload carries one logo file. The server takes the file type from the
+ * filename extension (.png or .svg, any case).
+ *
+ * @generated from message athena.v1.LogoUpload
+ */
+export type LogoUpload = Message<"athena.v1.LogoUpload"> & {
+  /**
+   * @generated from field: bytes content = 1;
+   */
+  content: Uint8Array;
+
+  /**
+   * @generated from field: string filename = 2;
+   */
+  filename: string;
+};
+
+/**
+ * Describes the message athena.v1.LogoUpload.
+ * Use `create(LogoUploadSchema)` to create a new message.
+ */
+export const LogoUploadSchema: GenMessage<LogoUpload> = /*@__PURE__*/
+  messageDesc(file_athena_v1_workspace, 9);
+
+/**
+ * @generated from message athena.v1.SetIdentityRequest
+ */
+export type SetIdentityRequest = Message<"athena.v1.SetIdentityRequest"> & {
+  /**
+   * Empty leaves the name unchanged. Otherwise 1 to 80 characters.
+   *
+   * @generated from field: string display_name = 1;
+   */
+  displayName: string;
+
+  /**
+   * Set to replace that theme's logo. Setting both the upload and the clear
+   * flag for one theme is refused.
+   *
+   * @generated from field: athena.v1.LogoUpload logo_light = 2;
+   */
+  logoLight?: LogoUpload | undefined;
+
+  /**
+   * @generated from field: athena.v1.LogoUpload logo_dark = 3;
+   */
+  logoDark?: LogoUpload | undefined;
+
+  /**
+   * @generated from field: bool clear_logo_light = 4;
+   */
+  clearLogoLight: boolean;
+
+  /**
+   * @generated from field: bool clear_logo_dark = 5;
+   */
+  clearLogoDark: boolean;
+};
+
+/**
+ * Describes the message athena.v1.SetIdentityRequest.
+ * Use `create(SetIdentityRequestSchema)` to create a new message.
+ */
+export const SetIdentityRequestSchema: GenMessage<SetIdentityRequest> = /*@__PURE__*/
+  messageDesc(file_athena_v1_workspace, 10);
+
+/**
+ * @generated from message athena.v1.SetIdentityResponse
+ */
+export type SetIdentityResponse = Message<"athena.v1.SetIdentityResponse"> & {
+  /**
+   * @generated from field: athena.v1.Identity identity = 1;
+   */
+  identity?: Identity | undefined;
+};
+
+/**
+ * Describes the message athena.v1.SetIdentityResponse.
+ * Use `create(SetIdentityResponseSchema)` to create a new message.
+ */
+export const SetIdentityResponseSchema: GenMessage<SetIdentityResponse> = /*@__PURE__*/
+  messageDesc(file_athena_v1_workspace, 11);
+
+/**
  * @generated from service athena.v1.WorkspaceService
  */
 export const WorkspaceService: GenService<{
@@ -174,6 +331,28 @@ export const WorkspaceService: GenService<{
     methodKind: "unary";
     input: typeof SetAppearanceRequestSchema;
     output: typeof SetAppearanceResponseSchema;
+  },
+  /**
+   * GetIdentity is public: the sign-in page shows the name and logo before
+   * anyone signs in. It returns the identity and nothing else.
+   *
+   * @generated from rpc athena.v1.WorkspaceService.GetIdentity
+   */
+  getIdentity: {
+    methodKind: "unary";
+    input: typeof GetIdentityRequestSchema;
+    output: typeof GetIdentityResponseSchema;
+  },
+  /**
+   * SetIdentity needs settings:workspace. Logos are PNG or sanitized SVG of
+   * at most 512 KB, stored as Workspace files under brand/.
+   *
+   * @generated from rpc athena.v1.WorkspaceService.SetIdentity
+   */
+  setIdentity: {
+    methodKind: "unary";
+    input: typeof SetIdentityRequestSchema;
+    output: typeof SetIdentityResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_athena_v1_workspace, 0);

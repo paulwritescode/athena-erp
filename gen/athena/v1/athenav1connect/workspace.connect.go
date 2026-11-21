@@ -30,6 +30,12 @@ const (
 	// WorkspaceServiceSetAppearanceProcedure is the procedure name of the WorkspaceService's
 	// SetAppearance RPC.
 	WorkspaceServiceSetAppearanceProcedure = "/athena.v1.WorkspaceService/SetAppearance"
+	// WorkspaceServiceGetIdentityProcedure is the procedure name of the WorkspaceService's GetIdentity
+	// RPC.
+	WorkspaceServiceGetIdentityProcedure = "/athena.v1.WorkspaceService/GetIdentity"
+	// WorkspaceServiceSetIdentityProcedure is the procedure name of the WorkspaceService's SetIdentity
+	// RPC.
+	WorkspaceServiceSetIdentityProcedure = "/athena.v1.WorkspaceService/SetIdentity"
 )
 
 var (
@@ -47,12 +53,32 @@ var (
 			Procedure:  WorkspaceServiceSetAppearanceProcedure,
 		}
 	})
+	workspaceServiceGetIdentitySpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_athena_v1_workspace_proto.Services().ByName("WorkspaceService").Methods().ByName("GetIdentity"),
+			Procedure:  WorkspaceServiceGetIdentityProcedure,
+		}
+	})
+	workspaceServiceSetIdentitySpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_athena_v1_workspace_proto.Services().ByName("WorkspaceService").Methods().ByName("SetIdentity"),
+			Procedure:  WorkspaceServiceSetIdentityProcedure,
+		}
+	})
 )
 
 // WorkspaceServiceClient is a client for the athena.v1.WorkspaceService service.
 type WorkspaceServiceClient interface {
 	GetAppearance(context.Context, *v1.GetAppearanceRequest) (*v1.GetAppearanceResponse, error)
 	SetAppearance(context.Context, *v1.SetAppearanceRequest) (*v1.SetAppearanceResponse, error)
+	// GetIdentity is public: the sign-in page shows the name and logo before
+	// anyone signs in. It returns the identity and nothing else.
+	GetIdentity(context.Context, *v1.GetIdentityRequest) (*v1.GetIdentityResponse, error)
+	// SetIdentity needs settings:workspace. Logos are PNG or sanitized SVG of
+	// at most 512 KB, stored as Workspace files under brand/.
+	SetIdentity(context.Context, *v1.SetIdentityRequest) (*v1.SetIdentityResponse, error)
 }
 
 // NewWorkspaceServiceClient constructs a client for the athena.v1.WorkspaceService service.
@@ -65,6 +91,12 @@ func NewWorkspaceServiceClient(client *connect.Client) WorkspaceServiceClient {
 type WorkspaceServiceHandler interface {
 	GetAppearance(context.Context, *v1.GetAppearanceRequest) (*v1.GetAppearanceResponse, error)
 	SetAppearance(context.Context, *v1.SetAppearanceRequest) (*v1.SetAppearanceResponse, error)
+	// GetIdentity is public: the sign-in page shows the name and logo before
+	// anyone signs in. It returns the identity and nothing else.
+	GetIdentity(context.Context, *v1.GetIdentityRequest) (*v1.GetIdentityResponse, error)
+	// SetIdentity needs settings:workspace. Logos are PNG or sanitized SVG of
+	// at most 512 KB, stored as Workspace files under brand/.
+	SetIdentity(context.Context, *v1.SetIdentityRequest) (*v1.SetIdentityResponse, error)
 }
 
 // RegisterWorkspaceServiceHandler registers svc as the athena.v1.WorkspaceService implementation on
@@ -74,6 +106,8 @@ func RegisterWorkspaceServiceHandler(server *connect.Server, svc WorkspaceServic
 	server.Register(
 		connect.Method{Spec: workspaceServiceGetAppearanceSpec(), Handler: adapter.getAppearance},
 		connect.Method{Spec: workspaceServiceSetAppearanceSpec(), Handler: adapter.setAppearance},
+		connect.Method{Spec: workspaceServiceGetIdentitySpec(), Handler: adapter.getIdentity},
+		connect.Method{Spec: workspaceServiceSetIdentitySpec(), Handler: adapter.setIdentity},
 	)
 }
 
@@ -86,6 +120,14 @@ func (UnimplementedWorkspaceServiceHandler) GetAppearance(context.Context, *v1.G
 
 func (UnimplementedWorkspaceServiceHandler) SetAppearance(context.Context, *v1.SetAppearanceRequest) (*v1.SetAppearanceResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, "athena.v1.WorkspaceService.SetAppearance is not implemented")
+}
+
+func (UnimplementedWorkspaceServiceHandler) GetIdentity(context.Context, *v1.GetIdentityRequest) (*v1.GetIdentityResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "athena.v1.WorkspaceService.GetIdentity is not implemented")
+}
+
+func (UnimplementedWorkspaceServiceHandler) SetIdentity(context.Context, *v1.SetIdentityRequest) (*v1.SetIdentityResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "athena.v1.WorkspaceService.SetIdentity is not implemented")
 }
 
 type workspaceServiceClient struct {
@@ -103,6 +145,22 @@ func (c *workspaceServiceClient) GetAppearance(ctx context.Context, req *v1.GetA
 func (c *workspaceServiceClient) SetAppearance(ctx context.Context, req *v1.SetAppearanceRequest) (*v1.SetAppearanceResponse, error) {
 	var res v1.SetAppearanceResponse
 	if err := c.client.CallUnary(ctx, workspaceServiceSetAppearanceSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *workspaceServiceClient) GetIdentity(ctx context.Context, req *v1.GetIdentityRequest) (*v1.GetIdentityResponse, error) {
+	var res v1.GetIdentityResponse
+	if err := c.client.CallUnary(ctx, workspaceServiceGetIdentitySpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *workspaceServiceClient) SetIdentity(ctx context.Context, req *v1.SetIdentityRequest) (*v1.SetIdentityResponse, error) {
+	var res v1.SetIdentityResponse
+	if err := c.client.CallUnary(ctx, workspaceServiceSetIdentitySpec(), req, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -128,6 +186,30 @@ func (h workspaceServiceHandler) setAppearance(ctx context.Context, _ connect.Sp
 		return err
 	}
 	res, err := h.svc.SetAppearance(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h workspaceServiceHandler) getIdentity(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.GetIdentityRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.GetIdentity(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h workspaceServiceHandler) setIdentity(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.SetIdentityRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.SetIdentity(ctx, &req)
 	if err != nil {
 		return err
 	}

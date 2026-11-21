@@ -450,6 +450,28 @@ func TestEveryChangeWritesOneAuditEntryWithoutContent(t *testing.T) {
 	}
 }
 
+func TestBrandLogosHoldBinary(t *testing.T) {
+	f := newFixture(t)
+	png := []byte("\x89PNG\r\n\x1a\n" + strings.Repeat("\x00\x01\x02\xff", 64))
+	info, err := f.s.Put(context.Background(), "brand/logo-light.png", png, files.Expect{}, f.meta)
+	if err != nil {
+		t.Fatalf("put PNG: %v", err)
+	}
+	got, content, err := f.s.Get(context.Background(), "brand/logo-light.png", 0)
+	if err != nil || got.Hash != info.Hash || string(content) != string(png) {
+		t.Fatalf("get PNG: %+v %v", got, err)
+	}
+	if _, err := f.put(t, "brand/logo-dark.svg", `<svg xmlns="http://www.w3.org/2000/svg"></svg>`, ""); err != nil {
+		t.Fatalf("put SVG: %v", err)
+	}
+	if _, err := f.s.Put(context.Background(), "rules/logo.png", []byte("a\x00b"), files.Expect{}, f.meta); !errors.Is(err, files.ErrNotText) {
+		t.Fatalf("binary outside brand: %v", err)
+	}
+	if _, err := f.put(t, "brand/logo.txt", "x", ""); err != nil {
+		t.Fatalf("text under brand: %v", err)
+	}
+}
+
 func TestBackingMapsFilesToWhatTheyHold(t *testing.T) {
 	for path, want := range map[string]string{
 		"record_types/customer.yaml":                             "record_type:customer",

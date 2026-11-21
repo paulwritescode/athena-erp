@@ -29,10 +29,19 @@ const (
 )
 
 // Folders are the only top-level folders of a Workspace that Athena manages.
-var Folders = []string{"generated", "packs", "record_types", "rules"}
+// brand/ holds the Workspace logos, written only through the Workspace
+// identity; the file service refuses to change it.
+var Folders = []string{"brand", "generated", "packs", "record_types", "rules"}
 
-// Extensions are the file types Athena stores. All are text.
-var Extensions = []string{".go", ".json", ".md", ".star", ".txt", ".yaml", ".yml"}
+// Extensions are the file types Athena stores. Everything is text except a
+// PNG under brand/.
+var Extensions = []string{".go", ".json", ".md", ".png", ".star", ".svg", ".txt", ".yaml", ".yml"}
+
+// AllowBinary reports whether p may hold non-text bytes: a PNG logo under
+// brand/. An SVG logo is text and follows the text rules.
+func AllowBinary(p string) bool {
+	return strings.HasPrefix(p, "brand/") && path.Ext(p) == ".png"
+}
 
 // segmentPattern is one path segment: lowercase letters, digits, underscore,
 // dash and dot, not starting with a dot. Uppercase is refused so that no two

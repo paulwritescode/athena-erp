@@ -18,6 +18,7 @@ import (
 	"syscall"
 	"time"
 
+	v1 "athena-erp/gen/athena/v1"
 	"athena-erp/internal/server"
 	"athena-erp/internal/workspace"
 	"github.com/go-sql-driver/mysql"
@@ -97,9 +98,10 @@ Usage:
   athena init [directory] [--host 127.0.0.1] [--port 3306] [--user name]
       Create a home and save its MariaDB server login. The password is
       read from ATHENA_SERVER_PASSWORD or prompted for.
-  athena new [--driver mariadb|postgres] [name]
+  athena new [--driver mariadb|postgres] [--logo file] [name]
       Create a workspace in the current home, with its own database.
       --driver must match the home driver; postgres is untested.
+      --logo sets the light-theme logo (PNG or SVG, at most 512 KB).
   athena run [--workspace slug] [--addr %s]
       Run a workspace. Inside a workspace directory the workspace is found
       automatically; from the home pass --workspace.
@@ -153,6 +155,9 @@ Usage:
       Read an inbox as the operator. Defaults to administrator.
   athena workspace appearance show|set [--workspace slug]
       Choose a preset or custom accent and chart colors.
+  athena workspace identity show|set [--workspace slug]
+      Show or set the display name and the light and dark logos (--name,
+      --logo-light file, --logo-dark file).
   athena ledger company|period|currency|account|determination|setting ... [--workspace slug] [--json]
       Manage the kernel's ledger masters. company save|list, period
       save|list|close|reopen, currency save|list|rate-save|rate-get, account
@@ -238,6 +243,7 @@ func initCommand(args []string) error {
 func newCommand(args []string, out io.Writer) error {
 	flags := flag.NewFlagSet("new", flag.ContinueOnError)
 	driverFlag := flags.String("driver", "", "database driver the home must use (default: the home driver)")
+	logoFlag := flags.String("logo", "", "light-theme logo file (PNG or SVG, at most 512 KB)")
 	if ok, err := parse(flags, args); !ok {
 		return err
 	}
@@ -266,11 +272,23 @@ func newCommand(args []string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
+	var logo *v1.LogoUpload
+	if *logoFlag != "" {
+		var err error
+		if logo, err = readLogo(*logoFlag); err != nil {
+			return err
+		}
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 	result, err := workspace.Create(ctx, home, name, env[workspace.ServerURLEnv], version)
 	if err != nil {
 		return err
+	}
+	if logo != nil {
+		if err := setNewLogo(ctx, logo, result, loaded.Database.Driver, env[workspace.ServerURLEnv]); err != nil {
+			return err
+		}
 	}
 	fmt.Fprintf(out, "Created %s in %s\nDatabase: %s\n", result.Manifest.Name, result.Root, result.Manifest.Database.Name)
 	if result.GitInitialized {

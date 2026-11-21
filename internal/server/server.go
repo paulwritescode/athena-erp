@@ -148,6 +148,7 @@ func Serve(ctx context.Context, config Config) error {
 		_, _ = fmt.Fprintf(w, `{"status":"ok","database":%q}`, databaseStatus)
 	})
 	mux.Handle("/otlp/v1/traces", tel.BrowserTracesHandler())
+	mux.Handle("GET /brand/{name}", newBrandHandler(filesWorkspace(config), db))
 	mux.Handle("/", webui.Handler())
 
 	srv := &http.Server{
@@ -209,7 +210,7 @@ func mountRPC(mux *http.ServeMux, config Config, db *sql.DB, telemetry bool, int
 	athenav1connect.RegisterRecordServiceHandler(rpcServer, recordService{db: db, hooks: hooks})
 	athenav1connect.RegisterRuleServiceHandler(rpcServer, newRuleService(db))
 	athenav1connect.RegisterFileServiceHandler(rpcServer, newFileService(filesWorkspace(config), db))
-	athenav1connect.RegisterWorkspaceServiceHandler(rpcServer, workspaceService{db})
+	athenav1connect.RegisterWorkspaceServiceHandler(rpcServer, newWorkspaceService(filesWorkspace(config), db))
 	athenav1connect.RegisterNotificationServiceHandler(rpcServer, notificationService{db})
 	athenav1connect.RegisterLedgerServiceHandler(rpcServer, newLedgerService(db))
 	connecthttp.Mount(mux, rpcServer)

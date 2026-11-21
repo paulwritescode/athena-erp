@@ -1,8 +1,8 @@
 // Mirrors CleanPath in internal/files/path.go so the Files page reports a bad
 // path before the request is sent. The server still checks every call. The
 // shared table internal/files/testdata/paths.json runs in both test suites.
-export const fileFolders = ['generated', 'packs', 'record_types', 'rules']
-export const fileExtensions = ['.go', '.json', '.md', '.star', '.txt', '.yaml', '.yml']
+export const fileFolders = ['brand', 'generated', 'packs', 'record_types', 'rules']
+export const fileExtensions = ['.go', '.json', '.md', '.png', '.star', '.svg', '.txt', '.yaml', '.yml']
 export const maxFileBytes = 1 << 20
 
 const maxPathBytes = 240

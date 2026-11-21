@@ -147,7 +147,7 @@ func TestFileServiceOverTheAPI(t *testing.T) {
 	if got := strings.Join(list.GetRecordTypesWithoutFile(), ","); got != "lonely" {
 		t.Fatalf("record types without a file = %q", got)
 	}
-	if list.GetMaxFileBytes() != files.MaxFileBytes || len(list.GetFolders()) != 4 {
+	if list.GetMaxFileBytes() != files.MaxFileBytes || len(list.GetFolders()) != 5 {
 		t.Fatalf("limits = %d, %v", list.GetMaxFileBytes(), list.GetFolders())
 	}
 

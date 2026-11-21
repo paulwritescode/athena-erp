@@ -57,12 +57,17 @@ func checkText(content []byte) error {
 }
 
 // Validate checks content against the rules for its path. Text and size are
-// checked for every file. YAML and JSON files must parse, and a Record Type
-// file must follow the Record Type file format (spec section 24). Rule
-// sources (.star) are stored and edited but not run here.
+// checked for every file except a PNG logo under brand/, which is binary.
+// YAML and JSON files must parse, and a Record Type file must follow the
+// Record Type file format (spec section 24). Rule sources (.star) are stored
+// and edited but not run here.
 func Validate(p string, content []byte) error {
-	if err := checkText(content); err != nil {
-		return err
+	if !AllowBinary(p) {
+		if err := checkText(content); err != nil {
+			return err
+		}
+	} else if len(content) > MaxFileBytes {
+		return fmt.Errorf("%w: the limit is %d bytes", ErrTooLarge, MaxFileBytes)
 	}
 	var issues []Issue
 	switch path.Ext(p) {

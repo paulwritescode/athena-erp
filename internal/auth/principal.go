@@ -72,6 +72,8 @@ const (
 	// determination mappings and Settings. Treat it like build.
 	PermissionLedgerWrite = "ledger:write"
 	PermissionAppearance  = "settings:appearance"
+	// PermissionWorkspace edits the Workspace display name and logo.
+	PermissionWorkspace = "settings:workspace"
 	// PermissionSecurity changes the Workspace security settings (session
 	// lifetimes and rate limits). Treat it like build: weaker settings
 	// weaken every account.
@@ -80,7 +82,7 @@ const (
 
 // SystemPermissions lists every system permission.
 var SystemPermissions = []string{PermissionBuild, PermissionAudit, PermissionFilesRead, PermissionFilesWrite, PermissionRulesRead, PermissionRulesWrite,
-	PermissionLedgerRead, PermissionLedgerWrite, PermissionAppearance, PermissionSecurity,
+	PermissionLedgerRead, PermissionLedgerWrite, PermissionAppearance, PermissionWorkspace, PermissionSecurity,
 	PermissionAccessOwnership, PermissionAccessUsers, PermissionAccessRoles, PermissionAccessAssign, PermissionAccessRecover, PermissionAccessSessions, PermissionAccessExplore}
 
 // AllRecordTypes is the Grant target that covers every Record Type.
