@@ -1,4 +1,4 @@
-# Brief: B9 slice 2, form builder Desk (Muse) — DRAFT, dispatch after B9b merges
+# Brief: B9 slice 2, form builder Desk (Muse) — dispatched from main f7f4b5d (incl. B9b)
 
 Worktree: /Users/iampaulking/projects/duchess/athena-erp-b9form, branch feat/b9-form-builder (from latest main, must include B9b). Scope: web/src only (forms renderer + builder, editor Form tab, Image field UI, fieldRules mirror). No Go except generated gen/ plus any Image-rule mirror the shared table needs — keep `make test` green on both sides together.
 Read: AGENTS.md; requirements R9; tasks.md B9; design-system sections 19 (Form tab), 7, 13, 14, 4; .agents/tasks/beta-b9/server-report.md "For the desk slice" (the layout API contract); ADR-0027 (Proposed).
