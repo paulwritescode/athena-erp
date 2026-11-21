@@ -100,6 +100,8 @@ func TestRequiredScopeDeniesAnUnscopedAssignment(t *testing.T) {
 	if _, err := f.users.SaveAssignment(ctx, "clerk", auth.AssignmentInput{Role: "clerk", Scope: auth.Scope{"company": {"acme"}}}); err != nil {
 		t.Fatal(err)
 	}
+	// The new Assignment ends the old session; the next sign-in sees it.
+	b.login(t, "clerk")
 	if got := listTitles(t, b, "snote"); len(got) != 1 || got[0] != "A1" {
 		t.Fatalf("scoped list = %v, want [A1]", got)
 	}
@@ -132,6 +134,9 @@ func TestDatedAssignmentsGateAccess(t *testing.T) {
 	if future.Active {
 		t.Fatal("an Assignment starting tomorrow is active")
 	}
+	// Each Assignment change ends the session; signing in again shows the
+	// dated gating instead of the revoked session.
+	b.login(t, "clerk")
 	_, err = b.records.ListRecords(ctx, &athenav1.ListRecordsRequest{RecordTypeKey: "snote"})
 	requireCode(t, err, connect.CodePermissionDenied)
 	// A stale revision loses; the current one extends the Assignment to today.
@@ -145,6 +150,7 @@ func TestDatedAssignmentsGateAccess(t *testing.T) {
 	if !revived.Active || revived.Revision != expired.Revision+1 {
 		t.Fatalf("revived Assignment = %+v", revived)
 	}
+	b.login(t, "clerk")
 	if got := listTitles(t, b, "snote"); len(got) != 1 {
 		t.Fatalf("list after reviving = %v", got)
 	}
@@ -154,6 +160,7 @@ func TestDatedAssignmentsGateAccess(t *testing.T) {
 	if err := f.users.RevokeAssignment(ctx, future.ID); err != nil {
 		t.Fatal(err)
 	}
+	b.login(t, "clerk")
 	_, err = b.records.ListRecords(ctx, &athenav1.ListRecordsRequest{RecordTypeKey: "snote"})
 	requireCode(t, err, connect.CodePermissionDenied)
 }

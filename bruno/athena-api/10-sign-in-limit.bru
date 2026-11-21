@@ -1,0 +1,45 @@
+meta {
+  name: 10 - Sign-in rate limit
+  type: http
+  seq: 10
+}
+
+post {
+  url: {{baseUrl}}/athena.v1.AuthService/CompleteChallenge
+  body: json
+  auth: none
+}
+
+headers {
+  content-type: application/json
+}
+
+body:json {
+  { "username": "bruno-rate-check" }
+}
+
+script:pre-request {
+  if (bru.getEnvVar("checkRateLimit") !== "true") {
+    bru.runner.skipRequest();
+  }
+}
+
+script:post-response {
+  const attempts = Number(bru.getVar("rateAttempts") || 0) + 1;
+  bru.setVar("rateAttempts", attempts);
+  if (res.status === 400 && attempts < 6) {
+    bru.runner.setNextRequest("10 - Sign-in rate limit");
+  }
+}
+
+tests {
+  test("the default sign-in bucket returns a retry time", function() {
+    if (res.status === 400 && Number(bru.getVar("rateAttempts")) < 6) {
+      expect(res.body.code).to.equal("invalid_argument");
+    } else {
+      expect(res.status).to.equal(429);
+      expect(res.body.code).to.equal("resource_exhausted");
+      expect(Number(res.headers["retry-after"])).to.be.greaterThan(0);
+    }
+  });
+}

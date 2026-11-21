@@ -28,14 +28,19 @@ type authService struct {
 // authError maps an auth package error to a ConnectRPC error whose message is
 // safe to show.
 func authError(op string, err error) error {
+	var ended *auth.SessionEnded
 	var locked *auth.LockedError
 	switch {
+	case errors.As(err, &ended):
+		return failureError(connect.CodeUnauthenticated, ended.Error(), &athenav1.AuthFailure{Reason: ended.Reason})
 	case errors.As(err, &locked):
 		return failureError(connect.CodeFailedPrecondition, err.Error(), &athenav1.AuthFailure{Reason: "locked", UnlocksAt: locked.Until.UTC().Format(time.RFC3339)})
 	case errors.Is(err, auth.ErrDisabled):
 		return failureError(connect.CodeFailedPrecondition, err.Error(), &athenav1.AuthFailure{Reason: "disabled"})
 	case isConnectionError(err):
 		return connect.NewError(connect.CodeUnavailable, "the database is not reachable")
+	case errors.Is(err, auth.ErrWrongPassword):
+		return connect.NewError(connect.CodeUnauthenticated, err.Error())
 	case errors.Is(err, auth.ErrInvalidCredentials):
 		return connect.NewError(connect.CodeUnauthenticated, err.Error())
 	case errors.Is(err, auth.ErrChallengeRefused):
@@ -62,7 +67,7 @@ func sessionInfo(p *auth.Principal, token string) *athenav1.SessionInfo {
 	if p == nil {
 		return &athenav1.SessionInfo{}
 	}
-	info := &athenav1.SessionInfo{Authenticated: true, Username: p.Username, DisplayName: p.DisplayName, Owner: p.Owner, CsrfToken: auth.CSRFToken(token)}
+	info := &athenav1.SessionInfo{Authenticated: true, Username: p.Username, DisplayName: p.DisplayName, Owner: p.Owner, CsrfToken: auth.CSRFToken(token), IdleExpiresAt: p.IdleExpiresAt.UTC().Format(time.RFC3339Nano), ExpiresAt: p.ExpiresAt.UTC().Format(time.RFC3339Nano)}
 	for _, permission := range auth.SystemPermissions {
 		if p.HasSystem(permission) {
 			info.SystemPermissions = append(info.SystemPermissions, permission)
@@ -74,12 +79,44 @@ func sessionInfo(p *auth.Principal, token string) *athenav1.SessionInfo {
 func (s authService) Login(ctx context.Context, req *athenav1.LoginRequest) (res *athenav1.LoginResponse, err error) {
 	ctx, requestID, end := startKernelSpan(ctx, "login", "")
 	defer func() { end(err) }()
-	result, err := s.auth.Login(ctx, req.GetUsername(), req.GetPassword(), requestID)
+	result, err := s.auth.LoginWithOptions(ctx, req.GetUsername(), req.GetPassword(), requestID, sessionOptions(ctx, req.GetRememberDevice()))
 	if err != nil {
 		return nil, authError("sign in", err)
 	}
-	setSessionCookie(ctx, result.Token, result.ExpiresAt)
+	setSessionCookie(ctx, result.Token, result.ExpiresAt, result.Principal.Remembered)
 	return &athenav1.LoginResponse{Session: sessionInfo(result.Principal, result.Token)}, nil
+}
+
+// Store a coarse device label. Raw user agents can contain arbitrary values.
+func sessionOptions(ctx context.Context, remember bool) auth.SessionOptions {
+	opt := auth.SessionOptions{RememberDevice: remember, PreviousToken: sessionTokenFrom(ctx), Device: "Other client"}
+	if info, ok := connect.CallInfoForServerContext(ctx); ok {
+		ua := info.RequestHeader().Get("User-Agent")
+		for _, browser := range []struct{ match, label string }{{"Edg/", "Edge"}, {"Firefox/", "Firefox"}, {"Chrome/", "Chrome"}, {"Safari/", "Safari"}, {"Go-http-client/", "Go HTTP client"}} {
+			if strings.Contains(ua, browser.match) {
+				opt.Device = browser.label
+				break
+			}
+		}
+	}
+	return opt
+}
+
+func (s authService) StepUp(ctx context.Context, req *athenav1.StepUpRequest) (res *athenav1.StepUpResponse, err error) {
+	ctx, requestID, end := startKernelSpan(ctx, "step_up", "")
+	defer func() { end(err) }()
+	result, err := s.auth.StepUp(ctx, auth.PrincipalFrom(ctx), req.GetPassword(), requestID)
+	if err != nil {
+		return nil, authError("step up", err)
+	}
+	setSessionCookie(ctx, result.Token, result.ExpiresAt, result.Principal.Remembered)
+	return &athenav1.StepUpResponse{Session: sessionInfo(result.Principal, result.Token)}, nil
+}
+
+func clearSiteData(ctx context.Context) {
+	if info, ok := connect.CallInfoForServerContext(ctx); ok {
+		info.ResponseHeader().Set("Clear-Site-Data", `"cache", "cookies", "storage"`)
+	}
 }
 
 func (s authService) Logout(ctx context.Context, _ *athenav1.LogoutRequest) (res *athenav1.LogoutResponse, err error) {
@@ -92,7 +129,8 @@ func (s authService) Logout(ctx context.Context, _ *athenav1.LogoutRequest) (res
 	if err := s.auth.Logout(ctx, p.SessionID); err != nil {
 		return nil, internalError("sign out", err)
 	}
-	setSessionCookie(ctx, "", time.Time{})
+	clearSiteData(ctx)
+	setSessionCookie(ctx, "", time.Time{}, false)
 	s.auth.LogAccess(ctx, auth.AccessEvent{Event: auth.EventLogout, Outcome: auth.OutcomeOK, UserID: p.UserID, Username: p.Username, RequestID: requestID})
 	return &athenav1.LogoutResponse{}, nil
 }
@@ -112,9 +150,11 @@ func (s authService) ChangePassword(ctx context.Context, req *athenav1.ChangePas
 	if p == nil {
 		return nil, connect.NewError(connect.CodeUnauthenticated, "sign in to continue")
 	}
-	if err := s.auth.ChangePassword(ctx, p.UserID, req.GetCurrentPassword(), req.GetNewPassword(), p.SessionID); err != nil {
+	if err := s.auth.ChangePassword(ctx, p.UserID, req.GetCurrentPassword(), req.GetNewPassword(), ""); err != nil {
 		return nil, authError("change password", err)
 	}
+	clearSiteData(ctx)
+	setSessionCookie(ctx, "", time.Time{}, false)
 	s.auth.LogAccess(ctx, auth.AccessEvent{Event: auth.EventPasswordChanged, Outcome: auth.OutcomeOK, UserID: p.UserID, Username: p.Username, RequestID: requestID})
 	return &athenav1.ChangePasswordResponse{}, nil
 }
@@ -266,11 +306,11 @@ func (s authService) InviteUser(ctx context.Context, req *athenav1.InviteUserReq
 func (s authService) CompleteChallenge(ctx context.Context, req *athenav1.CompleteChallengeRequest) (res *athenav1.CompleteChallengeResponse, err error) {
 	ctx, requestID, end := startKernelSpan(ctx, "complete_challenge", "")
 	defer func() { end(err) }()
-	result, err := s.auth.CompleteChallenge(ctx, req.GetUsername(), req.GetPurpose(), req.GetChallenge(), req.GetNewPassword(), requestID)
+	result, err := s.auth.CompleteChallengeWithOptions(ctx, req.GetUsername(), req.GetPurpose(), req.GetChallenge(), req.GetNewPassword(), requestID, sessionOptions(ctx, false))
 	if err != nil {
 		return nil, authError("complete sign-in", err)
 	}
-	setSessionCookie(ctx, result.Token, result.ExpiresAt)
+	setSessionCookie(ctx, result.Token, result.ExpiresAt, result.Principal.Remembered)
 	return &athenav1.CompleteChallengeResponse{Session: sessionInfo(result.Principal, result.Token)}, nil
 }
 
@@ -524,7 +564,7 @@ func (s authService) ListRoleHolders(ctx context.Context, req *athenav1.ListRole
 func (s authService) TransferOwnership(ctx context.Context, req *athenav1.TransferOwnershipRequest) (res *athenav1.TransferOwnershipResponse, err error) {
 	ctx, requestID, end := startKernelSpan(ctx, "transfer_ownership", "")
 	defer func() { end(err) }()
-	user, err := s.auth.TransferOwnership(ctx, req.GetUsername(), req.GetActorPassword(), req.GetRelinquish())
+	user, err := s.auth.TransferOwnership(ctx, req.GetUsername(), req.GetActorPassword(), req.GetRelinquish(), requestID)
 	if err != nil {
 		return nil, authError("transfer ownership", err)
 	}

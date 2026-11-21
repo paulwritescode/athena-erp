@@ -199,7 +199,7 @@ func mountRPC(mux *http.ServeMux, config Config, db *sql.DB, telemetry bool, int
 	if db != nil {
 		authSvc = &auth.Service{DB: db}
 	}
-	interceptors = append(interceptors, gateInterceptor(authSvc))
+	interceptors = append(interceptors, rateInterceptor(authSvc), gateInterceptor(authSvc))
 	rpcServer := connect.NewServer(interceptors...)
 	athenav1connect.RegisterSystemServiceHandler(rpcServer, systemService{config: config, telemetry: telemetry, db: db})
 	athenav1connect.RegisterAuthServiceHandler(rpcServer, authService{auth: authSvc})

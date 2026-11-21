@@ -11,11 +11,12 @@ service AuthService {
   // token travels only in an HttpOnly, SameSite=Strict cookie; the response
   // carries the CSRF token the desk sends in X-CSRF-Token on later calls.
   rpc Login(LoginRequest) returns (LoginResponse);
+  rpc StepUp(StepUpRequest) returns (StepUpResponse);
   rpc Logout(LogoutRequest) returns (LogoutResponse);
-  // GetSession reports whether the caller is signed in. It never fails for a
-  // missing or expired session.
+  // GetSession reports whether the caller is signed in. A missing cookie is anonymous.
+  // A presented, ended session returns its expiry or revocation reason.
   rpc GetSession(GetSessionRequest) returns (GetSessionResponse);
-  // ChangePassword sets the caller's own password and ends their other sessions.
+  // ChangePassword sets the caller's own password and ends their sessions.
   rpc ChangePassword(ChangePasswordRequest) returns (ChangePasswordResponse);
   // InviteUser invites a user with no password and returns the single-use
   // Challenge to show once. It needs access:users.
@@ -70,10 +71,13 @@ service AuthService {
 message LoginRequest {
   string username = 1;
   string password = 2;
+  bool remember_device = 3;
 }
 message LoginResponse {
   SessionInfo session = 1;
 }
+message StepUpRequest { string password = 1; }
+message StepUpResponse { SessionInfo session = 1; }
 message LogoutRequest {}
 message LogoutResponse {}
 message GetSessionRequest {}
@@ -95,6 +99,8 @@ message SessionInfo {
   repeated string system_permissions = 5;
   // Send this in the X-CSRF-Token header on every call.
   string csrf_token = 6;
+  string idle_expires_at = 7;
+  string expires_at = 8;
 }
 message ChangePasswordRequest {
   string current_password = 1;
@@ -356,12 +362,14 @@ message ListAccessLogResponse {
   repeated AccessEvent events = 1;
 }
 
-// AuthFailure is attached as an error detail to a failed Login that the
-// server may describe without revealing whether a user exists: it is sent only
-// when the correct password was given for a locked or disabled account.
+// AuthFailure is attached as an error detail to an authentication, session,
+// step-up or rate-limit failure the server may describe: locked and disabled
+// are sent only when the correct password was given, so they reveal nothing
+// to someone guessing names.
 message AuthFailure {
-  // locked or disabled.
+  // locked, disabled, csrf, idle, absolute, revoked, step_up_required or rate_limited.
   string reason = 1;
   // RFC 3339 time a lock ends; empty for a disabled account.
   string unlocks_at = 2;
+  uint32 retry_after_seconds = 3;
 }

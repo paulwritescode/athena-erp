@@ -338,8 +338,8 @@ func TestStartResetNeedsTheActorPassword(t *testing.T) {
 	if _, err := svc.CompleteChallenge(ctx, clerk.Username, auth.ChallengePurposeFirstLogin, clerkToken, "a clerk passphrase here", "seed"); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := svc.StartReset(ownerCtx, "clerk", "wrong password here", "seed"); !errors.Is(err, auth.ErrInvalidCredentials) {
-		t.Fatalf("a reset with a wrong actor password = %v, want ErrInvalidCredentials", err)
+	if _, _, err := svc.StartReset(ownerCtx, "clerk", "wrong password here", "seed"); !errors.Is(err, auth.ErrWrongPassword) {
+		t.Fatalf("a reset with a wrong actor password = %v, want ErrWrongPassword", err)
 	}
 	if _, _, err := svc.StartReset(ownerCtx, "clerk", "", "seed"); !errors.Is(err, auth.ErrInvalid) {
 		t.Fatalf("a reset with no actor password = %v, want ErrInvalid", err)

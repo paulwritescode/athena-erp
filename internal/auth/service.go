@@ -24,15 +24,15 @@ import (
 )
 
 // Sign-in limits (spec 21). A user is locked for LockDuration after
-// MaxFailedAttempts wrong passwords in a row. A session ends after IdleTimeout
-// without a request and after AbsoluteLifetime whatever its use.
+// MaxFailedAttempts wrong passwords in a row. IdleTimeout and
+// AbsoluteLifetime are the default everyday-user session lifetimes; each
+// session fixes its own deadlines at creation from the Workspace security
+// settings (security.session.* in security.go).
 const (
 	MaxFailedAttempts = 5
 	LockDuration      = 15 * time.Minute
-	IdleTimeout       = 8 * time.Hour
-	AbsoluteLifetime  = 7 * 24 * time.Hour
-	// touchInterval limits how often a busy session writes its last-seen time.
-	touchInterval = time.Minute
+	IdleTimeout       = 30 * time.Minute
+	AbsoluteLifetime  = 12 * time.Hour
 )
 
 // Errors the callers map to API codes.
@@ -49,10 +49,14 @@ var (
 	// unknown, expired, consumed, superseded or presented wrongly too often.
 	// The Access Log holds the specific reason; the caller never learns it.
 	ErrChallengeRefused = errors.New("the code is unknown, expired or already used")
-	ErrNotFound         = errors.New("not found")
-	ErrExists           = errors.New("already exists")
-	ErrLastOwner        = errors.New("the instance needs at least one enabled owner")
-	ErrInvalid          = errors.New("invalid input")
+	// ErrWrongPassword reports a wrong password for an already-identified
+	// user: a step-up or privileged-action check. Unlike
+	// ErrInvalidCredentials it names only the password, never the username.
+	ErrWrongPassword = errors.New("the password is wrong")
+	ErrNotFound      = errors.New("not found")
+	ErrExists        = errors.New("already exists")
+	ErrLastOwner     = errors.New("the instance needs at least one enabled owner")
+	ErrInvalid       = errors.New("invalid input")
 	// ErrConflict reports a write whose expected revision no longer matches.
 	ErrConflict = errors.New("someone else changed this; reload and try again")
 	// ErrForbidden reports a change beyond the actor's delegation.
@@ -334,22 +338,68 @@ func (s *Service) ResendInvite(ctx context.Context, username, requestID string) 
 // Starting a reset again replaces the earlier reset Challenge. A signed-in
 // administrator proves themself with their own password on every call: the
 // command-line operator has no password and is exempt.
-// checkActorPassword re-verifies a signed-in administrator's password for a
-// privileged recovery or ownership change. The command-line operator has no
-// password; callers exempt it by passing a nil actor.
-func (s *Service) checkActorPassword(ctx context.Context, actor *Principal, actorPassword, op string) error {
+// verifyActorPassword re-verifies a signed-in user's password for a
+// privileged action: step-up, ownership transfer or reset start. A wrong
+// password counts toward the same failed-attempt counter and lockout as
+// Login and is logged without the password; a right password clears the
+// counter. The root account is never locked or counted. op names the action
+// for the log ("step up", "transfer ownership", "start reset"). Callers skip
+// the check for the command-line operator, which has no password; a nil
+// actor here is refused.
+func (s *Service) verifyActorPassword(ctx context.Context, actor *Principal, password, op, requestID string) error {
+	if actor == nil {
+		return ErrUnauthenticated
+	}
+	if password == "" {
+		return fmt.Errorf("%w: the password is required", ErrInvalid)
+	}
+	now := s.now()
+	var username string
 	var hash sql.NullString
-	if err := s.DB.QueryRowContext(ctx, "SELECT password_hash FROM athena_users WHERE id = ?", actor.UserID).Scan(&hash); err != nil {
+	var attempts int
+	var locked sql.NullTime
+	if err := s.DB.QueryRowContext(ctx, "SELECT username, password_hash, failed_attempts, locked_until FROM athena_users WHERE id = ?", actor.UserID).
+		Scan(&username, &hash, &attempts, &locked); err != nil {
 		return fmt.Errorf("%s: %w", op, err)
 	}
-	if actorPassword == "" {
-		return fmt.Errorf("%w: the administrator password is required", ErrInvalid)
+	failed := func() error {
+		s.LogAccess(ctx, AccessEvent{Event: EventStepUpFailed, Outcome: OutcomeDenied, UserID: actor.UserID, Username: username, RequestID: requestID, Detail: op + " wrong password"})
+		return ErrWrongPassword
 	}
-	if !hash.Valid {
-		return ErrInvalidCredentials
+	ok := hash.Valid
+	if ok {
+		ok, _ = VerifyPassword(password, hash.String)
 	}
-	if ok, _ := VerifyPassword(actorPassword, hash.String); !ok {
-		return ErrInvalidCredentials
+	if IsRoot(username) {
+		// The root account verifies with the right password and never
+		// locks: a wrong password fails without counting.
+		if !ok {
+			return failed()
+		}
+		return nil
+	}
+	if locked.Valid && locked.Time.After(now) {
+		// Only the owner of the password learns the lockout, as in Login.
+		if !ok {
+			return failed()
+		}
+		s.LogAccess(ctx, AccessEvent{Event: EventStepUpFailed, Outcome: OutcomeDenied, UserID: actor.UserID, Username: username, RequestID: requestID, Detail: op + " locked"})
+		return &LockedError{Until: locked.Time}
+	}
+	if !ok {
+		attempts++
+		if attempts >= MaxFailedAttempts {
+			if _, err := s.DB.ExecContext(ctx, "UPDATE athena_users SET failed_attempts = 0, locked_until = ? WHERE id = ?", now.Add(LockDuration), actor.UserID); err != nil {
+				return fmt.Errorf("%s: lock user: %w", op, err)
+			}
+			s.LogAccess(ctx, AccessEvent{Event: EventLockout, Outcome: OutcomeDenied, UserID: actor.UserID, Username: username, RequestID: requestID, Detail: op + " wrong password"})
+		} else if _, err := s.DB.ExecContext(ctx, "UPDATE athena_users SET failed_attempts = ? WHERE id = ?", attempts, actor.UserID); err != nil {
+			return fmt.Errorf("%s: count failed password: %w", op, err)
+		}
+		return failed()
+	}
+	if _, err := s.DB.ExecContext(ctx, "UPDATE athena_users SET failed_attempts = 0, locked_until = NULL WHERE id = ?", actor.UserID); err != nil {
+		return fmt.Errorf("%s: %w", op, err)
 	}
 	return nil
 }
@@ -359,17 +409,17 @@ func (s *Service) checkActorPassword(ctx context.Context, actor *Principal, acto
 // the ownership permission and prove themself with their password; the
 // recipient must be active. Everything applies in one guarded transaction,
 // so relinquishing never strands the Workspace.
-func (s *Service) TransferOwnership(ctx context.Context, username, actorPassword string, relinquish bool) (User, error) {
+func (s *Service) TransferOwnership(ctx context.Context, username, actorPassword string, relinquish bool, requestID string) (User, error) {
 	var recipient User
 	err := retryGuarded(func() error {
 		var err error
-		recipient, err = s.transferOwnershipOnce(ctx, username, actorPassword, relinquish)
+		recipient, err = s.transferOwnershipOnce(ctx, username, actorPassword, relinquish, requestID)
 		return err
 	})
 	return recipient, err
 }
 
-func (s *Service) transferOwnershipOnce(ctx context.Context, username, actorPassword string, relinquish bool) (User, error) {
+func (s *Service) transferOwnershipOnce(ctx context.Context, username, actorPassword string, relinquish bool, requestID string) (User, error) {
 	actor := PrincipalFrom(ctx)
 	if actor == nil {
 		return User{}, ErrUnauthenticated
@@ -377,7 +427,7 @@ func (s *Service) transferOwnershipOnce(ctx context.Context, username, actorPass
 	if !actor.HasSystem(PermissionAccessOwnership) {
 		return User{}, fmt.Errorf("%w: only an Instance Owner transfers ownership", ErrForbidden)
 	}
-	if err := s.checkActorPassword(ctx, actor, actorPassword, "transfer ownership"); err != nil {
+	if err := s.verifyActorPassword(ctx, actor, actorPassword, "transfer ownership", requestID); err != nil {
 		return User{}, err
 	}
 	name := strings.ToLower(strings.TrimSpace(username))
@@ -407,7 +457,7 @@ func (s *Service) transferOwnershipOnce(ctx context.Context, username, actorPass
 	if err := ensureSystemRolesTx(ctx, tx); err != nil {
 		return User{}, err
 	}
-	result, err := tx.ExecContext(ctx, `INSERT INTO athena_role_assignments (id, user_id, role_id, scope, revision)
+	granted, err := tx.ExecContext(ctx, `INSERT INTO athena_role_assignments (id, user_id, role_id, scope, revision)
 		SELECT ?, ?, id, '{}', 1 FROM athena_roles WHERE name = ?
 		AND NOT EXISTS (SELECT 1 FROM athena_role_assignments a JOIN athena_roles r ON r.id = a.role_id
 			WHERE a.user_id = ? AND JSON_CONTAINS(r.system_permissions, '"access:ownership"'))`,
@@ -415,7 +465,7 @@ func (s *Service) transferOwnershipOnce(ctx context.Context, username, actorPass
 	if err != nil {
 		return User{}, fmt.Errorf("transfer ownership: %w", err)
 	}
-	if changed, _ := result.RowsAffected(); changed > 0 {
+	if changed, _ := granted.RowsAffected(); changed > 0 {
 		if err := notifyAccess(ctx, tx, recipient.ID); err != nil {
 			return User{}, err
 		}
@@ -423,10 +473,15 @@ func (s *Service) transferOwnershipOnce(ctx context.Context, username, actorPass
 	if err := syncOwnerFlag(ctx, tx, recipient.ID); err != nil {
 		return User{}, err
 	}
+	var dropped int64
 	if relinquish {
-		if _, err := tx.ExecContext(ctx, `DELETE a FROM athena_role_assignments a JOIN athena_roles r ON r.id = a.role_id
-			WHERE a.user_id = ? AND JSON_CONTAINS(r.system_permissions, '"access:ownership"')`, actor.UserID); err != nil {
+		removed, err := tx.ExecContext(ctx, `DELETE a FROM athena_role_assignments a JOIN athena_roles r ON r.id = a.role_id
+			WHERE a.user_id = ? AND JSON_CONTAINS(r.system_permissions, '"access:ownership"')`, actor.UserID)
+		if err != nil {
 			return User{}, fmt.Errorf("transfer ownership: %w", err)
+		}
+		if dropped, err = removed.RowsAffected(); err != nil {
+			return User{}, err
 		}
 		if err := notifyAccess(ctx, tx, actor.UserID); err != nil {
 			return User{}, err
@@ -438,6 +493,20 @@ func (s *Service) transferOwnershipOnce(ctx context.Context, username, actorPass
 	if err := endOwnershipGuard(ctx, tx, today, before); err != nil {
 		return User{}, err
 	}
+	// Only a change ends sessions: re-appointing an owner, or relinquishing
+	// with nothing to give up, leaves live sessions alone.
+	if n, err := granted.RowsAffected(); err != nil {
+		return User{}, err
+	} else if n > 0 {
+		if err := revokeSessions(ctx, tx, recipient.ID, "", s.now(), true); err != nil {
+			return User{}, err
+		}
+	}
+	if dropped > 0 {
+		if err := revokeSessions(ctx, tx, actor.UserID, "", s.now(), true); err != nil {
+			return User{}, err
+		}
+	}
 	if err := tx.Commit(); err != nil {
 		return User{}, fmt.Errorf("transfer ownership: %w", err)
 	}
@@ -446,7 +515,7 @@ func (s *Service) transferOwnershipOnce(ctx context.Context, username, actorPass
 
 func (s *Service) StartReset(ctx context.Context, username, actorPassword, requestID string) (User, string, error) {
 	if actor := PrincipalFrom(ctx); actor != nil {
-		if err := s.checkActorPassword(ctx, actor, actorPassword, "start reset"); err != nil {
+		if err := s.verifyActorPassword(ctx, actor, actorPassword, "start reset", requestID); err != nil {
 			return User{}, "", err
 		}
 	}
@@ -497,6 +566,10 @@ func (s *Service) StartReset(ctx context.Context, username, actorPassword, reque
 // good Challenge. Every refusal returns ErrChallengeRefused; the Access Log
 // holds the specific reason. Two concurrent completions yield one success.
 func (s *Service) CompleteChallenge(ctx context.Context, username, purpose, token, password, requestID string) (LoginResult, error) {
+	return s.CompleteChallengeWithOptions(ctx, username, purpose, token, password, requestID, SessionOptions{})
+}
+
+func (s *Service) CompleteChallengeWithOptions(ctx context.Context, username, purpose, token, password, requestID string, options SessionOptions) (LoginResult, error) {
 	var want string
 	switch purpose {
 	case ChallengePurposeFirstLogin:
@@ -572,7 +645,7 @@ func (s *Service) CompleteChallenge(ctx context.Context, username, purpose, toke
 		hash, UserStateActive, now, user.ID); err != nil {
 		return LoginResult{}, fmt.Errorf("complete Challenge: %w", err)
 	}
-	sessionToken, sessionID, expires, err := s.startSession(ctx, tx, user.ID, now)
+	result, err := s.startSession(ctx, tx, user.ID, now, options)
 	if err != nil {
 		return LoginResult{}, err
 	}
@@ -584,13 +657,8 @@ func (s *Service) CompleteChallenge(ctx context.Context, username, purpose, toke
 	if err := tx.Commit(); err != nil {
 		return LoginResult{}, fmt.Errorf("complete Challenge: %w", err)
 	}
-	principal, err := s.loadPrincipal(ctx, user.ID)
-	if err != nil {
-		return LoginResult{}, err
-	}
-	principal.SessionID = sessionID
 	s.LogAccess(ctx, AccessEvent{Event: EventChallengeComplete, Outcome: OutcomeOK, UserID: user.ID, Username: user.Username, RequestID: requestID, Detail: purpose + " completed"})
-	return LoginResult{Token: sessionToken, Principal: principal, ExpiresAt: expires}, nil
+	return result, nil
 }
 
 // lockAndConsume re-reads the Challenge row under lock, validates it once
@@ -904,6 +972,15 @@ func (s *Service) updateUserOnce(ctx context.Context, username string, update Us
 				return User{}, fmt.Errorf("update user roles: %w", err)
 			}
 		}
+		count, err := removed.RowsAffected()
+		if err != nil {
+			return User{}, err
+		}
+		if count > 0 || len(unique) > 0 {
+			if err := revokeSessions(ctx, tx, user.ID, "", s.now(), true); err != nil {
+				return User{}, err
+			}
+		}
 		if err := syncOwnerFlag(ctx, tx, user.ID); err != nil {
 			return User{}, err
 		}
@@ -1000,6 +1077,10 @@ type LoginResult struct {
 // outcome to the Access Log and locks the user after MaxFailedAttempts wrong
 // passwords in a row.
 func (s *Service) Login(ctx context.Context, username, password, requestID string) (LoginResult, error) {
+	return s.LoginWithOptions(ctx, username, password, requestID, SessionOptions{})
+}
+
+func (s *Service) LoginWithOptions(ctx context.Context, username, password, requestID string, options SessionOptions) (LoginResult, error) {
 	now := s.now()
 	name := strings.ToLower(strings.TrimSpace(username))
 	var user User
@@ -1062,40 +1143,49 @@ func (s *Service) Login(ctx context.Context, username, password, requestID strin
 		}
 		return LoginResult{}, ErrInvalidCredentials
 	}
+	tx, err := s.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return LoginResult{}, err
+	}
+	defer tx.Rollback()
+	// Bind the verified password and account state to session creation. A
+	// concurrent reset or suspension must win before a new cookie is issued.
+	var current sql.NullString
+	var disabled bool
+	var state string
+	if err := tx.QueryRowContext(ctx, "SELECT password_hash,disabled,state FROM athena_users WHERE id=? FOR UPDATE", user.ID).Scan(&current, &disabled, &state); err != nil {
+		return LoginResult{}, err
+	}
+	if current != hash || (!root && (disabled || state != UserStateActive)) {
+		return LoginResult{}, ErrInvalidCredentials
+	}
 	if rehash {
 		if newHash, err := HashPassword(password); err == nil {
-			_, _ = s.DB.ExecContext(ctx, "UPDATE athena_users SET password_hash = ? WHERE id = ?", newHash, user.ID)
+			if _, err := tx.ExecContext(ctx, "UPDATE athena_users SET password_hash=? WHERE id=?", newHash, user.ID); err != nil {
+				return LoginResult{}, err
+			}
 		}
 	}
-	if _, err := s.DB.ExecContext(ctx, "UPDATE athena_users SET failed_attempts = 0, locked_until = NULL, last_login_at = ? WHERE id = ?", now, user.ID); err != nil {
-		return LoginResult{}, fmt.Errorf("sign in: %w", err)
+	if _, err := tx.ExecContext(ctx, "UPDATE athena_users SET failed_attempts=0,locked_until=NULL,last_login_at=? WHERE id=?", now, user.ID); err != nil {
+		return LoginResult{}, err
 	}
-	token, sessionID, expires, err := s.startSession(ctx, s.DB, user.ID, now)
+	result, err := s.startSession(ctx, tx, user.ID, now, options)
 	if err != nil {
 		return LoginResult{}, err
 	}
-	principal, err := s.loadPrincipal(ctx, user.ID)
-	if err != nil {
+	if err := tx.Commit(); err != nil {
 		return LoginResult{}, err
 	}
-	principal.SessionID = sessionID
 	s.LogAccess(ctx, AccessEvent{Event: EventLogin, Outcome: OutcomeOK, UserID: user.ID, Username: user.Username, RequestID: requestID})
-	return LoginResult{Token: token, Principal: principal, ExpiresAt: expires}, nil
+	return result, nil
 }
 
-// startSession stores a session for the user and returns the raw token,
-// which the database never holds.
-func (s *Service) startSession(ctx context.Context, db execQuerier, userID string, now time.Time) (token, sessionID string, expires time.Time, err error) {
+func newSessionToken() (string, error) {
 	raw := make([]byte, 32)
 	if _, err := rand.Read(raw); err != nil {
-		return "", "", time.Time{}, fmt.Errorf("generate session token: %w", err)
+		return "", fmt.Errorf("generate session token: %w", err)
 	}
-	token = base64.RawURLEncoding.EncodeToString(raw)
-	sessionID, expires = newID(), now.Add(AbsoluteLifetime)
-	if _, err := db.ExecContext(ctx, "INSERT INTO athena_sessions (id, token_hash, user_id, created_at, last_seen_at, expires_at) VALUES (?,?,?,?,?,?)", sessionID, hashToken(token), userID, now, now, expires); err != nil {
-		return "", "", time.Time{}, fmt.Errorf("start session: %w", err)
-	}
-	return token, sessionID, expires, nil
+	return base64.RawURLEncoding.EncodeToString(raw), nil
 }
 
 func hashToken(token string) string {
@@ -1123,29 +1213,51 @@ func CheckCSRF(sessionToken, sent string) bool {
 // session.
 func (s *Service) Authenticate(ctx context.Context, token string) (*Principal, error) {
 	if token == "" {
-		return nil, ErrUnauthenticated
+		return nil, &SessionEnded{"revoked"}
 	}
-	now := s.now()
-	var sessionID, userID string
-	var lastSeen time.Time
-	err := s.DB.QueryRowContext(ctx, `SELECT s.id, s.user_id, s.last_seen_at FROM athena_sessions s JOIN athena_users u ON u.id = s.user_id
-		WHERE s.token_hash = ? AND s.revoked_at IS NULL AND s.expires_at > ? AND s.last_seen_at > ? AND u.disabled = 0`,
-		hashToken(token), now, now.Add(-IdleTimeout)).Scan(&sessionID, &userID, &lastSeen)
+	tx, err := s.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	var id, userID string
+	var lastSeen, expires time.Time
+	var step, revoked, boundary sql.NullTime
+	var idle int
+	var disabled, remembered bool
+	var rateID sql.NullString
+	err = tx.QueryRowContext(ctx, `SELECT s.id,s.user_id,s.last_seen_at,s.expires_at,s.step_up_at,s.revoked_at,s.permissions_until,s.idle_minutes,u.disabled,s.remembered,s.rate_id
+	FROM athena_sessions s JOIN athena_users u ON u.id=s.user_id WHERE s.token_hash=? FOR UPDATE`, hashToken(token)).
+		Scan(&id, &userID, &lastSeen, &expires, &step, &revoked, &boundary, &idle, &disabled, &remembered, &rateID)
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, ErrUnauthenticated
+		return nil, &SessionEnded{"revoked"}
 	}
 	if err != nil {
 		return nil, fmt.Errorf("read session: %w", err)
 	}
-	if now.Sub(lastSeen) > touchInterval {
-		_, _ = s.DB.ExecContext(ctx, "UPDATE athena_sessions SET last_seen_at = ? WHERE id = ?", now, sessionID)
+	now := s.now()
+	idleDuration := time.Duration(idle) * time.Minute
+	switch {
+	case disabled || revoked.Valid || !step.Valid || (boundary.Valid && !now.Before(boundary.Time)):
+		return nil, &SessionEnded{"revoked"}
+	case !now.Before(expires):
+		return nil, &SessionEnded{"absolute"}
+	case !now.Before(lastSeen.Add(idleDuration)):
+		return nil, &SessionEnded{"idle"}
 	}
-	principal, err := s.loadPrincipal(ctx, userID)
+	if now.After(lastSeen) {
+		if _, err := tx.ExecContext(ctx, "UPDATE athena_sessions SET last_seen_at=? WHERE id=?", now, id); err != nil {
+			return nil, err
+		}
+		lastSeen = now
+	}
+	p, err := s.readPrincipal(ctx, tx, userID)
 	if err != nil {
 		return nil, err
 	}
-	principal.SessionID = sessionID
-	return principal, nil
+	p.RateID, p.Remembered = rateID.String, remembered
+	p.SessionID, p.StepUpAt, p.ExpiresAt, p.IdleDuration, p.IdleExpiresAt = id, step.Time, expires, idleDuration, lastSeen.Add(idleDuration)
+	return p, tx.Commit()
 }
 
 // Logout ends a session.
@@ -1175,8 +1287,9 @@ func (s *Service) ListSessions(ctx context.Context, username string) ([]Session,
 	now := s.now()
 	rows, err := s.DB.QueryContext(ctx, `SELECT s.id, s.user_id, u.username, s.created_at, s.last_seen_at, s.expires_at, s.device
 		FROM athena_sessions s JOIN athena_users u ON u.id = s.user_id
-		WHERE s.user_id = ? AND s.revoked_at IS NULL AND s.expires_at > ? AND s.last_seen_at > ?
-		ORDER BY s.last_seen_at DESC`, user.ID, now, now.Add(-IdleTimeout))
+		WHERE s.user_id = ? AND s.revoked_at IS NULL AND s.expires_at > ? AND TIMESTAMPADD(MINUTE,s.idle_minutes,s.last_seen_at) > ?
+        AND (s.permissions_until IS NULL OR s.permissions_until>?) AND u.disabled=0
+		ORDER BY s.last_seen_at DESC`, user.ID, now, now, now)
 	if err != nil {
 		return nil, fmt.Errorf("list sessions: %w", err)
 	}
@@ -1227,13 +1340,17 @@ func (s *Service) RevokeSession(ctx context.Context, actorUserID, id string, all
 }
 
 func (s *Service) loadPrincipal(ctx context.Context, userID string) (*Principal, error) {
+	return s.readPrincipal(ctx, s.DB, userID)
+}
+
+func (s *Service) readPrincipal(ctx context.Context, db execQuerier, userID string) (*Principal, error) {
 	p := &Principal{UserID: userID, SystemPermissions: map[string]bool{}}
-	if err := s.DB.QueryRowContext(ctx, "SELECT username, display_name, is_owner FROM athena_users WHERE id = ?", userID).Scan(&p.Username, &p.DisplayName, &p.Owner); err != nil {
+	if err := db.QueryRowContext(ctx, "SELECT username, display_name, is_owner FROM athena_users WHERE id = ?", userID).Scan(&p.Username, &p.DisplayName, &p.Owner); err != nil {
 		return nil, fmt.Errorf("read user: %w", err)
 	}
 	p.Root = IsRoot(p.Username)
 	now := s.now()
-	rows, err := s.DB.QueryContext(ctx, `SELECT a.id, a.role_id, r.name, a.scope, a.active_from, a.expires_at, a.revision, r.system_permissions, r.requires_scope
+	rows, err := db.QueryContext(ctx, `SELECT a.id, a.role_id, r.name, a.scope, a.active_from, a.expires_at, a.revision, r.system_permissions, r.requires_scope
 		FROM athena_role_assignments a JOIN athena_roles r ON r.id = a.role_id WHERE a.user_id = ? ORDER BY r.name, a.id`, userID)
 	if err != nil {
 		return nil, fmt.Errorf("read assignments: %w", err)
@@ -1285,7 +1402,7 @@ func (s *Service) loadPrincipal(ctx context.Context, userID string) (*Principal,
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("read assignments: %w", err)
 	}
-	grants, err := s.DB.QueryContext(ctx, `SELECT a.id, g.record_type, g.actions, g.permission_level, g.row_condition, g.separate_duties
+	grants, err := db.QueryContext(ctx, `SELECT a.id, g.record_type, g.actions, g.permission_level, g.row_condition, g.separate_duties
 		FROM athena_grants g JOIN athena_role_assignments a ON a.role_id = g.role_id WHERE a.user_id = ? ORDER BY g.id`, userID)
 	if err != nil {
 		return nil, fmt.Errorf("read grants: %w", err)
@@ -1886,6 +2003,9 @@ func (s *Service) saveRoleOnce(ctx context.Context, r Role) error {
 		if err := notifyAccess(ctx, tx, holder); err != nil {
 			return err
 		}
+		if err := revokeSessions(ctx, tx, holder, "", s.now(), true); err != nil {
+			return err
+		}
 	}
 	if err := syncOwnerFlagsForRole(ctx, tx, holders); err != nil {
 		return err
@@ -1929,6 +2049,9 @@ func (s *Service) deleteRoleOnce(ctx context.Context, name string) error {
 	}
 	for _, holder := range holders {
 		if err := notifyAccess(ctx, tx, holder); err != nil {
+			return err
+		}
+		if err := revokeSessions(ctx, tx, holder, "", s.now(), true); err != nil {
 			return err
 		}
 	}

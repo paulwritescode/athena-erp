@@ -34,6 +34,7 @@ This directory describes the product and the system as it exists and as decision
 - [ADR-0022: Ledger foundation and kernel masters](decisions/adr-0022-ledger-foundation-and-kernel-masters.md) — proposed: kernel owns ledger mechanism, seeds nothing; D-007 relation open.
 - [ADR-0023: Posting engine and operations](decisions/adr-0023-posting-engine-and-operations.md) — proposed: single-transaction posts, Operation_ID replay, post-once groups; O-011 and O-012 open.
 - [ADR-0024: Recipient-owned notifications and Workspace appearance](decisions/adr-0024-notifications.md) — proposed: transactional inbox events; appearance reuses the G5 Settings chain, so no ADR-0025.
+- [ADR-0026 Session lifetimes, step-up and rate limiting](decisions/adr-0026-session-policy.md) — proposed B7 server policy and operator settings.
 - [ADR template](decisions/adr-template.md) — format for recording a consequential architecture decision.
 - [Project README](../README.md) — setup, run, build, and repository layout.
 

@@ -56,6 +56,7 @@ var procedurePolicies = map[string]policy{
 
 	athenav1connect.AuthServiceLoginProcedure:             {kind: policyPublic},
 	athenav1connect.AuthServiceGetSessionProcedure:        {kind: policyPublic},
+	athenav1connect.AuthServiceStepUpProcedure:            {kind: policySession},
 	athenav1connect.AuthServiceLogoutProcedure:            {kind: policySession},
 	athenav1connect.AuthServiceChangePasswordProcedure:    {kind: policySession},
 	athenav1connect.AuthServiceInviteUserProcedure:        {kind: policySystem, permission: auth.PermissionAccessUsers},
@@ -152,6 +153,35 @@ var procedurePolicies = map[string]policy{
 	athenav1connect.LedgerServiceGetReadinessProcedure:         {kind: policySystem, permission: auth.PermissionLedgerRead},
 }
 
+// destructiveProcedures covers deletes, reversals, replacement of executable
+// code, access changes and publication/discard of settings. A Record Type save
+// is destructive only when the caller explicitly confirms data loss, and an
+// invite only when it grants Roles with the invitation.
+var destructiveProcedures = map[string]bool{
+	athenav1connect.AuthServiceStartResetProcedure:             true,
+	athenav1connect.AuthServiceInviteUserProcedure:             true,
+	athenav1connect.AuthServiceUpdateUserProcedure:             true,
+	athenav1connect.AuthServiceSaveRoleProcedure:               true,
+	athenav1connect.AuthServiceDeleteRoleProcedure:             true,
+	athenav1connect.AuthServiceSaveAssignmentProcedure:         true,
+	athenav1connect.AuthServiceRevokeAssignmentProcedure:       true,
+	athenav1connect.AuthServiceRevokeSessionProcedure:          true,
+	athenav1connect.AuthServiceTransferOwnershipProcedure:      true,
+	athenav1connect.AuthServiceResendInviteProcedure:           true,
+	athenav1connect.FileServiceDeleteFileProcedure:             true,
+	athenav1connect.FileServiceMoveFileProcedure:               true,
+	athenav1connect.FileServicePutFileProcedure:                true,
+	athenav1connect.RuleServiceSaveRuleProcedure:               true,
+	athenav1connect.RuleServiceDeleteRuleProcedure:             true,
+	athenav1connect.RecordTypeServiceSaveRecordTypeProcedure:   true,
+	athenav1connect.RecordTypeServiceDeleteRecordTypeProcedure: true,
+	athenav1connect.RecordServiceDeleteRecordProcedure:         true,
+	athenav1connect.RecordServiceCancelRecordProcedure:         true,
+	athenav1connect.LedgerServiceDiscardSettingValueProcedure:  true,
+	athenav1connect.LedgerServicePublishSettingValueProcedure:  true,
+	athenav1connect.LedgerServiceSetPeriodStatusProcedure:      true,
+}
+
 type sessionTokenKey struct{}
 
 // sessionTokenFrom returns the session token the request carried, or "".
@@ -190,9 +220,11 @@ func gateInterceptor(svc *auth.Service) connect.ServerInterceptor {
 				token = cookieValue(info.RequestHeader(), sessionCookieName)
 				sent = info.RequestHeader().Get(csrfHeader)
 			}
-			var principal *auth.Principal
-			if token != "" {
+			principal := auth.PrincipalFrom(ctx)
+			var sessionErr error = &auth.SessionEnded{Reason: "revoked"}
+			if token != "" && principal == nil {
 				p, err := svc.Authenticate(ctx, token)
+				sessionErr = err
 				switch {
 				case err == nil:
 					principal = p
@@ -204,9 +236,12 @@ func gateInterceptor(svc *auth.Service) connect.ServerInterceptor {
 					return connect.NewError(connect.CodeInternal, "could not check the session")
 				}
 			}
+			if token != "" && principal == nil && spec.Procedure == athenav1connect.AuthServiceGetSessionProcedure {
+				return authError("read session", sessionErr)
+			}
 			if pol.kind != policyPublic {
 				if principal == nil {
-					return connect.NewError(connect.CodeUnauthenticated, "sign in to continue")
+					return authError("read session", sessionErr)
 				}
 				if !auth.CheckCSRF(token, sent) {
 					_ = deny(principal, "", "", "csrf", connect.CodePermissionDenied, "")
@@ -232,6 +267,32 @@ func gateInterceptor(svc *auth.Service) connect.ServerInterceptor {
 					}
 					return nil
 				}}
+			}
+			if destructiveProcedures[spec.Procedure] && svc.NeedsStepUp(principal) {
+				required := func() error {
+					_ = deny(principal, "", "", "step_up_required", connect.CodeFailedPrecondition, "")
+					return failureError(connect.CodeFailedPrecondition, "enter your password to continue", &athenav1.AuthFailure{Reason: "step_up_required"})
+				}
+				switch spec.Procedure {
+				case athenav1connect.RecordTypeServiceSaveRecordTypeProcedure:
+					stream = gatedStream{ServerStream: stream, check: func(msg any) error {
+						req, ok := msg.(*athenav1.SaveRecordTypeRequest)
+						if !ok || req.GetConfirmDataLoss() {
+							return required()
+						}
+						return nil
+					}}
+				case athenav1connect.AuthServiceInviteUserProcedure:
+					stream = gatedStream{ServerStream: stream, check: func(msg any) error {
+						req, ok := msg.(*athenav1.InviteUserRequest)
+						if !ok || len(req.GetRoles()) > 0 {
+							return required()
+						}
+						return nil
+					}}
+				default:
+					return required()
+				}
 			}
 			return next(ctx, spec, stream)
 		}
@@ -262,12 +323,15 @@ func cookieValue(header *connect.Header, name string) string {
 // setSessionCookie sends the session token in an HttpOnly, SameSite=Strict
 // cookie. Secure is set when the browser reached the server over HTTPS, which
 // its Origin header shows; on plain loopback HTTP it cannot be.
-func setSessionCookie(ctx context.Context, token string, expires time.Time) {
+func setSessionCookie(ctx context.Context, token string, expires time.Time, remember bool) {
 	info, ok := connect.CallInfoForServerContext(ctx)
 	if !ok {
 		return
 	}
-	maxAge := int(time.Until(expires).Seconds())
+	maxAge := 0
+	if remember {
+		maxAge = max(1, int(time.Until(expires).Seconds()))
+	}
 	if token == "" {
 		maxAge = -1
 	}

@@ -53,3 +53,11 @@ Make target writes it to `/tmp/athena-bruno-junit.xml` so reports do not enter
 the repository. The `local` environment sets `baseUrl` to
 `http://127.0.0.1:3000`; CLI values supplied through `ATHENA_BRUNO_BASE_URL`
 override it for another running Athena server.
+
+On a disposable Workspace, set the Bruno environment variable `checkRateLimit`
+to `true` to exercise the default sign-in bucket. Request 10 repeats an
+incomplete Challenge request up to six times and checks HTTP 429 and the
+`Retry-After` header. Set `checkIdleExpiry` to `true` for a separate expiry
+run. Request 03 then jumps to request 09, which waits for the server's idle
+deadline and checks HTTP 401 and the `idle` detail. Use a five-minute idle
+policy on that Workspace for a shorter run.

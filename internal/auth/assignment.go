@@ -352,6 +352,9 @@ func (s *Service) saveAssignmentOnce(ctx context.Context, username string, in As
 		out.ID = in.ID
 		out.Revision = in.ExpectedRevision + 1
 	}
+	if err := revokeSessions(ctx, tx, user.ID, "", s.now(), true); err != nil {
+		return Assignment{}, err
+	}
 	if err := syncOwnerFlag(ctx, tx, user.ID); err != nil {
 		return Assignment{}, err
 	}
@@ -394,6 +397,9 @@ func (s *Service) revokeAssignmentOnce(ctx context.Context, id string) error {
 	}
 	if _, err := tx.ExecContext(ctx, "DELETE FROM athena_role_assignments WHERE id = ?", id); err != nil {
 		return fmt.Errorf("revoke assignment: %w", err)
+	}
+	if err := revokeSessions(ctx, tx, userID, "", s.now(), true); err != nil {
+		return err
 	}
 	if err := syncOwnerFlag(ctx, tx, userID); err != nil {
 		return err

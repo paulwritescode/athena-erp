@@ -32,6 +32,14 @@ const (
 	EventChallengeIssued   = "challenge_issued"
 	EventChallengeComplete = "challenge_completed"
 	EventChallengeFailed   = "challenge_failed"
+	// EventRateLimited records a rejected request. The row carries the
+	// procedure and the limit category only, never the request values.
+	EventRateLimited = "rate_limited"
+	// EventStepUp records a password re-verification for a privileged
+	// action (step-up, ownership transfer, reset start). The failure rows
+	// never carry the password.
+	EventStepUp       = "step_up"
+	EventStepUpFailed = "step_up_failed"
 )
 
 // Outcomes of a logged event.

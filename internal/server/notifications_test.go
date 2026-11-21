@@ -69,11 +69,17 @@ func TestInboxAuthEvents(t *testing.T) {
 	if err := f.users.RevokeAssignment(ctx, assignment.ID); err != nil {
 		t.Fatal(err)
 	}
-	assertInbox(t, f, u.ID, notifications.AccessChanged, notifications.AccessChanged, notifications.AccessChanged)
+	assertInbox(t, f, u.ID, notifications.AccessChanged, notifications.AccessChanged, notifications.AccessChanged, notifications.SessionEnded)
+	// Granting the Assignment ended the challenge-created session and told
+	// the guest; sign in again so there is a live session to revoke below.
+	joined, err = f.users.Login(ctx, u.Username, testPassword, "")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if err := f.users.RevokeSession(acting, host.UserID, joined.Principal.SessionID, true); err != nil {
 		t.Fatal(err)
 	}
-	events := assertInbox(t, f, u.ID, notifications.SessionEnded, notifications.AccessChanged, notifications.AccessChanged, notifications.AccessChanged)
+	events := assertInbox(t, f, u.ID, notifications.SessionEnded, notifications.AccessChanged, notifications.AccessChanged, notifications.AccessChanged, notifications.SessionEnded)
 	if events[0].ActorUserId != host.UserID {
 		t.Fatal(events[0])
 	}
@@ -82,10 +88,10 @@ func TestInboxAuthEvents(t *testing.T) {
 			t.Fatal(err)
 		}
 		if i == 2 {
-			assertInbox(t, f, u.ID, notifications.SessionEnded, notifications.AccessChanged, notifications.AccessChanged, notifications.AccessChanged)
+			assertInbox(t, f, u.ID, notifications.SessionEnded, notifications.AccessChanged, notifications.AccessChanged, notifications.AccessChanged, notifications.SessionEnded)
 		}
 	}
-	events = assertInbox(t, f, u.ID, notifications.AccountLocked, notifications.SignInFailed, notifications.SignInFailed, notifications.SessionEnded, notifications.AccessChanged, notifications.AccessChanged, notifications.AccessChanged)
+	events = assertInbox(t, f, u.ID, notifications.AccountLocked, notifications.SignInFailed, notifications.SignInFailed, notifications.SessionEnded, notifications.AccessChanged, notifications.AccessChanged, notifications.AccessChanged, notifications.SessionEnded)
 	if !strings.Contains(events[2].Text, "3 unsuccessful") {
 		t.Fatal(events[2])
 	}
@@ -201,12 +207,12 @@ func TestPeriodCloseNotifiesCurrentLedgerWriters(t *testing.T) {
 	if _, err := s.SetPeriodStatus(auth.WithPrincipal(ctx, writer), p.Company, p.Book, p.Name, ledger.PeriodSoftClosed, writer.Username, p.Revision); err != nil {
 		t.Fatal(err)
 	}
-	n := assertInbox(t, f, writer.UserID, notifications.PeriodClosed, notifications.AccessChanged)[0]
+	n := assertInbox(t, f, writer.UserID, notifications.PeriodClosed, notifications.AccessChanged, notifications.SessionEnded)[0]
 	if n.SubjectId != "acme/main/nov" || n.ActorUserId != writer.UserID {
 		t.Fatal(n)
 	}
 	assertInbox(t, f, reader.UserID)
-	assertInbox(t, f, former.UserID, notifications.AccessChanged)
+	assertInbox(t, f, former.UserID, notifications.AccessChanged, notifications.SessionEnded)
 	// A caller rolling back a hard close also rolls back its notification.
 	tx, err := f.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -220,5 +226,5 @@ func TestPeriodCloseNotifiesCurrentLedgerWriters(t *testing.T) {
 	if err := tx.Rollback(); err != nil {
 		t.Fatal(err)
 	}
-	assertInbox(t, f, writer.UserID, notifications.PeriodClosed, notifications.AccessChanged)
+	assertInbox(t, f, writer.UserID, notifications.PeriodClosed, notifications.AccessChanged, notifications.SessionEnded)
 }

@@ -506,6 +506,19 @@ func SystemMigrations() []store.Migration {
             KEY idx_inbox_created (recipient_user_id, created_at, id)
           ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 		)},
+		{Version: 16, Name: "session_policy", Up: execAll(
+			`CREATE TABLE IF NOT EXISTS athena_security_settings (
+                setting_key VARCHAR(64) PRIMARY KEY, setting_value INT NOT NULL
+            ) ENGINE=InnoDB`,
+			`ALTER TABLE athena_sessions
+                ADD COLUMN IF NOT EXISTS idle_minutes INT NOT NULL DEFAULT 15,
+                ADD COLUMN IF NOT EXISTS step_up_at TIMESTAMP(3) NULL,
+                ADD COLUMN IF NOT EXISTS permissions_until DATETIME NULL,
+                ADD COLUMN IF NOT EXISTS remembered TINYINT(1) NOT NULL DEFAULT 0,
+                ADD COLUMN IF NOT EXISTS rate_id CHAR(36) NULL`,
+			// Earlier sessions have no policy snapshot. Require a fresh sign-in.
+			`UPDATE athena_sessions SET revoked_at = CURRENT_TIMESTAMP(3) WHERE step_up_at IS NULL AND revoked_at IS NULL`,
+		)},
 	}
 }
 

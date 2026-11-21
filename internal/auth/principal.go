@@ -4,6 +4,7 @@ import (
 	"context"
 	"sort"
 	"strings"
+	"time"
 )
 
 // RootUsername is the reserved workspace root account (ADR-0018). It is
@@ -106,8 +107,8 @@ func (g Grant) covers(recordType string) bool {
 }
 
 // Principal is the signed-in user as the kernel sees them for one request.
-// It is loaded from the database on every request, so a Role change takes
-// effect at once.
+// It is loaded from the database on every request. A permission change
+// ends the affected sessions, so the next call re-authenticates.
 type Principal struct {
 	UserID      string
 	Username    string
@@ -127,8 +128,12 @@ type Principal struct {
 	// Every method below tests whole Assignments: an action on a row is
 	// allowed only when one single Assignment covers it, and the results
 	// of whole matching Assignments union.
-	Assignments []Assignment
-	SessionID   string
+	Assignments                        []Assignment
+	SessionID                          string
+	StepUpAt, IdleExpiresAt, ExpiresAt time.Time
+	RateID                             string
+	Remembered                         bool
+	IdleDuration                       time.Duration
 }
 
 // HasSystem reports whether the principal holds a system permission.

@@ -172,7 +172,7 @@ func TestBootstrapIgnoresRoot(t *testing.T) {
 		t.Fatal(err)
 	}
 	ownerCtx := auth.WithPrincipal(ctx, login.Principal)
-	if _, err := svc.TransferOwnership(ownerCtx, "administrator", password, false); !errors.Is(err, auth.ErrInvalid) {
+	if _, err := svc.TransferOwnership(ownerCtx, "administrator", password, false, ""); !errors.Is(err, auth.ErrInvalid) {
 		t.Fatalf("transferring to root = %v, want ErrInvalid", err)
 	}
 }

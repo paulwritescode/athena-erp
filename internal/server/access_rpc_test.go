@@ -96,6 +96,11 @@ func TestResendInviteSupersedes(t *testing.T) {
 
 func TestStartResetFlow(t *testing.T) {
 	f := newAccessFixture(t)
+	// The flow signs clerk in six times; the default sign-in bucket would
+	// cut the last one off. Rate limits have their own tests.
+	if err := f.users.SetSecurity(context.Background(), auth.SignInUsername, 100); err != nil {
+		t.Fatal(err)
+	}
 	f.owner(t, "ada")
 	f.user(t, "clerk")
 	owner := f.browser(t)
@@ -189,7 +194,12 @@ func TestTransferOwnershipFlow(t *testing.T) {
 	if _, err := owner.auth.TransferOwnership(ctx, &athenav1.TransferOwnershipRequest{Username: "grace", ActorPassword: testPassword, Relinquish: true}); err != nil {
 		t.Fatal(err)
 	}
+	// Relinquishing ends the actor's own session; after signing in again
+	// the former owner is refused for lack of permission.
 	_, err := owner.auth.InviteUser(ctx, &athenav1.InviteUserRequest{Username: "another"})
+	requireCode(t, err, connect.CodeUnauthenticated)
+	owner.login(t, "ada")
+	_, err = owner.auth.InviteUser(ctx, &athenav1.InviteUserRequest{Username: "another"})
 	requireCode(t, err, connect.CodePermissionDenied)
 	if _, err := successor.auth.InviteUser(ctx, &athenav1.InviteUserRequest{Username: "second"}); err != nil {
 		t.Fatalf("the remaining owner lost access: %v", err)
@@ -291,6 +301,7 @@ func TestSessionManagement(t *testing.T) {
 	// With the sessions permission, another user's sessions open up.
 	f.role(t, "observer", []string{auth.PermissionAccessSessions})
 	f.assign(t, "ada", auth.RoleInstanceOwner, "observer")
+	owner.login(t, "ada")
 	listed, err = owner.auth.ListSessions(ctx, &athenav1.ListSessionsRequest{Username: "clerk"})
 	if err != nil {
 		t.Fatal(err)

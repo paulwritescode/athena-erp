@@ -60,6 +60,8 @@ func run(args []string) error {
 		return recordsCommand(args[1:], os.Stdout)
 	case "expressions":
 		return expressionsCommand(args[1:], os.Stdout)
+	case "security":
+		return securityCommand(args[1:], os.Stdout)
 	case "user":
 		return userCommand(args[1:], os.Stdout)
 	case "role":
@@ -125,6 +127,7 @@ Usage:
       Type-check an expression against a Record Type, evaluate it for one
       Record (--record id), or calculate formulas and field states for values
       that are not saved (--values). records list also takes --filter.
+  athena security show|set [key value] [--workspace slug]
   athena user invite|list|set|resend|reset|suspend|reactivate|sessions <username> [--workspace slug] [--json]
       Manage sign-in users. "invite <username> --owner" creates an instance
       owner, which the first start of the desk needs; owners hold the

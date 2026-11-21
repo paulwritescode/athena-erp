@@ -26,6 +26,8 @@ const (
 const (
 	// AuthServiceLoginProcedure is the procedure name of the AuthService's Login RPC.
 	AuthServiceLoginProcedure = "/athena.v1.AuthService/Login"
+	// AuthServiceStepUpProcedure is the procedure name of the AuthService's StepUp RPC.
+	AuthServiceStepUpProcedure = "/athena.v1.AuthService/StepUp"
 	// AuthServiceLogoutProcedure is the procedure name of the AuthService's Logout RPC.
 	AuthServiceLogoutProcedure = "/athena.v1.AuthService/Logout"
 	// AuthServiceGetSessionProcedure is the procedure name of the AuthService's GetSession RPC.
@@ -85,6 +87,13 @@ var (
 			StreamType: connect.StreamTypeUnary,
 			Schema:     v1.File_athena_v1_auth_proto.Services().ByName("AuthService").Methods().ByName("Login"),
 			Procedure:  AuthServiceLoginProcedure,
+		}
+	})
+	authServiceStepUpSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_athena_v1_auth_proto.Services().ByName("AuthService").Methods().ByName("StepUp"),
+			Procedure:  AuthServiceStepUpProcedure,
 		}
 	})
 	authServiceLogoutSpec = sync.OnceValue(func() connect.Spec {
@@ -256,11 +265,12 @@ type AuthServiceClient interface {
 	// token travels only in an HttpOnly, SameSite=Strict cookie; the response
 	// carries the CSRF token the desk sends in X-CSRF-Token on later calls.
 	Login(context.Context, *v1.LoginRequest) (*v1.LoginResponse, error)
+	StepUp(context.Context, *v1.StepUpRequest) (*v1.StepUpResponse, error)
 	Logout(context.Context, *v1.LogoutRequest) (*v1.LogoutResponse, error)
-	// GetSession reports whether the caller is signed in. It never fails for a
-	// missing or expired session.
+	// GetSession reports whether the caller is signed in. A missing cookie is anonymous.
+	// A presented, ended session returns its expiry or revocation reason.
 	GetSession(context.Context, *v1.GetSessionRequest) (*v1.GetSessionResponse, error)
-	// ChangePassword sets the caller's own password and ends their other sessions.
+	// ChangePassword sets the caller's own password and ends their sessions.
 	ChangePassword(context.Context, *v1.ChangePasswordRequest) (*v1.ChangePasswordResponse, error)
 	// InviteUser invites a user with no password and returns the single-use
 	// Challenge to show once. It needs access:users.
@@ -325,11 +335,12 @@ type AuthServiceHandler interface {
 	// token travels only in an HttpOnly, SameSite=Strict cookie; the response
 	// carries the CSRF token the desk sends in X-CSRF-Token on later calls.
 	Login(context.Context, *v1.LoginRequest) (*v1.LoginResponse, error)
+	StepUp(context.Context, *v1.StepUpRequest) (*v1.StepUpResponse, error)
 	Logout(context.Context, *v1.LogoutRequest) (*v1.LogoutResponse, error)
-	// GetSession reports whether the caller is signed in. It never fails for a
-	// missing or expired session.
+	// GetSession reports whether the caller is signed in. A missing cookie is anonymous.
+	// A presented, ended session returns its expiry or revocation reason.
 	GetSession(context.Context, *v1.GetSessionRequest) (*v1.GetSessionResponse, error)
-	// ChangePassword sets the caller's own password and ends their other sessions.
+	// ChangePassword sets the caller's own password and ends their sessions.
 	ChangePassword(context.Context, *v1.ChangePasswordRequest) (*v1.ChangePasswordResponse, error)
 	// InviteUser invites a user with no password and returns the single-use
 	// Challenge to show once. It needs access:users.
@@ -387,6 +398,7 @@ func RegisterAuthServiceHandler(server *connect.Server, svc AuthServiceHandler) 
 	adapter := authServiceHandler{svc: svc}
 	server.Register(
 		connect.Method{Spec: authServiceLoginSpec(), Handler: adapter.login},
+		connect.Method{Spec: authServiceStepUpSpec(), Handler: adapter.stepUp},
 		connect.Method{Spec: authServiceLogoutSpec(), Handler: adapter.logout},
 		connect.Method{Spec: authServiceGetSessionSpec(), Handler: adapter.getSession},
 		connect.Method{Spec: authServiceChangePasswordSpec(), Handler: adapter.changePassword},
@@ -418,6 +430,10 @@ type UnimplementedAuthServiceHandler struct{}
 
 func (UnimplementedAuthServiceHandler) Login(context.Context, *v1.LoginRequest) (*v1.LoginResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, "athena.v1.AuthService.Login is not implemented")
+}
+
+func (UnimplementedAuthServiceHandler) StepUp(context.Context, *v1.StepUpRequest) (*v1.StepUpResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "athena.v1.AuthService.StepUp is not implemented")
 }
 
 func (UnimplementedAuthServiceHandler) Logout(context.Context, *v1.LogoutRequest) (*v1.LogoutResponse, error) {
@@ -519,6 +535,14 @@ type authServiceClient struct {
 func (c *authServiceClient) Login(ctx context.Context, req *v1.LoginRequest) (*v1.LoginResponse, error) {
 	var res v1.LoginResponse
 	if err := c.client.CallUnary(ctx, authServiceLoginSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *authServiceClient) StepUp(ctx context.Context, req *v1.StepUpRequest) (*v1.StepUpResponse, error) {
+	var res v1.StepUpResponse
+	if err := c.client.CallUnary(ctx, authServiceStepUpSpec(), req, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -716,6 +740,18 @@ func (h authServiceHandler) login(ctx context.Context, _ connect.Spec, stream co
 		return err
 	}
 	res, err := h.svc.Login(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h authServiceHandler) stepUp(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.StepUpRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.StepUp(ctx, &req)
 	if err != nil {
 		return err
 	}

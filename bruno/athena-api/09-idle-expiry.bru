@@ -1,0 +1,37 @@
+meta {
+  name: 09 - Idle expiry
+  type: http
+  seq: 9
+}
+
+post {
+  url: {{baseUrl}}/athena.v1.AuthService/GetSession
+  body: json
+  auth: none
+}
+
+headers {
+  content-type: application/json
+}
+
+body:json {
+  {}
+}
+
+script:pre-request {
+  if (bru.getEnvVar("checkIdleExpiry") !== "true") {
+    bru.runner.skipRequest();
+  } else {
+    const deadline = Date.parse(bru.getVar("idleDeadline"));
+    if (!Number.isFinite(deadline)) throw new Error("Sign in first to obtain the idle deadline");
+    await bru.sleep(Math.max(0, deadline - Date.now() + 1000));
+  }
+}
+
+tests {
+  test("the inactive session has expired", function() {
+    expect(res.status).to.equal(401);
+    expect(res.body.code).to.equal("unauthenticated");
+    expect(res.body.details.some(d => d.debug && d.debug.reason === "idle")).to.equal(true);
+  });
+}

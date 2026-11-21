@@ -39,6 +39,8 @@ func TestWorkspaceAppearancePublicReadAndProtectedWrite(t *testing.T) {
 	requireCode(t, err, connect.CodePermissionDenied)
 	f.role(t, "Designer", []string{auth.PermissionAppearance})
 	f.assign(t, "builder", "Designer")
+	// The new Assignment ends the old session; sign in again to use it.
+	b.login(t, "builder")
 	if _, err := b.workspace.SetAppearance(ctx, red); err != nil {
 		t.Fatal(err)
 	}

@@ -22,12 +22,12 @@ body:json {
   }
 }
 
-vars:pre-request {
-  password: 74fdd471be62652ab073332c8957538e
-}
-
 script:post-response {
   bru.setVar("csrfToken", res.body.session.csrfToken);
+  if (bru.getEnvVar("checkIdleExpiry") === "true") {
+    bru.setVar("idleDeadline", res.body.session.idleExpiresAt);
+    bru.runner.setNextRequest("09 - Idle expiry");
+  }
 }
 
 tests {

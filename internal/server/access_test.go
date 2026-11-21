@@ -424,7 +424,7 @@ func TestTheCreatorCannotSubmitUnderSeparateDuties(t *testing.T) {
 	}
 }
 
-func TestRoleChangeTakesEffectOnTheNextCall(t *testing.T) {
+func TestRoleChangeEndsTheSession(t *testing.T) {
 	f := newAccessFixture(t)
 	f.notes(t)
 	f.role(t, "reader", nil, grantOf("note", 0, "", auth.ActionRead))
@@ -435,10 +435,16 @@ func TestRoleChangeTakesEffectOnTheNextCall(t *testing.T) {
 	_, err := b.records.ListRecords(ctx, &athenav1.ListRecordsRequest{RecordTypeKey: "note"})
 	requireCode(t, err, connect.CodePermissionDenied)
 	f.assign(t, "bob", "reader")
+	_, err = b.records.ListRecords(ctx, &athenav1.ListRecordsRequest{RecordTypeKey: "note"})
+	requireCode(t, err, connect.CodeUnauthenticated)
+	b.login(t, "bob")
 	if _, err := b.records.ListRecords(ctx, &athenav1.ListRecordsRequest{RecordTypeKey: "note"}); err != nil {
 		t.Fatalf("after the Role was granted: %v", err)
 	}
 	f.assign(t, "bob")
+	_, err = b.records.ListRecords(ctx, &athenav1.ListRecordsRequest{RecordTypeKey: "note"})
+	requireCode(t, err, connect.CodeUnauthenticated)
+	b.login(t, "bob")
 	_, err = b.records.ListRecords(ctx, &athenav1.ListRecordsRequest{RecordTypeKey: "note"})
 	requireCode(t, err, connect.CodePermissionDenied)
 }
@@ -602,12 +608,13 @@ func TestPasswordsAndTokensNeverReachLogsSpansOrTables(t *testing.T) {
 	_, _ = b.auth.Login(ctx, &athenav1.LoginRequest{Username: "erin", Password: wrong})
 	b.login(t, "erin")
 	_, _ = b.records.ListRecords(ctx, &athenav1.ListRecordsRequest{RecordTypeKey: "note"})
-	_, _ = b.auth.ChangePassword(ctx, &athenav1.ChangePasswordRequest{CurrentPassword: testPassword, NewPassword: "another long passphrase"})
-	token := b.cookie()
-	if token == "" {
+	token, csrf := b.cookie(), *b.csrf
+	if token == "" || csrf == "" {
 		t.Fatal("no session cookie")
 	}
-	secrets := []string{testPassword, wrong, "another long passphrase", token, *b.csrf}
+	// A password change ends every session and clears the cookie.
+	_, _ = b.auth.ChangePassword(ctx, &athenav1.ChangePasswordRequest{CurrentPassword: testPassword, NewPassword: "another long passphrase"})
+	secrets := []string{testPassword, wrong, "another long passphrase", token, csrf}
 	check := func(where, text string) {
 		for _, secret := range secrets {
 			if strings.Contains(text, secret) {
