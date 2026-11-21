@@ -170,6 +170,7 @@ function createFromDialog(input: NewRecordTypeInput, complete: (saved: boolean) 
       :record-type="library.viewRecordType.value"
       :record-type-key="route.selectedRecordType.value"
       :record-types="library.viewRecordTypes.value"
+      :username="session.user.value?.username ?? ''"
       @back="route.setMode('build')"
     />
     <PermissionDenied v-else-if="denied" :page-title="deniedTitle" @go-home="goHome" />

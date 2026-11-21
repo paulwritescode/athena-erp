@@ -2,7 +2,7 @@
 // for designers and developers; it stays out of the nav and loads by address
 // (?mode=build&page=gallery, /build/gallery).
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, h, ref } from 'vue'
 import { CalendarDays, ChartColumn, Inbox } from '@/icons'
 
 import { toast } from 'vue-sonner'
@@ -11,7 +11,7 @@ import ActionGroup from '@/components/ActionGroup.vue'
 import type { ActionItem } from '@/components/actions'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import ResponsiveDialog from '@/components/ResponsiveDialog.vue'
-import DataTable from '@/components/DataTable.vue'
+import DataTable, { type TableFilter } from '@/components/DataTable.vue'
 import DetailSheet from '@/components/DetailSheet.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import ErrorState from '@/components/ErrorState.vue'
@@ -21,6 +21,7 @@ import FormSection from '@/components/FormSection.vue'
 import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import PermissionDenied from '@/components/PermissionDenied.vue'
+import PrimaryCell from '@/components/PrimaryCell.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import { Button } from '@/components/ui/button'
 import { Calendar } from '@/components/ui/calendar'
@@ -60,20 +61,92 @@ function confirmBusy() {
   }, 1500)
 }
 
-type DemoRow = { name: string; kind: string; records: number }
+type DemoCustomer = { id: string; name: string; email: string; status: string; plan: string; seats: number; updated: string }
+const firstNames = ['Ada', 'Grace', 'Alan', 'Linus', 'Margaret', 'Dennis', 'Barbara', 'Ken']
+const lastNames = ['Lovelace', 'Hopper', 'Turing', 'Oak']
+const demoStatuses = ['Active', 'Pending', 'Inactive']
+const demoPlans = ['Free', 'Team', 'Business']
+function makeCustomers(): DemoCustomer[] {
+  return Array.from({ length: 32 }, (_, index) => {
+    const name = `${firstNames[index % firstNames.length]} ${lastNames[Math.floor(index / firstNames.length) % lastNames.length]}`
+    return {
+      id: `customer-${index + 1}`,
+      name,
+      email: `${name.toLowerCase().replace(/[^a-z]+/g, '.')}@example.com`,
+      status: demoStatuses[index % demoStatuses.length]!,
+      plan: demoPlans[(index * 2 + 1) % demoPlans.length]!,
+      seats: (index * 7) % 40 + 1,
+      updated: `0${(index % 9) + 1} Nov 2026`,
+    }
+  })
+}
 const demoColumns = [
-  { accessorKey: 'name', header: 'Name' },
-  { accessorKey: 'kind', header: 'Kind', meta: { label: 'Kind', hideOnMobile: true } },
-  { accessorKey: 'records', header: 'Records' },
+  {
+    accessorKey: 'name',
+    header: 'Customer',
+    meta: { label: 'Customer' },
+    cell: ({ row }: { row: { original: DemoCustomer } }) => h(PrimaryCell, { title: row.original.name, subtitle: row.original.email, icon: 'user' }),
+  },
+  {
+    accessorKey: 'status',
+    header: 'Status',
+    meta: { label: 'Status' },
+    cell: ({ row }: { row: { original: DemoCustomer } }) => h(StatusBadge, { status: row.original.status.toLowerCase(), label: row.original.status }),
+  },
+  { accessorKey: 'plan', header: 'Plan', meta: { label: 'Plan', hideOnMobile: true } },
+  { accessorKey: 'seats', header: 'Seats', meta: { label: 'Seats', numeric: true } },
+  { accessorKey: 'updated', header: 'Updated', meta: { label: 'Updated', hideOnMobile: true } },
 ]
-const demoRows = ref<DemoRow[]>([
-  { name: 'Task', kind: 'master', records: 12 },
-  { name: 'Note', kind: 'master', records: 3 },
-  { name: 'Invoice', kind: 'document', records: 48 },
+const demoRows = ref<DemoCustomer[]>(makeCustomers())
+const demoSearch = ref('')
+const demoSelected = ref<string[]>([])
+const demoFilters = ref<TableFilter[]>([
+  { id: 'status', label: 'Status', options: demoStatuses.map((status) => ({ value: status, label: status })), selected: [] },
+  { id: 'plan', label: 'Plan', options: demoPlans.map((plan) => ({ value: plan, label: plan })), selected: [] },
 ])
-const tableEmpty = computed(() => demoRows.value.length === 0)
+const demoFiltered = computed(() => {
+  const needle = demoSearch.value.trim().toLowerCase()
+  const statuses = demoFilters.value.find((filter) => filter.id === 'status')?.selected ?? []
+  const plans = demoFilters.value.find((filter) => filter.id === 'plan')?.selected ?? []
+  return demoRows.value.filter((row) => {
+    if (statuses.length > 0 && !statuses.includes(row.status)) return false
+    if (plans.length > 0 && !plans.includes(row.plan)) return false
+    return !needle || `${row.name} ${row.email}`.toLowerCase().includes(needle)
+  })
+})
+const demoFilteredActive = computed(() => demoSearch.value.trim() !== '' || demoFilters.value.some((filter) => filter.selected.length > 0))
 const tableLoading = ref(false)
 const tableError = ref<string | null>(null)
+
+function demoBulk(id: string) {
+  if (id === 'export') {
+    toast.success(`Exported ${demoSelected.value.length} customers (demo).`)
+    demoSelected.value = []
+  } else if (id === 'delete') {
+    demoRows.value = demoRows.value.filter((row) => !demoSelected.value.includes(row.id))
+    toast.success('Customers deleted (demo).')
+    demoSelected.value = []
+  }
+}
+
+function demoRowAction(id: string, row: DemoCustomer) {
+  if (id === 'view') toast.info(`${row.name} (demo).`)
+  else if (id === 'delete') {
+    demoRows.value = demoRows.value.filter((item) => item.id !== row.id)
+    toast.success(`${row.name} deleted (demo).`)
+  }
+}
+
+// A fixed keyset simulation: 90 rows, no total, forward tokens only.
+const serverRows = Array.from({ length: 90 }, (_, index) => ({ id: `txn-${index + 1}`, name: `Payment ${index + 1}`, amount: (index * 137) % 900 + 50 }))
+const serverPage = ref(1)
+const serverSize = ref(25)
+const serverSlice = computed(() => serverRows.slice((serverPage.value - 1) * serverSize.value, serverPage.value * serverSize.value))
+const serverPaging = computed(() => ({ page: serverPage.value, total: null as number | null, hasNext: serverPage.value * serverSize.value < serverRows.length }))
+const serverColumns = [
+  { accessorKey: 'name', header: 'Payment', meta: { label: 'Payment' } },
+  { accessorKey: 'amount', header: 'Amount', meta: { label: 'Amount', numeric: true } },
+]
 
 const statuses = ['draft', 'pending', 'submitted', 'active', 'paid', 'open', 'inactive', 'cancelled', 'failed', 'overdue', 'archived']
 
@@ -344,26 +417,66 @@ function onPick(next: unknown) {
 
     <section aria-labelledby="gal-datatable">
       <h2 id="gal-datatable" class="text-lg font-medium">DataTable</h2>
-      <p class="text-muted-foreground mt-1 text-sm">Sortable grid; rows stack into labelled cards below 640 px, where sorting opens from a toolbar drawer. Kind hides on phones. Click a row.</p>
+      <p class="text-muted-foreground mt-1 text-sm">The one shared grid: toolbar with search, filters and Columns, select column with bulk actions, row numbers across pages, primary column with icon tile, row actions menu, and a footer with range, rows per page and Previous and Next. Below 640 px rows stack, filters move into a drawer, and selection is a long-press with a bottom action bar.</p>
       <div class="mt-4 space-y-4">
         <DataTable
           :columns="demoColumns"
-          :data="demoRows"
-          clickable
+          :data="demoFiltered"
+          :get-row-id="(row) => row.id"
+          v-model:selected-ids="demoSelected"
+          :bulk-actions="[
+            { id: 'export', label: 'Export', kind: 'secondary', icon: 'download' },
+            { id: 'delete', label: 'Delete', kind: 'destructive', icon: 'trash-2' },
+          ]"
+          :row-actions="() => [
+            { id: 'view', label: 'View', kind: 'quiet', icon: 'eye' },
+            { id: 'delete', label: 'Delete', kind: 'destructive', icon: 'trash-2' },
+          ]"
+          v-model:search="demoSearch"
+          search-placeholder="Find customers…"
+          :filters="demoFilters"
           :loading="tableLoading"
           :error="tableError"
-          empty-title="No record types"
-          empty-body="Define one to see it here."
+          :filtered="demoFilteredActive"
+          clickable
+          empty-title="No customers"
+          empty-body="Invite one to see it here."
           @row-click="(row) => toast.info(`${row.name} (demo).`)"
+          @row-action="demoRowAction"
+          @bulk-action="demoBulk"
+          @update:filters="demoFilters = $event"
           @retry="tableError = null; toast.info('Retry (demo).')"
-        />
+        >
+          <template #toolbar-actions>
+            <ActionButton kind="primary" density="row" label="New customer" icon="plus" @press="toast.info('New customer (demo).')" />
+          </template>
+          <template #empty-action>
+            <ActionButton kind="primary" density="row" label="Invite a customer" icon="plus" @press="demoRows = makeCustomers()" />
+          </template>
+        </DataTable>
         <div class="flex flex-wrap items-center gap-2">
-          <ActionButton kind="quiet" density="row" label="Show empty state" icon="eye" @press="demoRows = []" />
-          <ActionButton v-if="tableEmpty" kind="restore" density="row" label="Restore one row" icon="rotate-ccw" @press="demoRows = [{ name: 'Task', kind: 'master', records: 12 }]" />
+          <ActionButton kind="quiet" density="row" label="Show empty state" icon="eye" @press="demoRows = []; demoSelected = []" />
+          <ActionButton kind="quiet" density="row" label="Show filtered-empty state" icon="eye" @press="demoSearch = 'no such customer'" />
           <ActionButton kind="quiet" density="row" :label="tableLoading ? 'Hide loading' : 'Show loading'" icon="eye" @press="tableLoading = !tableLoading" />
           <ActionButton kind="quiet" density="row" label="Show error" icon="circle-alert" @press="tableError = 'The server took too long.'" />
+          <ActionButton kind="restore" density="row" label="Restore rows" icon="rotate-ccw" @press="demoRows = makeCustomers(); demoSearch = ''; tableError = null" />
         </div>
-        <DataTable v-if="tableEmpty && !tableLoading && !tableError" :columns="demoColumns" :data="demoRows" :empty-icon="Inbox" empty-title="No record types" empty-body="Define one to see it here." />
+      </div>
+    </section>
+
+    <section aria-labelledby="gal-datatable-server">
+      <h2 id="gal-datatable-server" class="text-lg font-medium">DataTable, server paging</h2>
+      <p class="text-muted-foreground mt-1 text-sm">Ninety payments through keyset pages of twenty-five, with no total: the footer shows the range and the page without a count. Selection would survive paging here too.</p>
+      <div class="mt-4">
+        <DataTable
+          :columns="serverColumns"
+          :data="serverSlice"
+          :get-row-id="(row) => row.id"
+          :server-paging="serverPaging"
+          @prev-page="serverPage -= 1"
+          @next-page="serverPage += 1"
+          @update:page-size="(size) => { serverSize = size; serverPage = 1 }"
+        />
       </div>
     </section>
 

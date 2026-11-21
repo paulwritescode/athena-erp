@@ -442,6 +442,32 @@ table.datatable-stacked{display:block;width:100%;max-width:100%}
 .datatable-stacked .entries-grid td{height:auto;min-height:0;white-space:normal;padding:6px 16px}
 .datatable-stacked .datatable-hide-mobile{display:none}
 }
+/* DataTable frame (§21): tall tables scroll inside the frame under a sticky
+   header; short tables size to their content. Stacked rows scroll with the
+   page, so the cap lifts below 640 px. */
+@media(min-width:640px){.datatable-frame{max-height:calc(100dvh - 15rem)}}
+.datatable-frame thead th{position:sticky;top:0;z-index:1;background:var(--card)}
+/* Resizable tables take their widths from the column sizes instead of the
+   content, and wide tables scroll inside the frame. */
+.datatable-grid{table-layout:fixed;border-collapse:separate;border-spacing:0;min-width:100%}
+.datatable-grid th,.datatable-grid td{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.datatable-resizer{position:absolute;top:8px;right:0;bottom:8px;width:9px;cursor:col-resize;touch-action:none;user-select:none;display:flex;justify-content:center}
+.datatable-resizer::after{content:'';width:1px;height:100%;background:var(--border);transition:background .15s}
+.datatable-frame th:hover .datatable-resizer::after{background:var(--app-border-strong)}
+.datatable-resizer.is-resizing::after{width:2px;background:var(--ring)}
+/* Stacked rows keep the row number as a muted #N prefix and hide the row
+   actions (they live in the detail drawer); selection checkboxes appear in
+   select mode, after a long-press. */
+.datatable-rownum-stacked{display:none}
+@media(max-width:639px){
+.datatable-rownum-full{display:none}
+.datatable-rownum-stacked{display:inline}
+.datatable-frame .datatable-actions-cell{display:none}
+.datatable-frame:not(.is-selecting) .datatable-select-cell{display:none}
+.datatable-frame .datatable-select-cell{text-align:left}
+.datatable-frame .datatable-grid{width:100%!important}
+.datatable-frame .datatable-grid td{height:auto;min-height:0;white-space:normal}
+}
 /* The base .view-head rule below the 760px query re-rights this row; headings
    sit top left on phones. */
 @media(max-width:760px){.view-head{align-items:flex-start}}
