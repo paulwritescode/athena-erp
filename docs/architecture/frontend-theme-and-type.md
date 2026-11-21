@@ -19,6 +19,16 @@ The design-system §14 action system (`ActionButton`, `ActionGroup`) builds its 
 
 Two presets ship as `[data-accent]` blocks on `<html>`, per design-system §2.3: `ink` (default, current values) and `red` (one warm primary on actions, with `--chart-1` and `--sidebar-primary` following it). Only the §2.1 accent tokens change between presets; `--ring` and `--sidebar-ring` keep their neutral values until specified. Dark `--sidebar-primary` is `var(--primary)`; every other existing color value is unchanged. Text on `--primary` passes ≥ 4.5:1 in both presets and themes (8.67/5.80 for red, verified at authoring; B4 re-checks with the Settings preview).
 
+## Workspace appearance (B4)
+
+Settings → Appearance edits the Workspace accent through `WorkspaceService`: the ink/red presets, or Custom with a color picker for the accent and the five chart colors (empty chart slots keep the ink defaults). The server owns validation and contrast; on failure it returns a suggested accent the UI offers one click away, and `SetAppearance` rejects presets carrying colors.
+
+Application lives in `web/src/appearance.ts`. Presets set `data-accent` on `<html>`; custom writes one `#athena-appearance` `<style>` block with `:root` and `.dark` rules for `--primary`, `--primary-foreground`, `--sidebar-primary`, `--sidebar-primary-foreground` and `--chart-1` (the accent unless overridden) through `--chart-5`, mirroring the red preset's scope. The picker's hex converts to the `oklch()` strings the server parses (`hexToOklch`, reference-checked in `appearance.test.ts`); a client mirror of the server's resolver derives the dark twin for the preview and warns before saving, but the server stays authoritative.
+
+The choice applies at load (the public `GetAppearance` call in `useSession`, so the sign-in page wears it) and caches per Workspace in `localStorage`. `web/public/paint.js` — a separate file because the Content-Security-Policy allows scripts from `'self'` only — applies the cache synchronously in `<head>`, so the first paint already wears the accent. The accent selectors omit `:root` so the preview can scope a preset to one pane; on `<html>` they behave exactly as before.
+
+Light/dark/system is per user in `useTheme` (`localStorage`, operating-system default with a live listener), chosen in the user menu; the header button cycles the three. The preset names live in `appearance.ts`, not in the `.vue`, because the token guard below reads `red` as a color.
+
 ## Browser surfaces
 
 Selection, caret, scrollbars and the focus ring come from tokens in the `style.css` base layer: a subtle primary selection tint, `caret-color: var(--primary)` in fields, thin neutral scrollbars, and a 2 px `--ring` focus outline. `prefers-reduced-motion` collapses transitions and animations.

@@ -32,6 +32,8 @@ const (
 	AuthServiceLogoutProcedure = "/athena.v1.AuthService/Logout"
 	// AuthServiceGetSessionProcedure is the procedure name of the AuthService's GetSession RPC.
 	AuthServiceGetSessionProcedure = "/athena.v1.AuthService/GetSession"
+	// AuthServiceTouchProcedure is the procedure name of the AuthService's Touch RPC.
+	AuthServiceTouchProcedure = "/athena.v1.AuthService/Touch"
 	// AuthServiceChangePasswordProcedure is the procedure name of the AuthService's ChangePassword RPC.
 	AuthServiceChangePasswordProcedure = "/athena.v1.AuthService/ChangePassword"
 	// AuthServiceInviteUserProcedure is the procedure name of the AuthService's InviteUser RPC.
@@ -114,6 +116,13 @@ var (
 			StreamType: connect.StreamTypeUnary,
 			Schema:     v1.File_athena_v1_auth_proto.Services().ByName("AuthService").Methods().ByName("GetSession"),
 			Procedure:  AuthServiceGetSessionProcedure,
+		}
+	})
+	authServiceTouchSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_athena_v1_auth_proto.Services().ByName("AuthService").Methods().ByName("Touch"),
+			Procedure:  AuthServiceTouchProcedure,
 		}
 	})
 	authServiceChangePasswordSpec = sync.OnceValue(func() connect.Spec {
@@ -289,7 +298,12 @@ type AuthServiceClient interface {
 	Logout(context.Context, *v1.LogoutRequest) (*v1.LogoutResponse, error)
 	// GetSession reports whether the caller is signed in. A missing cookie is anonymous.
 	// A presented, ended session returns its expiry or revocation reason.
+	// It never extends idle: the desk's "Stay signed in" uses Touch for that.
 	GetSession(context.Context, *v1.GetSessionRequest) (*v1.GetSessionResponse, error)
+	// Touch extends the caller's idle expiry to a full window from now and
+	// returns the fresh session. The desk calls it only when the user answers
+	// the idle warning; background polls stay on the passive GetSession.
+	Touch(context.Context, *v1.TouchRequest) (*v1.TouchResponse, error)
 	// ChangePassword sets the caller's own password and ends their sessions.
 	ChangePassword(context.Context, *v1.ChangePasswordRequest) (*v1.ChangePasswordResponse, error)
 	// InviteUser invites a user with no password and returns the single-use
@@ -366,7 +380,12 @@ type AuthServiceHandler interface {
 	Logout(context.Context, *v1.LogoutRequest) (*v1.LogoutResponse, error)
 	// GetSession reports whether the caller is signed in. A missing cookie is anonymous.
 	// A presented, ended session returns its expiry or revocation reason.
+	// It never extends idle: the desk's "Stay signed in" uses Touch for that.
 	GetSession(context.Context, *v1.GetSessionRequest) (*v1.GetSessionResponse, error)
+	// Touch extends the caller's idle expiry to a full window from now and
+	// returns the fresh session. The desk calls it only when the user answers
+	// the idle warning; background polls stay on the passive GetSession.
+	Touch(context.Context, *v1.TouchRequest) (*v1.TouchResponse, error)
 	// ChangePassword sets the caller's own password and ends their sessions.
 	ChangePassword(context.Context, *v1.ChangePasswordRequest) (*v1.ChangePasswordResponse, error)
 	// InviteUser invites a user with no password and returns the single-use
@@ -435,6 +454,7 @@ func RegisterAuthServiceHandler(server *connect.Server, svc AuthServiceHandler) 
 		connect.Method{Spec: authServiceStepUpSpec(), Handler: adapter.stepUp},
 		connect.Method{Spec: authServiceLogoutSpec(), Handler: adapter.logout},
 		connect.Method{Spec: authServiceGetSessionSpec(), Handler: adapter.getSession},
+		connect.Method{Spec: authServiceTouchSpec(), Handler: adapter.touch},
 		connect.Method{Spec: authServiceChangePasswordSpec(), Handler: adapter.changePassword},
 		connect.Method{Spec: authServiceInviteUserSpec(), Handler: adapter.inviteUser},
 		connect.Method{Spec: authServiceCompleteChallengeSpec(), Handler: adapter.completeChallenge},
@@ -478,6 +498,10 @@ func (UnimplementedAuthServiceHandler) Logout(context.Context, *v1.LogoutRequest
 
 func (UnimplementedAuthServiceHandler) GetSession(context.Context, *v1.GetSessionRequest) (*v1.GetSessionResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, "athena.v1.AuthService.GetSession is not implemented")
+}
+
+func (UnimplementedAuthServiceHandler) Touch(context.Context, *v1.TouchRequest) (*v1.TouchResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "athena.v1.AuthService.Touch is not implemented")
 }
 
 func (UnimplementedAuthServiceHandler) ChangePassword(context.Context, *v1.ChangePasswordRequest) (*v1.ChangePasswordResponse, error) {
@@ -603,6 +627,14 @@ func (c *authServiceClient) Logout(ctx context.Context, req *v1.LogoutRequest) (
 func (c *authServiceClient) GetSession(ctx context.Context, req *v1.GetSessionRequest) (*v1.GetSessionResponse, error) {
 	var res v1.GetSessionResponse
 	if err := c.client.CallUnary(ctx, authServiceGetSessionSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *authServiceClient) Touch(ctx context.Context, req *v1.TouchRequest) (*v1.TouchResponse, error) {
+	var res v1.TouchResponse
+	if err := c.client.CallUnary(ctx, authServiceTouchSpec(), req, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -836,6 +868,18 @@ func (h authServiceHandler) getSession(ctx context.Context, _ connect.Spec, stre
 		return err
 	}
 	res, err := h.svc.GetSession(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h authServiceHandler) touch(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.TouchRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.Touch(ctx, &req)
 	if err != nil {
 		return err
 	}

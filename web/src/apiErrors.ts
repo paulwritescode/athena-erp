@@ -40,6 +40,14 @@ export function sessionEndReason(err: unknown): string | null {
   return reason === 'idle' || reason === 'absolute' || reason === 'revoked' ? reason : null
 }
 
+/** Plain sign-in copy for an ended session. */
+export function sessionEndNote(reason?: string | null): string {
+  if (reason === 'idle') return 'Your session ended because you were away too long. Sign in again.'
+  if (reason === 'absolute') return 'Your session reached its time limit. Sign in again.'
+  if (reason === 'revoked') return 'Your session was ended. Sign in again.'
+  return 'Your session ended. Sign in again.'
+}
+
 export type Failure = {
   kind: FailureKind
   /** Short text safe to show. Never a stack trace or SQL. */
@@ -80,11 +88,7 @@ export function classify(err: unknown, context: Context = {}): Failure {
   switch (err.code) {
     case Code.Unauthenticated: {
       if (context.signIn) return { ...base, kind: 'wrong-credentials', message: 'Wrong username or password.', persistent: false }
-      const reason = sessionEndReason(err)
-      if (reason === 'idle') return { ...base, kind: 'session-expired', message: 'Your session ended because you were away too long. Sign in again.', persistent: false }
-      if (reason === 'absolute') return { ...base, kind: 'session-expired', message: 'Your session reached its time limit. Sign in again.', persistent: false }
-      if (reason === 'revoked') return { ...base, kind: 'session-expired', message: 'Your session was ended. Sign in again.', persistent: false }
-      return { ...base, kind: 'session-expired', message: 'Your session ended. Sign in again.', persistent: false }
+      return { ...base, kind: 'session-expired', message: sessionEndNote(sessionEndReason(err)), persistent: false }
     }
     case Code.PermissionDenied: {
       const detail = err.findDetails(AuthFailureSchema)[0]

@@ -1212,6 +1212,18 @@ func CheckCSRF(sessionToken, sent string) bool {
 // returns ErrUnauthenticated for a missing, expired, revoked or disabled
 // session.
 func (s *Service) Authenticate(ctx context.Context, token string) (*Principal, error) {
+	return s.authenticate(ctx, token, false)
+}
+
+// AuthenticatePassive checks the session exactly like Authenticate but does
+// not move last_seen_at. Background polls (notification counts, session
+// reads) use it so an unattended open tab cannot keep itself signed in
+// forever; only activity the user chose extends idle.
+func (s *Service) AuthenticatePassive(ctx context.Context, token string) (*Principal, error) {
+	return s.authenticate(ctx, token, true)
+}
+
+func (s *Service) authenticate(ctx context.Context, token string, passive bool) (*Principal, error) {
 	if token == "" {
 		return nil, &SessionEnded{"revoked"}
 	}
@@ -1245,7 +1257,7 @@ func (s *Service) Authenticate(ctx context.Context, token string) (*Principal, e
 	case !now.Before(lastSeen.Add(idleDuration)):
 		return nil, &SessionEnded{"idle"}
 	}
-	if now.After(lastSeen) {
+	if !passive && now.After(lastSeen) {
 		if _, err := tx.ExecContext(ctx, "UPDATE athena_sessions SET last_seen_at=? WHERE id=?", now, id); err != nil {
 			return nil, err
 		}

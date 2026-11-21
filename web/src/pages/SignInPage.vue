@@ -7,6 +7,7 @@ import { challengeProblems, type ChallengeProblems, signInProblems, type SignInP
 import ActionButton from '@/components/ActionButton.vue'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader } from '@/components/ui/card'
+import CheckboxField from '@/components/fields/CheckboxField.vue'
 import TextField from '@/components/fields/TextField.vue'
 import markDark from '@/assets/brand/athena-white.png'
 import markLight from '@/assets/brand/athena-black.png'
@@ -24,6 +25,7 @@ const emit = defineEmits<{ signedIn: [session: SessionInfo]; recheck: [] }>()
 const ownerCommand = 'athena user invite <username> --owner'
 const username = ref('')
 const password = ref('')
+const rememberDevice = ref(false)
 const busy = ref(false)
 const problems = ref<SignInProblems>({})
 const formState = ref<Failure | null>(null)
@@ -60,7 +62,7 @@ async function signIn() {
   if (!validate()) return
   busy.value = true
   try {
-    const res = await authClient.login({ username: username.value.trim(), password: password.value })
+    const res = await authClient.login({ username: username.value.trim(), password: password.value, rememberDevice: rememberDevice.value })
     password.value = ''
     if (res.session) emit('signedIn', res.session)
   } catch (err) {
@@ -135,6 +137,7 @@ async function complete() {
           </div>
           <TextField id="sign-in-username" label="Username" v-model="username" autocomplete="username" autofocus :spellcheck="false" :error="problems.username" :disabled="busy" @update:model-value="problems.username = undefined" />
           <TextField id="sign-in-password" label="Password" type="password" v-model="password" autocomplete="current-password" :error="problems.password" :disabled="busy" @update:model-value="problems.password = undefined" />
+          <CheckboxField id="sign-in-remember" label="Keep me signed in on this device" v-model="rememberDevice" help="Stay signed in for 7 days. Builders and root always use shorter sessions." :disabled="busy" />
           <ActionButton type="submit" kind="primary" class="sign-in-submit" :label="busy ? 'Signing in…' : 'Sign in'" icon="key-round" :busy="busy" />
           <button type="button" class="sign-in-link" :disabled="busy" @click="screen = 'complete'">Have an invite or reset code? First login</button>
         </form>

@@ -24,8 +24,7 @@ export function useNotifications() {
 
   const groups = computed(() => groupNotifications(items.value))
 
-  async function pollCount() {
-    if (document.hidden) return
+  async function pollCount(): Promise<void> {
     try {
       const res = await notificationClient.unreadCount({})
       unread.value = Number(res.count)
@@ -34,7 +33,7 @@ export function useNotifications() {
     }
   }
 
-  async function pollList() {
+  async function pollList(): Promise<void> {
     // New arrivals toast only when they need action, and never on the
     // first load: the baseline establishes silently.
     try {
@@ -61,6 +60,9 @@ export function useNotifications() {
   }
 
   async function poll() {
+    // Polling pauses in hidden tabs: unseen badges need no refresh, and the
+    // quiet tab lets a truly idle session lapse.
+    if (document.hidden) return
     await pollCount()
     await pollList()
   }

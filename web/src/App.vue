@@ -8,6 +8,7 @@ import { useMediaQuery } from '@vueuse/core'
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { Toaster } from '@/components/ui/sonner'
 import ChangePasswordDialog from './components/ChangePasswordDialog.vue'
+import IdleWarningDialog from './components/IdleWarningDialog.vue'
 import MigrationDialog from './components/MigrationDialog.vue'
 import StepUpDialog from './components/StepUpDialog.vue'
 import PageSwitch from './components/PageSwitch.vue'
@@ -178,6 +179,7 @@ onMounted(async () => {
     />
     <ChangePasswordDialog v-model:open="session.changingPassword.value" />
     <StepUpDialog />
+    <IdleWarningDialog />
   </SidebarProvider>
   <Toaster
     :position="toastTop ? 'top-center' : 'bottom-right'"

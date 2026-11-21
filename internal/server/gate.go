@@ -56,6 +56,7 @@ var procedurePolicies = map[string]policy{
 
 	athenav1connect.AuthServiceLoginProcedure:             {kind: policyPublic},
 	athenav1connect.AuthServiceGetSessionProcedure:        {kind: policyPublic},
+	athenav1connect.AuthServiceTouchProcedure:             {kind: policySession},
 	athenav1connect.AuthServiceStepUpProcedure:            {kind: policySession},
 	athenav1connect.AuthServiceLogoutProcedure:            {kind: policySession},
 	athenav1connect.AuthServiceChangePasswordProcedure:    {kind: policySession},
@@ -188,6 +189,17 @@ var destructiveProcedures = map[string]bool{
 	athenav1connect.LedgerServiceSetPeriodStatusProcedure:      true,
 }
 
+// passiveProcedures are background reads the desk makes without the user:
+// they check expiry but must not move last_seen_at, or an unattended open
+// tab would keep itself signed in forever and idle timeout could never
+// fire. Touch stays active deliberately: it exists to extend idle.
+var passiveProcedures = map[string]bool{
+	athenav1connect.NotificationServiceUnreadCountProcedure: true,
+	athenav1connect.NotificationServiceListProcedure:        true,
+	athenav1connect.AuthServiceGetSessionProcedure:          true,
+	athenav1connect.WorkspaceServiceGetAppearanceProcedure:  true,
+}
+
 type sessionTokenKey struct{}
 
 // sessionTokenFrom returns the session token the request carried, or "".
@@ -229,7 +241,11 @@ func gateInterceptor(svc *auth.Service) connect.ServerInterceptor {
 			principal := auth.PrincipalFrom(ctx)
 			var sessionErr error = &auth.SessionEnded{Reason: "revoked"}
 			if token != "" && principal == nil {
-				p, err := svc.Authenticate(ctx, token)
+				authenticate := svc.Authenticate
+				if passiveProcedures[spec.Procedure] {
+					authenticate = svc.AuthenticatePassive
+				}
+				p, err := authenticate(ctx, token)
 				sessionErr = err
 				switch {
 				case err == nil:

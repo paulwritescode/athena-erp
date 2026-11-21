@@ -34,3 +34,7 @@ A policy edit affects newly created sessions and the next rate-limited call. Res
 ## Addendum: security settings RPC (2026-11-21)
 
 `AuthService.GetSecuritySettings` returns every setting with its value, default, bounds, unit and a one-line explanation; it needs `access:sessions` or `settings:security`. `AuthService.SetSecuritySettings` applies a partial update through the same validated, atomic, audited function as `athena security set`; it needs `settings:security` (a new system permission, counted as build access) and fresh step-up proof, and writes a `security_settings_changed` Access Log row naming each key with its old and new value. No new service: the settings belong to AuthService, which already owns them.
+
+## Addendum: passive procedures and Touch (2026-11-21)
+
+Background reads the Desk makes without the user must not extend idle, or an unattended open tab keeps itself signed in forever. The gate and the rate limiter authenticate `passiveProcedures` (`internal/server/gate.go`: `NotificationService.UnreadCount` and `List`, `AuthService.GetSession`, `WorkspaceService.GetAppearance`) through `AuthenticatePassive`, which checks expiry but does not move `last_seen_at`. `AuthService.Touch` is the one deliberate exception: a session-scoped call the Stay button makes to extend idle and learn the fresh `IdleExpiresAt`. A test pins every passive procedure to a gate policy and proves polling past the idle window ends the session while one active call resets it.
