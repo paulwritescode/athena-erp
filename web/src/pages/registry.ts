@@ -101,6 +101,7 @@ export const pageEntries: PageEntry[] = [
     key: 'settings', title: 'Settings', shortTitle: 'Settings', blurb: 'Workspace preferences.', icon: icon('settings'),
     modes: ['build'], gate: {}, nav: true, group: 'administer',
     load: () => import('@/pages/SettingsPage.vue'),
+    props: (ctx) => ({ permissions: ctx.permissions }),
   },
   {
     key: 'setup', title: 'Setup', shortTitle: 'Setup', blurb: 'Get the workspace ready.', icon: icon('clipboard-list'),

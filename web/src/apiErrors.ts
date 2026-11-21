@@ -13,6 +13,9 @@ export type FailureKind =
   | 'locked'
   | 'disabled'
   | 'session-expired'
+  | 'step-up'
+  | 'rate-limited'
+  | 'cancelled'
   | 'unreachable'
   | 'database'
   | 'csrf'
@@ -20,6 +23,22 @@ export type FailureKind =
   | 'conflict'
   | 'rejected'
   | 'unexpected'
+
+/** True when the server asks for the password again before a destructive action. */
+export function isStepUpRequired(err: unknown): boolean {
+  return (
+    err instanceof ConnectError &&
+    err.code === Code.FailedPrecondition &&
+    err.findDetails(AuthFailureSchema)[0]?.reason === 'step_up_required'
+  )
+}
+
+/** The ended-session reason the server attached, if any. */
+export function sessionEndReason(err: unknown): string | null {
+  if (!(err instanceof ConnectError) || err.code !== Code.Unauthenticated) return null
+  const reason = err.findDetails(AuthFailureSchema)[0]?.reason ?? ''
+  return reason === 'idle' || reason === 'absolute' || reason === 'revoked' ? reason : null
+}
 
 export type Failure = {
   kind: FailureKind
@@ -59,10 +78,14 @@ export function classify(err: unknown, context: Context = {}): Failure {
   // the TypeError as its cause; it never reached the server.
   if (err.cause instanceof TypeError) return { ...base, kind: 'unreachable', message: 'Cannot reach the Athena server. Check that it is running, then try again.', persistent: true }
   switch (err.code) {
-    case Code.Unauthenticated:
-      return context.signIn
-        ? { ...base, kind: 'wrong-credentials', message: 'Wrong username or password.', persistent: false }
-        : { ...base, kind: 'session-expired', message: 'Your session ended. Sign in again.', persistent: false }
+    case Code.Unauthenticated: {
+      if (context.signIn) return { ...base, kind: 'wrong-credentials', message: 'Wrong username or password.', persistent: false }
+      const reason = sessionEndReason(err)
+      if (reason === 'idle') return { ...base, kind: 'session-expired', message: 'Your session ended because you were away too long. Sign in again.', persistent: false }
+      if (reason === 'absolute') return { ...base, kind: 'session-expired', message: 'Your session reached its time limit. Sign in again.', persistent: false }
+      if (reason === 'revoked') return { ...base, kind: 'session-expired', message: 'Your session was ended. Sign in again.', persistent: false }
+      return { ...base, kind: 'session-expired', message: 'Your session ended. Sign in again.', persistent: false }
+    }
     case Code.PermissionDenied: {
       const detail = err.findDetails(AuthFailureSchema)[0]
       if (detail?.reason === 'csrf') return { ...base, kind: 'csrf', message: 'This page is out of date. Reload it and try again.', persistent: false }
@@ -70,6 +93,7 @@ export function classify(err: unknown, context: Context = {}): Failure {
     }
     case Code.FailedPrecondition: {
       const detail = err.findDetails(AuthFailureSchema)[0]
+      if (detail?.reason === 'step_up_required') return { ...base, kind: 'step-up', message: 'Enter your password to continue.', persistent: false }
       if (detail?.reason === 'locked') {
         const unlocksAt = detail.unlocksAt ? new Date(detail.unlocksAt) : undefined
         const unlock = context.username ? `athena user set ${context.username} --unlock` : 'athena user set <name> --unlock'
@@ -85,6 +109,18 @@ export function classify(err: unknown, context: Context = {}): Failure {
       return !/database/i.test(err.rawMessage)
         ? { ...base, kind: 'unreachable', message: 'Cannot reach the Athena server. Check that it is running, then try again.', persistent: true }
         : { ...base, kind: 'database', message: 'The database is not connected. Start MariaDB and check ATHENA_DATABASE_URL, then try again.', persistent: true }
+    case Code.ResourceExhausted: {
+      const detail = err.findDetails(AuthFailureSchema)[0]
+      const wait = Number(detail?.retryAfterSeconds ?? 0)
+      return {
+        ...base,
+        kind: 'rate-limited',
+        message: wait > 0 ? `Too many tries. Wait ${wait} second${wait === 1 ? '' : 's'} and try again.` : 'Too many tries. Wait a moment and try again.',
+        persistent: false,
+      }
+    }
+    case Code.Canceled:
+      return { ...base, kind: 'cancelled', message: 'Not changed.', persistent: false }
     case Code.InvalidArgument:
     case Code.NotFound:
     case Code.AlreadyExists:

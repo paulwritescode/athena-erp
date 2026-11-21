@@ -1,7 +1,7 @@
 import { create } from '@bufbuild/protobuf'
 import { Code, ConnectError } from '@connectrpc/connect'
 import { describe, expect, it } from 'vitest'
-import { classify, describeFailure } from './apiErrors'
+import { classify, describeFailure, isStepUpRequired, sessionEndReason } from './apiErrors'
 import { AuthFailureSchema } from './gen/athena/v1/auth_pb'
 import { signInProblems } from './signInRules'
 
@@ -27,6 +27,34 @@ describe('classify', () => {
     expect(locked.message).toContain('unlocks at')
     expect(classify(withFailure(Code.FailedPrecondition, 'locked', 'locked')).message).toContain('athena user set <name> --unlock')
     expect(classify(withFailure(Code.FailedPrecondition, 'disabled', 'disabled')).kind).toBe('disabled')
+  })
+
+  it('names the ended-session reason in plain words', () => {
+    expect(classify(withFailure(Code.Unauthenticated, 'e', 'idle')).message).toContain('away too long')
+    expect(classify(withFailure(Code.Unauthenticated, 'e', 'absolute')).message).toContain('time limit')
+    expect(classify(withFailure(Code.Unauthenticated, 'e', 'revoked')).message).toContain('was ended')
+    expect(classify(new ConnectError('e', Code.Unauthenticated)).message).toContain('ended')
+  })
+
+  it('reads a step-up cancel as Not changed', () => {
+    const cancelled = classify(new ConnectError('step-up cancelled', Code.Canceled))
+    expect(cancelled.kind).toBe('cancelled')
+    expect(cancelled.message).toBe('Not changed.')
+  })
+
+  it('maps step-up and rate limits to their own kinds', () => {
+    const stepUp = classify(withFailure(Code.FailedPrecondition, 'e', 'step_up_required'))
+    expect(stepUp.kind).toBe('step-up')
+    expect(stepUp.message).toContain('password')
+    expect(classify(withFailure(Code.ResourceExhausted, 'e', 'rate_limited')).kind).toBe('rate-limited')
+  })
+
+  it('detects step-up and session reasons', () => {
+    expect(isStepUpRequired(withFailure(Code.FailedPrecondition, 'e', 'step_up_required'))).toBe(true)
+    expect(isStepUpRequired(new ConnectError('e', Code.FailedPrecondition))).toBe(false)
+    expect(sessionEndReason(withFailure(Code.Unauthenticated, 'e', 'idle'))).toBe('idle')
+    expect(sessionEndReason(new ConnectError('e', Code.Unauthenticated))).toBeNull()
+    expect(sessionEndReason(new ConnectError('e', Code.PermissionDenied))).toBeNull()
   })
 
   it('does not call a plain FailedPrecondition a lock', () => {

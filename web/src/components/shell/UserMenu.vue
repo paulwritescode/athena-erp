@@ -4,15 +4,22 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useMediaQuery } from '@vueuse/core'
-import { Check, ChevronDown, Moon, Sun } from '@/icons'
+import { Check, ChevronDown, Monitor, Moon, Sun } from '@/icons'
 import BottomDrawer from '@/components/BottomDrawer.vue'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import type { SessionUser } from '@/types'
+import type { ThemeMode } from '@/composables/useTheme'
 
-const props = defineProps<{ user: SessionUser; isDark: boolean; mode: 'build' | 'view'; canBuildDesk: boolean }>()
-const emit = defineEmits<{ setMode: ['build' | 'view']; toggleTheme: []; changePassword: []; signOut: [] }>()
+const props = defineProps<{ user: SessionUser; isDark: boolean; themeMode: ThemeMode; mode: 'build' | 'view'; canBuildDesk: boolean }>()
+const emit = defineEmits<{ setMode: ['build' | 'view']; setTheme: [ThemeMode]; changePassword: []; signOut: [] }>()
+
+const themeChoices: { mode: ThemeMode; label: string }[] = [
+  { mode: 'light', label: 'Light' },
+  { mode: 'dark', label: 'Dark' },
+  { mode: 'system', label: 'System' },
+]
 
 const name = computed(() => props.user.displayName || props.user.username)
 const initials = computed(() => name.value.trim().split(/\s+/).map((part) => part[0]).slice(0, 2).join('').toUpperCase() || '?')
@@ -42,9 +49,11 @@ function pick(action: () => void) {
         <small class="text-muted-foreground block truncate font-normal">{{ user.owner ? 'Instance owner' : user.username }}</small>
       </DropdownMenuLabel>
       <DropdownMenuSeparator />
-      <DropdownMenuItem @select="emit('toggleTheme')">
-        <component :is="isDark ? Sun : Moon" class="size-4" aria-hidden="true" />
-        <span>{{ isDark ? 'Light theme' : 'Dark theme' }}</span>
+      <DropdownMenuLabel class="text-xs font-normal">Theme</DropdownMenuLabel>
+      <DropdownMenuItem v-for="choice in themeChoices" :key="choice.mode" @select="emit('setTheme', choice.mode)">
+        <component :is="choice.mode === 'light' ? Sun : choice.mode === 'dark' ? Moon : Monitor" class="size-4" aria-hidden="true" />
+        <span class="flex-1">{{ choice.label }}</span>
+        <Check v-if="themeMode === choice.mode" class="size-4" aria-hidden="true" />
       </DropdownMenuItem>
       <DropdownMenuItem @select="emit('changePassword')">Change password</DropdownMenuItem>
       <DropdownMenuSeparator />
@@ -69,9 +78,17 @@ function pick(action: () => void) {
             <Check v-if="mode === 'view'" class="size-4" aria-hidden="true" />
           </button>
         </template>
-        <button type="button" role="menuitem" @click="pick(() => emit('toggleTheme'))">
-          <component :is="isDark ? Sun : Moon" class="size-4" aria-hidden="true" />
-          <span>{{ isDark ? 'Light theme' : 'Dark theme' }}</span>
+        <button
+          v-for="choice in themeChoices"
+          :key="choice.mode"
+          type="button"
+          role="menuitemradio"
+          :aria-checked="themeMode === choice.mode"
+          @click="pick(() => emit('setTheme', choice.mode))"
+        >
+          <component :is="choice.mode === 'light' ? Sun : choice.mode === 'dark' ? Moon : Monitor" class="size-4" aria-hidden="true" />
+          <span class="flex-1">{{ choice.label }} theme</span>
+          <Check v-if="themeMode === choice.mode" class="size-4" aria-hidden="true" />
         </button>
         <button type="button" role="menuitem" @click="pick(() => emit('changePassword'))">
           <span>Change password</span>

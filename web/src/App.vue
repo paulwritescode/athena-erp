@@ -9,6 +9,7 @@ import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { Toaster } from '@/components/ui/sonner'
 import ChangePasswordDialog from './components/ChangePasswordDialog.vue'
 import MigrationDialog from './components/MigrationDialog.vue'
+import StepUpDialog from './components/StepUpDialog.vue'
 import PageSwitch from './components/PageSwitch.vue'
 import AppSidebar from './components/shell/AppSidebar.vue'
 import BottomNav from './components/shell/BottomNav.vue'
@@ -20,6 +21,7 @@ import { useSession } from './composables/useSession'
 import { useSwipeNav } from './composables/useSwipeNav'
 import { useTheme } from './composables/useTheme'
 import SignInPage from './pages/SignInPage.vue'
+import type { NotificationTarget } from './notifications'
 import { sheetDepth } from './components/overlayPresence'
 import { visibleBuildEntries } from './pages/registry'
 import type { Page } from './types'
@@ -71,6 +73,15 @@ const breadcrumb = computed(() => {
 function go(key: Page) {
   if (key === 'queue' || key === 'count') route.openViewStub(key)
   else route.openBuildPage(key)
+}
+
+function goNotification(target: NotificationTarget) {
+  if (target.kind === 'record') {
+    route.openRecordType(target.recordType)
+    route.recordRoute.value = target.recordId
+  } else {
+    route.openBuildPage(target.page)
+  }
 }
 
 // Home follows the mode: the Build overview, or the first Record Type list
@@ -126,11 +137,15 @@ onMounted(async () => {
         :can-build-desk="session.canBuildDesk.value"
         :user="session.user.value"
         :is-dark="theme.isDark.value"
+        :theme-mode="theme.mode.value"
+        :theme-label="theme.modeLabel.value"
         :workspace-name="session.workspaceName.value"
         @parent-click="route.recordRoute.value = ''"
         @set-mode="route.setMode"
         @open-palette="paletteOpen = true"
         @toggle-theme="theme.toggle"
+        @set-theme="theme.setMode"
+        @navigate-notification="goNotification"
         @change-password="session.changingPassword.value = true"
         @sign-out="session.signOut"
       />
@@ -162,6 +177,7 @@ onMounted(async () => {
       @cancel="library.cancelPendingSave"
     />
     <ChangePasswordDialog v-model:open="session.changingPassword.value" />
+    <StepUpDialog />
   </SidebarProvider>
   <Toaster
     :position="toastTop ? 'top-center' : 'bottom-right'"

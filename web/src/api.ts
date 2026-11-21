@@ -7,8 +7,11 @@ import { RuleService } from './gen/athena/v1/rules_pb'
 import { LedgerService } from './gen/athena/v1/ledger_pb'
 import { RecordService, type FieldValue } from './gen/athena/v1/records_pb'
 import { RecordTypeService, RecordTypeSchema, type MigrationStep, type RecordType as RecordTypeMessage, type RecordTypeField as RecordTypeFieldMessage } from './gen/athena/v1/record_types_pb'
+import { NotificationService } from './gen/athena/v1/notifications_pb'
+import { WorkspaceService } from './gen/athena/v1/workspace_pb'
 import { create } from '@bufbuild/protobuf'
 import { Code, ConnectError } from '@connectrpc/connect'
+import { isStepUpRequired, sessionEndReason } from './apiErrors'
 import type { Field, Kind, RecordType } from './types'
 
 // The session token lives in an HttpOnly cookie the browser sends by itself.
@@ -21,11 +24,45 @@ export function setCsrfToken(token: string) {
   csrfToken = token
 }
 
-let sessionEnded: () => void = () => {}
+let sessionEnded: (reason?: string) => void = () => {}
 
 /** Registers what happens when the server says the session has ended. */
-export function onSessionEnded(callback: () => void) {
+export function onSessionEnded(callback: (reason?: string) => void) {
   sessionEnded = callback
+}
+
+/** Lets one module end the session with a reason (a revoked step-up). */
+export function emitSessionEnded(reason?: string) {
+  sessionEnded(reason)
+}
+
+let stepUpAsker: (() => Promise<string | null>) | null = null
+
+/** Registers the step-up password prompt (stepUp.ts owns the dialog). */
+export function setStepUpAsker(ask: () => Promise<string | null>) {
+  stepUpAsker = ask
+}
+
+const steppedUp = new WeakSet<object>()
+
+type Procedure = { service: { typeName: string }; method: { name: string } }
+
+function isAuthProcedure(req: Procedure): boolean {
+  return req.service.typeName === 'athena.v1.AuthService' && (req.method.name === 'Login' || req.method.name === 'StepUp' || req.method.name === 'CompleteChallenge')
+}
+
+/**
+ * Whether a failed call ends the session: a signed-in desk whose call came
+ * back Unauthenticated, except the authentication calls themselves (a wrong
+ * password at sign-in or step-up must never sign the desk out).
+ */
+export function shouldHandleSessionEnd(req: Procedure, err: unknown): boolean {
+  return csrfToken !== '' && err instanceof ConnectError && err.code === Code.Unauthenticated && !isAuthProcedure(req)
+}
+
+function isStepUpable(req: Procedure): boolean {
+  // Never intercept the authentication calls themselves.
+  return !isAuthProcedure(req)
 }
 
 const csrfInterceptor: Interceptor = (next) => async (req) => {
@@ -34,7 +71,21 @@ const csrfInterceptor: Interceptor = (next) => async (req) => {
     return await next(req)
   } catch (err) {
     // A failed sign-in is also Unauthenticated; only a signed-in desk reacts.
-    if (csrfToken && err instanceof ConnectError && err.code === Code.Unauthenticated) sessionEnded()
+    if (shouldHandleSessionEnd(req, err)) {
+      sessionEnded(sessionEndReason(err) ?? undefined)
+      throw err
+    }
+    // Step-up: ask once, then retry the original call once. The dialog owns
+    // the StepUp call itself (and its wrong-password retries); cancelling
+    // reports Canceled, which reads as "Not changed." instead of an error.
+    if (csrfToken && stepUpAsker && !steppedUp.has(req) && isStepUpable(req) && isStepUpRequired(err)) {
+      steppedUp.add(req)
+      const password = await stepUpAsker()
+      if (password === null) throw new ConnectError('step-up cancelled', Code.Canceled)
+      // Step-up rotates the session, so the retry carries the fresh token.
+      if (csrfToken) req.header.set('X-CSRF-Token', csrfToken)
+      return await next(req)
+    }
     throw err
   }
 }
@@ -48,6 +99,8 @@ export const fileClient = createClient(FileService, transport)
 export const ruleClient = createClient(RuleService, transport)
 export const ledgerClient = createClient(LedgerService, transport)
 const recordTypeClient = createClient(RecordTypeService, transport)
+export const notificationClient = createClient(NotificationService, transport)
+export const workspaceClient = createClient(WorkspaceService, transport)
 
 function fieldFromMessage(field: RecordTypeFieldMessage): Field {
   // Only attributes that are set are copied, so a field reads the same as one built in the desk.

@@ -10,12 +10,14 @@ import markLight from '@/assets/brand/athena-black.png'
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb'
 import { Button } from '@/components/ui/button'
 import type { SessionUser } from '@/types'
+import type { ThemeMode } from '@/composables/useTheme'
+import type { NotificationTarget } from '@/notifications'
 import ModeSwitch from './ModeSwitch.vue'
 import NotificationsPopover from './NotificationsPopover.vue'
 import UserMenu from './UserMenu.vue'
 
-defineProps<{ breadcrumb: { parent: string; current: string } | null; mode: 'build' | 'view'; canBuildDesk: boolean; user: SessionUser | null; isDark: boolean; workspaceName: string }>()
-const emit = defineEmits<{ parentClick: []; setMode: ['build' | 'view']; openPalette: []; toggleTheme: []; changePassword: []; signOut: [] }>()
+defineProps<{ breadcrumb: { parent: string; current: string } | null; mode: 'build' | 'view'; canBuildDesk: boolean; user: SessionUser | null; isDark: boolean; themeMode: ThemeMode; themeLabel: string; workspaceName: string }>()
+const emit = defineEmits<{ parentClick: []; setMode: ['build' | 'view']; openPalette: []; toggleTheme: []; setTheme: [ThemeMode]; changePassword: []; signOut: []; navigateNotification: [NotificationTarget] }>()
 </script>
 
 <template>
@@ -46,11 +48,11 @@ const emit = defineEmits<{ parentClick: []; setMode: ['build' | 'view']; openPal
         <Search class="size-4" aria-hidden="true" />
       </Button>
       <ModeSwitch v-if="canBuildDesk" class="hidden min-[640px]:flex" :model-value="mode" @update:model-value="(next) => emit('setMode', next)" />
-      <Button variant="ghost" size="icon-sm" class="hidden min-[640px]:inline-flex" :aria-label="isDark ? 'Switch to light theme' : 'Switch to dark theme'" @click="emit('toggleTheme')">
+      <Button variant="ghost" size="icon-sm" class="hidden min-[640px]:inline-flex" :aria-label="`Theme ${themeLabel}, switch theme`" @click="emit('toggleTheme')">
         <component :is="isDark ? Sun : Moon" class="size-4" aria-hidden="true" />
       </Button>
-      <NotificationsPopover />
-      <UserMenu v-if="user" :user="user" :is-dark="isDark" :mode="mode" :can-build-desk="canBuildDesk" @set-mode="(next) => emit('setMode', next)" @toggle-theme="emit('toggleTheme')" @change-password="emit('changePassword')" @sign-out="emit('signOut')" />
+      <NotificationsPopover @navigate="(target) => emit('navigateNotification', target)" />
+      <UserMenu v-if="user" :user="user" :is-dark="isDark" :theme-mode="themeMode" :mode="mode" :can-build-desk="canBuildDesk" @set-mode="(next) => emit('setMode', next)" @set-theme="(next) => emit('setTheme', next)" @change-password="emit('changePassword')" @sign-out="emit('signOut')" />
     </div>
   </header>
 </template>

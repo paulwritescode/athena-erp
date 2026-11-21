@@ -5,7 +5,8 @@ import { computed, ref, watch } from 'vue'
 import { ConnectError } from '@connectrpc/connect'
 import { toast } from 'vue-sonner'
 import { classify, describeFailure, type Failure } from '@/apiErrors'
-import { authClient, onSessionEnded, setCsrfToken, systemClient } from '@/api'
+import { authClient, onSessionEnded, setCsrfToken, systemClient, workspaceClient } from '@/api'
+import { applyAppearance, saveCachedAppearance } from '@/appearance'
 import type { SessionInfo } from '@/gen/athena/v1/auth_pb'
 import type { SessionUser } from '@/types'
 import { visibleBuildKeys } from '@/pages/registry'
@@ -145,6 +146,19 @@ export function useSession(route: DeskRoute, library: RecordTypeLibrary) {
       const info = await systemClient.getSystemInfo({})
       workspaceName.value = info.workspaceName
       if (info.telemetryEnabled) startBrowserTelemetry(info.version, info.workspaceSlug)
+      // The Workspace accent applies for every user, signed in or not. The
+      // call is public, so the sign-in page wears it too. On failure the
+      // cached first paint stands.
+      try {
+        const fetched = await workspaceClient.getAppearance({})
+        if (fetched.appearance) {
+          const palette = { light: fetched.lightAccent, dark: fetched.darkAccent }
+          applyAppearance({ preset: fetched.appearance.preset, accent: fetched.appearance.accent, chartColors: [...fetched.appearance.chartColors] }, palette)
+          saveCachedAppearance(info.workspaceSlug, fetched.appearance, palette)
+        }
+      } catch {
+        // Keep the cache or the default; the page still works.
+      }
     } catch (err) {
       apiState.value = 'error'
       pageState.value = classify(err)
