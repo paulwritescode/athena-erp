@@ -8,6 +8,7 @@ This directory describes the product and the system as it exists and as decision
 - [Record Type and Pack model](architecture/record-type-and-pack-model.md) — Record Types, MariaDB mapping, Go/Starlark boundaries, code generation, and open lifecycle choices.
 - [Frontend theme and typography](architecture/frontend-theme-and-type.md) — centralized color tokens, button variants, and the supplied typography scale.
 - [Athena design system](design/athena-design-system.md) — Proposed 2026-11-21: MUJI-based principles, color rule, spacing, type, icons, motion, components per breakpoint, words, ornament, logo, pages by audience. Summary for agents in `.kiro/steering/athena-design.md`.
+- [Naming registry](design/naming.md) — Proposed 2026-11-21: product names mapped to CLI, proto service, Go package and UI label; builder and everyday words; forbidden old terms.
 - [Athena beta task list](../.kiro/specs/athena-beta/tasks.md) — Draft 2026-11-21: the single ordered plan from design tokens to beta release; supersedes the open tasks of `athena-batch-2` as the working checklist.
 - [Bruno API checks](testing/bruno.md) — black-box ConnectRPC smoke tests, local execution and CLI usage.
 - [Decision log](decisions/decision-log.md) — accepted decisions, proposals, unresolved choices, and rejected assumptions.

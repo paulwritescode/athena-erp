@@ -5,6 +5,7 @@ import { Code, ConnectError } from '@connectrpc/connect'
 import { recordClient } from '../api'
 import { keyMatchesRoute } from '../composables/useRecordTypes'
 import { docstates, fieldEditable, isCalculated, validateField, validateManualName } from '../fieldRules'
+import { gloss } from '../copy/glossary'
 import { forgetLabels } from '../lookup'
 import { formatWhen, formatWhenFull } from '../times'
 import { FieldValueSchema, type ActivityEvent, type FieldChange, type FieldState, type Record as RecordMessage, type RecordEvent, type RecordVersion, type FieldValue } from '../gen/athena/v1/records_pb'
@@ -142,7 +143,7 @@ async function loadHistory(record: RecordMessage) {
 
 const labels = computed(() => new Map(props.recordType?.fields.map((field) => [field.name, field.label]) ?? []))
 
-const historyActions: Record<string, string> = { created: 'Created', updated: 'Updated', deleted: 'Deleted', submitted: 'Submitted', cancelled: 'Cancelled', name_override: 'Name set by hand' }
+const historyActions: Record<string, string> = { created: 'Created', updated: 'Updated', deleted: 'Deleted', submitted: gloss('submitted').label, cancelled: gloss('cancelled').label, name_override: 'Name set by hand' }
 function describe(event: RecordEvent) {
   const action = historyActions[event.action] ?? event.action
   const fields = event.changedFields.map((key) => labels.value.get(key) ?? key)
@@ -195,11 +196,11 @@ function locked(field: Field): boolean {
 // Document lifecycle: only the kernel moves a document between these states.
 const submittable = computed(() => props.recordType?.submittable === true)
 const docstate = computed(() => editing.value === null || editing.value === 'new' ? docstates.draft : editing.value.docstate)
-const stateLabels = ['Draft', 'Submitted', 'Cancelled']
+const stateLabels = [gloss('draft').label, gloss('submitted').label, gloss('cancelled').label]
 const stateLabel = computed(() => stateLabels[docstate.value] ?? '')
 const editable = computed(() => !submittable.value || docstate.value !== docstates.cancelled)
 const isExisting = computed(() => editing.value !== null && editing.value !== 'new')
-const activityLabels: Record<string, string> = { submitted: 'Submitted', cancelled: 'Cancelled', amended: 'Amended', amended_from: 'Created by amending', edited_after_submit: 'Edited after submit' }
+const activityLabels: Record<string, string> = { submitted: gloss('submitted').label, cancelled: gloss('cancelled').label, amended: gloss('amended').label, amended_from: 'Created by amending', edited_after_submit: 'Edited after submit' }
 function describeActivity(event: ActivityEvent) {
   const fields = event.changedFields.map((key) => labels.value.get(key) ?? key)
   const label = activityLabels[event.event] ?? event.event
@@ -435,7 +436,7 @@ function calculatedError(field: Field): string | undefined {
   <section class="page-content view-page">
     <div v-if="!recordType" class="empty-builder">
       <h2>Nothing to view yet</h2>
-      <p>Create and save a Record Type in Build, then add its records here.</p>
+      <p>Define the first form in Build, then add its records here.</p>
       <ActionButton kind="secondary" label="Go to Build" icon="hammer" @press="emit('back')" />
     </div>
 
@@ -602,7 +603,7 @@ function calculatedError(field: Field): string | undefined {
           <Marker variant="border"><MarkerIcon><Hash /></MarkerIcon><MarkerContent><span class="marker-label">Version</span>{{ editing.revision }}</MarkerContent></Marker>
           <Marker v-if="editing.createdBy" variant="border"><MarkerIcon><User /></MarkerIcon><MarkerContent><span class="marker-label">Created by</span>{{ editing.createdBy }}</MarkerContent></Marker>
           <Marker v-if="editing.owner" variant="border"><MarkerIcon><User /></MarkerIcon><MarkerContent><span class="marker-label">Owner</span>{{ editing.owner }}</MarkerContent></Marker>
-          <Marker variant="border"><MarkerIcon><Layers /></MarkerIcon><MarkerContent><span class="marker-label">Record Type version</span>{{ editing.defVersion }}</MarkerContent></Marker>
+          <Marker variant="border"><MarkerIcon><Layers /></MarkerIcon><MarkerContent><span class="marker-label">{{ gloss('formVersion').label }}</span>{{ editing.defVersion }}</MarkerContent></Marker>
           <Marker variant="border"><MarkerIcon><Fingerprint /></MarkerIcon><MarkerContent><span class="marker-label">Record ID</span><span class="is-mono">{{ editing.id }}</span></MarkerContent></Marker>
         </div>
         <template v-if="submittable">
@@ -619,7 +620,7 @@ function calculatedError(field: Field): string | undefined {
             </li>
           </ol>
         </template>
-        <h2>Audit Log</h2>
+        <h2>{{ gloss('history').label }}</h2>
         <ol class="entry-markers">
           <li v-for="event in history" :key="`${event.revision}:${event.action}:${event.at}`">
             <Marker variant="border">

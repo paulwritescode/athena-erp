@@ -18,10 +18,10 @@ const props = defineProps<{ permissions: string[] }>()
     <FormSection title="Appearance" description="The Workspace accent, worn by buttons, the focus ring, the selected page and charts.">
       <AppearanceSection :can-edit="props.permissions.includes('settings:appearance')" />
     </FormSection>
-    <FormSection title="Security" description="How long sign-ins last and how hard the door is to knock on.">
+    <FormSection title="Security" description="How long sign-ins last and how sign-in is protected.">
       <SecuritySection :permissions="props.permissions" />
     </FormSection>
-    <FormSection title="Workspace identity" description="Name and logo (B5).">
+    <FormSection title="Workspace identity" description="The name and logo people see.">
       <EmptyState :icon="IdCard" title="Workspace identity is on the way" body="The display name and logo will live here." />
     </FormSection>
     <FormSection title="Notification preferences" description="Which notifications arrive and where.">

@@ -10,6 +10,6 @@ import EmptyState from '@/components/EmptyState.vue'
 <template>
   <div class="space-y-6">
     <PageHeader title="Work queue" description="Your work across the workspace, in one list." />
-    <EmptyState :icon="Inbox" title="All caught up" body="Records assigned to you and Records waiting on your step will show up here. This page is on the way." />
+    <EmptyState :icon="Inbox" title="All caught up" body="Records assigned to you and records waiting on your step will show up here. This page is on the way." />
   </div>
 </template>

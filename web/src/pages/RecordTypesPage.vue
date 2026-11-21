@@ -5,6 +5,7 @@
 import { computed, h, ref, watch } from 'vue'
 import { useMediaQuery } from '@vueuse/core'
 import ActionButton from '@/components/ActionButton.vue'
+import HelpHint from '@/copy/HelpHint.vue'
 import BottomDrawer from '@/components/BottomDrawer.vue'
 import DataTable from '@/components/DataTable.vue'
 import EmptyState from '@/components/EmptyState.vue'
@@ -155,12 +156,12 @@ const columns = [
       </div>
       <BottomDrawer v-model:open="filtersOpen" title="Filters">
         <div class="space-y-4">
-          <label class="block text-sm font-medium">Kind
+          <label class="block text-sm font-medium">Kind <HelpHint term="recordKind" />
             <NativeSelect v-model="kindFilter" class="mt-1 w-full" aria-label="Kind filter">
               <NativeSelectOption v-for="option in kindOptions" :key="option.value" :value="option.value">{{ option.label }}</NativeSelectOption>
             </NativeSelect>
           </label>
-          <label class="block text-sm font-medium">Pack
+          <label class="block text-sm font-medium">Pack <HelpHint term="pack" />
             <NativeSelect v-model="packFilter" class="mt-1 w-full" aria-label="Pack filter">
               <NativeSelectOption v-for="option in packOptions" :key="option.value" :value="option.value">{{ option.label }}</NativeSelectOption>
             </NativeSelect>

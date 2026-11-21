@@ -9,6 +9,7 @@ import { actionLegend, actionLetter, describeScope, diffAssignments, parseScope,
 import { formatWhen, formatWhenFull } from '../times'
 import { Button } from '@/components/ui/button'
 import ActionButton from '@/components/ActionButton.vue'
+import HelpHint from '@/copy/HelpHint.vue'
 import ActionGroup from '@/components/ActionGroup.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import DetailSheet from '@/components/DetailSheet.vue'
@@ -933,7 +934,7 @@ onMounted(async () => {
         <div class="toolbar-actions access-tab-actions"><ActionButton kind="primary" density="row" label="New Role" icon="plus" :busy="busy" @press="openNewRole" /></div>
         <p v-if="loaded && roles.length === 0" class="files-empty">No Roles yet.</p>
         <Table v-else class="datatable-stacked">
-              <TableHeader><TableRow><TableHead>Role</TableHead><TableHead>Description</TableHead><TableHead>System permissions</TableHead><TableHead>Grants</TableHead></TableRow></TableHeader>
+              <TableHeader><TableRow><TableHead>Role</TableHead><TableHead>Description</TableHead><TableHead>System permissions</TableHead><TableHead>Grants <HelpHint term="grant" /></TableHead></TableRow></TableHeader>
               <TableBody>
                 <TableRow v-for="role in roles" :key="role.name" class="cursor-pointer" :data-state="role.name === selectedRole ? 'selected' : undefined" @click="selectedRole = role.name === selectedRole ? '' : role.name">
                   <TableCell data-label="Role"><button type="button" class="row-open" :aria-expanded="role.name === selectedRole" :aria-label="`Open details for ${role.name}`" @click.stop="selectedRole = role.name === selectedRole ? '' : role.name">{{ role.name }}</button></TableCell>
@@ -974,7 +975,7 @@ onMounted(async () => {
       <TabsContent value="permissions">
         <p v-if="loaded && roles.length === 0" class="files-empty">No Roles yet.</p>
         <Table v-else class="datatable-stacked">
-          <TableHeader><TableRow><TableHead>Record Type</TableHead><TableHead v-for="role in roles" :key="role.name">{{ role.name }}</TableHead></TableRow></TableHeader>
+          <TableHeader><TableRow><TableHead>Record Type <HelpHint term="recordType" /></TableHead><TableHead v-for="role in roles" :key="role.name">{{ role.name }}</TableHead></TableRow></TableHeader>
           <TableBody>
             <TableRow v-for="typeKey in matrixTypes" :key="typeKey">
               <TableCell data-label="Record Type">{{ typeKey === '*' ? 'All record types' : typeKey }}</TableCell>
@@ -1112,7 +1113,7 @@ onMounted(async () => {
           <Input id="assignment-role" v-model="assignmentForm.role" autocomplete="off" spellcheck="false" :disabled="busy" />
         </div>
         <fieldset class="access-section">
-          <legend>Scope limits</legend>
+          <legend>Scope limits <HelpHint term="scope" /></legend>
           <p v-if="assignmentForm.rows.length === 0" class="editor-footnote">No limits yet — this assignment covers every row. Add one to narrow it to certain values.</p>
           <div v-for="(row, index) in assignmentForm.rows" :key="index" class="access-scope-row">
             <div class="settings-field">

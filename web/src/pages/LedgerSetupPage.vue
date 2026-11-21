@@ -4,6 +4,7 @@ import { ConnectError } from '@connectrpc/connect'
 import { toast } from 'vue-sonner'
 import { ledgerClient } from '../api'
 import ActionButton from '@/components/ActionButton.vue'
+import HelpHint from '@/copy/HelpHint.vue'
 import ActionGroup from '@/components/ActionGroup.vue'
 import type { ActionItem } from '@/components/actions'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
@@ -653,7 +654,7 @@ onMounted(async () => {
       <TabsContent value="readiness">
         <div class="ledger-stack">
           <Card>
-            <CardHeader><CardTitle>Ready to post?</CardTitle><CardDescription>Everything a company needs before it can keep books. Fix the missing rows first.</CardDescription></CardHeader>
+            <CardHeader><CardTitle>Ready to post? <HelpHint term="posting" /></CardTitle><CardDescription>Everything a company needs before it can keep books. Fix the missing rows first.</CardDescription></CardHeader>
             <CardContent>
               <div class="settings-grid">
                 <SelectField id="ledger-readiness-company" label="Company" v-model="currentCompany" placeholder="Choose a company" :options="companies.map((company) => ({ value: company.name, label: company.label }))" />

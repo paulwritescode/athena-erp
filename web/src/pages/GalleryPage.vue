@@ -16,6 +16,7 @@ import DetailSheet from '@/components/DetailSheet.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import ErrorState from '@/components/ErrorState.vue'
 import FieldRow from '@/components/FieldRow.vue'
+import HelpHint from '@/copy/HelpHint.vue'
 import FormSection from '@/components/FormSection.vue'
 import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
 import PageHeader from '@/components/PageHeader.vue'
@@ -134,6 +135,15 @@ function onPick(next: unknown) {
       <p class="text-muted-foreground mt-1 text-sm">Title, one line of purpose, optional actions. This page's own header is the with-actions state.</p>
       <div class="mt-4 rounded-[var(--radius)] border p-4">
         <PageHeader title="Without actions" description="Some pages need nothing on the right." />
+      </div>
+    </section>
+
+    <section aria-labelledby="gal-helphint">
+      <h2 id="gal-helphint" class="text-lg font-medium">HelpHint</h2>
+      <p class="text-muted-foreground mt-1 text-sm">One glossary term explained next to a section title: a popover on desktop, a drawer on touch. Never inside a sentence.</p>
+      <div class="mt-4 rounded-[var(--radius)] border p-4">
+        <p class="text-sm font-medium">Period close <HelpHint term="hardClose" /></p>
+        <p class="text-muted-foreground mt-1 text-sm">Nothing can be recorded or changed here again.</p>
       </div>
     </section>
 

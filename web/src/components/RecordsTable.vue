@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { columnResizingFeature, columnSizingFeature, tableFeatures, useTable, type ColumnDef, type ColumnSizingState, type Updater } from '@tanstack/vue-table'
 import type { Record as RecordMessage } from '../gen/athena/v1/records_pb'
 import type { Field } from '../types'
+import { gloss } from '../copy/glossary'
 import { labelWithState, resolveRecords } from '../lookup'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
@@ -41,7 +42,7 @@ function display(record: RecordMessage, field: Field): string {
 
 // Fields only change when the Record Type is saved; the parent re-creates this
 // component per Record Type, so the column list is stable for a table's lifetime.
-const stateLabels = ['Draft', 'Submitted', 'Cancelled']
+const stateLabels = [gloss('draft').label, gloss('submitted').label, gloss('cancelled').label]
 // A Link cell holds the linked Record's ID in the table data; the text shown
 // (and the tooltip) is its label once that has loaded, so an ID is never shown.
 const linkColumns = computed(() => new Set(props.fields.filter((field) => field.type === 'Link').map((field) => field.name)))

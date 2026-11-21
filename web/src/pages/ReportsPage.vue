@@ -8,7 +8,7 @@ import EmptyState from '@/components/EmptyState.vue'
 
 <template>
   <div class="space-y-6">
-    <PageHeader title="Reports" description="Lists and totals from your Records." />
+    <PageHeader title="Reports" description="Lists and totals from your records." />
     <EmptyState :icon="ChartColumn" title="No reports yet" body="Build a report to rerun a list or total any time. This page is on the way." />
   </div>
 </template>

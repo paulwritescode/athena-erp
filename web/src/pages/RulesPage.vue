@@ -7,6 +7,7 @@ import type { Rule, RuleRun, RuleVersion, SimulateRuleResponse } from '../gen/at
 import { isRuleType, ruleEvents, ruleProblem, ruleTypeHelp, ruleTypes, starterSource, type RuleType } from '../ruleDefinitions'
 import type { RecordType } from '../types'
 import ActionButton from '@/components/ActionButton.vue'
+import HelpHint from '@/copy/HelpHint.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import DetailSheet from '@/components/DetailSheet.vue'
 import { formatWhen } from '../times'
@@ -242,7 +243,7 @@ onMounted(refresh)
 <template>
   <section class="page-content files-page">
     <div class="page-title-row">
-      <div><h1>Rules</h1><p class="lead">Starlark programs that check, fill in and guard records as they are saved.</p></div>
+      <div><h1>Rules <HelpHint term="rule" /></h1><p class="lead">Starlark programs that check, fill in and guard records as they are saved.</p></div>
       <div v-if="canWrite && !unavailable" class="toolbar-actions"><ActionButton kind="primary" label="New Rule" icon="plus" @press="startNew" /></div>
     </div>
     <div v-if="unavailable" class="empty-builder"><div class="card-icon">⌘</div><h2>Rules are unavailable</h2><p>{{ unavailable }}</p></div>

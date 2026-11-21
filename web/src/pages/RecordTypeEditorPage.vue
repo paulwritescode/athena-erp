@@ -13,6 +13,7 @@ import { validateNamingSeries } from '../fieldRules'
 import { formatWhen } from '../times'
 import FieldSettingsDialog from '../components/FieldSettingsDialog.vue'
 import ActionButton from '@/components/ActionButton.vue'
+import HelpHint from '@/copy/HelpHint.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
@@ -289,7 +290,7 @@ const kindBadge = computed(() => kinds.find((item) => item.value === props.curre
         <TabsContent value="form">
           <EmptyState
             :icon="icon('layout-template')"
-            title="Form builder coming in B9"
+            title="Form builder coming soon"
             body="Design the layout of this form here: sections, columns, field order and help text. The Fields and Settings tabs work today."
           />
         </TabsContent>
@@ -303,7 +304,7 @@ const kindBadge = computed(() => kinds.find((item) => item.value === props.curre
             <label>Description<Input v-model="currentRecordType.description" placeholder="Optional" aria-label="Description" /></label>
           </div>
           <div class="record-meta record-kind">
-            <label>Kind<select :value="currentRecordType.kind" :disabled="recordTypeIsSaved" aria-label="Record Type kind" @change="chooseKind(($event.target as HTMLSelectElement).value as Kind)"><option v-for="kind in kinds" :key="kind.value" :value="kind.value">{{ kind.label }}</option></select><small>{{ recordTypeIsSaved ? 'Fixed after the first save. ' : '' }}{{ kindHint }}</small></label>
+            <label>Kind <HelpHint term="recordKind" /><select :value="currentRecordType.kind" :disabled="recordTypeIsSaved" aria-label="Record Type kind" @change="chooseKind(($event.target as HTMLSelectElement).value as Kind)"><option v-for="kind in kinds" :key="kind.value" :value="kind.value">{{ kind.label }}</option></select><small>{{ recordTypeIsSaved ? 'Fixed after the first save. ' : '' }}{{ kindHint }}</small></label>
             <label v-if="currentRecordType.kind === 'document'">Class<select v-model="currentRecordType.class" aria-label="Document class" @change="chooseClass"><option v-for="item in documentClasses" :key="item[0]" :value="item[0]">{{ item[1] }}</option></select><small>Posting documents will write to ledgers; work and batch documents track work.</small></label>
             <label v-if="currentRecordType.kind === 'document' && currentRecordType.class !== 'work'" class="switch-label"><span class="switch-line"><Checkbox :model-value="currentRecordType.submittable ?? false" aria-label="Submittable" @update:model-value="setSubmittable($event === true)" />Submittable</span><small>Records move from draft to submitted to cancelled. Submitted records stay fixed, apart from fields set to allow editing.</small></label>
             <label v-if="currentRecordType.kind === 'document' && currentRecordType.submittable" class="switch-label"><span class="switch-line"><Checkbox :model-value="currentRecordType.amendable ?? false" aria-label="Amendable" @update:model-value="setAmendable($event === true)" />Amendable</span><small>A cancelled record can be amended into a new draft that points back to it.</small></label>

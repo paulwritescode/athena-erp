@@ -2,6 +2,7 @@
 import { onMounted, ref } from 'vue'
 import type { RecordType, Page } from '../types'
 import ActionButton from '@/components/ActionButton.vue'
+import HelpHint from '@/copy/HelpHint.vue'
 import { ruleClient } from '../api'
 defineProps<{ recordTypes: RecordType[]; databaseState: string; apiState: string }>()
 const emit = defineEmits<{ navigate: [page: Page]; createRecordType: [] }>()
@@ -26,6 +27,6 @@ onMounted(async () => {
       <button class="foundation-card" @click="emit('navigate', 'packs')"><h2>Packs</h2><p>Record Types and relationships packaged as an installable Pack.</p><div class="card-footer"><span class="muted-label">Later beta</span><span class="arrow">→</span></div></button>
       <button class="foundation-card" @click="emit('navigate', 'rules')"><h2>Rules</h2><p>Configurable conditions and actions in Starlark.</p><div class="card-footer"><span class="muted-label">{{ ruleCount === null ? '' : ruleCount === 0 ? 'No rules yet' : `${ruleCount} ${ruleCount === 1 ? 'rule' : 'rules'}` }}</span><span class="arrow">→</span></div></button>
     </div>
-    <section class="panel"><div class="panel-heading"><h2>Record Types</h2><button class="text-button" @click="emit('navigate', 'record-types')">Open →</button></div><button v-for="recordType in recordTypes" :key="recordType.name" class="list-row" @click="emit('navigate', 'record-types')"><span class="row-main"><strong>{{ recordType.label }}</strong><small>{{ recordType.fields.length }} {{ recordType.fields.length === 1 ? 'field' : 'fields' }}</small></span><span class="arrow">→</span></button><div v-if="recordTypes.length === 0" class="empty-state">No Record Types yet.</div></section>
+    <section class="panel"><div class="panel-heading"><h2>Record Types <HelpHint term="recordType" /></h2><button class="text-button" @click="emit('navigate', 'record-types')">Open →</button></div><button v-for="recordType in recordTypes" :key="recordType.name" class="list-row" @click="emit('navigate', 'record-types')"><span class="row-main"><strong>{{ recordType.label }}</strong><small>{{ recordType.fields.length }} {{ recordType.fields.length === 1 ? 'field' : 'fields' }}</small></span><span class="arrow">→</span></button><div v-if="recordTypes.length === 0" class="empty-state">No Record Types yet.</div></section>
   </section>
 </template>

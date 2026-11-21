@@ -120,7 +120,7 @@ async function complete() {
         </div>
         <div v-else-if="!hasUsers" class="sign-in-setup">
           <strong>No users yet</strong>
-          <p>Create the instance owner on the server, then choose a password with the shown code on the First login screen:</p>
+          <p>Create the owner on the server, then choose a password with the shown code on the First login screen:</p>
           <code>{{ ownerCommand }}</code>
           <div class="toolbar-actions">
             <ActionButton kind="secondary" label="Copy command" icon="copy" @press="copyCommand" />
