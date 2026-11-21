@@ -68,6 +68,10 @@ func run(args []string) error {
 		return accessLogCommand(args[1:], os.Stdout)
 	case "files":
 		return filesCommand(args[1:], os.Stdin, os.Stdout)
+	case "workspace":
+		return workspaceCommand(args[1:], os.Stdout)
+	case "notifications":
+		return notificationsCommand(args[1:], os.Stdout)
 	case "ledger":
 		return ledgerCommand(args[1:], os.Stdout)
 	case "rules":
@@ -142,6 +146,10 @@ Usage:
       shows which file backs which Record Type, Rule or Report. "put" reads
       --file or standard input; --expected-hash, --new and "rm --yes" guard
       against overwriting. "history" lists versions and "get --revision N" reads one.
+  athena notifications list|read|read-all [--user name] [--workspace slug]
+      Read an inbox as the operator. Defaults to administrator.
+  athena workspace appearance show|set [--workspace slug]
+      Choose a preset or custom accent and chart colors.
   athena ledger company|period|currency|account|determination|setting ... [--workspace slug] [--json]
       Manage the kernel's ledger masters. company save|list, period
       save|list|close|reopen, currency save|list|rate-save|rate-get, account

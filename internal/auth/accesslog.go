@@ -72,11 +72,16 @@ func nullable(s string) any {
 // the event's content, because the caller is already answering a request and
 // has nothing better to do with it.
 func (s *Service) LogAccess(ctx context.Context, e AccessEvent) {
-	_, err := s.DB.ExecContext(context.WithoutCancel(ctx), "INSERT INTO athena_access_log (at, event, outcome, user_id, username, procedure_name, record_type, action, request_id, detail) VALUES (?,?,?,?,?,?,?,?,?,?)",
-		s.now(), e.Event, e.Outcome, nullable(e.UserID), nullable(e.Username), nullable(e.Procedure), nullable(e.RecordType), nullable(e.Action), nullable(e.RequestID), nullable(e.Detail))
+	err := writeAccess(context.WithoutCancel(ctx), s.DB, s.now(), e)
 	if err != nil {
 		log.Printf("access log: could not write a %s row", e.Event)
 	}
+}
+
+func writeAccess(ctx context.Context, db execQuerier, at time.Time, e AccessEvent) error {
+	_, err := db.ExecContext(ctx, "INSERT INTO athena_access_log (at, event, outcome, user_id, username, procedure_name, record_type, action, request_id, detail) VALUES (?,?,?,?,?,?,?,?,?,?)",
+		at, e.Event, e.Outcome, nullable(e.UserID), nullable(e.Username), nullable(e.Procedure), nullable(e.RecordType), nullable(e.Action), nullable(e.RequestID), nullable(e.Detail))
+	return err
 }
 
 // ListAccessLog returns rows newest first. beforeID, when positive, returns

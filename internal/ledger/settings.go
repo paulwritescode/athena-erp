@@ -156,6 +156,9 @@ func (s *Service) SaveSettingValue(ctx context.Context, value SettingValue) (Set
 	if err != nil {
 		return SettingValue{}, err
 	}
+	if setting.OwnerPack == appearancePack && setting.Type == appearanceKey {
+		return SettingValue{}, inputErrorf("use Workspace appearance to change this setting")
+	}
 	if _, err := parseScopeChain(value.ScopeChain); err != nil {
 		return SettingValue{}, err
 	}

@@ -53,6 +53,7 @@ func challengeLifetime(purpose string) (time.Duration, error) {
 // when issued and never stored; the row holds only its digest. Digest is
 // loaded for comparison only and must never reach a log, an error or a span.
 type Challenge struct {
+	IssuerID   string
 	ID         string
 	UserID     string
 	Purpose    string
@@ -113,8 +114,8 @@ func IssueChallenge(ctx context.Context, db execQuerier, userID, purpose string,
 		return Challenge{}, "", err
 	}
 	c := Challenge{ID: newID(), UserID: userID, Purpose: purpose, Generation: generation, ExpiresAt: now.Add(lifetime)}
-	if _, err := db.ExecContext(ctx, "INSERT INTO athena_challenges (id, user_id, purpose, digest, generation, expires_at) VALUES (?,?,?,?,?,?)",
-		c.ID, c.UserID, c.Purpose, ChallengeDigest(token), c.Generation, c.ExpiresAt); err != nil {
+	if _, err := db.ExecContext(ctx, "INSERT INTO athena_challenges (id, user_id, purpose, digest, generation, expires_at, issuer_user_id) VALUES (?,?,?,?,?,?,?)",
+		c.ID, c.UserID, c.Purpose, ChallengeDigest(token), c.Generation, c.ExpiresAt, nullable(ActorID(ctx))); err != nil {
 		return Challenge{}, "", fmt.Errorf("issue Challenge: %w", err)
 	}
 	return c, token, nil
@@ -126,9 +127,9 @@ func IssueChallenge(ctx context.Context, db execQuerier, userID, purpose string,
 func latestChallenge(ctx context.Context, db execQuerier, userID, purpose string) (Challenge, bool, error) {
 	var c Challenge
 	var consumed sql.NullTime
-	err := db.QueryRowContext(ctx, `SELECT id, user_id, purpose, generation, expires_at, attempts, digest, consumed_at FROM athena_challenges
+	err := db.QueryRowContext(ctx, `SELECT id, user_id, purpose, generation, expires_at, attempts, digest, consumed_at, COALESCE(issuer_user_id,'') FROM athena_challenges
 		WHERE user_id = ? AND purpose = ? ORDER BY created_at DESC, id DESC LIMIT 1`, userID, purpose).
-		Scan(&c.ID, &c.UserID, &c.Purpose, &c.Generation, &c.ExpiresAt, &c.Attempts, &c.Digest, &consumed)
+		Scan(&c.ID, &c.UserID, &c.Purpose, &c.Generation, &c.ExpiresAt, &c.Attempts, &c.Digest, &consumed, &c.IssuerID)
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
 		return Challenge{}, false, nil

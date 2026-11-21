@@ -1,0 +1,39 @@
+syntax = "proto3";
+package athena.v1;
+option go_package = "athena-erp/gen/athena/v1;athenav1";
+
+// Each operation uses the signed-in user's inbox.
+service NotificationService {
+  rpc List(ListNotificationsRequest) returns (ListNotificationsResponse);
+  rpc UnreadCount(UnreadCountRequest) returns (UnreadCountResponse);
+  rpc MarkRead(MarkReadRequest) returns (MarkReadResponse);
+  rpc MarkAllRead(MarkAllReadRequest) returns (MarkAllReadResponse);
+}
+message Notification {
+  string id = 1;
+  string kind = 2;
+  string subject_type = 3;
+  string subject_id = 4;
+  string subject_label = 5;
+  string actor_user_id = 6;
+  string actor_label = 7;
+  string text = 8;
+  // RFC 3339 UTC. An empty read_at means unread.
+  string created_at = 9;
+  string read_at = 10;
+}
+message ListNotificationsRequest {
+  int32 page_size = 1;
+  string page_token = 2;
+  bool unread_only = 3;
+}
+message ListNotificationsResponse {
+  repeated Notification notifications = 1;
+  string next_page_token = 2;
+}
+message UnreadCountRequest {}
+message UnreadCountResponse { int64 count = 1; }
+message MarkReadRequest { repeated string ids = 1; }
+message MarkReadResponse { int64 changed = 1; }
+message MarkAllReadRequest {}
+message MarkAllReadResponse { int64 changed = 1; }

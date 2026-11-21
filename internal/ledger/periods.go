@@ -1,6 +1,8 @@
 package ledger
 
 import (
+	"athena-erp/internal/auth"
+	"athena-erp/internal/notifications"
 	"context"
 	"database/sql"
 	"fmt"
@@ -285,13 +287,24 @@ func (s *Service) SetPeriodStatus(ctx context.Context, company, book, name, stat
 	if current.Status == PeriodHardClosed {
 		return Period{}, inputErrorf("period %q is hard-closed; reopening needs a separately approved reopen, so post a correction in an open period", name)
 	}
-	result, err := s.DB.ExecContext(ctx, `UPDATE athena_periods SET status = ?, status_actor = ?, status_at = CURRENT_TIMESTAMP, revision = revision + 1 WHERE company_name = ? AND book = ? AND name = ? AND revision = ?`,
-		status, actor, company, book, name, expected)
+	err = s.withTransaction(ctx, func(tx *sql.Tx) error {
+		result, err := tx.ExecContext(ctx, `UPDATE athena_periods SET status = ?, status_actor = ?, status_at = CURRENT_TIMESTAMP, revision = revision + 1 WHERE company_name = ? AND book = ? AND name = ? AND revision = ?`,
+			status, actor, company, book, name, expected)
+		if err != nil {
+			return err
+		}
+		if affected, _ := result.RowsAffected(); affected == 0 {
+			return fmt.Errorf("%w: expected revision %d", ErrConflict, expected)
+		}
+		if status != PeriodOpen {
+			if err := notifyPeriodClosed(ctx, tx, current); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 	if err != nil {
 		return Period{}, err
-	}
-	if affected, _ := result.RowsAffected(); affected == 0 {
-		return Period{}, fmt.Errorf("%w: expected revision %d", ErrConflict, expected)
 	}
 	current.Status, current.Revision = status, expected+1
 	return current, nil
@@ -312,4 +325,37 @@ func (s *Service) PeriodFor(ctx context.Context, company, book, date string) (Pe
 		}
 	}
 	return Period{}, fmt.Errorf("%w: no period covers %s", ErrNotFound, date)
+}
+
+// System permissions follow active dated assignments. The root account has
+// every permission independently of its assignments.
+func notifyPeriodClosed(ctx context.Context, tx *sql.Tx, period Period) error {
+	rows, err := tx.QueryContext(ctx, `SELECT u.id FROM athena_users u
+ WHERE u.username=? OR (u.state='active' AND u.disabled=0 AND EXISTS (
+ SELECT 1 FROM athena_role_assignments a JOIN athena_roles r ON r.id=a.role_id
+ WHERE a.user_id=u.id AND (a.active_from IS NULL OR a.active_from<=UTC_DATE())
+ AND (a.expires_at IS NULL OR a.expires_at>=UTC_DATE())
+ AND JSON_CONTAINS(r.system_permissions,JSON_QUOTE(?))))`, auth.RootUsername, auth.PermissionLedgerWrite)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	var recipients []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return err
+		}
+		recipients = append(recipients, id)
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	event := notifications.Event{Kind: notifications.PeriodClosed, SubjectType: "period", SubjectID: period.Company + "/" + period.Book + "/" + period.Name, SubjectLabel: period.Label, ActorID: auth.ActorID(ctx)}
+	for _, id := range recipients {
+		if err := notifications.Write(ctx, tx, id, event); err != nil {
+			return err
+		}
+	}
+	return nil
 }

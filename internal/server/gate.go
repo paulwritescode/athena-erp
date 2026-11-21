@@ -45,8 +45,14 @@ type policy struct {
 // decides who may call it. TestEveryProcedureHasAPolicy checks the table
 // against the generated services.
 var procedurePolicies = map[string]policy{
-	athenav1connect.SystemServiceGetSystemInfoProcedure:  {kind: policyPublic},
-	athenav1connect.SystemServiceVerifyAuditLogProcedure: {kind: policySystem, permission: auth.PermissionAudit},
+	athenav1connect.WorkspaceServiceGetAppearanceProcedure:  {kind: policyPublic},
+	athenav1connect.WorkspaceServiceSetAppearanceProcedure:  {kind: policySystem, permission: auth.PermissionAppearance},
+	athenav1connect.NotificationServiceListProcedure:        {kind: policySession},
+	athenav1connect.NotificationServiceUnreadCountProcedure: {kind: policySession},
+	athenav1connect.NotificationServiceMarkReadProcedure:    {kind: policySession},
+	athenav1connect.NotificationServiceMarkAllReadProcedure: {kind: policySession},
+	athenav1connect.SystemServiceGetSystemInfoProcedure:     {kind: policyPublic},
+	athenav1connect.SystemServiceVerifyAuditLogProcedure:    {kind: policySystem, permission: auth.PermissionAudit},
 
 	athenav1connect.AuthServiceLoginProcedure:             {kind: policyPublic},
 	athenav1connect.AuthServiceGetSessionProcedure:        {kind: policyPublic},

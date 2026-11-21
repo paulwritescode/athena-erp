@@ -116,8 +116,8 @@ func TestDeterminationProperty(t *testing.T) {
 			}
 			mappings = append(mappings, ledger.Determination{
 				Label: fmt.Sprintf("m%d", i), Account: []string{"a", "b"}[i%2],
-				Match:     match,
-				Disabled:  rapid.IntRange(0, 4).Draw(t, "disabled") == 0,
+				Match:    match,
+				Disabled: rapid.IntRange(0, 4).Draw(t, "disabled") == 0,
 			})
 		}
 		context_ := map[string]string{

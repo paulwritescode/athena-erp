@@ -70,11 +70,12 @@ const (
 	// PermissionLedgerWrite saves ledger masters, periods, rates, accounts,
 	// determination mappings and Settings. Treat it like build.
 	PermissionLedgerWrite = "ledger:write"
+	PermissionAppearance  = "settings:appearance"
 )
 
 // SystemPermissions lists every system permission.
 var SystemPermissions = []string{PermissionBuild, PermissionAudit, PermissionFilesRead, PermissionFilesWrite, PermissionRulesRead, PermissionRulesWrite,
-	PermissionLedgerRead, PermissionLedgerWrite,
+	PermissionLedgerRead, PermissionLedgerWrite, PermissionAppearance,
 	PermissionAccessOwnership, PermissionAccessUsers, PermissionAccessRoles, PermissionAccessAssign, PermissionAccessRecover, PermissionAccessSessions, PermissionAccessExplore}
 
 // AllRecordTypes is the Grant target that covers every Record Type.

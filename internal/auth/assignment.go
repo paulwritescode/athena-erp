@@ -358,6 +358,9 @@ func (s *Service) saveAssignmentOnce(ctx context.Context, username string, in As
 	if err := endOwnershipGuard(ctx, tx, today, before); err != nil {
 		return Assignment{}, err
 	}
+	if err := notifyAccess(ctx, tx, user.ID); err != nil {
+		return Assignment{}, err
+	}
 	if err := tx.Commit(); err != nil {
 		return Assignment{}, fmt.Errorf("save assignment: %w", err)
 	}
@@ -396,6 +399,9 @@ func (s *Service) revokeAssignmentOnce(ctx context.Context, id string) error {
 		return err
 	}
 	if err := endOwnershipGuard(ctx, tx, today, before); err != nil {
+		return err
+	}
+	if err := notifyAccess(ctx, tx, userID); err != nil {
 		return err
 	}
 	return tx.Commit()

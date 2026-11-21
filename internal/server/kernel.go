@@ -17,6 +17,7 @@ import (
 // ConnectRPC handlers use, over its own database connection. It adds no
 // endpoint.
 type Kernel struct {
+	Workspace   athenav1connect.WorkspaceServiceHandler
 	RecordTypes athenav1connect.RecordTypeServiceHandler
 	Records     athenav1connect.RecordServiceHandler
 	System      athenav1connect.SystemServiceHandler
@@ -68,7 +69,7 @@ func OpenKernel(ctx context.Context, endpoint *workspace.DBEndpoint, svc *Worksp
 	files := newFileService(svc, db)
 	hooks := lifecycle.NewRegistry()
 	registerRules(hooks, db)
-	return &Kernel{RecordTypes: recordTypeService{db: db}, Records: recordService{db: db, hooks: hooks}, System: systemService{db: db}, Auth: authService{auth: users}, Users: users, Files: files, Rules: newRuleService(db), Hooks: hooks, db: db}, nil
+	return &Kernel{Workspace: workspaceService{db}, RecordTypes: recordTypeService{db: db}, Records: recordService{db: db, hooks: hooks}, System: systemService{db: db}, Auth: authService{auth: users}, Users: users, Files: files, Rules: newRuleService(db), Hooks: hooks, db: db}, nil
 }
 
 // Close releases the database connection.

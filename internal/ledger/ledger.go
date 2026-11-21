@@ -97,3 +97,25 @@ func (s *Service) conflict(err error, what, name string) error {
 	}
 	return err
 }
+
+// withTransaction joins a caller's transaction or owns one around the change.
+func (s *Service) withTransaction(ctx context.Context, write func(*sql.Tx) error) error {
+	if tx, ok := s.DB.(*sql.Tx); ok {
+		return write(tx)
+	}
+	db, ok := s.DB.(interface {
+		BeginTx(context.Context, *sql.TxOptions) (*sql.Tx, error)
+	})
+	if !ok {
+		return errors.New("ledger: database does not support transactions")
+	}
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if err := write(tx); err != nil {
+		return err
+	}
+	return tx.Commit()
+}

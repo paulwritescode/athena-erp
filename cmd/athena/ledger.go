@@ -125,21 +125,21 @@ func ledgerCommand(args []string, out io.Writer) error {
 // ledgerFlags holds every flag one ledger invocation may take. Each noun
 // reads only its own.
 type ledgerFlags struct {
-	slug                                                      *string
-	asJSON                                                    *bool
-	name, label, company, book                                *string
-	fiscalYear, start, end                                    *string
-	code                                                      *string
-	exponent                                                  *int
-	from, to, rateType, source, at, rate                     *string
-	normal, parent, class, role                               *string
-	match, contextPairs                                       *string
-	pack, kind, listRule                                      *string
-	base                                                      *string
-	account                                                   *string
-	scope, scopeMap, effective, valueJSON, id                 *string
-	revision                                                  *int64
-	disable, group, hard, publishedOnly                       *bool
+	slug                                      *string
+	asJSON                                    *bool
+	name, label, company, book                *string
+	fiscalYear, start, end                    *string
+	code                                      *string
+	exponent                                  *int
+	from, to, rateType, source, at, rate      *string
+	normal, parent, class, role               *string
+	match, contextPairs                       *string
+	pack, kind, listRule                      *string
+	base                                      *string
+	account                                   *string
+	scope, scopeMap, effective, valueJSON, id *string
+	revision                                  *int64
+	disable, group, hard, publishedOnly       *bool
 }
 
 // ledgerService opens the workspace database like the migrate command and

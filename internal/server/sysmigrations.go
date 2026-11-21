@@ -489,6 +489,23 @@ func SystemMigrations() []store.Migration {
 				KEY idx_outbox_type (event_type)
 			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 		)},
+		{Version: 15, Name: "notifications", Up: execAll(
+			`ALTER TABLE athena_challenges ADD COLUMN IF NOT EXISTS issuer_user_id CHAR(36) NULL`,
+			`CREATE TABLE IF NOT EXISTS athena_notifications (
+            id CHAR(36) NOT NULL PRIMARY KEY,
+            recipient_user_id CHAR(36) NOT NULL,
+            kind VARCHAR(40) NOT NULL,
+            subject_type VARCHAR(64) NOT NULL,
+            subject_id VARCHAR(512) NOT NULL,
+            subject_label VARCHAR(255) NOT NULL,
+            actor_user_id CHAR(36) NULL,
+            params JSON NOT NULL,
+            created_at DATETIME(6) NOT NULL,
+            read_at DATETIME(6) NULL,
+            KEY idx_inbox_unread (recipient_user_id, read_at, created_at, id),
+            KEY idx_inbox_created (recipient_user_id, created_at, id)
+          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+		)},
 	}
 }
 

@@ -1,0 +1,34 @@
+syntax = "proto3";
+package athena.v1;
+option go_package = "athena-erp/gen/athena/v1;athenav1";
+
+service WorkspaceService {
+  rpc GetAppearance(GetAppearanceRequest) returns (GetAppearanceResponse);
+  rpc SetAppearance(SetAppearanceRequest) returns (SetAppearanceResponse);
+}
+message Appearance {
+  // ink, red or custom. Named presets use the Desk's preset tokens.
+  string preset = 1;
+  // Custom light-theme accent. The server derives the dark-theme lightness.
+  string accent = 2;
+  // Index zero corresponds to chart-1. Empty slots keep preset defaults.
+  repeated string chart_colors = 3;
+}
+message GetAppearanceRequest {}
+message GetAppearanceResponse {
+  Appearance appearance = 1;
+  string dark_accent = 2;
+  // Resolved light-theme custom token in the sRGB gamut.
+  string light_accent = 3;
+}
+message SetAppearanceRequest { Appearance appearance = 1; }
+message SetAppearanceResponse {
+  Appearance appearance = 1;
+  string dark_accent = 2;
+  // Resolved light-theme custom token in the sRGB gamut.
+  string light_accent = 3;
+}
+message AppearanceContrastFailure {
+  string suggested_accent = 1;
+  string dark_accent = 2;
+}

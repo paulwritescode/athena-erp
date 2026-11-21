@@ -81,15 +81,17 @@ func (c csrfTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 
 // session is one browser: a cookie jar and the CSRF token it learned.
 type session struct {
-	auth    athenav1connect.AuthServiceClient
-	records athenav1connect.RecordServiceClient
-	types   athenav1connect.RecordTypeServiceClient
-	system  athenav1connect.SystemServiceClient
-	files   athenav1connect.FileServiceClient
-	rules   athenav1connect.RuleServiceClient
-	jar     *cookiejar.Jar
-	csrf    *string
-	base    string
+	inbox     athenav1connect.NotificationServiceClient
+	workspace athenav1connect.WorkspaceServiceClient
+	auth      athenav1connect.AuthServiceClient
+	records   athenav1connect.RecordServiceClient
+	types     athenav1connect.RecordTypeServiceClient
+	system    athenav1connect.SystemServiceClient
+	files     athenav1connect.FileServiceClient
+	rules     athenav1connect.RuleServiceClient
+	jar       *cookiejar.Jar
+	csrf      *string
+	base      string
 }
 
 func (f *accessFixture) browser(t *testing.T) *session {
@@ -100,7 +102,7 @@ func (f *accessFixture) browser(t *testing.T) *session {
 	}
 	token := ""
 	client := connect.NewClient(connecthttp.NewTransport(&http.Client{Jar: jar, Transport: csrfTransport{token: &token}}, f.url))
-	return &session{auth: athenav1connect.NewAuthServiceClient(client), records: athenav1connect.NewRecordServiceClient(client), types: athenav1connect.NewRecordTypeServiceClient(client),
+	return &session{inbox: athenav1connect.NewNotificationServiceClient(client), workspace: athenav1connect.NewWorkspaceServiceClient(client), auth: athenav1connect.NewAuthServiceClient(client), records: athenav1connect.NewRecordServiceClient(client), types: athenav1connect.NewRecordTypeServiceClient(client),
 		system: athenav1connect.NewSystemServiceClient(client), files: athenav1connect.NewFileServiceClient(client), rules: athenav1connect.NewRuleServiceClient(client), jar: jar, csrf: &token, base: f.url}
 }
 

@@ -13,6 +13,7 @@ import (
 	athenav1 "athena-erp/gen/athena/v1"
 	"athena-erp/internal/auth"
 	"athena-erp/internal/lifecycle"
+	"athena-erp/internal/notifications"
 	"athena-erp/internal/rules"
 	"athena-erp/internal/types"
 
@@ -235,10 +236,24 @@ func (e ruleEngine) logRun(ctx context.Context, r ruleRun, recordType, requestID
 		return internalError("write rule run", err)
 	}
 	messages, _ := json.Marshal(map[string][]ruleMessageJSON{"warnings": messagesJSON(out.Warnings), "logs": messagesJSON(out.Logs)})
-	_, err = e.db.ExecContext(context.WithoutCancel(ctx), "INSERT INTO athena_rule_runs (id, rule_name, rule_version, rule_type, record_type, record_id, event, input_hash, outcome, code, message, steps, rows_read, rows_written, duration_micros, dry_run, actor, request_id, messages) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+	ctx = context.WithoutCancel(ctx)
+	tx, err := e.db.BeginTx(ctx, nil)
+	if err != nil {
+		return internalError("write rule run", err)
+	}
+	defer tx.Rollback()
+	_, err = tx.ExecContext(ctx, "INSERT INTO athena_rule_runs (id, rule_name, rule_version, rule_type, record_type, record_id, event, input_hash, outcome, code, message, steps, rows_read, rows_written, duration_micros, dry_run, actor, request_id, messages) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 		id.String(), r.rule.Key, r.rule.Version, string(r.rule.Type), nullText(recordType), nullText(r.recordID), nullText(r.event), out.InputHash, string(out.Status), out.Code, clipText(out.Message, 600),
 		int64(out.Steps), out.Reads, len(out.Writes), out.Duration.Microseconds(), r.dryRun, actorName(ctx), requestID, string(messages))
 	if err != nil {
+		return internalError("write rule run", err)
+	}
+	if actor := auth.ActorID(ctx); actor != "" && !r.dryRun && out.Status != rules.OK && (r.rule.Type == rules.Validation || r.rule.Type == rules.Guard) {
+		if err := notifications.Write(ctx, tx, actor, notifications.Event{Kind: notifications.SaveStopped, SubjectType: recordType, SubjectID: r.recordID, ActorID: actor}); err != nil {
+			return internalError("notify about stopped save", err)
+		}
+	}
+	if err := tx.Commit(); err != nil {
 		return internalError("write rule run", err)
 	}
 	return nil
