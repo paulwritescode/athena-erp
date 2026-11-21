@@ -59,7 +59,7 @@
   - Workspace settings for display name and logo (stored as a Workspace file, validated SVG/PNG ≤ 512 KB, served same-origin with a content hash URL). CLI `athena workspace set --name --logo file`. `athena new --logo`.
   - Desk: logo and name in header, sign-in, tab title, favicon; Athena mark fallback; "Powered by Athena" footer.
   - Logos are `athena-black-logo` (light theme) and `athena-white-logo` (dark theme) at the repository root, PNG without an extension. Rename to `.png`, generate favicon and header sizes, and switch the mark with the theme.
-- [ ] **B6. Everyday vocabulary and help** (Muse, Codex for the server side)
+- [x] **B6. Everyday vocabulary and help** (Muse, Codex for the server side)
   - `web/src/copy/glossary.ts` with plain labels and one-line explanations for every status, lifecycle state, ledger and access term; `circle-help` popovers; View mode uses only glossary words.
   - Naming registry `docs/design/naming.md`: product and layer names (section N below), forbidden old terms, and how a name maps to CLI, proto service, package and UI label. `terms_test.go` extended to new forbidden terms only after user approval.
 - [ ] **B7. Sessions, rate limits and tab management** (Codex, ADR required, security)
