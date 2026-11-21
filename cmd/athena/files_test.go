@@ -3,6 +3,9 @@ package main
 import (
 	"bytes"
 	"context"
+	"image"
+	"image/color"
+	"image/png"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,6 +14,22 @@ import (
 	"athena-erp/internal/testdb"
 	"athena-erp/internal/workspace"
 )
+
+// testImageFile encodes a w-by-h PNG for upload tests.
+func testImageFile(t *testing.T, w, h int) []byte {
+	t.Helper()
+	img := image.NewRGBA(image.Rect(0, 0, w, h))
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			img.Set(x, y, color.RGBA{uint8(x), uint8(y), 0, 255})
+		}
+	}
+	var out bytes.Buffer
+	if err := png.Encode(&out, img); err != nil {
+		t.Fatal(err)
+	}
+	return out.Bytes()
+}
 
 // newTestWorkspace creates a home and a Workspace with its own database, and
 // drops the database when the test ends.
@@ -30,6 +49,33 @@ func newTestWorkspace(t *testing.T) (slug string) {
 	t.Cleanup(func() { _, _ = db.Exec("DROP DATABASE IF EXISTS `" + result.Manifest.Database.Name + "`") })
 	t.Chdir(home)
 	return result.Manifest.Slug
+}
+
+func TestFilesPutImageCommands(t *testing.T) {
+	slug := newTestWorkspace(t)
+	run := func(stdin string, args ...string) (string, error) {
+		var out bytes.Buffer
+		err := filesCommand(append(args, "--workspace", slug), strings.NewReader(stdin), &out)
+		return out.String(), err
+	}
+	content := testImageFile(t, 16, 12)
+	local := filepath.Join(t.TempDir(), "logo.png")
+	if err := os.WriteFile(local, content, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	out, err := run("", "put-image", "images/logo.png", "--file", local, "--new")
+	if err != nil || !strings.Contains(out, "Saved images/logo.png (16x12, revision 1") {
+		t.Fatalf("put-image = %q, %v", out, err)
+	}
+	if out, err := run("", "get", "images/logo.png", "--out", filepath.Join(t.TempDir(), "back.png")); err != nil {
+		t.Fatalf("get = %q, %v", out, err)
+	}
+	if _, err := run("not an image", "put-image", "images/evil.png", "--new"); err == nil {
+		t.Fatal("text uploaded as an image was accepted")
+	}
+	if _, err := run("", "put-image", "rules/logo.png", "--file", local, "--new"); err == nil {
+		t.Fatal("an image outside images/ was accepted")
+	}
 }
 
 func TestFilesCommands(t *testing.T) {

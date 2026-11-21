@@ -81,7 +81,7 @@ type RecordTypeField struct {
 	Key   string `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
 	Label string `protobuf:"bytes,2,opt,name=label,proto3" json:"label,omitempty"`
 	// One of Text, Long text, Email, Phone, Number, Currency, Date, Select,
-	// Link, Checkbox, Money, Quantity, Enum.
+	// Link, Checkbox, Money, Quantity, Enum, Image.
 	Type     string `protobuf:"bytes,3,opt,name=type,proto3" json:"type,omitempty"`
 	Required bool   `protobuf:"varint,4,opt,name=required,proto3" json:"required,omitempty"`
 	// Key of the linked Record Type, for Link fields only.
@@ -417,7 +417,11 @@ type RecordType struct {
 	// Key of the Pack that installed the Record Type. Empty until Packs install
 	// in C3; Workspace-authored Record Types also report empty. Filled by
 	// ListRecordTypes; ignored on save.
-	PackKey       string `protobuf:"bytes,20,opt,name=pack_key,json=packKey,proto3" json:"pack_key,omitempty"`
+	PackKey string `protobuf:"bytes,20,opt,name=pack_key,json=packKey,proto3" json:"pack_key,omitempty"`
+	// The form layout: sections of fields, text, images and art. Stored with
+	// the definition; a layout-only save bumps the revision without touching
+	// the table.
+	Layout        *FormLayout `protobuf:"bytes,21,opt,name=layout,proto3" json:"layout,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -592,6 +596,450 @@ func (x *RecordType) GetPackKey() string {
 	return ""
 }
 
+func (x *RecordType) GetLayout() *FormLayout {
+	if x != nil {
+		return x.Layout
+	}
+	return nil
+}
+
+// FormLayout arranges a Record Type's fields into titled sections. Fields
+// the layout does not place are appended to the last section on save.
+type FormLayout struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Sections      []*FormSection         `protobuf:"bytes,1,rep,name=sections,proto3" json:"sections,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FormLayout) Reset() {
+	*x = FormLayout{}
+	mi := &file_athena_v1_record_types_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FormLayout) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FormLayout) ProtoMessage() {}
+
+func (x *FormLayout) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_record_types_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FormLayout.ProtoReflect.Descriptor instead.
+func (*FormLayout) Descriptor() ([]byte, []int) {
+	return file_athena_v1_record_types_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *FormLayout) GetSections() []*FormSection {
+	if x != nil {
+		return x.Sections
+	}
+	return nil
+}
+
+type FormSection struct {
+	state       protoimpl.MessageState `protogen:"open.v1"`
+	Title       string                 `protobuf:"bytes,1,opt,name=title,proto3" json:"title,omitempty"`
+	Description string                 `protobuf:"bytes,2,opt,name=description,proto3" json:"description,omitempty"`
+	// 1 or 2.
+	Columns int32 `protobuf:"varint,3,opt,name=columns,proto3" json:"columns,omitempty"`
+	// CEL that returns true or false over the Record's fields; empty means the
+	// section always shows. Display-only: the server type-checks it and never
+	// enforces it.
+	Visibility    string            `protobuf:"bytes,4,opt,name=visibility,proto3" json:"visibility,omitempty"`
+	Items         []*FormLayoutItem `protobuf:"bytes,5,rep,name=items,proto3" json:"items,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FormSection) Reset() {
+	*x = FormSection{}
+	mi := &file_athena_v1_record_types_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FormSection) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FormSection) ProtoMessage() {}
+
+func (x *FormSection) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_record_types_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FormSection.ProtoReflect.Descriptor instead.
+func (*FormSection) Descriptor() ([]byte, []int) {
+	return file_athena_v1_record_types_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *FormSection) GetTitle() string {
+	if x != nil {
+		return x.Title
+	}
+	return ""
+}
+
+func (x *FormSection) GetDescription() string {
+	if x != nil {
+		return x.Description
+	}
+	return ""
+}
+
+func (x *FormSection) GetColumns() int32 {
+	if x != nil {
+		return x.Columns
+	}
+	return 0
+}
+
+func (x *FormSection) GetVisibility() string {
+	if x != nil {
+		return x.Visibility
+	}
+	return ""
+}
+
+func (x *FormSection) GetItems() []*FormLayoutItem {
+	if x != nil {
+		return x.Items
+	}
+	return nil
+}
+
+type FormLayoutItem struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Types that are valid to be assigned to Kind:
+	//
+	//	*FormLayoutItem_Field
+	//	*FormLayoutItem_Text
+	//	*FormLayoutItem_Image
+	//	*FormLayoutItem_Art
+	Kind          isFormLayoutItem_Kind `protobuf_oneof:"kind"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FormLayoutItem) Reset() {
+	*x = FormLayoutItem{}
+	mi := &file_athena_v1_record_types_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FormLayoutItem) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FormLayoutItem) ProtoMessage() {}
+
+func (x *FormLayoutItem) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_record_types_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FormLayoutItem.ProtoReflect.Descriptor instead.
+func (*FormLayoutItem) Descriptor() ([]byte, []int) {
+	return file_athena_v1_record_types_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *FormLayoutItem) GetKind() isFormLayoutItem_Kind {
+	if x != nil {
+		return x.Kind
+	}
+	return nil
+}
+
+func (x *FormLayoutItem) GetField() *FormFieldItem {
+	if x != nil {
+		if x, ok := x.Kind.(*FormLayoutItem_Field); ok {
+			return x.Field
+		}
+	}
+	return nil
+}
+
+func (x *FormLayoutItem) GetText() *FormTextBlock {
+	if x != nil {
+		if x, ok := x.Kind.(*FormLayoutItem_Text); ok {
+			return x.Text
+		}
+	}
+	return nil
+}
+
+func (x *FormLayoutItem) GetImage() *FormImageBlock {
+	if x != nil {
+		if x, ok := x.Kind.(*FormLayoutItem_Image); ok {
+			return x.Image
+		}
+	}
+	return nil
+}
+
+func (x *FormLayoutItem) GetArt() *FormArtBlock {
+	if x != nil {
+		if x, ok := x.Kind.(*FormLayoutItem_Art); ok {
+			return x.Art
+		}
+	}
+	return nil
+}
+
+type isFormLayoutItem_Kind interface {
+	isFormLayoutItem_Kind()
+}
+
+type FormLayoutItem_Field struct {
+	Field *FormFieldItem `protobuf:"bytes,1,opt,name=field,proto3,oneof"`
+}
+
+type FormLayoutItem_Text struct {
+	Text *FormTextBlock `protobuf:"bytes,2,opt,name=text,proto3,oneof"`
+}
+
+type FormLayoutItem_Image struct {
+	Image *FormImageBlock `protobuf:"bytes,3,opt,name=image,proto3,oneof"`
+}
+
+type FormLayoutItem_Art struct {
+	Art *FormArtBlock `protobuf:"bytes,4,opt,name=art,proto3,oneof"`
+}
+
+func (*FormLayoutItem_Field) isFormLayoutItem_Kind() {}
+
+func (*FormLayoutItem_Text) isFormLayoutItem_Kind() {}
+
+func (*FormLayoutItem_Image) isFormLayoutItem_Kind() {}
+
+func (*FormLayoutItem_Art) isFormLayoutItem_Kind() {}
+
+type FormFieldItem struct {
+	state    protoimpl.MessageState `protogen:"open.v1"`
+	FieldKey string                 `protobuf:"bytes,1,opt,name=field_key,json=fieldKey,proto3" json:"field_key,omitempty"`
+	// full or half; empty means full.
+	Width         string `protobuf:"bytes,2,opt,name=width,proto3" json:"width,omitempty"`
+	HelpText      string `protobuf:"bytes,3,opt,name=help_text,json=helpText,proto3" json:"help_text,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FormFieldItem) Reset() {
+	*x = FormFieldItem{}
+	mi := &file_athena_v1_record_types_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FormFieldItem) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FormFieldItem) ProtoMessage() {}
+
+func (x *FormFieldItem) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_record_types_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FormFieldItem.ProtoReflect.Descriptor instead.
+func (*FormFieldItem) Descriptor() ([]byte, []int) {
+	return file_athena_v1_record_types_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *FormFieldItem) GetFieldKey() string {
+	if x != nil {
+		return x.FieldKey
+	}
+	return ""
+}
+
+func (x *FormFieldItem) GetWidth() string {
+	if x != nil {
+		return x.Width
+	}
+	return ""
+}
+
+func (x *FormFieldItem) GetHelpText() string {
+	if x != nil {
+		return x.HelpText
+	}
+	return ""
+}
+
+type FormTextBlock struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Text          string                 `protobuf:"bytes,1,opt,name=text,proto3" json:"text,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FormTextBlock) Reset() {
+	*x = FormTextBlock{}
+	mi := &file_athena_v1_record_types_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FormTextBlock) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FormTextBlock) ProtoMessage() {}
+
+func (x *FormTextBlock) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_record_types_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FormTextBlock.ProtoReflect.Descriptor instead.
+func (*FormTextBlock) Descriptor() ([]byte, []int) {
+	return file_athena_v1_record_types_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *FormTextBlock) GetText() string {
+	if x != nil {
+		return x.Text
+	}
+	return ""
+}
+
+// FormImageBlock shows a Workspace file from images/. The path must name a
+// recorded image file when the layout saves.
+type FormImageBlock struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Path          string                 `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FormImageBlock) Reset() {
+	*x = FormImageBlock{}
+	mi := &file_athena_v1_record_types_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FormImageBlock) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FormImageBlock) ProtoMessage() {}
+
+func (x *FormImageBlock) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_record_types_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FormImageBlock.ProtoReflect.Descriptor instead.
+func (*FormImageBlock) Descriptor() ([]byte, []int) {
+	return file_athena_v1_record_types_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *FormImageBlock) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+// FormArtBlock shows one figure from the desk's art registry. The key is
+// validated by the desk, which owns the registry.
+type FormArtBlock struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Key           string                 `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FormArtBlock) Reset() {
+	*x = FormArtBlock{}
+	mi := &file_athena_v1_record_types_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FormArtBlock) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FormArtBlock) ProtoMessage() {}
+
+func (x *FormArtBlock) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_record_types_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FormArtBlock.ProtoReflect.Descriptor instead.
+func (*FormArtBlock) Descriptor() ([]byte, []int) {
+	return file_athena_v1_record_types_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *FormArtBlock) GetKey() string {
+	if x != nil {
+		return x.Key
+	}
+	return ""
+}
+
 // RecordTypeAccess is the caller's Grants on one Record Type, merged.
 type RecordTypeAccess struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -605,7 +1053,7 @@ type RecordTypeAccess struct {
 
 func (x *RecordTypeAccess) Reset() {
 	*x = RecordTypeAccess{}
-	mi := &file_athena_v1_record_types_proto_msgTypes[3]
+	mi := &file_athena_v1_record_types_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -617,7 +1065,7 @@ func (x *RecordTypeAccess) String() string {
 func (*RecordTypeAccess) ProtoMessage() {}
 
 func (x *RecordTypeAccess) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_record_types_proto_msgTypes[3]
+	mi := &file_athena_v1_record_types_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -630,7 +1078,7 @@ func (x *RecordTypeAccess) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RecordTypeAccess.ProtoReflect.Descriptor instead.
 func (*RecordTypeAccess) Descriptor() ([]byte, []int) {
-	return file_athena_v1_record_types_proto_rawDescGZIP(), []int{3}
+	return file_athena_v1_record_types_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *RecordTypeAccess) GetActions() []string {
@@ -655,7 +1103,7 @@ type ListRecordTypesRequest struct {
 
 func (x *ListRecordTypesRequest) Reset() {
 	*x = ListRecordTypesRequest{}
-	mi := &file_athena_v1_record_types_proto_msgTypes[4]
+	mi := &file_athena_v1_record_types_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -667,7 +1115,7 @@ func (x *ListRecordTypesRequest) String() string {
 func (*ListRecordTypesRequest) ProtoMessage() {}
 
 func (x *ListRecordTypesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_record_types_proto_msgTypes[4]
+	mi := &file_athena_v1_record_types_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -680,7 +1128,7 @@ func (x *ListRecordTypesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListRecordTypesRequest.ProtoReflect.Descriptor instead.
 func (*ListRecordTypesRequest) Descriptor() ([]byte, []int) {
-	return file_athena_v1_record_types_proto_rawDescGZIP(), []int{4}
+	return file_athena_v1_record_types_proto_rawDescGZIP(), []int{11}
 }
 
 type ListRecordTypesResponse struct {
@@ -692,7 +1140,7 @@ type ListRecordTypesResponse struct {
 
 func (x *ListRecordTypesResponse) Reset() {
 	*x = ListRecordTypesResponse{}
-	mi := &file_athena_v1_record_types_proto_msgTypes[5]
+	mi := &file_athena_v1_record_types_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -704,7 +1152,7 @@ func (x *ListRecordTypesResponse) String() string {
 func (*ListRecordTypesResponse) ProtoMessage() {}
 
 func (x *ListRecordTypesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_record_types_proto_msgTypes[5]
+	mi := &file_athena_v1_record_types_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -717,7 +1165,7 @@ func (x *ListRecordTypesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListRecordTypesResponse.ProtoReflect.Descriptor instead.
 func (*ListRecordTypesResponse) Descriptor() ([]byte, []int) {
-	return file_athena_v1_record_types_proto_rawDescGZIP(), []int{5}
+	return file_athena_v1_record_types_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *ListRecordTypesResponse) GetRecordTypes() []*RecordType {
@@ -751,7 +1199,7 @@ type SaveRecordTypeRequest struct {
 
 func (x *SaveRecordTypeRequest) Reset() {
 	*x = SaveRecordTypeRequest{}
-	mi := &file_athena_v1_record_types_proto_msgTypes[6]
+	mi := &file_athena_v1_record_types_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -763,7 +1211,7 @@ func (x *SaveRecordTypeRequest) String() string {
 func (*SaveRecordTypeRequest) ProtoMessage() {}
 
 func (x *SaveRecordTypeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_record_types_proto_msgTypes[6]
+	mi := &file_athena_v1_record_types_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -776,7 +1224,7 @@ func (x *SaveRecordTypeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SaveRecordTypeRequest.ProtoReflect.Descriptor instead.
 func (*SaveRecordTypeRequest) Descriptor() ([]byte, []int) {
-	return file_athena_v1_record_types_proto_rawDescGZIP(), []int{6}
+	return file_athena_v1_record_types_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *SaveRecordTypeRequest) GetRecordType() *RecordType {
@@ -824,7 +1272,7 @@ type PlanRecordTypeSaveRequest struct {
 
 func (x *PlanRecordTypeSaveRequest) Reset() {
 	*x = PlanRecordTypeSaveRequest{}
-	mi := &file_athena_v1_record_types_proto_msgTypes[7]
+	mi := &file_athena_v1_record_types_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -836,7 +1284,7 @@ func (x *PlanRecordTypeSaveRequest) String() string {
 func (*PlanRecordTypeSaveRequest) ProtoMessage() {}
 
 func (x *PlanRecordTypeSaveRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_record_types_proto_msgTypes[7]
+	mi := &file_athena_v1_record_types_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -849,7 +1297,7 @@ func (x *PlanRecordTypeSaveRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PlanRecordTypeSaveRequest.ProtoReflect.Descriptor instead.
 func (*PlanRecordTypeSaveRequest) Descriptor() ([]byte, []int) {
-	return file_athena_v1_record_types_proto_rawDescGZIP(), []int{7}
+	return file_athena_v1_record_types_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *PlanRecordTypeSaveRequest) GetRecordType() *RecordType {
@@ -886,7 +1334,7 @@ type MigrationStep struct {
 
 func (x *MigrationStep) Reset() {
 	*x = MigrationStep{}
-	mi := &file_athena_v1_record_types_proto_msgTypes[8]
+	mi := &file_athena_v1_record_types_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -898,7 +1346,7 @@ func (x *MigrationStep) String() string {
 func (*MigrationStep) ProtoMessage() {}
 
 func (x *MigrationStep) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_record_types_proto_msgTypes[8]
+	mi := &file_athena_v1_record_types_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -911,7 +1359,7 @@ func (x *MigrationStep) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MigrationStep.ProtoReflect.Descriptor instead.
 func (*MigrationStep) Descriptor() ([]byte, []int) {
-	return file_athena_v1_record_types_proto_rawDescGZIP(), []int{8}
+	return file_athena_v1_record_types_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *MigrationStep) GetKind() string {
@@ -967,7 +1415,7 @@ type PlanRecordTypeSaveResponse struct {
 
 func (x *PlanRecordTypeSaveResponse) Reset() {
 	*x = PlanRecordTypeSaveResponse{}
-	mi := &file_athena_v1_record_types_proto_msgTypes[9]
+	mi := &file_athena_v1_record_types_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -979,7 +1427,7 @@ func (x *PlanRecordTypeSaveResponse) String() string {
 func (*PlanRecordTypeSaveResponse) ProtoMessage() {}
 
 func (x *PlanRecordTypeSaveResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_record_types_proto_msgTypes[9]
+	mi := &file_athena_v1_record_types_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -992,7 +1440,7 @@ func (x *PlanRecordTypeSaveResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PlanRecordTypeSaveResponse.ProtoReflect.Descriptor instead.
 func (*PlanRecordTypeSaveResponse) Descriptor() ([]byte, []int) {
-	return file_athena_v1_record_types_proto_rawDescGZIP(), []int{9}
+	return file_athena_v1_record_types_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *PlanRecordTypeSaveResponse) GetSteps() []*MigrationStep {
@@ -1020,7 +1468,7 @@ type SaveRecordTypeResponse struct {
 
 func (x *SaveRecordTypeResponse) Reset() {
 	*x = SaveRecordTypeResponse{}
-	mi := &file_athena_v1_record_types_proto_msgTypes[10]
+	mi := &file_athena_v1_record_types_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1032,7 +1480,7 @@ func (x *SaveRecordTypeResponse) String() string {
 func (*SaveRecordTypeResponse) ProtoMessage() {}
 
 func (x *SaveRecordTypeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_record_types_proto_msgTypes[10]
+	mi := &file_athena_v1_record_types_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1045,7 +1493,7 @@ func (x *SaveRecordTypeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SaveRecordTypeResponse.ProtoReflect.Descriptor instead.
 func (*SaveRecordTypeResponse) Descriptor() ([]byte, []int) {
-	return file_athena_v1_record_types_proto_rawDescGZIP(), []int{10}
+	return file_athena_v1_record_types_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *SaveRecordTypeResponse) GetRecordType() *RecordType {
@@ -1075,7 +1523,7 @@ type DeleteRecordTypeRequest struct {
 
 func (x *DeleteRecordTypeRequest) Reset() {
 	*x = DeleteRecordTypeRequest{}
-	mi := &file_athena_v1_record_types_proto_msgTypes[11]
+	mi := &file_athena_v1_record_types_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1087,7 +1535,7 @@ func (x *DeleteRecordTypeRequest) String() string {
 func (*DeleteRecordTypeRequest) ProtoMessage() {}
 
 func (x *DeleteRecordTypeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_record_types_proto_msgTypes[11]
+	mi := &file_athena_v1_record_types_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1100,7 +1548,7 @@ func (x *DeleteRecordTypeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteRecordTypeRequest.ProtoReflect.Descriptor instead.
 func (*DeleteRecordTypeRequest) Descriptor() ([]byte, []int) {
-	return file_athena_v1_record_types_proto_rawDescGZIP(), []int{11}
+	return file_athena_v1_record_types_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *DeleteRecordTypeRequest) GetKey() string {
@@ -1132,7 +1580,7 @@ type DeleteRecordTypeResponse struct {
 
 func (x *DeleteRecordTypeResponse) Reset() {
 	*x = DeleteRecordTypeResponse{}
-	mi := &file_athena_v1_record_types_proto_msgTypes[12]
+	mi := &file_athena_v1_record_types_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1144,7 +1592,7 @@ func (x *DeleteRecordTypeResponse) String() string {
 func (*DeleteRecordTypeResponse) ProtoMessage() {}
 
 func (x *DeleteRecordTypeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_record_types_proto_msgTypes[12]
+	mi := &file_athena_v1_record_types_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1157,7 +1605,7 @@ func (x *DeleteRecordTypeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteRecordTypeResponse.ProtoReflect.Descriptor instead.
 func (*DeleteRecordTypeResponse) Descriptor() ([]byte, []int) {
-	return file_athena_v1_record_types_proto_rawDescGZIP(), []int{12}
+	return file_athena_v1_record_types_proto_rawDescGZIP(), []int{19}
 }
 
 var File_athena_v1_record_types_proto protoreflect.FileDescriptor
@@ -1201,7 +1649,7 @@ const file_athena_v1_record_types_proto_rawDesc = "" +
 	"\n" +
 	"depends_on\x18\x19 \x01(\tR\tdependsOn\x12)\n" +
 	"\x10permission_level\x18\x1a \x01(\x05R\x0fpermissionLevelB\b\n" +
-	"\x06_scale\"\xa6\x05\n" +
+	"\x06_scale\"\xd5\x05\n" +
 	"\n" +
 	"RecordType\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
@@ -1227,7 +1675,35 @@ const file_athena_v1_record_types_proto_rawDesc = "" +
 	"updated_at\x18\x12 \x01(\tR\tupdatedAt\x12\x1d\n" +
 	"\n" +
 	"updated_by\x18\x13 \x01(\tR\tupdatedBy\x12\x19\n" +
-	"\bpack_key\x18\x14 \x01(\tR\apackKey\"W\n" +
+	"\bpack_key\x18\x14 \x01(\tR\apackKey\x12-\n" +
+	"\x06layout\x18\x15 \x01(\v2\x15.athena.v1.FormLayoutR\x06layout\"@\n" +
+	"\n" +
+	"FormLayout\x122\n" +
+	"\bsections\x18\x01 \x03(\v2\x16.athena.v1.FormSectionR\bsections\"\xb0\x01\n" +
+	"\vFormSection\x12\x14\n" +
+	"\x05title\x18\x01 \x01(\tR\x05title\x12 \n" +
+	"\vdescription\x18\x02 \x01(\tR\vdescription\x12\x18\n" +
+	"\acolumns\x18\x03 \x01(\x05R\acolumns\x12\x1e\n" +
+	"\n" +
+	"visibility\x18\x04 \x01(\tR\n" +
+	"visibility\x12/\n" +
+	"\x05items\x18\x05 \x03(\v2\x19.athena.v1.FormLayoutItemR\x05items\"\xda\x01\n" +
+	"\x0eFormLayoutItem\x120\n" +
+	"\x05field\x18\x01 \x01(\v2\x18.athena.v1.FormFieldItemH\x00R\x05field\x12.\n" +
+	"\x04text\x18\x02 \x01(\v2\x18.athena.v1.FormTextBlockH\x00R\x04text\x121\n" +
+	"\x05image\x18\x03 \x01(\v2\x19.athena.v1.FormImageBlockH\x00R\x05image\x12+\n" +
+	"\x03art\x18\x04 \x01(\v2\x17.athena.v1.FormArtBlockH\x00R\x03artB\x06\n" +
+	"\x04kind\"_\n" +
+	"\rFormFieldItem\x12\x1b\n" +
+	"\tfield_key\x18\x01 \x01(\tR\bfieldKey\x12\x14\n" +
+	"\x05width\x18\x02 \x01(\tR\x05width\x12\x1b\n" +
+	"\thelp_text\x18\x03 \x01(\tR\bhelpText\"#\n" +
+	"\rFormTextBlock\x12\x12\n" +
+	"\x04text\x18\x01 \x01(\tR\x04text\"$\n" +
+	"\x0eFormImageBlock\x12\x12\n" +
+	"\x04path\x18\x01 \x01(\tR\x04path\" \n" +
+	"\fFormArtBlock\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\"W\n" +
 	"\x10RecordTypeAccess\x12\x18\n" +
 	"\aactions\x18\x01 \x03(\tR\aactions\x12)\n" +
 	"\x10permission_level\x18\x02 \x01(\x05R\x0fpermissionLevel\"\x18\n" +
@@ -1285,50 +1761,64 @@ func file_athena_v1_record_types_proto_rawDescGZIP() []byte {
 	return file_athena_v1_record_types_proto_rawDescData
 }
 
-var file_athena_v1_record_types_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
+var file_athena_v1_record_types_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
 var file_athena_v1_record_types_proto_goTypes = []any{
 	(*EnumValue)(nil),                  // 0: athena.v1.EnumValue
 	(*RecordTypeField)(nil),            // 1: athena.v1.RecordTypeField
 	(*RecordType)(nil),                 // 2: athena.v1.RecordType
-	(*RecordTypeAccess)(nil),           // 3: athena.v1.RecordTypeAccess
-	(*ListRecordTypesRequest)(nil),     // 4: athena.v1.ListRecordTypesRequest
-	(*ListRecordTypesResponse)(nil),    // 5: athena.v1.ListRecordTypesResponse
-	(*SaveRecordTypeRequest)(nil),      // 6: athena.v1.SaveRecordTypeRequest
-	(*PlanRecordTypeSaveRequest)(nil),  // 7: athena.v1.PlanRecordTypeSaveRequest
-	(*MigrationStep)(nil),              // 8: athena.v1.MigrationStep
-	(*PlanRecordTypeSaveResponse)(nil), // 9: athena.v1.PlanRecordTypeSaveResponse
-	(*SaveRecordTypeResponse)(nil),     // 10: athena.v1.SaveRecordTypeResponse
-	(*DeleteRecordTypeRequest)(nil),    // 11: athena.v1.DeleteRecordTypeRequest
-	(*DeleteRecordTypeResponse)(nil),   // 12: athena.v1.DeleteRecordTypeResponse
-	nil,                                // 13: athena.v1.SaveRecordTypeRequest.BackfillsEntry
-	(*FieldValue)(nil),                 // 14: athena.v1.FieldValue
+	(*FormLayout)(nil),                 // 3: athena.v1.FormLayout
+	(*FormSection)(nil),                // 4: athena.v1.FormSection
+	(*FormLayoutItem)(nil),             // 5: athena.v1.FormLayoutItem
+	(*FormFieldItem)(nil),              // 6: athena.v1.FormFieldItem
+	(*FormTextBlock)(nil),              // 7: athena.v1.FormTextBlock
+	(*FormImageBlock)(nil),             // 8: athena.v1.FormImageBlock
+	(*FormArtBlock)(nil),               // 9: athena.v1.FormArtBlock
+	(*RecordTypeAccess)(nil),           // 10: athena.v1.RecordTypeAccess
+	(*ListRecordTypesRequest)(nil),     // 11: athena.v1.ListRecordTypesRequest
+	(*ListRecordTypesResponse)(nil),    // 12: athena.v1.ListRecordTypesResponse
+	(*SaveRecordTypeRequest)(nil),      // 13: athena.v1.SaveRecordTypeRequest
+	(*PlanRecordTypeSaveRequest)(nil),  // 14: athena.v1.PlanRecordTypeSaveRequest
+	(*MigrationStep)(nil),              // 15: athena.v1.MigrationStep
+	(*PlanRecordTypeSaveResponse)(nil), // 16: athena.v1.PlanRecordTypeSaveResponse
+	(*SaveRecordTypeResponse)(nil),     // 17: athena.v1.SaveRecordTypeResponse
+	(*DeleteRecordTypeRequest)(nil),    // 18: athena.v1.DeleteRecordTypeRequest
+	(*DeleteRecordTypeResponse)(nil),   // 19: athena.v1.DeleteRecordTypeResponse
+	nil,                                // 20: athena.v1.SaveRecordTypeRequest.BackfillsEntry
+	(*FieldValue)(nil),                 // 21: athena.v1.FieldValue
 }
 var file_athena_v1_record_types_proto_depIdxs = []int32{
 	0,  // 0: athena.v1.RecordTypeField.enum_values:type_name -> athena.v1.EnumValue
 	1,  // 1: athena.v1.RecordType.fields:type_name -> athena.v1.RecordTypeField
-	3,  // 2: athena.v1.RecordType.access:type_name -> athena.v1.RecordTypeAccess
-	2,  // 3: athena.v1.ListRecordTypesResponse.record_types:type_name -> athena.v1.RecordType
-	2,  // 4: athena.v1.SaveRecordTypeRequest.record_type:type_name -> athena.v1.RecordType
-	13, // 5: athena.v1.SaveRecordTypeRequest.backfills:type_name -> athena.v1.SaveRecordTypeRequest.BackfillsEntry
-	2,  // 6: athena.v1.SaveRecordTypeRequest.parent:type_name -> athena.v1.RecordType
-	2,  // 7: athena.v1.PlanRecordTypeSaveRequest.record_type:type_name -> athena.v1.RecordType
-	8,  // 8: athena.v1.PlanRecordTypeSaveResponse.steps:type_name -> athena.v1.MigrationStep
-	2,  // 9: athena.v1.SaveRecordTypeResponse.record_type:type_name -> athena.v1.RecordType
-	2,  // 10: athena.v1.SaveRecordTypeResponse.parent:type_name -> athena.v1.RecordType
-	14, // 11: athena.v1.SaveRecordTypeRequest.BackfillsEntry.value:type_name -> athena.v1.FieldValue
-	4,  // 12: athena.v1.RecordTypeService.ListRecordTypes:input_type -> athena.v1.ListRecordTypesRequest
-	7,  // 13: athena.v1.RecordTypeService.PlanRecordTypeSave:input_type -> athena.v1.PlanRecordTypeSaveRequest
-	6,  // 14: athena.v1.RecordTypeService.SaveRecordType:input_type -> athena.v1.SaveRecordTypeRequest
-	11, // 15: athena.v1.RecordTypeService.DeleteRecordType:input_type -> athena.v1.DeleteRecordTypeRequest
-	5,  // 16: athena.v1.RecordTypeService.ListRecordTypes:output_type -> athena.v1.ListRecordTypesResponse
-	9,  // 17: athena.v1.RecordTypeService.PlanRecordTypeSave:output_type -> athena.v1.PlanRecordTypeSaveResponse
-	10, // 18: athena.v1.RecordTypeService.SaveRecordType:output_type -> athena.v1.SaveRecordTypeResponse
-	12, // 19: athena.v1.RecordTypeService.DeleteRecordType:output_type -> athena.v1.DeleteRecordTypeResponse
-	16, // [16:20] is the sub-list for method output_type
-	12, // [12:16] is the sub-list for method input_type
-	12, // [12:12] is the sub-list for extension type_name
-	12, // [12:12] is the sub-list for extension extendee
-	0,  // [0:12] is the sub-list for field type_name
+	10, // 2: athena.v1.RecordType.access:type_name -> athena.v1.RecordTypeAccess
+	3,  // 3: athena.v1.RecordType.layout:type_name -> athena.v1.FormLayout
+	4,  // 4: athena.v1.FormLayout.sections:type_name -> athena.v1.FormSection
+	5,  // 5: athena.v1.FormSection.items:type_name -> athena.v1.FormLayoutItem
+	6,  // 6: athena.v1.FormLayoutItem.field:type_name -> athena.v1.FormFieldItem
+	7,  // 7: athena.v1.FormLayoutItem.text:type_name -> athena.v1.FormTextBlock
+	8,  // 8: athena.v1.FormLayoutItem.image:type_name -> athena.v1.FormImageBlock
+	9,  // 9: athena.v1.FormLayoutItem.art:type_name -> athena.v1.FormArtBlock
+	2,  // 10: athena.v1.ListRecordTypesResponse.record_types:type_name -> athena.v1.RecordType
+	2,  // 11: athena.v1.SaveRecordTypeRequest.record_type:type_name -> athena.v1.RecordType
+	20, // 12: athena.v1.SaveRecordTypeRequest.backfills:type_name -> athena.v1.SaveRecordTypeRequest.BackfillsEntry
+	2,  // 13: athena.v1.SaveRecordTypeRequest.parent:type_name -> athena.v1.RecordType
+	2,  // 14: athena.v1.PlanRecordTypeSaveRequest.record_type:type_name -> athena.v1.RecordType
+	15, // 15: athena.v1.PlanRecordTypeSaveResponse.steps:type_name -> athena.v1.MigrationStep
+	2,  // 16: athena.v1.SaveRecordTypeResponse.record_type:type_name -> athena.v1.RecordType
+	2,  // 17: athena.v1.SaveRecordTypeResponse.parent:type_name -> athena.v1.RecordType
+	21, // 18: athena.v1.SaveRecordTypeRequest.BackfillsEntry.value:type_name -> athena.v1.FieldValue
+	11, // 19: athena.v1.RecordTypeService.ListRecordTypes:input_type -> athena.v1.ListRecordTypesRequest
+	14, // 20: athena.v1.RecordTypeService.PlanRecordTypeSave:input_type -> athena.v1.PlanRecordTypeSaveRequest
+	13, // 21: athena.v1.RecordTypeService.SaveRecordType:input_type -> athena.v1.SaveRecordTypeRequest
+	18, // 22: athena.v1.RecordTypeService.DeleteRecordType:input_type -> athena.v1.DeleteRecordTypeRequest
+	12, // 23: athena.v1.RecordTypeService.ListRecordTypes:output_type -> athena.v1.ListRecordTypesResponse
+	16, // 24: athena.v1.RecordTypeService.PlanRecordTypeSave:output_type -> athena.v1.PlanRecordTypeSaveResponse
+	17, // 25: athena.v1.RecordTypeService.SaveRecordType:output_type -> athena.v1.SaveRecordTypeResponse
+	19, // 26: athena.v1.RecordTypeService.DeleteRecordType:output_type -> athena.v1.DeleteRecordTypeResponse
+	23, // [23:27] is the sub-list for method output_type
+	19, // [19:23] is the sub-list for method input_type
+	19, // [19:19] is the sub-list for extension type_name
+	19, // [19:19] is the sub-list for extension extendee
+	0,  // [0:19] is the sub-list for field type_name
 }
 
 func init() { file_athena_v1_record_types_proto_init() }
@@ -1338,13 +1828,19 @@ func file_athena_v1_record_types_proto_init() {
 	}
 	file_athena_v1_records_proto_init()
 	file_athena_v1_record_types_proto_msgTypes[1].OneofWrappers = []any{}
+	file_athena_v1_record_types_proto_msgTypes[5].OneofWrappers = []any{
+		(*FormLayoutItem_Field)(nil),
+		(*FormLayoutItem_Text)(nil),
+		(*FormLayoutItem_Image)(nil),
+		(*FormLayoutItem_Art)(nil),
+	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_athena_v1_record_types_proto_rawDesc), len(file_athena_v1_record_types_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   14,
+			NumMessages:   21,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

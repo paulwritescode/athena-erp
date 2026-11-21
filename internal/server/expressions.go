@@ -311,6 +311,8 @@ func validateExpressions(ctx context.Context, conn sqlConn, d recordTypeDefiniti
 				return invalid(fmt.Sprintf("%s: a calculated field is always recalculated, so it cannot be set once or skip copying", field.Label))
 			case field.Type == "Link":
 				return invalid(fmt.Sprintf("%s: a Link field cannot be calculated", field.Label))
+			case field.Type == "Image":
+				return invalid(fmt.Sprintf("%s: an Image field cannot be calculated", field.Label))
 			}
 		}
 	}

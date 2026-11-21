@@ -30,7 +30,7 @@ message RecordTypeField {
   string key = 1;
   string label = 2;
   // One of Text, Long text, Email, Phone, Number, Currency, Date, Select,
-  // Link, Checkbox, Money, Quantity, Enum.
+  // Link, Checkbox, Money, Quantity, Enum, Image.
   string type = 3;
   bool required = 4;
   // Key of the linked Record Type, for Link fields only.
@@ -152,6 +152,60 @@ message RecordType {
   // in C3; Workspace-authored Record Types also report empty. Filled by
   // ListRecordTypes; ignored on save.
   string pack_key = 20;
+  // The form layout: sections of fields, text, images and art. Stored with
+  // the definition; a layout-only save bumps the revision without touching
+  // the table.
+  FormLayout layout = 21;
+}
+
+// FormLayout arranges a Record Type's fields into titled sections. Fields
+// the layout does not place are appended to the last section on save.
+message FormLayout {
+  repeated FormSection sections = 1;
+}
+
+message FormSection {
+  string title = 1;
+  string description = 2;
+  // 1 or 2.
+  int32 columns = 3;
+  // CEL that returns true or false over the Record's fields; empty means the
+  // section always shows. Display-only: the server type-checks it and never
+  // enforces it.
+  string visibility = 4;
+  repeated FormLayoutItem items = 5;
+}
+
+message FormLayoutItem {
+  oneof kind {
+    FormFieldItem field = 1;
+    FormTextBlock text = 2;
+    FormImageBlock image = 3;
+    FormArtBlock art = 4;
+  }
+}
+
+message FormFieldItem {
+  string field_key = 1;
+  // full or half; empty means full.
+  string width = 2;
+  string help_text = 3;
+}
+
+message FormTextBlock {
+  string text = 1;
+}
+
+// FormImageBlock shows a Workspace file from images/. The path must name a
+// recorded image file when the layout saves.
+message FormImageBlock {
+  string path = 1;
+}
+
+// FormArtBlock shows one figure from the desk's art registry. The key is
+// validated by the desk, which owns the registry.
+message FormArtBlock {
+  string key = 1;
 }
 // RecordTypeAccess is the caller's Grants on one Record Type, merged.
 message RecordTypeAccess {

@@ -15,12 +15,12 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-const filesUsage = `usage: athena files list|get|put|mv|rm|history [path] [--workspace slug] [--json]
-  Manage the files of a Workspace (record_types/, rules/, packs/, generated/) with the same code as
-  the desk. A path is relative to the Workspace directory, lowercase, at most 1 MiB, UTF-8 text.
-  Every change is kept as a file version and written to the Audit Log (path, hash and actor, never
-  content). These commands need a Workspace (--workspace, or run inside one); they start no server,
-  so --addr does not apply.
+const filesUsage = `usage: athena files list|get|put|put-image|mv|rm|history [path] [--workspace slug] [--json]
+  Manage the files of a Workspace (record_types/, rules/, packs/, generated/, images/) with the
+  same code as the desk. A path is relative to the Workspace directory, lowercase, at most
+  1 MiB, UTF-8 text. Every change is kept as a file version and written to the Audit Log
+  (path, hash and actor, never content). These commands need a Workspace (--workspace, or run
+  inside one); they start no server, so --addr does not apply.
   list                          list files with their size, revision, hash and what each backs (a
                                 Record Type, Rule or Report), and Record Types with no file
   get <path>                    print the file; [--revision N] prints that recorded revision,
@@ -29,6 +29,9 @@ const filesUsage = `usage: athena files list|get|put|mv|rm|history [path] [--wor
                                 [--expected-hash h] fails when the file changed since you read it,
                                 [--new] fails when the file already exists. Without either flag the
                                 current file is replaced
+  put-image <path>              upload a PNG, JPEG or WebP image under images/ (at most 5 MiB) from
+                                [--file local] or standard input; metadata is stripped. Same
+                                [--expected-hash h] and [--new] guards as put
   mv <from> <to>                rename a file; [--expected-hash h] guards against a changed file
   rm <path> --yes               delete a file from disk; its versions stay;
                                 [--expected-hash h] guards against a changed file
@@ -40,10 +43,10 @@ func filesCommand(args []string, in io.Reader, out io.Writer) error {
 		return nil
 	}
 	sub, args := args[0], args[1:]
-	want := map[string]int{"list": 0, "get": 1, "put": 1, "mv": 2, "rm": 1, "history": 1}
+	want := map[string]int{"list": 0, "get": 1, "put": 1, "put-image": 1, "mv": 2, "rm": 1, "history": 1}
 	n, ok := want[sub]
 	if !ok {
-		return fmt.Errorf("unknown files command %q; use list, get, put, mv, rm or history", sub)
+		return fmt.Errorf("unknown files command %q; use list, get, put, put-image, mv, rm or history", sub)
 	}
 	positional, args, err := leadingArgs(args, n)
 	if err != nil {
@@ -71,11 +74,15 @@ func filesCommand(args []string, in io.Reader, out io.Writer) error {
 		return errors.New("pass --new or --expected-hash, not both")
 	}
 	var content []byte
-	if sub == "put" {
+	if sub == "put" || sub == "put-image" {
 		if *local != "" {
 			content, err = os.ReadFile(*local)
 		} else {
-			content, err = io.ReadAll(io.LimitReader(in, 2<<20))
+			limit := int64(2 << 20)
+			if sub == "put-image" {
+				limit = 6 << 20
+			}
+			content, err = io.ReadAll(io.LimitReader(in, limit))
 		}
 		if err != nil {
 			return err
@@ -164,6 +171,24 @@ func filesCommand(args []string, in io.Reader, out io.Writer) error {
 			return rpcError(err)
 		}
 		return printFileInfo(out, *asJSON, res, "Saved", res.GetInfo())
+	case "put-image":
+		hash := *expected
+		if !*isNew {
+			if hash, err = currentHash(positional[0]); err != nil {
+				return err
+			}
+		}
+		res, err := kernel.Files.PutImage(ctx, &athenav1.PutImageRequest{Path: positional[0], Content: content, ExpectedHash: hash})
+		if err != nil {
+			return rpcError(err)
+		}
+		if *asJSON {
+			return writeProto(out, res)
+		}
+		if _, err := fmt.Fprintf(out, "Saved %s (%dx%d, revision %d, %d bytes, hash %s)\n", res.GetInfo().GetPath(), res.GetWidth(), res.GetHeight(), res.GetInfo().GetRevision(), res.GetInfo().GetSize(), res.GetInfo().GetHash()[:12]); err != nil {
+			return err
+		}
+		return nil
 	case "mv":
 		hash, err := currentHash(positional[0])
 		if err != nil {

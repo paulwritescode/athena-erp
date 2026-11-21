@@ -30,6 +30,8 @@ const (
 	FileServiceGetFileProcedure = "/athena.v1.FileService/GetFile"
 	// FileServicePutFileProcedure is the procedure name of the FileService's PutFile RPC.
 	FileServicePutFileProcedure = "/athena.v1.FileService/PutFile"
+	// FileServicePutImageProcedure is the procedure name of the FileService's PutImage RPC.
+	FileServicePutImageProcedure = "/athena.v1.FileService/PutImage"
 	// FileServiceMoveFileProcedure is the procedure name of the FileService's MoveFile RPC.
 	FileServiceMoveFileProcedure = "/athena.v1.FileService/MoveFile"
 	// FileServiceDeleteFileProcedure is the procedure name of the FileService's DeleteFile RPC.
@@ -59,6 +61,13 @@ var (
 			StreamType: connect.StreamTypeUnary,
 			Schema:     v1.File_athena_v1_files_proto.Services().ByName("FileService").Methods().ByName("PutFile"),
 			Procedure:  FileServicePutFileProcedure,
+		}
+	})
+	fileServicePutImageSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_athena_v1_files_proto.Services().ByName("FileService").Methods().ByName("PutImage"),
+			Procedure:  FileServicePutImageProcedure,
 		}
 	})
 	fileServiceMoveFileSpec = sync.OnceValue(func() connect.Spec {
@@ -95,6 +104,10 @@ type FileServiceClient interface {
 	// PutFile creates or replaces a file (upload). The expected hash must match
 	// the file on disk; an empty hash means the file must not exist yet.
 	PutFile(context.Context, *v1.PutFileRequest) (*v1.PutFileResponse, error)
+	// PutImage uploads a PNG, JPEG or WebP image under images/. The content is
+	// sniffed, EXIF metadata is stripped, and the response carries the stored
+	// file with its pixel dimensions.
+	PutImage(context.Context, *v1.PutImageRequest) (*v1.PutImageResponse, error)
 	// MoveFile renames a file inside the allowed folders.
 	MoveFile(context.Context, *v1.MoveFileRequest) (*v1.MoveFileResponse, error)
 	// DeleteFile removes a file from disk. Its versions stay.
@@ -121,6 +134,10 @@ type FileServiceHandler interface {
 	// PutFile creates or replaces a file (upload). The expected hash must match
 	// the file on disk; an empty hash means the file must not exist yet.
 	PutFile(context.Context, *v1.PutFileRequest) (*v1.PutFileResponse, error)
+	// PutImage uploads a PNG, JPEG or WebP image under images/. The content is
+	// sniffed, EXIF metadata is stripped, and the response carries the stored
+	// file with its pixel dimensions.
+	PutImage(context.Context, *v1.PutImageRequest) (*v1.PutImageResponse, error)
 	// MoveFile renames a file inside the allowed folders.
 	MoveFile(context.Context, *v1.MoveFileRequest) (*v1.MoveFileResponse, error)
 	// DeleteFile removes a file from disk. Its versions stay.
@@ -137,6 +154,7 @@ func RegisterFileServiceHandler(server *connect.Server, svc FileServiceHandler) 
 		connect.Method{Spec: fileServiceListFilesSpec(), Handler: adapter.listFiles},
 		connect.Method{Spec: fileServiceGetFileSpec(), Handler: adapter.getFile},
 		connect.Method{Spec: fileServicePutFileSpec(), Handler: adapter.putFile},
+		connect.Method{Spec: fileServicePutImageSpec(), Handler: adapter.putImage},
 		connect.Method{Spec: fileServiceMoveFileSpec(), Handler: adapter.moveFile},
 		connect.Method{Spec: fileServiceDeleteFileSpec(), Handler: adapter.deleteFile},
 		connect.Method{Spec: fileServiceListFileVersionsSpec(), Handler: adapter.listFileVersions},
@@ -156,6 +174,10 @@ func (UnimplementedFileServiceHandler) GetFile(context.Context, *v1.GetFileReque
 
 func (UnimplementedFileServiceHandler) PutFile(context.Context, *v1.PutFileRequest) (*v1.PutFileResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, "athena.v1.FileService.PutFile is not implemented")
+}
+
+func (UnimplementedFileServiceHandler) PutImage(context.Context, *v1.PutImageRequest) (*v1.PutImageResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "athena.v1.FileService.PutImage is not implemented")
 }
 
 func (UnimplementedFileServiceHandler) MoveFile(context.Context, *v1.MoveFileRequest) (*v1.MoveFileResponse, error) {
@@ -193,6 +215,14 @@ func (c *fileServiceClient) GetFile(ctx context.Context, req *v1.GetFileRequest)
 func (c *fileServiceClient) PutFile(ctx context.Context, req *v1.PutFileRequest) (*v1.PutFileResponse, error) {
 	var res v1.PutFileResponse
 	if err := c.client.CallUnary(ctx, fileServicePutFileSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *fileServiceClient) PutImage(ctx context.Context, req *v1.PutImageRequest) (*v1.PutImageResponse, error) {
+	var res v1.PutImageResponse
+	if err := c.client.CallUnary(ctx, fileServicePutImageSpec(), req, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -254,6 +284,18 @@ func (h fileServiceHandler) putFile(ctx context.Context, _ connect.Spec, stream 
 		return err
 	}
 	res, err := h.svc.PutFile(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h fileServiceHandler) putImage(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.PutImageRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.PutImage(ctx, &req)
 	if err != nil {
 		return err
 	}

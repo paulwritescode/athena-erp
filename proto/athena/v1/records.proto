@@ -47,7 +47,17 @@ message FieldValue {
     bool bool_value = 2;
     // Explicit null. Set to true to clear a field.
     bool null_value = 3;
+    // The value of an Image field.
+    ImageValue image_value = 4;
   }
+}
+
+// ImageValue references one Workspace file from images/. The hash pins the
+// content the writer saw; reads follow the file's current content.
+message ImageValue {
+  string path = 1;
+  string hash = 2;
+  string alt_text = 3;
 }
 
 message Record {

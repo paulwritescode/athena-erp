@@ -20,6 +20,8 @@ import (
 const (
 	// MaxFileBytes is the largest file Athena reads or writes.
 	MaxFileBytes = 1 << 20
+	// MaxImageBytes is the largest image Athena uploads.
+	MaxImageBytes = 5 << 20
 	// MaxFiles is the most files a Workspace may hold under the managed folders.
 	MaxFiles = 1000
 
@@ -29,10 +31,25 @@ const (
 )
 
 // Folders are the only top-level folders of a Workspace that Athena manages.
-var Folders = []string{"generated", "packs", "record_types", "rules"}
+var Folders = []string{"generated", "images", "packs", "record_types", "rules"}
 
-// Extensions are the file types Athena stores. All are text.
-var Extensions = []string{".go", ".json", ".md", ".star", ".txt", ".yaml", ".yml"}
+// Extensions are the file types Athena stores.
+var Extensions = []string{".go", ".jpeg", ".jpg", ".json", ".md", ".png", ".star", ".txt", ".webp", ".yaml", ".yml"}
+
+// ImageExtensions are the image file types. Images live under images/ and
+// images/ holds only images.
+var ImageExtensions = []string{".jpeg", ".jpg", ".png", ".webp"}
+
+// IsImagePath reports whether p is a valid path to an image file: cleaned,
+// under images/, with an image extension.
+func IsImagePath(p string) bool {
+	rel, err := CleanPath(p)
+	if err != nil {
+		return false
+	}
+	folder, _, _ := strings.Cut(rel, "/")
+	return folder == "images" && slices.Contains(ImageExtensions, path.Ext(rel))
+}
 
 // segmentPattern is one path segment: lowercase letters, digits, underscore,
 // dash and dot, not starting with a dot. Uppercase is refused so that no two
@@ -52,6 +69,8 @@ var (
 	ErrTooLarge = errors.New("file too large")
 	// ErrNotText is content that is not UTF-8 text.
 	ErrNotText = errors.New("file is not text")
+	// ErrNotImage is content that is not a PNG, JPEG or WebP image.
+	ErrNotImage = errors.New("file is not an image")
 	// ErrLimit is more files than MaxFiles.
 	ErrLimit = errors.New("too many files")
 	// ErrInvalidFile is content that fails its file format. See ValidationError.
@@ -107,6 +126,12 @@ func CleanPath(p string) (string, error) {
 	}
 	if !slices.Contains(Extensions, path.Ext(p)) {
 		return "", invalidPath("%q: the file type is not allowed; use one of %s", p, strings.Join(Extensions, " "))
+	}
+	if folder, _, _ := strings.Cut(p, "/"); slices.Contains(ImageExtensions, path.Ext(p)) != (folder == "images") {
+		if folder == "images" {
+			return "", invalidPath("%q: images/ holds only PNG, JPEG and WebP images", p)
+		}
+		return "", invalidPath("%q: images live under images/", p)
 	}
 	return p, nil
 }
