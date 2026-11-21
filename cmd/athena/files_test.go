@@ -8,8 +8,10 @@ import (
 	"image/png"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"athena-erp/internal/testdb"
 	"athena-erp/internal/workspace"
@@ -42,7 +44,7 @@ func newTestWorkspace(t *testing.T) (slug string) {
 	if err := workspace.InitHome(home, server.FormatDSN()); err != nil {
 		t.Fatal(err)
 	}
-	result, err := workspace.Create(context.Background(), home, "test athena files cli "+strings.ReplaceAll(filepath.Base(t.TempDir()), "_", ""), server.FormatDSN(), "test")
+	result, err := workspace.Create(context.Background(), home, "test athena files cli "+strconv.FormatInt(time.Now().UnixNano(), 36), server.FormatDSN(), "test")
 	if err != nil {
 		t.Fatal(err)
 	}
