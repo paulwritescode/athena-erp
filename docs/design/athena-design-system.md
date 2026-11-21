@@ -303,7 +303,9 @@ View mode: Home, then the Record Types the user can read, grouped by the Pack or
 
 ## 16. Detail panels
 
-Opening a row's detail (a user in Access, a Record from a list, a session) on desktop and tablet opens a right sheet that spans the full viewport height, from the top of the browser window to the bottom, above the header, with a dim overlay. It is 480 px wide (640 px for wide content), has its own header with the title (the thing's everyday name, for a person their display name, with the username or ID below in mono caption), status and close, a scrolling body, and a sticky footer with the action groups from §14. On phones it is a bottom drawer (§13). Inline detail cards inside the page are not used.
+Opening a row's detail (a user in Access, a Record from a list, a session) on desktop and tablet opens a right sheet that spans the full viewport height, from the top of the browser window to the bottom, above the header, with a dim overlay. It is 480 px wide (640 px for wide content), has its own header with the title (the thing's everyday name, for a person their display name, with the username or ID below in mono caption), status and close, a scrolling body, and a sticky footer with the action groups from §14. On phones it is a bottom drawer (§13). Inline detail cards inside the page are not used. Exception: the Record editor is a full page at every size (it carries lifecycle, activity, versions and history); on phones its actions sit in a sticky bottom bar above the floating navigation. Tablets (640 to 1023 px) use the right sheet for row detail; bottom drawers on tablets are for dialogs, forms, pickers and menus (§13.2).
+
+Stacking order, one scale for the whole Desk: page 0, sticky header and nav 30, sheet and drawer 50, child sheet, drawer or dialog opened from one 60, toast 70. A child always sits above its parent's overlay.
 
 ## 17. Notifications
 
