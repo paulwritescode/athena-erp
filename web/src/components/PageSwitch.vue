@@ -11,6 +11,7 @@ import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
 import PermissionDenied from '@/components/PermissionDenied.vue'
 import ActionButton from '@/components/ActionButton.vue'
 import RecordTypeCreateDialog from '@/components/record-types/RecordTypeCreateDialog.vue'
+import NotFoundPage from '@/pages/NotFoundPage.vue'
 import RecordsPage from '@/pages/RecordsPage.vue'
 import { isEntryVisible, pageEntry, visibleBuildKeys, type PageContext } from '@/pages/registry'
 import type { DeskRoute } from '@/composables/useDeskRoute'
@@ -153,8 +154,9 @@ function createFromDialog(input: NewRecordTypeInput, complete: (saved: boolean) 
 
 <template>
   <div data-page-main class="min-w-0 flex-1 p-4 pb-20 sm:p-6 lg:p-8">
+    <NotFoundPage v-if="route.notFound.value" @go-home="goHome" />
     <EmptyState
-      v-if="unknownType"
+      v-else-if="unknownType"
       :icon="FileX2"
       title="This list no longer exists"
       body="The Record Type was renamed or deleted, or the address is mistyped."

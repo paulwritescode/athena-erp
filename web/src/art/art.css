@@ -1,0 +1,45 @@
+/* Figure and ASCII placement styles (design §9). Lines take the theme's
+   subtle text token; the plate matches the page background, because hairline
+   plates are filled, not transparent. */
+.art-figure {
+  width: var(--art-width);
+  --hairline-plate: var(--background);
+  --hairline-edge: var(--app-text-subtle);
+  --hairline-mid: var(--app-text-subtle);
+}
+/* The figure fades in on the shared enter motion (§6); it never slides. */
+.art-figure-enter {
+  animation: art-fade-in var(--duration-slow) var(--ease-out);
+}
+@keyframes art-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@media (max-width: 639px) {
+  .art-figure {
+    width: var(--art-width-mobile);
+  }
+}
+/* Reduced motion rests every figure: with play off, the pointer is the only
+   movement, so taking pointer input away leaves the figure at rest. */
+@media (prefers-reduced-motion: reduce) {
+  .art-figure {
+    pointer-events: none;
+  }
+  .art-figure-enter {
+    animation: none;
+  }
+}
+/* ASCII marks (§9.6): caption mono in the subtle color, never wider than
+   their block. */
+.ascii-mark {
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 auto;
+  overflow-x: clip;
+  font-family: var(--font-code);
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line);
+  color: var(--app-text-subtle);
+  white-space: pre;
+}

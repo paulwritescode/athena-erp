@@ -91,8 +91,21 @@ func run(args []string) error {
 	}
 }
 
+// asciiMark is the Athena wordmark for the CLI banner. web/src/art/ascii.ts
+// keeps the same drawing for the sign-in footer; change both together.
+const asciiMark = `   _    ___  _   _  ___  _   _    _
+  / \    |  | | | | |    | \ | |  / \
+ / _ \   |  | |_| | |__  |  \| | / _ \
+/ /_\ \  |  |  _  | |    | |\  | / /_\ \
+|_| |_| _|_ |_| |_| |___| |_| \_| |_| |_|`
+
+func usageBanner() string {
+	return asciiMark + "\n\nAthena ERP " + version
+}
+
 func printUsage() {
-	fmt.Printf(`Athena ERP %s
+	fmt.Print(usageBanner())
+	fmt.Printf(`
 
 Usage:
   athena init [directory] [--host 127.0.0.1] [--port 3306] [--user name]
@@ -177,7 +190,7 @@ Usage:
       chain is broken.
       These commands apply pending migrations first, as the server does.
   athena version
-`, version, defaultAddr, defaultAddr)
+`, defaultAddr, defaultAddr)
 }
 
 func parse(flags *flag.FlagSet, args []string) (bool, error) {

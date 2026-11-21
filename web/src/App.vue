@@ -5,6 +5,7 @@
 <script setup lang="ts">
 import { computed, onMounted, provide, ref, watch } from 'vue'
 import { useMediaQuery } from '@vueuse/core'
+import { toast } from 'vue-sonner'
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { Toaster } from '@/components/ui/sonner'
 import ChangePasswordDialog from './components/ChangePasswordDialog.vue'
@@ -17,10 +18,12 @@ import BottomNav from './components/shell/BottomNav.vue'
 import CommandPalette from './components/shell/CommandPalette.vue'
 import DeskTopBar from './components/shell/DeskTopBar.vue'
 import { useDeskRoute } from './composables/useDeskRoute'
+import { useOnlineStatus } from './composables/useOnlineStatus'
 import { useRecordTypes } from './composables/useRecordTypes'
 import { useSession } from './composables/useSession'
 import { useSwipeNav } from './composables/useSwipeNav'
 import { useTheme } from './composables/useTheme'
+import OfflinePage from './pages/OfflinePage.vue'
 import SignInPage from './pages/SignInPage.vue'
 import type { NotificationTarget } from './notifications'
 import { sheetDepth } from './components/overlayPresence'
@@ -28,9 +31,11 @@ import { visibleBuildEntries } from './pages/registry'
 import type { Page } from './types'
 
 const route = useDeskRoute()
+const { online } = useOnlineStatus()
 const library = useRecordTypes(route)
 route.setDefaultTypeResolver(() => library.viewRecordTypes.value[0]?.name ?? '')
 const session = useSession(route, library)
+watch(online, (up) => { if (up) void session.recheck() })
 const theme = useTheme()
 // The Appearance page offers the theme beside the Workspace choices.
 provide('athena-theme', theme)
@@ -98,6 +103,17 @@ function goHome() {
   }
 }
 
+// The offline page replaces the desk while the browser has no connection;
+// desk state lives in this setup scope, so it survives the swap. Coming
+// back refreshes the desk, in case the server is down too.
+function retryOnline() {
+  if (!navigator.onLine) {
+    toast.info('Still offline. Check your connection, then try again.')
+    return
+  }
+  void session.recheck()
+}
+
 onMounted(async () => {
   theme.init()
   await session.startDesk()
@@ -105,8 +121,9 @@ onMounted(async () => {
 </script>
 
 <template>
+  <OfflinePage v-if="!online" @retry="retryOnline" />
   <SignInPage
-    v-if="session.authState.value === 'signed-out'"
+    v-else-if="session.authState.value === 'signed-out'"
     :has-users="session.hasUsers.value"
     :page-state="session.pageState.value"
     :note="session.signInNote.value"
