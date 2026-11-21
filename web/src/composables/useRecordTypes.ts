@@ -1,14 +1,18 @@
 // The Record Type library: the list, the selection shared by Build and View,
-// drafts, and the journaled save flow (destructive saves wait for review in
+// and the journaled save flow (destructive saves wait for review in
 // MigrationDialog). Behaviour matches the pre-B2 App.vue exactly.
 import { computed, ref } from 'vue'
 import { ConnectError } from '@connectrpc/connect'
 import { toast } from 'vue-sonner'
 import { deleteRecordType, listRecordTypes, planRecordTypeSave, saveRecordType, type SaveAnswers, type SavePlan } from '@/api'
-import type { RecordType } from '@/types'
+import type { Kind, RecordType } from '@/types'
 import type { DeskRoute } from './useDeskRoute'
 
 export type RecordTypeLibrary = ReturnType<typeof useRecordTypes>
+
+// One entry of the name-first create dialog (§20): the label the desk shows,
+// the key the table takes, and for Child kinds the saved parent it belongs to.
+export type NewRecordTypeInput = { name: string; description: string; kind: Kind; key: string; parent?: string }
 
 // A write may only send the key the address names. Anything else is a stale
 // or fallback object that must never save.
@@ -23,7 +27,7 @@ export function useRecordTypes(route: DeskRoute) {
   const loadFailed = ref(false)
   const emptyRecordType: RecordType = { name: '', label: '', description: '', kind: 'master', fields: [], revision: 0 }
   const currentRecordType = computed(() => recordTypes.value.find((item) => item.name === route.selectedRecordType.value) ?? recordTypes.value[0] ?? emptyRecordType)
-  // View works only with saved Record Types; drafts stay in Build.
+  // View works only with saved Record Types.
   const viewRecordTypes = computed(() => recordTypes.value.filter((item) => item.revision > 0))
   const viewRecordType = computed(() => viewRecordTypes.value.find((item) => item.name === route.selectedRecordType.value) ?? viewRecordTypes.value[0] ?? null)
   // The address names a type that is not saved (renamed, deleted, mistyped).
@@ -47,18 +51,32 @@ export function useRecordTypes(route: DeskRoute) {
     loadFailed.value = false
   }
 
-  function addRecordType() {
-    const name = `record_type_${recordTypes.value.length + 1}`
-    recordTypes.value.push({ name, label: 'Untitled Record Type', description: '', kind: 'master', fields: [], revision: 0 })
-    route.selectedRecordType.value = name
-    route.page.value = 'record-types'
-  }
-
-  function renameRecordType(from: string, to: string) {
-    const recordType = recordTypes.value.find((item) => item.name === from)
-    if (!recordType || recordType.revision > 0) return
-    recordType.name = to
-    if (route.selectedRecordType.value === from) route.selectedRecordType.value = to
+  // Name-first creation (§20): draft the named type with its one required Name
+  // field, save it, and roll the draft back when the save fails.
+  async function createRecordType(input: NewRecordTypeInput, complete?: (saved: boolean, key?: string) => void, databaseConnected: () => boolean = () => true) {
+    if (!databaseConnected()) {
+      toast.error('The database is not connected. This change is only in this browser session.')
+      complete?.(false)
+      return
+    }
+    const draft: RecordType = {
+      name: input.key, label: input.name, description: input.description, kind: input.kind,
+      class: input.kind === 'document' ? 'non_posting' : undefined, parent_record_type: input.parent,
+      fields: [{ name: 'name', label: 'Name', type: 'Text', required: true }], revision: 0,
+    }
+    recordTypes.value.push(draft)
+    route.selectedRecordType.value = draft.name
+    let savedKey: string | undefined
+    try {
+      const result = await saveRecordType(draft, undefined)
+      draft.revision = result.saved.revision
+      savedKey = draft.name
+      toast.success(`${draft.label} created.`)
+    } catch (err) {
+      recordTypes.value = recordTypes.value.filter((item) => item !== draft)
+      saveError(err)
+    }
+    complete?.(savedKey !== undefined, savedKey)
   }
 
   async function removeRecordType(recordType: RecordType) {
@@ -140,7 +158,7 @@ export function useRecordTypes(route: DeskRoute) {
 
   return {
     recordTypes, currentRecordType, viewRecordTypes, viewRecordType, unknownSelectedType, pendingSave, loaded, loadFailed,
-    load, clear, addRecordType, renameRecordType, removeRecordType, addField,
+    load, clear, createRecordType, removeRecordType, addField,
     saveCurrent, confirmPendingSave, cancelPendingSave,
   }
 }
