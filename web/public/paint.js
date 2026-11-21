@@ -12,21 +12,24 @@ try {
     if (cached.preset === 'custom' && (cached.light || cached.accent)) {
       var light = cached.light || cached.accent
       var darkAccent = cached.dark || cached.accent
-      var charts = (cached.chartColors || []).slice(0, 5).map(function (v, i) {
+      var stored = cached.chartPalette === 'custom' ? (cached.chartColors || []) : []
+      var charts = stored.slice(0, 5).map(function (v, i) {
         return v ? ' --chart-' + (i + 1) + ': ' + v + ';' : ''
       }).join('')
-      var chart1 = (cached.chartColors || [])[0] ? '' : ' --chart-1: var(--primary);'
       var css =
         ':root{--primary:' + light + ';--primary-foreground:oklch(0.985 0 0);' +
-        '--sidebar-primary:' + light + ';--sidebar-primary-foreground:oklch(0.985 0 0);' + chart1 + charts + '}' +
+        '--sidebar-primary:' + light + ';--sidebar-primary-foreground:oklch(0.985 0 0);' + charts + '}' +
         '.dark{--primary:' + darkAccent + ';--primary-foreground:oklch(0.21 0.006 285.885);' +
-        '--sidebar-primary:' + darkAccent + ';--sidebar-primary-foreground:oklch(0.21 0.006 285.885);' + chart1 + charts + '}'
+        '--sidebar-primary:' + darkAccent + ';--sidebar-primary-foreground:oklch(0.21 0.006 285.885);' + charts + '}'
       var el = document.createElement('style')
       el.id = 'athena-appearance'
       el.textContent = css
       document.head.appendChild(el)
     } else if (cached.preset !== 'custom') {
       document.documentElement.dataset.accent = cached.preset
+    }
+    if (cached.chartPalette && cached.chartPalette !== 'match' && cached.chartPalette !== 'custom') {
+      document.documentElement.dataset.charts = cached.chartPalette
     }
   }
 } catch (e) { /* A corrupt cache keeps the default look. */ }

@@ -193,7 +193,7 @@ export function useSession(route: DeskRoute, library: RecordTypeLibrary) {
         const fetched = await workspaceClient.getAppearance({})
         if (fetched.appearance) {
           const palette = { light: fetched.lightAccent, dark: fetched.darkAccent }
-          applyAppearance({ preset: fetched.appearance.preset, accent: fetched.appearance.accent, chartColors: [...fetched.appearance.chartColors] }, palette)
+          applyAppearance({ preset: fetched.appearance.preset, accent: fetched.appearance.accent, chartPalette: fetched.appearance.chartPalette, chartColors: [...fetched.appearance.chartColors] }, palette)
           saveCachedAppearance(info.workspaceSlug, fetched.appearance, palette)
         }
       } catch {

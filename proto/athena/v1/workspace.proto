@@ -7,12 +7,15 @@ service WorkspaceService {
   rpc SetAppearance(SetAppearanceRequest) returns (SetAppearanceResponse);
 }
 message Appearance {
-  // ink, red or custom. Named presets use the Desk's preset tokens.
+  // One of the nine named presets or custom. Named presets use the Desk's preset tokens.
   string preset = 1;
   // Custom light-theme accent. The server derives the dark-theme lightness.
   string accent = 2;
   // Index zero corresponds to chart-1. Empty slots keep preset defaults.
   repeated string chart_colors = 3;
+  // match, neutral, earth, ocean, forest or custom. Empty reads as match,
+  // or custom when chart_colors are stored (appearances saved before B4b).
+  string chart_palette = 4;
 }
 message GetAppearanceRequest {}
 message GetAppearanceResponse {

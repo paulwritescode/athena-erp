@@ -10,14 +10,14 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file athena/v1/workspace.proto.
  */
 export const file_athena_v1_workspace: GenFile = /*@__PURE__*/
-  fileDesc("ChlhdGhlbmEvdjEvd29ya3NwYWNlLnByb3RvEglhdGhlbmEudjEiQgoKQXBwZWFyYW5jZRIOCgZwcmVzZXQYASABKAkSDgoGYWNjZW50GAIgASgJEhQKDGNoYXJ0X2NvbG9ycxgDIAMoCSIWChRHZXRBcHBlYXJhbmNlUmVxdWVzdCJtChVHZXRBcHBlYXJhbmNlUmVzcG9uc2USKQoKYXBwZWFyYW5jZRgBIAEoCzIVLmF0aGVuYS52MS5BcHBlYXJhbmNlEhMKC2RhcmtfYWNjZW50GAIgASgJEhQKDGxpZ2h0X2FjY2VudBgDIAEoCSJBChRTZXRBcHBlYXJhbmNlUmVxdWVzdBIpCgphcHBlYXJhbmNlGAEgASgLMhUuYXRoZW5hLnYxLkFwcGVhcmFuY2UibQoVU2V0QXBwZWFyYW5jZVJlc3BvbnNlEikKCmFwcGVhcmFuY2UYASABKAsyFS5hdGhlbmEudjEuQXBwZWFyYW5jZRITCgtkYXJrX2FjY2VudBgCIAEoCRIUCgxsaWdodF9hY2NlbnQYAyABKAkiSgoZQXBwZWFyYW5jZUNvbnRyYXN0RmFpbHVyZRIYChBzdWdnZXN0ZWRfYWNjZW50GAEgASgJEhMKC2RhcmtfYWNjZW50GAIgASgJMroBChBXb3Jrc3BhY2VTZXJ2aWNlElIKDUdldEFwcGVhcmFuY2USHy5hdGhlbmEudjEuR2V0QXBwZWFyYW5jZVJlcXVlc3QaIC5hdGhlbmEudjEuR2V0QXBwZWFyYW5jZVJlc3BvbnNlElIKDVNldEFwcGVhcmFuY2USHy5hdGhlbmEudjEuU2V0QXBwZWFyYW5jZVJlcXVlc3QaIC5hdGhlbmEudjEuU2V0QXBwZWFyYW5jZVJlc3BvbnNlQiNaIWF0aGVuYS1lcnAvZ2VuL2F0aGVuYS92MTthdGhlbmF2MWIGcHJvdG8z");
+  fileDesc("ChlhdGhlbmEvdjEvd29ya3NwYWNlLnByb3RvEglhdGhlbmEudjEiWQoKQXBwZWFyYW5jZRIOCgZwcmVzZXQYASABKAkSDgoGYWNjZW50GAIgASgJEhQKDGNoYXJ0X2NvbG9ycxgDIAMoCRIVCg1jaGFydF9wYWxldHRlGAQgASgJIhYKFEdldEFwcGVhcmFuY2VSZXF1ZXN0Im0KFUdldEFwcGVhcmFuY2VSZXNwb25zZRIpCgphcHBlYXJhbmNlGAEgASgLMhUuYXRoZW5hLnYxLkFwcGVhcmFuY2USEwoLZGFya19hY2NlbnQYAiABKAkSFAoMbGlnaHRfYWNjZW50GAMgASgJIkEKFFNldEFwcGVhcmFuY2VSZXF1ZXN0EikKCmFwcGVhcmFuY2UYASABKAsyFS5hdGhlbmEudjEuQXBwZWFyYW5jZSJtChVTZXRBcHBlYXJhbmNlUmVzcG9uc2USKQoKYXBwZWFyYW5jZRgBIAEoCzIVLmF0aGVuYS52MS5BcHBlYXJhbmNlEhMKC2RhcmtfYWNjZW50GAIgASgJEhQKDGxpZ2h0X2FjY2VudBgDIAEoCSJKChlBcHBlYXJhbmNlQ29udHJhc3RGYWlsdXJlEhgKEHN1Z2dlc3RlZF9hY2NlbnQYASABKAkSEwoLZGFya19hY2NlbnQYAiABKAkyugEKEFdvcmtzcGFjZVNlcnZpY2USUgoNR2V0QXBwZWFyYW5jZRIfLmF0aGVuYS52MS5HZXRBcHBlYXJhbmNlUmVxdWVzdBogLmF0aGVuYS52MS5HZXRBcHBlYXJhbmNlUmVzcG9uc2USUgoNU2V0QXBwZWFyYW5jZRIfLmF0aGVuYS52MS5TZXRBcHBlYXJhbmNlUmVxdWVzdBogLmF0aGVuYS52MS5TZXRBcHBlYXJhbmNlUmVzcG9uc2VCI1ohYXRoZW5hLWVycC9nZW4vYXRoZW5hL3YxO2F0aGVuYXYxYgZwcm90bzM");
 
 /**
  * @generated from message athena.v1.Appearance
  */
 export type Appearance = Message<"athena.v1.Appearance"> & {
   /**
-   * ink, red or custom. Named presets use the Desk's preset tokens.
+   * One of the nine named presets or custom. Named presets use the Desk's preset tokens.
    *
    * @generated from field: string preset = 1;
    */
@@ -36,6 +36,14 @@ export type Appearance = Message<"athena.v1.Appearance"> & {
    * @generated from field: repeated string chart_colors = 3;
    */
   chartColors: string[];
+
+  /**
+   * match, neutral, earth, ocean, forest or custom. Empty reads as match,
+   * or custom when chart_colors are stored (appearances saved before B4b).
+   *
+   * @generated from field: string chart_palette = 4;
+   */
+  chartPalette: string;
 };
 
 /**
