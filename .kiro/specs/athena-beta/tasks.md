@@ -55,8 +55,8 @@
 
 ## B. Platform completion before ledgers
 
-- [ ] **B5. Workspace identity and logo** (Codex then Muse)
-  - Slice 1 merged 2026-11-22 (2e5595e+e80ad39+union 4698f96): GetIdentity/SetIdentity, brand/ storage, /brand/ routes, favicons, CLI identity + new --logo. Slice 2 (Desk) open.
+- [x] **B5. Workspace identity and logo** (Codex then Muse). Complete 2026-11-22.
+  - Slice 1 merged (2e5595e+e80ad39+union 4698f96): GetIdentity/SetIdentity, brand/ storage, /brand/ routes, favicons, CLI identity + new --logo. Slice 2 merged (bd49f75+c2674c2): Desk header/sign-in/tab/favicon, Settings identity section.
   - Workspace settings for display name and logo (stored as a Workspace file, validated SVG/PNG ≤ 512 KB, served same-origin with a content hash URL). CLI `athena workspace set --name --logo file`. `athena new --logo`.
   - Desk: logo and name in header, sign-in, tab title, favicon; Athena mark fallback; "Powered by Athena" footer.
   - Logos are `athena-black-logo` (light theme) and `athena-white-logo` (dark theme) at the repository root, PNG without an extension. Rename to `.png`, generate favicon and header sizes, and switch the mark with the theme.
@@ -161,6 +161,7 @@ Gates per name: pattern, 1 to 2 syllables, clean as `athena-<noun>`, the user ca
 - B2a slice 1: toolbar search text starts under the icon (`pl-9` loses to Input `px-3`); dead `.entries-grid`/`.entries-resizer` CSS; hardcoded Draft/Submitted/Cancelled in table (use glossary); clearing filters fires a duplicate list request; `pressTimer` not cleared on unmount; search width 448 px vs 480 px in §21. API gaps (server lacks them): totals, free-text search, sort params, bulk-delete RPC.
 - B5 slice 1: `athena role` help omits `settings:*` permissions; `new --logo` validates content only after creating the Workspace; concurrent SetIdentity can silently overwrite (last-writer-wins, old generations kept); prune error surfaces after the save committed; favicons re-render per request; `identity set` with no flags writes an identical generation.
 - B9 form 1: alt-text error renders twice (inner + outer); required-but-empty field in a hidden section blocks save invisibly; empty ImageField label `for` points nowhere; section list uses filtered index as key/label; WorkspaceImage comment mentions lists (forms-only until 2.3); visibility evaluates at open only, not on draft edits.
+- B5 slice 2: "No logo" empty text unreadable in mismatched swatch/theme combos; logo errors lack the CircleAlert icon pattern; clearing the display name toasts success but snaps back; theme-color static in dark theme (pre-existing); fallback favicon is the black mark in both themes.
 
 ## Z. Decisions the user must make (OPEN)
 
