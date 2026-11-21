@@ -67,8 +67,8 @@ Each row with durable data, a security change or a new public surface gets an AD
 | --- | --- | --- |
 | Master | kiro-cli (Claude), terminal t6 | Plan, dispatch, merge, ticking `tasks.md`, shared files, talking to the user |
 | Desk worker | Muse Spark t4 (`muse --yolo --model muse-spark-1.3-contributor --reasoning-effort max`) | Vue, CSS, web tests, screenshots |
-| Backend worker | Codex (pane in the athena-erp tab) | Go, proto, `make generate`, CLI, migrations, ADRs, Go tests |
-| Reviewer | the model that did not write the change | Read-only review against the task, the requirements and the design system |
+| Backend worker | Codex (pane in the athena-erp tab); Muse Spark YOLO instances while Codex is over its limit (t1b B4 and B12 server, t1d B7 server) | Go, proto, `make generate`, CLI, migrations, ADRs, Go tests |
+| Reviewer | the model that did not write the change; while Codex is over its usage limit (from 2026-11-21 12:50), a separate Muse Spark instance (t1f) with no access to the worker's session | Read-only review against the task, the requirements and the design system |
 
 ### One task, start to finish
 
