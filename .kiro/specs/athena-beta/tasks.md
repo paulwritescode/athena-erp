@@ -22,7 +22,7 @@
   - Theme browser surfaces: selection, caret, scrollbars, focus ring (impeccable craft floor).
   - Add `web/src/tokens.test.ts` that fails if a `.vue` or `.css` file under `web/src` outside `theme.css` contains a hex, `rgb(` or named color.
   - Accept: tokens resolve in both themes; test green; no visual regression on existing pages.
-- [ ] **B2. Shell and component library** (Muse)
+- [x] **B2. Shell and component library** (Muse) — R2. Merged 2026-11-21 after four review loops (user approved the fourth, blockers only); follow-ups moved to B3.
   - Add missing shadcn-vue components with the CLI (design-system §7 list).
   - Rebuild the shell: header, sidebar (desktop), rail (tablet), bottom nav and More sheet (mobile), user menu, command palette stub, Build/View mode switch as a segmented control.
   - Replace the hard-coded nav and page switch in `web/src/App.vue` with a page registry (`web/src/pages/registry.ts`: key, label, icon, mode, permission, component). Stub pages with empty states for Reports, Jobs, Settings, Work queue, Count, Setup.
@@ -30,6 +30,7 @@
   - Replace the regex token guard in `web/src/tokens.test.ts` with a parser-based check (`@vue/compiler-sfc` for templates and bindings, a CSS parser such as `postcss` for nested rules) that closes the three known limits in `docs/architecture/frontend-theme-and-type.md`. Keep every existing fixture.
   - Accept: every existing page renders inside the new shell; component gallery page in Build mode (`/build/gallery`) shows every component in every state; the token guard has no known limits.
 - [ ] **B3. Typography and icons** (Muse)
+  - Carry-over from B2 review: Permissions phone cards limited to 2 or 3 fields; sign-in padding 16/24/32 by breakpoint; stacked labels at caption weight 500; unique phone label for the Work queue stub; focus box only on focus-visible for the sidebar brand; Ledger inner tables stack on phones; the two residual token-guard limits in `docs/architecture/frontend-theme-and-type.md`.
   - Apply design-system §4 roles to every page; `text-wrap` rules; tabular numbers in tables.
   - Create `web/src/icons.ts` (safe Lucide registry with fallback) and use the §5 table everywhere.
   - Accept: grep finds no direct font sizes or Lucide imports outside the registry and `components/ui`.
