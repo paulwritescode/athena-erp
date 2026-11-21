@@ -84,6 +84,7 @@
   - Slice 1 merged 2026-11-22 (afc70a6): DataTable itself, Records with server keyset paging, Gallery showcase. Slices 2 (Access, Rules, Files) and 3 (Ledger, notifications, Record Types) open.
 - [x] **B9b. New Record Type flow** (Muse; design-system §20): name-first creation dialog, derived key, kind with explanations, Create saves a named Record Type with a default Name field and opens the editor; editable title in the editor. Merged 2026-11-22 (2468598), review PASS, no fix loop.
 - [ ] **B9. Form builder for Record Types** (Codex then Muse, ADR required, changes durable definitions)
+  - Slice 1 (server: layout + Image field) merged pre-shift (9260d04). Slice 2.1 merged 2026-11-22 (99cc6ed): View renderer + Image field UI. Open: slice 2.2 (builder), follow-up 2.3 (list-image thumbnails after B2a).
   - Record Type definitions gain a layout: sections, columns (1 or 2), field order, field width, help text, conditional visibility (CEL expression, ADR-0013), and an Image field type (stored through Workspace files, thumbnails, alt text required) plus static image and text blocks.
   - Desk: drag-and-drop builder (keyboard alternative with move up/down) with live preview at mobile and desktop width, in the editor page's Form tab (B9a); optional image block and an optional hairline or ASCII header from the art registry (B10); the View form renders from the layout. Layout changes are non-destructive saves through the journaled publisher.
   - Accept: layout round trip tests; Image field upload, display, delete; keyboard-only reordering works.
@@ -159,6 +160,7 @@ Gates per name: pattern, 1 to 2 syllables, clean as `athena-<noun>`, the user ca
 - B9b: stale "draft" comments in `useDeskRoute.ts`; one-way Change (no return to auto-derive key); duplicate-name Enter shows no inline error until blur.
 - B2a slice 1: toolbar search text starts under the icon (`pl-9` loses to Input `px-3`); dead `.entries-grid`/`.entries-resizer` CSS; hardcoded Draft/Submitted/Cancelled in table (use glossary); clearing filters fires a duplicate list request; `pressTimer` not cleared on unmount; search width 448 px vs 480 px in §21. API gaps (server lacks them): totals, free-text search, sort params, bulk-delete RPC.
 - B5 slice 1: `athena role` help omits `settings:*` permissions; `new --logo` validates content only after creating the Workspace; concurrent SetIdentity can silently overwrite (last-writer-wins, old generations kept); prune error surfaces after the save committed; favicons re-render per request; `identity set` with no flags writes an identical generation.
+- B9 form 1: alt-text error renders twice (inner + outer); required-but-empty field in a hidden section blocks save invisibly; empty ImageField label `for` points nowhere; section list uses filtered index as key/label; WorkspaceImage comment mentions lists (forms-only until 2.3); visibility evaluates at open only, not on draft edits.
 
 ## Z. Decisions the user must make (OPEN)
 
