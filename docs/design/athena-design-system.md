@@ -340,6 +340,28 @@ Following Frappe's DocType list: the Record Types page is a list first, and edit
 
 "New Record Type" never opens an unnamed editor. It opens a small dialog (a bottom drawer on touch) titled "New Record Type" with three fields: **Name** (required, focused, example "Customer"), **What is it for?** (optional, one line), and **Kind** (Master, Document, Setting and the rest, each with a one-line explanation, default Master). The key is derived from the name and shown below it in mono caption ("Saved as customer"), editable through a small "Change" link. "Create" is disabled until the name is valid and unique; errors appear under the field. Create saves the Record Type with one default field (Name, text, required) so it exists as a real, named Record Type, then opens its editor on the Fields tab. In the editor, the name is the page title and editable in place (click the title, or "Rename" in the header menu); it is never a plain input hidden among the fields.
 
+## 21. Tables (decided 2026-11-21)
+
+Every data table in the Desk is the shared `DataTable` and looks the same. Reference: shadcn-vue's data table example, with Athena's tokens.
+
+**Frame.** The table sits in a bordered container (`--border` hairline, `--radius`, `--card` surface) that spans the full content width, edge to edge within the page padding. Cells have `--space-4` horizontal and `--space-3` vertical padding (row height 48 px on desktop, 52 px touch); the first and last cells get `--space-4` from the frame edge so nothing touches the border. Header row: caption 500, `--app-text-muted`, a hairline below, sticky inside the frame. Rows are separated by hairlines; hover tints the row with `--app-surface-hover`; selected rows use `--app-surface-selected`. Amounts and counts right-aligned in tabular figures.
+
+**Columns, left to right.**
+1. **Select** (40 px): a checkbox per row and a header checkbox for the page, with an indeterminate state. Shown on tables that have at least one bulk action; hidden otherwise rather than shown for decoration.
+2. **Row number** (48 px, muted caption, right-aligned): the position in the current result, continuing across pages (page 2 of 25 starts at 26).
+3. The **primary column** (the thing's name, with an optional 32 px icon tile and a muted second line, as in a transaction list), then the other columns, then
+4. **Actions** (48 px): an `ellipsis` menu with the row's actions, the same as the context menu (§7).
+
+**Toolbar (above the frame).** Left: a search input ("Find customers…") across the available width up to 480 px; filter buttons for the table's main fields, each opening a popover with checkable values and showing the active values as a chip; "Clear filters" when any is set. Right: "Columns" (choose visible columns, saved per user) and the page's primary action if it belongs to the table. On phones the filters and columns move into one "Filters" drawer.
+
+**Selection bar.** When rows are selected, the toolbar is replaced in place by "N selected", the bulk actions that apply (Export, Delete and so on, in the §14 kinds, destructive last and confirmed), and "Clear selection". Selection survives paging and sorting and is cleared after a bulk action.
+
+**Footer (below the frame).** Left: "N of M selected" when selection is on, otherwise "Showing 26–50 of 214". Right: rows per page (10, 25, 50, 100, saved per user), "Page 2 of 9", and Previous and Next buttons (outline, with `chevron-left` and `chevron-right`, disabled at the ends with the reason in a tooltip). Server-paged tables use the API's keyset tokens; the total is shown when the API provides it, otherwise "Page 2" with Next enabled while a next token exists.
+
+**States inside the frame:** loading (skeleton rows matching the column layout), empty (EmptyState with the reason and the primary action; "No results for these filters" with Clear filters when filtered), error (ErrorState with retry). The frame never collapses to a bare line.
+
+**Phones:** stacked rows (§13.4) keep the row number as a muted prefix, a checkbox on long-press selection, and the same footer with Previous and Next.
+
 ## 12. Checks before a screen is done
 
 - Opened in a browser at 375, 768, 1280 and 1440 px, light and dark.
