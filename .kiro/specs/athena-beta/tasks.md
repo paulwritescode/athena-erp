@@ -29,7 +29,7 @@
   - Build shared compositions in `web/src/components/`: PageHeader, EmptyState, ErrorState, PermissionDenied, LoadingSkeleton, ConfirmDialog, FormSection, FieldRow, DetailSheet, StatusBadge, DataTable (TanStack, stacked rows on mobile).
   - Replace the regex token guard in `web/src/tokens.test.ts` with a parser-based check (`@vue/compiler-sfc` for templates and bindings, a CSS parser such as `postcss` for nested rules) that closes the three known limits in `docs/architecture/frontend-theme-and-type.md`. Keep every existing fixture.
   - Accept: every existing page renders inside the new shell; component gallery page in Build mode (`/build/gallery`) shows every component in every state; the token guard has no known limits.
-- [ ] **B3. Typography and icons** (Muse)
+- [x] **B3. Typography and icons** (Muse)
   - Carry-over from B2 review: Permissions phone cards limited to 2 or 3 fields; sign-in padding 16/24/32 by breakpoint; stacked labels at caption weight 500; unique phone label for the Work queue stub; focus box only on focus-visible for the sidebar brand; Ledger inner tables stack on phones; the two residual token-guard limits in `docs/architecture/frontend-theme-and-type.md`.
   - Apply design-system §4 roles to every page; `text-wrap` rules; tabular numbers in tables.
   - Create `web/src/icons.ts` (safe Lucide registry with fallback) and use the §5 table everywhere.
@@ -39,7 +39,7 @@
   - Desk: Settings → Appearance with swatches, Custom with a color picker for the accent and charts, a light and dark live preview, save and reset; `data-accent` or custom properties applied to `<html>` at load; per-user light, dark or system choice.
   - Accept: Go tests for storage, permission and contrast; choosing a color changes only accent spots for every user after reload.
   - Accept: only buttons, focus ring, selected-nav marker and charts carry the accent.
-- [ ] **B3a. Experience pass: every page, actions, sidebar, detail sheets, mobile native** (Muse t4, after B3 in the same worktree)
+- [x] **B3a. Experience pass: every page, actions, sidebar, detail sheets, mobile native** (Muse t4, after B3 in the same worktree)
   - Sidebar grouped per design-system §15; Build/View control and every container on the radius family (no square corners).
   - Action button system per §14 (`web/src/components/ActionButton.vue` and `ActionGroup.vue`), applied to every action on every page: Edit, Resend, Reset, Suspend, Reactivate, Revoke, End session, Delete, Save, Invite and the rest.
   - Detail panels per §16: full-viewport-height right sheet on desktop and tablet (Access users, roles and sessions, Record rows, Rule runs, Files); bottom drawer on phones. Remove inline detail cards.
