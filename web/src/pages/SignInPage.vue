@@ -9,8 +9,8 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader } from '@/components/ui/card'
 import CheckboxField from '@/components/fields/CheckboxField.vue'
 import TextField from '@/components/fields/TextField.vue'
-import markDark from '@/assets/brand/athena-white.png'
-import markLight from '@/assets/brand/athena-black.png'
+import WorkspaceMark from '@/components/WorkspaceMark.vue'
+import { identity } from '@/identity'
 import { toast } from 'vue-sonner'
 
 // The card shows the state the desk is in. A state that lasts until something
@@ -20,7 +20,7 @@ import { toast } from 'vue-sonner'
 // created on the command line, so the page explains how instead of a form.
 // pageState is what the desk found when it started: the server or the database
 // is not reachable. note explains why the person is back here.
-const props = defineProps<{ hasUsers: boolean; workspaceName: string; pageState: Failure | null; note: string; checking: boolean }>()
+const props = defineProps<{ hasUsers: boolean; pageState: Failure | null; note: string; checking: boolean }>()
 const emit = defineEmits<{ signedIn: [session: SessionInfo]; recheck: [] }>()
 const ownerCommand = 'athena user invite <username> --owner'
 const username = ref('')
@@ -109,10 +109,9 @@ async function complete() {
   <main class="sign-in">
     <Card class="sign-in-card">
       <CardHeader class="items-center justify-items-center text-center">
-        <img :src="markLight" alt="" class="size-12 rounded-md dark:hidden" />
-        <img :src="markDark" alt="" class="hidden size-12 rounded-md dark:block" />
-        <h1>Athena</h1>
-        <CardDescription class="text-base">{{ workspaceName ? `Sign in to ${workspaceName}.` : 'Sign in to continue.' }}</CardDescription>
+        <WorkspaceMark :height="48" />
+        <h1>{{ identity.displayName || 'Athena' }}</h1>
+        <CardDescription class="text-base">Sign in to continue.</CardDescription>
       </CardHeader>
       <CardContent>
         <div v-if="pageState" class="sign-in-state is-error" role="alert">

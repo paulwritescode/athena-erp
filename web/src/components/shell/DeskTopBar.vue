@@ -5,8 +5,8 @@
 // avatar; the mode switch moves into the user menu.
 <script setup lang="ts">
 import { Moon, Search, Sun } from '@/icons'
-import markDark from '@/assets/brand/athena-white.png'
-import markLight from '@/assets/brand/athena-black.png'
+import WorkspaceMark from '@/components/WorkspaceMark.vue'
+import { identity } from '@/identity'
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb'
 import { Button } from '@/components/ui/button'
 import type { SessionUser } from '@/types'
@@ -22,9 +22,8 @@ const emit = defineEmits<{ parentClick: []; setMode: ['build' | 'view']; openPal
 
 <template>
   <header class="bg-background/95 supports-[backdrop-filter]:bg-background/60 sticky top-0 z-30 flex h-14 shrink-0 items-center gap-2 border-b px-3 backdrop-blur min-[640px]:px-4">
-    <img :src="markLight" alt="" class="size-7 shrink-0 rounded-md min-[640px]:hidden dark:hidden" />
-    <img :src="markDark" alt="" class="hidden size-7 shrink-0 rounded-md dark:block dark:min-[640px]:hidden" />
-    <span class="min-w-0 flex-1 truncate text-sm font-semibold min-[640px]:hidden">{{ workspaceName || 'Athena' }}</span>
+    <WorkspaceMark :height="24" class="min-[640px]:hidden" />
+    <span class="min-w-0 flex-1 truncate text-sm font-semibold min-[640px]:hidden">{{ identity.displayName || workspaceName || 'Athena' }}</span>
     <Breadcrumb v-if="breadcrumb" class="min-w-0 flex-1 max-[639px]:hidden">
       <BreadcrumbList class="flex-nowrap">
         <BreadcrumbItem class="min-w-0 shrink">

@@ -7,8 +7,8 @@
 import { computed, nextTick, ref, useTemplateRef, watch } from 'vue'
 import { onKeyStroke } from '@vueuse/core'
 import { FocusScope } from 'reka-ui'
-import markDark from '@/assets/brand/athena-white.png'
-import markLight from '@/assets/brand/athena-black.png'
+import WorkspaceMark from '@/components/WorkspaceMark.vue'
+import { identity } from '@/identity'
 import { ChevronDown, House, PanelLeftClose, PanelLeftOpen } from '@/icons'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarMenu, SidebarMenuBadge, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar'
@@ -110,11 +110,10 @@ function badge(entry: PageEntry): string | null {
     <Sidebar ref="sidebarRef" collapsible="icon" :class="overlay ? 'z-30' : undefined">
       <SidebarHeader>
         <button class="flex w-full items-center gap-2 rounded-md p-2 pl-5 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar" aria-label="Athena home" @click="goHome()">
-        <img :src="markLight" alt="" class="size-8 shrink-0 rounded-md dark:hidden" />
-        <img :src="markDark" alt="" class="hidden size-8 shrink-0 rounded-md dark:block" />
+        <WorkspaceMark :height="24" />
         <span class="min-w-0 group-data-[collapsible=icon]:hidden">
-          <span class="block text-sm leading-tight font-semibold">Athena</span>
-          <span v-if="workspaceName" class="text-muted-foreground block truncate text-xs leading-tight">{{ workspaceName }}</span>
+          <span class="block truncate text-sm leading-tight font-semibold">{{ identity.displayName || workspaceName || 'Athena' }}</span>
+          <span v-if="identity.displayName && workspaceName && identity.displayName !== workspaceName" class="text-muted-foreground block truncate text-xs leading-tight">{{ workspaceName }}</span>
         </span>
       </button>
     </SidebarHeader>

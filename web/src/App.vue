@@ -108,7 +108,6 @@ onMounted(async () => {
   <SignInPage
     v-if="session.authState.value === 'signed-out'"
     :has-users="session.hasUsers.value"
-    :workspace-name="session.workspaceName.value"
     :page-state="session.pageState.value"
     :note="session.signInNote.value"
     :checking="session.rechecking.value"

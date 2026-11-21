@@ -7,6 +7,7 @@ import { toast } from 'vue-sonner'
 import { classify, describeFailure, sessionEndNote, type Failure } from '@/apiErrors'
 import { authClient, onSessionEnded, setCsrfToken, systemClient, workspaceClient } from '@/api'
 import { applyAppearance, saveCachedAppearance } from '@/appearance'
+import { refreshIdentity } from '@/identity'
 import { clearIdleWarning, noteAlive, rescheduleIdleWarning, setIdleSignOut, startIdleTracking } from '@/idleWarning'
 import { onSessionMessage, postSessionMessage } from '@/sessionChannel'
 import type { SessionInfo } from '@/gen/athena/v1/auth_pb'
@@ -199,6 +200,10 @@ export function useSession(route: DeskRoute, library: RecordTypeLibrary) {
       } catch {
         // Keep the cache or the default; the page still works.
       }
+      // The name, logo, tab title and favicon come from the public
+      // identity; the sign-in page wears them too. On failure the Athena
+      // mark and the static icons stand in.
+      await refreshIdentity()
     } catch (err) {
       apiState.value = 'error'
       pageState.value = classify(err)

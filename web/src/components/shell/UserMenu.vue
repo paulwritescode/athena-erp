@@ -6,6 +6,7 @@ import { computed, ref } from 'vue'
 import { useMediaQuery } from '@vueuse/core'
 import { Check, ChevronDown, Monitor, Moon, Sun } from '@/icons'
 import BottomDrawer from '@/components/BottomDrawer.vue'
+import { hasLogo, identity } from '@/identity'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
@@ -58,6 +59,10 @@ function pick(action: () => void) {
       <DropdownMenuItem @select="emit('changePassword')">Change password</DropdownMenuItem>
       <DropdownMenuSeparator />
       <DropdownMenuItem @select="emit('signOut')">Sign out</DropdownMenuItem>
+      <template v-if="hasLogo(identity)">
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel class="text-muted-foreground text-xs font-normal">Powered by Athena</DropdownMenuLabel>
+      </template>
     </DropdownMenuContent>
   </DropdownMenu>
   <template v-else>
@@ -96,6 +101,7 @@ function pick(action: () => void) {
         <button type="button" role="menuitem" @click="pick(() => emit('signOut'))">
           <span>Sign out</span>
         </button>
+        <p v-if="hasLogo(identity)" class="text-muted-foreground px-4 pt-2 text-xs">Powered by Athena</p>
       </div>
     </BottomDrawer>
   </template>
