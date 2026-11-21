@@ -105,8 +105,8 @@ Widths: reading text 65 to 72 ch. Forms 720 to 960 px with an optional 320 px ri
 
 | Name | Width | Shell |
 | --- | --- | --- |
-| mobile | < 640 px | Top bar with logo and user menu; bottom navigation with up to 4 destinations plus More (sheet). Page padding 16. One column. Dialogs become bottom drawers. Tables become stacked rows with the 2 or 3 key fields. |
-| tablet | 640 to 1023 px | Collapsible sidebar rail (56 px, icons with tooltips), expands over content. Page padding 24. Forms one column; right rail moves below. |
+| mobile | < 640 px | Top bar with logo, Workspace name and user menu; floating bottom navigation (§13) with up to 4 destinations plus More. Page padding 16. One column. Every dialog and form is a bottom drawer. Tables become stacked rows with the 2 or 3 key fields. Swipe navigation. |
+| tablet | 640 to 1023 px | Collapsible sidebar rail (56 px, icons with tooltips), expands over content. Page padding 24. Forms one column; right rail moves below. Dialogs and forms are bottom drawers (§13). |
 | desktop | 1024 to 1439 px | Fixed sidebar 240 px. Page padding 32. Forms with optional right rail. |
 | wide | ≥ 1440 px | Same as desktop; content capped at 1280 px for forms and dashboards; tables may use full width. |
 
@@ -255,6 +255,62 @@ Each Workspace can set its own logo and name (task B5): stored as a Workspace fi
 | Manager / approver | The above plus approval queues, team Reports, assignment of work. | No. |
 | Builder | Build mode: Record Types, Rules, Packs, Files, Access, Ledger setup, Settings. | No. |
 | Root administrator | Everything, always (ADR-0018). Cannot be changed or suspended. | No. |
+
+## 13. Native mobile and tablet experience (decided 2026-11-21)
+
+On phones (< 640 px) and tablets (640 to 1023 px), Athena behaves like an installed app, not a shrunken website.
+
+1. **Floating navigation bar (phones).** The bottom navigation floats: inset `--space-3` from the sides and the bottom (plus `env(safe-area-inset-bottom)`), fully rounded (`--radius` × 2), `--card` surface with a hairline border and the floating shadow, height 64 px, up to four destinations plus More. Page content gets bottom padding equal to the bar height plus its inset so nothing hides behind it. It hides while the keyboard is open and while a drawer is open.
+2. **Bottom drawers for every form and popover.** Every dialog, form, picker, filter panel, row-detail sheet, user menu, command palette and confirmation opens as a bottom drawer (vaul-vue) on phones and tablets. The drawer is as tall as its content, up to 92 dvh, then scrolls inside. It has a grab handle, follows the finger, snaps closed on a downward swipe past 30 % or a fast flick, and keeps unsaved work: closing a dirty form asks first. The footer with actions sticks to the bottom above the safe area. Nested drawers stack (at most two).
+3. **Swipe navigation.** A horizontal swipe that starts within 24 px of the left screen edge goes back and one from the right edge goes forward, with the page following the finger and an ease-out settle (240 ms). It never fires while a drawer is open, inside a horizontally scrolling element, on an input, or under `prefers-reduced-motion` (where it is instant, without the follow animation). Where the browser already gives an edge-swipe back gesture (iOS Safari), Athena does not add a second one.
+4. **Minified tables.** Lists render as stacked rows with the 2 or 3 key fields: title, status badge, one supporting value (amount or date, tabular). Tapping a row opens its detail in a bottom drawer. Sorting and filters are in a drawer opened from a toolbar. Selection uses a long-press, then a bottom action bar.
+5. **Minified charts.** On phones, charts show one series at a time with a segmented picker, no legend box (series named in the picker), at most 6 axis labels, values on tap in a tooltip above the finger, and a 4:3 aspect ratio. Sparklines replace small multiples.
+6. **Touch.** Targets are at least 44 px. There are no hover-only affordances: anything shown on hover on desktop is visible or in a menu on touch. Press feedback is a 0.97 scale plus `--app-surface-hover`.
+7. **Pull to refresh** on lists, with the same ease and a spinner in the list header.
+8. **Installable.** A web app manifest with the Workspace name, logo and theme color, so "Add to Home Screen" opens full screen (offline work is G16).
+
+## 14. Action buttons (decided 2026-11-21)
+
+Every button that does something has an icon and a word, a visible hover, and a place by its kind. Actions are never plain text.
+
+| Kind | Look | Icon examples | Where |
+| --- | --- | --- | --- |
+| Primary | filled `--primary` | `plus` Invite person, `save` Save | page header top right, drawer and dialog footer right; one per view |
+| Secondary | outline, hairline border | `pencil` Edit, `send` Resend invite, `key-round` Reset password | beside the primary, or in a row's action group |
+| Quiet | ghost, icon + word, `--app-text-muted` turning `--foreground` on hover | `eye` View, `copy` Copy | inside tables and cards |
+| Caution | outline with `--warning` icon and text | `pause` Suspend, `log-out` End session, `undo-2` Revoke | in the action group, separated from safe actions by `--space-4` |
+| Destructive | outline `--destructive` at rest, filled `--destructive` on hover; always confirms | `trash-2` Delete, `user-x` Remove | last, separated by a hairline divider; never next to the primary |
+| Restore | outline with `--success` icon | `play` Reactivate, `rotate-ccw` Restore | where its opposite (Suspend, Delete) appears |
+
+Behavior: hover darkens or tints the surface over `--duration-fast` and shows the pointer cursor; press scales to 0.97; focus-visible shows the ring; busy keeps the width, swaps the icon for a spinner and disables the button; disabled shows the reason in a tooltip (desktop) or under the button group (touch). Icons are 16 px with `--space-2` to the label. A group of actions is spaced `--space-2` within a kind and `--space-4` between kinds. On phones a row's actions move into its detail drawer as full-width buttons, grouped the same way.
+
+## 15. Sidebar structure (desktop)
+
+Build mode, grouped by how people work, with caption headings:
+
+| Group | Items |
+| --- | --- |
+| (no heading) | Overview |
+| Data | Record Types, Packs, Files |
+| Logic | Rules |
+| Money | Ledger |
+| People | Access |
+| Insight | Reports, Jobs |
+| Workspace | Setup, Settings |
+
+View mode: Home, then the Record Types the user can read, grouped by the Pack or Module that installed them (ungrouped ones under "Records"), then Work queue, Reports and Count when present. Groups collapse; the open state is remembered per user. The Build and View control, cards, inputs and panels use the same radius family (`--radius` and `calc(var(--radius) - 2px)`); nothing uses a square corner except hairline dividers.
+
+## 16. Detail panels
+
+Opening a row's detail (a user in Access, a Record from a list, a session) on desktop and tablet opens a right sheet that spans the full viewport height, from the top of the browser window to the bottom, above the header, with a dim overlay. It is 480 px wide (640 px for wide content), has its own header with the title, status and close, a scrolling body, and a sticky footer with the action groups from §14. On phones it is a bottom drawer (§13). Inline detail cards inside the page are not used.
+
+## 17. Notifications
+
+The bell is a working inbox, not decoration. It shows an unread count, a list grouped by Today and Earlier, read and unread state, "Mark all as read", and a link from each notification to the thing it is about. Each notification says what happened in everyday words, who did it and when. Sources in the beta: your invite was accepted, your Role or access changed, a sign-in to your account failed or was locked, your session was ended by someone else, a Rule stopped your save, an approval waits for you, a period you work in was closed, a job you started finished or failed. New notifications arrive without reloading (polling every 30 s, or the server stream when G8 lands) and appear as a quiet toast only when they need action. On phones the inbox opens as a bottom drawer.
+
+## 18. Appearance settings (decided 2026-11-21)
+
+Settings → Appearance (permission `settings:appearance`) lets a Workspace choose the accent: the `ink` and `red` presets as swatches, or Custom with a color picker for the accent and, optionally, the five chart colors. The page previews buttons, focus ring, selected navigation and a chart in light and dark side by side before saving. On save the server checks contrast (text on the accent ≥ 4.5:1 in both themes) and offers the nearest passing lightness if it fails. Only the accent tokens of §2.1 change; surfaces stay neutral. The choice is stored per Workspace and applied for every user on next load, without a rebuild. A user can also choose light, dark or system for themselves.
 
 ## 12. Checks before a screen is done
 

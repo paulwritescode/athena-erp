@@ -34,9 +34,22 @@
   - Apply design-system §4 roles to every page; `text-wrap` rules; tabular numbers in tables.
   - Create `web/src/icons.ts` (safe Lucide registry with fallback) and use the §5 table everywhere.
   - Accept: grep finds no direct font sizes or Lucide imports outside the registry and `components/ui`.
-- [ ] **B4. Accent presets and charts** (Muse; decided: both presets, design-system §2.3)
-  - Ship `ink` (default) and `red` presets as `[data-accent]` blocks in `theme.css` for light and dark, and the chart series; a Workspace setting chooses one (Settings page, with a live preview); verify text on primary ≥ 4.5:1 for every preset and theme.
+- [ ] **B4. Appearance: presets and custom colors** (Codex for the server, then Muse for the Desk; design-system §2.3, §18)
+  - Server: Workspace appearance stored as a setting (`brand.accent` preset or custom accent and chart colors in OKLCH), `WorkspaceService.GetAppearance` and `SetAppearance` with permission `settings:appearance`, contrast check returning the nearest passing value, applied at sign-in and on the sign-in page.
+  - Desk: Settings → Appearance with swatches, Custom with a color picker for the accent and charts, a light and dark live preview, save and reset; `data-accent` or custom properties applied to `<html>` at load; per-user light, dark or system choice.
+  - Accept: Go tests for storage, permission and contrast; choosing a color changes only accent spots for every user after reload.
   - Accept: only buttons, focus ring, selected-nav marker and charts carry the accent.
+- [ ] **B3a. Experience pass: every page, actions, sidebar, detail sheets, mobile native** (Muse t4, after B3 in the same worktree)
+  - Sidebar grouped per design-system §15; Build/View control and every container on the radius family (no square corners).
+  - Action button system per §14 (`web/src/components/ActionButton.vue` and `ActionGroup.vue`), applied to every action on every page: Edit, Resend, Reset, Suspend, Reactivate, Revoke, End session, Delete, Save, Invite and the rest.
+  - Detail panels per §16: full-viewport-height right sheet on desktop and tablet (Access users, roles and sessions, Record rows, Rule runs, Files); bottom drawer on phones. Remove inline detail cards.
+  - Page pass on Overview, Record Types, Records, Rules, Files, Access, Ledger and Sign-in: spacing tokens, one primary action, hierarchy per §4, empty, loading and error states, impeccable `layout` and `polish`, emilkowalski-motion.
+  - Native mobile and tablet per §13: floating bottom navigation, bottom drawers for every dialog, form, picker, filter and menu (content height, swipe to close, dirty-form guard), edge-swipe back and forward, minified tables and charts, pull to refresh, web app manifest.
+  - Accept: browser pass at 375, 768, 1280, 1440 in both themes on every page; a scripted check that no dialog opens centered below 1024 px; swipe and drawer gestures checked in Chrome device emulation with touch.
+- [ ] **B12. Notifications** (Codex for the server, then Muse for the Desk; ADR required, new durable data)
+  - Migration: `athena_notifications` (recipient user, kind, subject reference, actor, created, read_at) and `NotificationService` (List with keyset paging, UnreadCount, MarkRead, MarkAllRead). Notifications are written in the same transaction as the event, by the services that own it: auth (invite accepted, access changed, sign-in failed or locked, session ended by someone else), rules (save stopped), lifecycle (approval waiting), ledger (period closed). Text is built from a kind and parameters; no Record values in the row beyond the subject's display label.
+  - Desk per design-system §17: bell with unread count, inbox popover (bottom drawer on phones), Today and Earlier, mark read, deep links, 30 s polling.
+  - Accept: a Go test per source; the Desk shows a new notification within 30 s without reload.
 - [ ] **B4a. Steering sync** (master)
   - Confirm `AGENTS.md`, `.kiro/steering/athena-design.md` and `docs/design/athena-design-system.md` agree with what B1 to B4 shipped; move tokens from *Proposed* to implemented; update `docs/architecture/frontend-theme-and-type.md` and `docs/README.md`.
 
@@ -139,7 +152,7 @@ Gates per name: pattern, 1 to 2 syllables, clean as `athena-<noun>`, the user ca
 | Z5 | Licence | C3, E3 |
 | Z6 | `vite-plugin-pwa`, deployment profile and recovery objectives | D4 |
 | Z7 | Pack build order, pilot country, provider qualification | D7 |
-| Z8 | Session and rate-limit defaults in B7 | B7 |
+| Z8 | DECIDED 2026-11-21 ("start all of those things"): B7 defaults as written | B7 |
 | Z9 | DECIDED 2026-11-21: added `@lucasmarkes/hairline` 0.5.1 (MIT, pinned) and `golang.org/x/time` v0.16.0 (indirect until B7 imports `rate`) | B10, B7 |
 | Z10 | Satori web embedding rights (bundle the font or keep local-only) | B3, D3 |
 | Z11 | Product names in section N | B6 |
