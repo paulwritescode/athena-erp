@@ -59,8 +59,12 @@ func checkText(content []byte) error {
 // Validate checks content against the rules for its path. Text and size are
 // checked for every file. YAML and JSON files must parse, and a Record Type
 // file must follow the Record Type file format (spec section 24). Rule
-// sources (.star) are stored and edited but not run here.
+// sources (.star) are stored and edited but not run here. Images upload
+// through PutImage, never here.
 func Validate(p string, content []byte) error {
+	if IsImagePath(p) {
+		return fmt.Errorf("%w: upload images with put-image, not put", ErrInvalidFile)
+	}
 	if err := checkText(content); err != nil {
 		return err
 	}
@@ -82,6 +86,27 @@ func Validate(p string, content []byte) error {
 		return &ValidationError{Path: p, Issues: issues[:min(len(issues), maxIssues)]}
 	}
 	return nil
+}
+
+// ValidateImage checks uploaded bytes for an image path: size, then content
+// sniffed rather than trusted from the name, then the name matching what was
+// sniffed, then decodability. It returns the sniffed format.
+func ValidateImage(p string, content []byte) (string, error) {
+	if len(content) > MaxImageBytes {
+		return "", fmt.Errorf("%w: images are at most %d bytes", ErrTooLarge, MaxImageBytes)
+	}
+	format := Sniff(content)
+	if format == "" {
+		return "", fmt.Errorf("%w: upload a PNG, JPEG or WebP image", ErrNotImage)
+	}
+	want := map[string]string{".png": "png", ".jpg": "jpeg", ".jpeg": "jpeg", ".webp": "webp"}[path.Ext(p)]
+	if format != want {
+		return "", fmt.Errorf("%w: the file names %s but holds %s bytes", ErrNotImage, path.Ext(p), format)
+	}
+	if _, _, err := DecodeImage(content); err != nil {
+		return "", err
+	}
+	return format, nil
 }
 
 var yamlLine = regexp.MustCompile(`line (\d+)`)

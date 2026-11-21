@@ -68,6 +68,9 @@ func (d MariaDB) ColumnType(fieldType string) (string, error) {
 		return "CHAR(36)", nil
 	case "Checkbox":
 		return "BOOLEAN", nil
+	case "Image":
+		// JSON holds the file reference: path, hash and alt text.
+		return d.JSONType(), nil
 	default:
 		return "", fmt.Errorf("unsupported field type %q", fieldType)
 	}

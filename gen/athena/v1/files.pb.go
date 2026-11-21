@@ -316,7 +316,9 @@ type GetFileRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	Path  string                 `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
 	// 0 reads the file on disk. Another number reads that recorded revision.
-	Revision      int64 `protobuf:"varint,2,opt,name=revision,proto3" json:"revision,omitempty"`
+	Revision int64 `protobuf:"varint,2,opt,name=revision,proto3" json:"revision,omitempty"`
+	// Return a 256 px thumbnail instead of the file. Images only.
+	Thumbnail     bool `protobuf:"varint,3,opt,name=thumbnail,proto3" json:"thumbnail,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -363,6 +365,13 @@ func (x *GetFileRequest) GetRevision() int64 {
 		return x.Revision
 	}
 	return 0
+}
+
+func (x *GetFileRequest) GetThumbnail() bool {
+	if x != nil {
+		return x.Thumbnail
+	}
+	return false
 }
 
 type GetFileResponse struct {
@@ -522,6 +531,129 @@ func (x *PutFileResponse) GetInfo() *FileInfo {
 	return nil
 }
 
+type PutImageRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Under images/ (images/logo.png).
+	Path    string `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
+	Content []byte `protobuf:"bytes,2,opt,name=content,proto3" json:"content,omitempty"`
+	// Hash of the content the caller read. Empty creates a new file.
+	ExpectedHash  string `protobuf:"bytes,3,opt,name=expected_hash,json=expectedHash,proto3" json:"expected_hash,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PutImageRequest) Reset() {
+	*x = PutImageRequest{}
+	mi := &file_athena_v1_files_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PutImageRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PutImageRequest) ProtoMessage() {}
+
+func (x *PutImageRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_files_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PutImageRequest.ProtoReflect.Descriptor instead.
+func (*PutImageRequest) Descriptor() ([]byte, []int) {
+	return file_athena_v1_files_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *PutImageRequest) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *PutImageRequest) GetContent() []byte {
+	if x != nil {
+		return x.Content
+	}
+	return nil
+}
+
+func (x *PutImageRequest) GetExpectedHash() string {
+	if x != nil {
+		return x.ExpectedHash
+	}
+	return ""
+}
+
+type PutImageResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Info  *FileInfo              `protobuf:"bytes,1,opt,name=info,proto3" json:"info,omitempty"`
+	// Pixel dimensions of the stored image.
+	Width         int32 `protobuf:"varint,2,opt,name=width,proto3" json:"width,omitempty"`
+	Height        int32 `protobuf:"varint,3,opt,name=height,proto3" json:"height,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PutImageResponse) Reset() {
+	*x = PutImageResponse{}
+	mi := &file_athena_v1_files_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PutImageResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PutImageResponse) ProtoMessage() {}
+
+func (x *PutImageResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_files_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PutImageResponse.ProtoReflect.Descriptor instead.
+func (*PutImageResponse) Descriptor() ([]byte, []int) {
+	return file_athena_v1_files_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *PutImageResponse) GetInfo() *FileInfo {
+	if x != nil {
+		return x.Info
+	}
+	return nil
+}
+
+func (x *PutImageResponse) GetWidth() int32 {
+	if x != nil {
+		return x.Width
+	}
+	return 0
+}
+
+func (x *PutImageResponse) GetHeight() int32 {
+	if x != nil {
+		return x.Height
+	}
+	return 0
+}
+
 type MoveFileRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	From          string                 `protobuf:"bytes,1,opt,name=from,proto3" json:"from,omitempty"`
@@ -533,7 +665,7 @@ type MoveFileRequest struct {
 
 func (x *MoveFileRequest) Reset() {
 	*x = MoveFileRequest{}
-	mi := &file_athena_v1_files_proto_msgTypes[8]
+	mi := &file_athena_v1_files_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -545,7 +677,7 @@ func (x *MoveFileRequest) String() string {
 func (*MoveFileRequest) ProtoMessage() {}
 
 func (x *MoveFileRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_files_proto_msgTypes[8]
+	mi := &file_athena_v1_files_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -558,7 +690,7 @@ func (x *MoveFileRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MoveFileRequest.ProtoReflect.Descriptor instead.
 func (*MoveFileRequest) Descriptor() ([]byte, []int) {
-	return file_athena_v1_files_proto_rawDescGZIP(), []int{8}
+	return file_athena_v1_files_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *MoveFileRequest) GetFrom() string {
@@ -591,7 +723,7 @@ type MoveFileResponse struct {
 
 func (x *MoveFileResponse) Reset() {
 	*x = MoveFileResponse{}
-	mi := &file_athena_v1_files_proto_msgTypes[9]
+	mi := &file_athena_v1_files_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -603,7 +735,7 @@ func (x *MoveFileResponse) String() string {
 func (*MoveFileResponse) ProtoMessage() {}
 
 func (x *MoveFileResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_files_proto_msgTypes[9]
+	mi := &file_athena_v1_files_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -616,7 +748,7 @@ func (x *MoveFileResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MoveFileResponse.ProtoReflect.Descriptor instead.
 func (*MoveFileResponse) Descriptor() ([]byte, []int) {
-	return file_athena_v1_files_proto_rawDescGZIP(), []int{9}
+	return file_athena_v1_files_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *MoveFileResponse) GetInfo() *FileInfo {
@@ -636,7 +768,7 @@ type DeleteFileRequest struct {
 
 func (x *DeleteFileRequest) Reset() {
 	*x = DeleteFileRequest{}
-	mi := &file_athena_v1_files_proto_msgTypes[10]
+	mi := &file_athena_v1_files_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -648,7 +780,7 @@ func (x *DeleteFileRequest) String() string {
 func (*DeleteFileRequest) ProtoMessage() {}
 
 func (x *DeleteFileRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_files_proto_msgTypes[10]
+	mi := &file_athena_v1_files_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -661,7 +793,7 @@ func (x *DeleteFileRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteFileRequest.ProtoReflect.Descriptor instead.
 func (*DeleteFileRequest) Descriptor() ([]byte, []int) {
-	return file_athena_v1_files_proto_rawDescGZIP(), []int{10}
+	return file_athena_v1_files_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *DeleteFileRequest) GetPath() string {
@@ -686,7 +818,7 @@ type DeleteFileResponse struct {
 
 func (x *DeleteFileResponse) Reset() {
 	*x = DeleteFileResponse{}
-	mi := &file_athena_v1_files_proto_msgTypes[11]
+	mi := &file_athena_v1_files_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -698,7 +830,7 @@ func (x *DeleteFileResponse) String() string {
 func (*DeleteFileResponse) ProtoMessage() {}
 
 func (x *DeleteFileResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_files_proto_msgTypes[11]
+	mi := &file_athena_v1_files_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -711,7 +843,7 @@ func (x *DeleteFileResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteFileResponse.ProtoReflect.Descriptor instead.
 func (*DeleteFileResponse) Descriptor() ([]byte, []int) {
-	return file_athena_v1_files_proto_rawDescGZIP(), []int{11}
+	return file_athena_v1_files_proto_rawDescGZIP(), []int{13}
 }
 
 type ListFileVersionsRequest struct {
@@ -723,7 +855,7 @@ type ListFileVersionsRequest struct {
 
 func (x *ListFileVersionsRequest) Reset() {
 	*x = ListFileVersionsRequest{}
-	mi := &file_athena_v1_files_proto_msgTypes[12]
+	mi := &file_athena_v1_files_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -735,7 +867,7 @@ func (x *ListFileVersionsRequest) String() string {
 func (*ListFileVersionsRequest) ProtoMessage() {}
 
 func (x *ListFileVersionsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_files_proto_msgTypes[12]
+	mi := &file_athena_v1_files_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -748,7 +880,7 @@ func (x *ListFileVersionsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListFileVersionsRequest.ProtoReflect.Descriptor instead.
 func (*ListFileVersionsRequest) Descriptor() ([]byte, []int) {
-	return file_athena_v1_files_proto_rawDescGZIP(), []int{12}
+	return file_athena_v1_files_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *ListFileVersionsRequest) GetPath() string {
@@ -782,7 +914,7 @@ type FileVersion struct {
 
 func (x *FileVersion) Reset() {
 	*x = FileVersion{}
-	mi := &file_athena_v1_files_proto_msgTypes[13]
+	mi := &file_athena_v1_files_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -794,7 +926,7 @@ func (x *FileVersion) String() string {
 func (*FileVersion) ProtoMessage() {}
 
 func (x *FileVersion) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_files_proto_msgTypes[13]
+	mi := &file_athena_v1_files_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -807,7 +939,7 @@ func (x *FileVersion) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FileVersion.ProtoReflect.Descriptor instead.
 func (*FileVersion) Descriptor() ([]byte, []int) {
-	return file_athena_v1_files_proto_rawDescGZIP(), []int{13}
+	return file_athena_v1_files_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *FileVersion) GetRevision() int64 {
@@ -889,7 +1021,7 @@ type ListFileVersionsResponse struct {
 
 func (x *ListFileVersionsResponse) Reset() {
 	*x = ListFileVersionsResponse{}
-	mi := &file_athena_v1_files_proto_msgTypes[14]
+	mi := &file_athena_v1_files_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -901,7 +1033,7 @@ func (x *ListFileVersionsResponse) String() string {
 func (*ListFileVersionsResponse) ProtoMessage() {}
 
 func (x *ListFileVersionsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_files_proto_msgTypes[14]
+	mi := &file_athena_v1_files_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -914,7 +1046,7 @@ func (x *ListFileVersionsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListFileVersionsResponse.ProtoReflect.Descriptor instead.
 func (*ListFileVersionsResponse) Descriptor() ([]byte, []int) {
-	return file_athena_v1_files_proto_rawDescGZIP(), []int{14}
+	return file_athena_v1_files_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *ListFileVersionsResponse) GetVersions() []*FileVersion {
@@ -953,10 +1085,11 @@ const file_athena_v1_files_proto_rawDesc = "" +
 	"\afolders\x18\x05 \x03(\tR\afolders\x12\x1e\n" +
 	"\n" +
 	"extensions\x18\x06 \x03(\tR\n" +
-	"extensions\"@\n" +
+	"extensions\"^\n" +
 	"\x0eGetFileRequest\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\x12\x1a\n" +
-	"\brevision\x18\x02 \x01(\x03R\brevision\"T\n" +
+	"\brevision\x18\x02 \x01(\x03R\brevision\x12\x1c\n" +
+	"\tthumbnail\x18\x03 \x01(\bR\tthumbnail\"T\n" +
 	"\x0fGetFileResponse\x12'\n" +
 	"\x04info\x18\x01 \x01(\v2\x13.athena.v1.FileInfoR\x04info\x12\x18\n" +
 	"\acontent\x18\x02 \x01(\fR\acontent\"c\n" +
@@ -965,7 +1098,15 @@ const file_athena_v1_files_proto_rawDesc = "" +
 	"\acontent\x18\x02 \x01(\fR\acontent\x12#\n" +
 	"\rexpected_hash\x18\x03 \x01(\tR\fexpectedHash\":\n" +
 	"\x0fPutFileResponse\x12'\n" +
-	"\x04info\x18\x01 \x01(\v2\x13.athena.v1.FileInfoR\x04info\"Z\n" +
+	"\x04info\x18\x01 \x01(\v2\x13.athena.v1.FileInfoR\x04info\"d\n" +
+	"\x0fPutImageRequest\x12\x12\n" +
+	"\x04path\x18\x01 \x01(\tR\x04path\x12\x18\n" +
+	"\acontent\x18\x02 \x01(\fR\acontent\x12#\n" +
+	"\rexpected_hash\x18\x03 \x01(\tR\fexpectedHash\"i\n" +
+	"\x10PutImageResponse\x12'\n" +
+	"\x04info\x18\x01 \x01(\v2\x13.athena.v1.FileInfoR\x04info\x12\x14\n" +
+	"\x05width\x18\x02 \x01(\x05R\x05width\x12\x16\n" +
+	"\x06height\x18\x03 \x01(\x05R\x06height\"Z\n" +
 	"\x0fMoveFileRequest\x12\x12\n" +
 	"\x04from\x18\x01 \x01(\tR\x04from\x12\x0e\n" +
 	"\x02to\x18\x02 \x01(\tR\x02to\x12#\n" +
@@ -994,11 +1135,12 @@ const file_athena_v1_files_proto_rawDesc = "" +
 	" \x01(\bR\n" +
 	"hasContent\"N\n" +
 	"\x18ListFileVersionsResponse\x122\n" +
-	"\bversions\x18\x01 \x03(\v2\x16.athena.v1.FileVersionR\bversions2\xc6\x03\n" +
+	"\bversions\x18\x01 \x03(\v2\x16.athena.v1.FileVersionR\bversions2\x8b\x04\n" +
 	"\vFileService\x12F\n" +
 	"\tListFiles\x12\x1b.athena.v1.ListFilesRequest\x1a\x1c.athena.v1.ListFilesResponse\x12@\n" +
 	"\aGetFile\x12\x19.athena.v1.GetFileRequest\x1a\x1a.athena.v1.GetFileResponse\x12@\n" +
 	"\aPutFile\x12\x19.athena.v1.PutFileRequest\x1a\x1a.athena.v1.PutFileResponse\x12C\n" +
+	"\bPutImage\x12\x1a.athena.v1.PutImageRequest\x1a\x1b.athena.v1.PutImageResponse\x12C\n" +
 	"\bMoveFile\x12\x1a.athena.v1.MoveFileRequest\x1a\x1b.athena.v1.MoveFileResponse\x12I\n" +
 	"\n" +
 	"DeleteFile\x12\x1c.athena.v1.DeleteFileRequest\x1a\x1d.athena.v1.DeleteFileResponse\x12[\n" +
@@ -1016,7 +1158,7 @@ func file_athena_v1_files_proto_rawDescGZIP() []byte {
 	return file_athena_v1_files_proto_rawDescData
 }
 
-var file_athena_v1_files_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
+var file_athena_v1_files_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
 var file_athena_v1_files_proto_goTypes = []any{
 	(*FileBacking)(nil),              // 0: athena.v1.FileBacking
 	(*FileInfo)(nil),                 // 1: athena.v1.FileInfo
@@ -1026,38 +1168,43 @@ var file_athena_v1_files_proto_goTypes = []any{
 	(*GetFileResponse)(nil),          // 5: athena.v1.GetFileResponse
 	(*PutFileRequest)(nil),           // 6: athena.v1.PutFileRequest
 	(*PutFileResponse)(nil),          // 7: athena.v1.PutFileResponse
-	(*MoveFileRequest)(nil),          // 8: athena.v1.MoveFileRequest
-	(*MoveFileResponse)(nil),         // 9: athena.v1.MoveFileResponse
-	(*DeleteFileRequest)(nil),        // 10: athena.v1.DeleteFileRequest
-	(*DeleteFileResponse)(nil),       // 11: athena.v1.DeleteFileResponse
-	(*ListFileVersionsRequest)(nil),  // 12: athena.v1.ListFileVersionsRequest
-	(*FileVersion)(nil),              // 13: athena.v1.FileVersion
-	(*ListFileVersionsResponse)(nil), // 14: athena.v1.ListFileVersionsResponse
+	(*PutImageRequest)(nil),          // 8: athena.v1.PutImageRequest
+	(*PutImageResponse)(nil),         // 9: athena.v1.PutImageResponse
+	(*MoveFileRequest)(nil),          // 10: athena.v1.MoveFileRequest
+	(*MoveFileResponse)(nil),         // 11: athena.v1.MoveFileResponse
+	(*DeleteFileRequest)(nil),        // 12: athena.v1.DeleteFileRequest
+	(*DeleteFileResponse)(nil),       // 13: athena.v1.DeleteFileResponse
+	(*ListFileVersionsRequest)(nil),  // 14: athena.v1.ListFileVersionsRequest
+	(*FileVersion)(nil),              // 15: athena.v1.FileVersion
+	(*ListFileVersionsResponse)(nil), // 16: athena.v1.ListFileVersionsResponse
 }
 var file_athena_v1_files_proto_depIdxs = []int32{
 	0,  // 0: athena.v1.FileInfo.backing:type_name -> athena.v1.FileBacking
 	1,  // 1: athena.v1.ListFilesResponse.files:type_name -> athena.v1.FileInfo
 	1,  // 2: athena.v1.GetFileResponse.info:type_name -> athena.v1.FileInfo
 	1,  // 3: athena.v1.PutFileResponse.info:type_name -> athena.v1.FileInfo
-	1,  // 4: athena.v1.MoveFileResponse.info:type_name -> athena.v1.FileInfo
-	13, // 5: athena.v1.ListFileVersionsResponse.versions:type_name -> athena.v1.FileVersion
-	2,  // 6: athena.v1.FileService.ListFiles:input_type -> athena.v1.ListFilesRequest
-	4,  // 7: athena.v1.FileService.GetFile:input_type -> athena.v1.GetFileRequest
-	6,  // 8: athena.v1.FileService.PutFile:input_type -> athena.v1.PutFileRequest
-	8,  // 9: athena.v1.FileService.MoveFile:input_type -> athena.v1.MoveFileRequest
-	10, // 10: athena.v1.FileService.DeleteFile:input_type -> athena.v1.DeleteFileRequest
-	12, // 11: athena.v1.FileService.ListFileVersions:input_type -> athena.v1.ListFileVersionsRequest
-	3,  // 12: athena.v1.FileService.ListFiles:output_type -> athena.v1.ListFilesResponse
-	5,  // 13: athena.v1.FileService.GetFile:output_type -> athena.v1.GetFileResponse
-	7,  // 14: athena.v1.FileService.PutFile:output_type -> athena.v1.PutFileResponse
-	9,  // 15: athena.v1.FileService.MoveFile:output_type -> athena.v1.MoveFileResponse
-	11, // 16: athena.v1.FileService.DeleteFile:output_type -> athena.v1.DeleteFileResponse
-	14, // 17: athena.v1.FileService.ListFileVersions:output_type -> athena.v1.ListFileVersionsResponse
-	12, // [12:18] is the sub-list for method output_type
-	6,  // [6:12] is the sub-list for method input_type
-	6,  // [6:6] is the sub-list for extension type_name
-	6,  // [6:6] is the sub-list for extension extendee
-	0,  // [0:6] is the sub-list for field type_name
+	1,  // 4: athena.v1.PutImageResponse.info:type_name -> athena.v1.FileInfo
+	1,  // 5: athena.v1.MoveFileResponse.info:type_name -> athena.v1.FileInfo
+	15, // 6: athena.v1.ListFileVersionsResponse.versions:type_name -> athena.v1.FileVersion
+	2,  // 7: athena.v1.FileService.ListFiles:input_type -> athena.v1.ListFilesRequest
+	4,  // 8: athena.v1.FileService.GetFile:input_type -> athena.v1.GetFileRequest
+	6,  // 9: athena.v1.FileService.PutFile:input_type -> athena.v1.PutFileRequest
+	8,  // 10: athena.v1.FileService.PutImage:input_type -> athena.v1.PutImageRequest
+	10, // 11: athena.v1.FileService.MoveFile:input_type -> athena.v1.MoveFileRequest
+	12, // 12: athena.v1.FileService.DeleteFile:input_type -> athena.v1.DeleteFileRequest
+	14, // 13: athena.v1.FileService.ListFileVersions:input_type -> athena.v1.ListFileVersionsRequest
+	3,  // 14: athena.v1.FileService.ListFiles:output_type -> athena.v1.ListFilesResponse
+	5,  // 15: athena.v1.FileService.GetFile:output_type -> athena.v1.GetFileResponse
+	7,  // 16: athena.v1.FileService.PutFile:output_type -> athena.v1.PutFileResponse
+	9,  // 17: athena.v1.FileService.PutImage:output_type -> athena.v1.PutImageResponse
+	11, // 18: athena.v1.FileService.MoveFile:output_type -> athena.v1.MoveFileResponse
+	13, // 19: athena.v1.FileService.DeleteFile:output_type -> athena.v1.DeleteFileResponse
+	16, // 20: athena.v1.FileService.ListFileVersions:output_type -> athena.v1.ListFileVersionsResponse
+	14, // [14:21] is the sub-list for method output_type
+	7,  // [7:14] is the sub-list for method input_type
+	7,  // [7:7] is the sub-list for extension type_name
+	7,  // [7:7] is the sub-list for extension extendee
+	0,  // [0:7] is the sub-list for field type_name
 }
 
 func init() { file_athena_v1_files_proto_init() }
@@ -1071,7 +1218,7 @@ func file_athena_v1_files_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_athena_v1_files_proto_rawDesc), len(file_athena_v1_files_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   15,
+			NumMessages:   17,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

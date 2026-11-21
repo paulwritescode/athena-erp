@@ -20,6 +20,10 @@ service FileService {
   // PutFile creates or replaces a file (upload). The expected hash must match
   // the file on disk; an empty hash means the file must not exist yet.
   rpc PutFile(PutFileRequest) returns (PutFileResponse);
+  // PutImage uploads a PNG, JPEG or WebP image under images/. The content is
+  // sniffed, EXIF metadata is stripped, and the response carries the stored
+  // file with its pixel dimensions.
+  rpc PutImage(PutImageRequest) returns (PutImageResponse);
   // MoveFile renames a file inside the allowed folders.
   rpc MoveFile(MoveFileRequest) returns (MoveFileResponse);
   // DeleteFile removes a file from disk. Its versions stay.
@@ -72,6 +76,8 @@ message GetFileRequest {
   string path = 1;
   // 0 reads the file on disk. Another number reads that recorded revision.
   int64 revision = 2;
+  // Return a 256 px thumbnail instead of the file. Images only.
+  bool thumbnail = 3;
 }
 
 message GetFileResponse {
@@ -88,6 +94,21 @@ message PutFileRequest {
 
 message PutFileResponse {
   FileInfo info = 1;
+}
+
+message PutImageRequest {
+  // Under images/ (images/logo.png).
+  string path = 1;
+  bytes content = 2;
+  // Hash of the content the caller read. Empty creates a new file.
+  string expected_hash = 3;
+}
+
+message PutImageResponse {
+  FileInfo info = 1;
+  // Pixel dimensions of the stored image.
+  int32 width = 2;
+  int32 height = 3;
 }
 
 message MoveFileRequest {

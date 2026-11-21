@@ -41,6 +41,8 @@ type recordTypeDefinition struct {
 	AllowManualName bool              `json:"allow_manual_name,omitempty"`
 	LabelField      string            `json:"label_field,omitempty"`
 	Fields          []recordTypeField `json:"fields"`
+	// Layout arranges the form. Nil means definition order.
+	Layout *formLayout `json:"layout,omitempty"`
 	// Revision is the active revision. It is read from the revision column,
 	// never stored in the definition.
 	Revision int64 `json:"-"`
@@ -815,6 +817,9 @@ func validateRecordType(ctx context.Context, conn sqlConn, recordType recordType
 			return invalid(fmt.Sprintf("%s is not a Link field and cannot have a link target", field.Label))
 		}
 	}
+	if err := validateLayout(ctx, conn, recordType); err != nil {
+		return err
+	}
 	return validateExpressions(ctx, conn, recordType)
 }
 
@@ -1217,6 +1222,7 @@ func recordTypeFromProto(recordType *athenav1.RecordType) recordTypeDefinition {
 		}
 		definition.Fields = append(definition.Fields, out)
 	}
+	definition.Layout = layoutFromProto(recordType.GetLayout(), definition.Fields)
 	return definition
 }
 func recordTypeToProto(recordType recordTypeDefinition, revision int64) *athenav1.RecordType {
@@ -1237,6 +1243,7 @@ func recordTypeToProto(recordType recordTypeDefinition, revision int64) *athenav
 		}
 		result.Fields = append(result.Fields, out)
 	}
+	result.Layout = layoutToProto(recordType.Layout)
 	return result
 }
 func plural(n int64, one, many string) string {

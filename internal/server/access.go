@@ -334,5 +334,31 @@ func visibleDefinition(d recordTypeDefinition, hidden map[string]bool) recordTyp
 	if hidden[d.LabelField] {
 		d.LabelField = ""
 	}
+	if d.Layout != nil {
+		d.Layout = visibleLayout(d.Layout, hidden)
+	}
 	return d
+}
+
+// visibleLayout drops the layout blocks of hidden fields, and the sections
+// left with nothing in them, so a filtered definition never names a field
+// the caller may not see.
+func visibleLayout(layout *formLayout, hidden map[string]bool) *formLayout {
+	out := &formLayout{}
+	for _, section := range layout.Sections {
+		kept := formSection{Title: section.Title, Description: section.Description, Columns: section.Columns, Visibility: section.Visibility}
+		for _, item := range section.Items {
+			if item.Field != nil && hidden[item.Field.FieldKey] {
+				continue
+			}
+			kept.Items = append(kept.Items, item)
+		}
+		if len(kept.Items) > 0 {
+			out.Sections = append(out.Sections, kept)
+		}
+	}
+	if len(out.Sections) == 0 {
+		return nil
+	}
+	return out
 }
