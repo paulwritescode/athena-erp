@@ -19,7 +19,6 @@ import (
 	"athena-erp/internal/auth"
 	"athena-erp/internal/lifecycle"
 	"athena-erp/internal/store"
-	"athena-erp/internal/testdb"
 
 	"connectrpc.com/connect/v2"
 	"connectrpc.com/connect/v2/connecthttp"
@@ -53,7 +52,7 @@ func newAccessFixture(t *testing.T) *accessFixture {
 // FileService needs.
 func newAccessFixtureAt(t *testing.T, root string) *accessFixture {
 	t.Helper()
-	db := testdb.New(t)
+	db := sharedDatabase(t)
 	if _, err := store.Up(context.Background(), db, dialect, SystemMigrations(), store.UpOptions{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}

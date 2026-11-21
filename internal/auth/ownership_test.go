@@ -9,7 +9,6 @@ import (
 	"athena-erp/internal/auth"
 	"athena-erp/internal/server"
 	"athena-erp/internal/store"
-	"athena-erp/internal/testdb"
 	"pgregory.net/rapid"
 )
 
@@ -354,12 +353,12 @@ func TestStartResetNeedsTheActorPassword(t *testing.T) {
 	}
 }
 
-// ownerDB migrates a throwaway database and seeds the system roles. It
-// returns a cleanup func that drops the database immediately; the caller
-// defers it so each rapid iteration releases its connections.
-func ownerDB(t *testing.T) (*auth.Service, func()) {
+// ownerDB resets the shared database and seeds the system roles. The serial
+// phase calls it once and accumulates owners across iterations; the race
+// phase calls it per iteration for exactly the owners it demotes.
+func ownerDB(t *testing.T) *auth.Service {
 	t.Helper()
-	db, cleanup := testdb.NewScoped(t)
+	db := sharedDatabase(t)
 	if _, err := store.Up(context.Background(), db, store.MariaDB{}, server.SystemMigrations(), store.UpOptions{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
@@ -367,7 +366,7 @@ func ownerDB(t *testing.T) (*auth.Service, func()) {
 	if err := svc.EnsureSystemRoles(context.Background()); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
-	return svc, cleanup
+	return svc
 }
 
 // naiveOwnerCount counts the set's owners through the public API only: an
@@ -465,7 +464,7 @@ func TestLastOwnerProperty(t *testing.T) {
 	// Only the race phase needs a fresh database per iteration: its exact
 	// survivor count requires the raced set to be the only owners.
 	tt := t
-	serialSvc, _ := ownerDB(tt)
+	serialSvc := ownerDB(tt)
 	var serialSeq int
 	rapid.Check(t, func(t *rapid.T) {
 		resting := naiveGlobalCount(t, serialSvc)
@@ -519,8 +518,7 @@ func TestLastOwnerProperty(t *testing.T) {
 
 	var raceSeq int
 	rapid.Check(t, func(t *rapid.T) {
-		raceSvc, cleanup := ownerDB(tt)
-		defer cleanup()
+		raceSvc := ownerDB(tt)
 		n := rapid.IntRange(2, 3).Draw(t, "owners")
 		raceSeq++
 		set := make([]string, 0, n)

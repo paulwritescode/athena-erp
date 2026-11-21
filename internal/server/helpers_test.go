@@ -12,6 +12,17 @@ import (
 
 func newServices(t *testing.T) (recordTypeService, recordService) {
 	t.Helper()
+	db := sharedDatabase(t)
+	if _, err := store.Up(context.Background(), db, dialect, SystemMigrations(), store.UpOptions{}); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	return recordTypeService{db: db}, recordService{db: db}
+}
+
+// newIsolatedServices is newServices with a private database, for the rare
+// test that drops or renames platform tables and so cannot share.
+func newIsolatedServices(t *testing.T) (recordTypeService, recordService) {
+	t.Helper()
 	db := testdb.New(t)
 	if _, err := store.Up(context.Background(), db, dialect, SystemMigrations(), store.UpOptions{}); err != nil {
 		t.Fatalf("migrate: %v", err)

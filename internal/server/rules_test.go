@@ -15,7 +15,6 @@ import (
 	"athena-erp/internal/lifecycle"
 	"athena-erp/internal/rules"
 	"athena-erp/internal/store"
-	"athena-erp/internal/testdb"
 
 	"connectrpc.com/connect/v2"
 	"go.opentelemetry.io/otel"
@@ -34,7 +33,7 @@ type ruleFixture struct {
 // an invoice document with a customer master to read from.
 func newRuleFixture(t *testing.T) *ruleFixture {
 	t.Helper()
-	db := testdb.New(t)
+	db := sharedDatabase(t)
 	if _, err := store.Up(context.Background(), db, dialect, SystemMigrations(), store.UpOptions{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}

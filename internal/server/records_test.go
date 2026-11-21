@@ -177,7 +177,8 @@ func TestRecordHistoryRecordsEachChange(t *testing.T) {
 // fails, the change must not survive.
 func TestRecordChangeAndHistoryShareATransaction(t *testing.T) {
 	ctx := context.Background()
-	recordTypes, records := newServices(t)
+	// Isolated: this test drops the audit table to simulate a failing write.
+	recordTypes, records := newIsolatedServices(t)
 	saveRecordType(t, recordTypes, "customer", customerFields...)
 	record := newCustomer(t, records, "Acme")
 	if _, err := records.db.ExecContext(ctx, "DROP TABLE athena_audit_log"); err != nil {
