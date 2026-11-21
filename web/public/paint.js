@@ -12,7 +12,8 @@ try {
     if (cached.preset === 'custom' && (cached.light || cached.accent)) {
       var light = cached.light || cached.accent
       var darkAccent = cached.dark || cached.accent
-      var stored = cached.chartPalette === 'custom' ? (cached.chartColors || []) : []
+      var customCharts = cached.chartPalette === 'custom' || (!cached.chartPalette && (cached.chartColors || []).length > 0)
+      var stored = customCharts ? (cached.chartColors || []) : []
       var charts = stored.slice(0, 5).map(function (v, i) {
         return v ? ' --chart-' + (i + 1) + ': ' + v + ';' : ''
       }).join('')
@@ -27,6 +28,15 @@ try {
       document.head.appendChild(el)
     } else if (cached.preset !== 'custom') {
       document.documentElement.dataset.accent = cached.preset
+      if (!cached.chartPalette && (cached.chartColors || []).length > 0) {
+        var legacy = (cached.chartColors || []).slice(0, 5).map(function (v, i) {
+          return v ? ' --chart-' + (i + 1) + ': ' + v + ';' : ''
+        }).join('')
+        var legacyEl = document.createElement('style')
+        legacyEl.id = 'athena-appearance'
+        legacyEl.textContent = ':root{' + legacy + '}' + '.dark{' + legacy + '}'
+        document.head.appendChild(legacyEl)
+      }
     }
     if (cached.chartPalette && cached.chartPalette !== 'match' && cached.chartPalette !== 'custom') {
       document.documentElement.dataset.charts = cached.chartPalette

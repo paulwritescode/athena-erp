@@ -154,6 +154,16 @@
   --sidebar-primary: oklch(0.68 0.13 22);
 }
 
+/* The match-accent ramp on the scoped element: custom properties substitute
+   var() where they are declared, so subtree scopes (preview panes, option
+   dots) would otherwise inherit the saved accent's ramp from :root. Named
+   palettes below win by order on equal specificity. */
+[data-accent] {
+  --chart-1: var(--primary);
+  --chart-2: color-mix(in oklab, var(--primary) 80%, white); --chart-3: color-mix(in oklab, var(--primary) 64%, white);
+  --chart-4: color-mix(in oklab, var(--primary) 50%, white); --chart-5: color-mix(in oklab, var(--primary) 38%, white);
+}
+
 /* Named chart palettes, applied as data-charts on <html> beside data-accent.
    Without it (or with "match") charts follow the accent ramp above. */
 [data-charts="neutral"] {

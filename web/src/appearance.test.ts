@@ -6,7 +6,9 @@ import { afterEach, describe, expect, it } from 'vitest'
 import {
   ACCENT_PRESETS,
   CHART_PALETTES,
+  MATCH_RAMP_VARS,
   applyAppearance,
+  chartsAreCustom,
   contrastOf,
   customStyle,
   hexToOklch,
@@ -181,6 +183,36 @@ describe('preset tokens in theme.css', () => {
       expect(lightRatio!).toBeGreaterThanOrEqual(4.5)
       expect(darkRatio!).toBeGreaterThanOrEqual(4.5)
     }
+  })
+
+  it('declares the match ramp on the scoped accent before the palettes', () => {
+    // Custom properties substitute var() where they are declared: without
+    // this rule a preview pane scoping data-accent would inherit the saved
+    // accent's ramp from :root instead of the draft's.
+    const scoped = block('\\[data-accent\\]')
+    for (let i = 1; i <= 5; i++) {
+      expect(prop(scoped, `--chart-${i}`), `chart-${i}`).toBe(MATCH_RAMP_VARS[`--chart-${i}`])
+    }
+    expect(css.indexOf('[data-accent] {')).toBeLessThan(css.indexOf('[data-charts='))
+  })
+
+  it('applies pre-B4b custom charts recorded without a palette', () => {
+    expect(chartsAreCustom('', ['oklch(0.4 0.1 20)'])).toBe(true)
+    expect(chartsAreCustom('', [])).toBe(false)
+    expect(chartsAreCustom('match', [])).toBe(false)
+    applyAppearance(
+      { preset: 'custom', accent: 'oklch(0.5 0.1 250)', chartPalette: '', chartColors: ['oklch(0.4 0.1 20)', 'oklch(0.6 0.1 140)', '', '', ''] },
+      { light: 'oklch(0.5 0.1 250)', dark: 'oklch(0.7 0.1 250)' },
+    )
+    const cssText = document.getElementById('athena-appearance')?.textContent ?? ''
+    expect(cssText).toContain('--chart-1: oklch(0.4 0.1 20)')
+    expect(cssText).toContain('--chart-2: oklch(0.6 0.1 140)')
+    // A named preset with legacy colors keeps its tokens and gains charts.
+    applyAppearance({ preset: 'blue', accent: '', chartPalette: '', chartColors: ['oklch(0.4 0.1 20)', '', '', '', ''] }, { light: '', dark: '' })
+    expect(document.documentElement.dataset.accent).toBe('blue')
+    const chartsOnly = document.getElementById('athena-appearance')?.textContent ?? ''
+    expect(chartsOnly).toContain('--chart-1: oklch(0.4 0.1 20)')
+    expect(chartsOnly).not.toContain('--primary')
   })
 
   it('defines the four named chart palettes in both themes', () => {

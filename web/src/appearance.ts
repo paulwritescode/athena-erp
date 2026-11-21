@@ -30,6 +30,24 @@ export const ACCENT_PRESETS = [
 // choice. It lives here because the token guard forbids hex in components.
 export const RAMP_FALLBACK_HEX = ['#18181b', '#3f3f42', '#616164', '#818183', '#9e9ea0']
 
+// The match-accent ramp for custom drafts, which scope no data-accent: the
+// same declarations theme.css puts on [data-accent], applied inline so the
+// ramp resolves against the pane-local --primary. appearance.test.ts keeps
+// the two in step.
+export const MATCH_RAMP_VARS: Record<string, string> = {
+  '--chart-1': 'var(--primary)',
+  '--chart-2': 'color-mix(in oklab, var(--primary) 80%, white)',
+  '--chart-3': 'color-mix(in oklab, var(--primary) 64%, white)',
+  '--chart-4': 'color-mix(in oklab, var(--primary) 50%, white)',
+  '--chart-5': 'color-mix(in oklab, var(--primary) 38%, white)',
+}
+
+// Whether stored chart colors apply: explicit custom, or the pre-B4b shape
+// (no palette recorded). Mirrors the server's read rule in Resolve.
+export function chartsAreCustom(chartPalette: string, chartColors: string[]): boolean {
+  return chartPalette === 'custom' || (chartPalette === '' && chartColors.length > 0)
+}
+
 // The one shared chart list: a tonal ramp of the accent, four named
 // palettes, or custom colors.
 export const CHART_PALETTES = [
@@ -212,12 +230,11 @@ export function customStyle(light: string, dark: string, charts: string[]): stri
     .slice(0, 5)
     .map((value, i) => (value ? ` --chart-${i + 1}: ${value};` : ''))
     .join('')
-  return (
-    `:root{--primary:${light};--primary-foreground:${LIGHT_TEXT};` +
-    `--sidebar-primary:${light};--sidebar-primary-foreground:${LIGHT_TEXT};${chartRules}}` +
-    `.dark{--primary:${dark};--primary-foreground:${DARK_TEXT};` +
-    `--sidebar-primary:${dark};--sidebar-primary-foreground:${DARK_TEXT};${chartRules}}`
-  )
+  // Empty accents (a named preset with legacy custom charts) leave the
+  // preset's own tokens alone.
+  const lightPrimary = light ? `--primary:${light};--primary-foreground:${LIGHT_TEXT};--sidebar-primary:${light};--sidebar-primary-foreground:${LIGHT_TEXT};` : ''
+  const darkPrimary = dark ? `--primary:${dark};--primary-foreground:${DARK_TEXT};--sidebar-primary:${dark};--sidebar-primary-foreground:${DARK_TEXT};` : ''
+  return `:root{${lightPrimary}${chartRules}}` + `.dark{${darkPrimary}${chartRules}}`
 }
 
 export function applyAppearance(choice: AppearanceChoice, palette: ResolvedPalette): void {
@@ -229,13 +246,20 @@ export function applyAppearance(choice: AppearanceChoice, palette: ResolvedPalet
   for (const name of ['--primary', '--primary-foreground', '--sidebar-primary', '--sidebar-primary-foreground', '--chart-1', '--chart-2', '--chart-3', '--chart-4', '--chart-5']) {
     root.style.removeProperty(name)
   }
+  const customCharts = chartsAreCustom(choice.chartPalette, choice.chartColors)
   if (choice.preset === 'custom') {
     const el = document.createElement('style')
     el.id = STYLE_ID
-    el.textContent = customStyle(palette.light || choice.accent, palette.dark || choice.accent, choice.chartPalette === 'custom' ? choice.chartColors : [])
+    el.textContent = customStyle(palette.light || choice.accent, palette.dark || choice.accent, customCharts ? choice.chartColors : [])
     document.head.appendChild(el)
   } else {
     root.dataset.accent = choice.preset || 'ink'
+    if (customCharts) {
+      const el = document.createElement('style')
+      el.id = STYLE_ID
+      el.textContent = customStyle('', '', choice.chartColors)
+      document.head.appendChild(el)
+    }
   }
   if (choice.chartPalette !== 'custom' && choice.chartPalette !== 'match' && choice.chartPalette !== '') {
     root.dataset.charts = choice.chartPalette
