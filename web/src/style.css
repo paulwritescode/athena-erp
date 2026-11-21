@@ -35,6 +35,47 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-warning-soft: var(--warning-soft);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-info-soft: var(--info-soft);
+  --spacing-1: var(--space-1);
+  --spacing-2: var(--space-2);
+  --spacing-3: var(--space-3);
+  --spacing-4: var(--space-4);
+  --spacing-5: var(--size-icon-nav);
+  --spacing-6: var(--space-6);
+  --spacing-8: var(--space-8);
+  --spacing-9: var(--size-control);
+  --spacing-10: var(--size-control-sm-touch);
+  --spacing-11: var(--size-control-touch);
+  --spacing-12: var(--space-12);
+  --spacing-16: var(--space-16);
+  --spacing-control: var(--size-control);
+  --spacing-control-sm: var(--size-control-sm);
+  --spacing-control-touch: var(--size-control-touch);
+  --spacing-control-sm-touch: var(--size-control-sm-touch);
+  --spacing-icon: var(--size-icon);
+  --spacing-icon-nav: var(--size-icon-nav);
+  --spacing-icon-touch: var(--size-icon-touch);
+  --spacing-icon-nav-touch: var(--size-icon-nav-touch);
+  --spacing-row: var(--size-row);
+  --spacing-row-touch: var(--size-row-touch);
+  --ease-athena-out: var(--ease-out);
+  --ease-athena-in-out: var(--ease-in-out);
+  --transition-duration-athena-fast: var(--duration-fast);
+  --transition-duration-athena-base: var(--duration-base);
+  --transition-duration-athena-slow: var(--duration-slow);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -56,7 +97,24 @@
     @apply bg-background text-foreground;
     @apply font-sans;}
   button:not(:disabled), [role="button"]:not(:disabled) {
-    cursor:pointer;}}
+    cursor:pointer;}
+  ::selection {
+    background:color-mix(in oklab, var(--primary) 18%, transparent);}
+  input, textarea {
+    caret-color:var(--primary);}
+  :focus-visible {
+    outline:2px solid var(--ring);outline-offset:2px;}
+  * {
+    scrollbar-width:thin;scrollbar-color:color-mix(in oklab, var(--muted-foreground) 45%, transparent) transparent;}
+  *::-webkit-scrollbar {
+    width:10px;height:10px;}
+  *::-webkit-scrollbar-thumb {
+    background:color-mix(in oklab, var(--muted-foreground) 45%, transparent);border-radius:8px;border:2px solid transparent;background-clip:content-box;}
+  *::-webkit-scrollbar-track {
+    background:transparent;}
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration:0.01ms !important;transition-duration:0.01ms !important;}}}
 
 body,.app-shell,.main-content,.page-content{background:var(--background);color:var(--foreground)}
 .sidebar,.topbar,.panel,.foundation-card,.builder-list,.editor-card,.inspector,.view-menu,.record-preview,.module-card{background:var(--card);color:var(--card-foreground);border-color:var(--border)}
@@ -296,7 +354,7 @@ body,.app-shell,.main-content,.page-content{background:var(--background);color:v
 /* Ledger setup: one card per section with even spacing. */
 .ledger-stack{display:grid;gap:24px;margin-top:16px}
 .ledger-actions{display:flex;align-items:center;gap:8px;margin-top:16px}
-.ledger-select{height:36px;padding:0 32px 0 12px;background-color:transparent;color:var(--foreground);border:1px solid var(--input);border-radius:var(--radius-md);font-size:var(--type-body-sm-size);appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238a8a93' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;cursor:pointer}
+.ledger-select{height:36px;padding:0 12px;background-color:transparent;color:var(--foreground);border:1px solid var(--input);border-radius:var(--radius-md);font-size:var(--type-body-sm-size);cursor:pointer}
 .sign-in{display:grid;place-items:center;min-height:100vh;padding:24px;background:var(--background)}
 .sign-in-card{width:100%;max-width:380px}
 .sign-in-title{font-family:var(--font-display);font-size:var(--type-title-md-size);font-weight:500}

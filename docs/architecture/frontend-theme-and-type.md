@@ -1,13 +1,35 @@
 # Frontend theme and typography
 
-**Last updated:** 2026-11-17  
-**Status:** Shared semantic color tokens and the supplied typography scale are implemented.
+**Last updated:** 2026-11-21  
+**Status:** Shared semantic color tokens, chart series, status tokens, spacing and size tokens, motion tokens, accent presets and the supplied typography scale are implemented. No Settings UI chooses the accent yet (B4).
 
 ## Palette and buttons
 
 `web/src/theme.css` is the palette source for light and dark themes. It defines semantic surface, foreground, primary, secondary, accent, border, ring, destructive, and desk alias tokens. The small `@theme` mapping in `web/src/style.css` exposes those values to Tailwind utility classes; it does not define a second palette. Component and app CSS should use the semantic variables rather than literal color values.
 
 The shadcn-vue Button component defines default, outline, secondary, ghost, destructive, and link variants using semantic color utilities. The global base styles must not force `color: inherit` onto buttons, because that overrides each variant's foreground and can make primary button text unreadable in dark mode. The current primary button pairs `--primary` with `--primary-foreground`; light and dark values are set in `theme.css`.
+
+## Chart series, status, spacing, sizes and motion
+
+`theme.css` also carries the design-system §2.4 chart series (`--chart-1` to `--chart-5`, both themes), the §2.5 status tokens (`--success`, `--warning`, `--info`, each with a `-foreground` verified ≥ 4.5:1 on the solid color and a `-soft` 12% badge tint), the §3 spacing scale (`--space-1` to `--space-16`, 4 px base), control/icon/row sizes (`--size-*`, desktop and touch, including `--size-icon-touch`), and the §6 motion tokens (`--duration-fast/base/slow`, `--ease-out/in-out`). Spacing, sizes and motion are theme-invariant and live in `:root` only. The `@theme` map exposes the colors, the spacing scale, every size token under a distinct `--spacing-*` alias, easings under distinct `--ease-athena-*` aliases, and durations under distinct `--transition-duration-athena-*` aliases (verified: `duration-athena-fast` emits `transition-duration: var(--duration-fast)`). Same-name mappings such as `--ease-out: var(--ease-out)` are forbidden: they emit circular CSS that poisons the token (verified in the built bundle during review).
+
+## Accent presets
+
+Two presets ship as `[data-accent]` blocks on `<html>`, per design-system §2.3: `ink` (default, current values) and `red` (one warm primary on actions, with `--chart-1` and `--sidebar-primary` following it). Only the §2.1 accent tokens change between presets; `--ring` and `--sidebar-ring` keep their neutral values until specified. Dark `--sidebar-primary` is `var(--primary)`; every other existing color value is unchanged. Text on `--primary` passes ≥ 4.5:1 in both presets and themes (8.67/5.80 for red, verified at authoring; B4 re-checks with the Settings preview).
+
+## Browser surfaces
+
+Selection, caret, scrollbars and the focus ring come from tokens in the `style.css` base layer: a subtle primary selection tint, `caret-color: var(--primary)` in fields, thin neutral scrollbars, and a 2 px `--ring` focus outline. `prefers-reduced-motion` collapses transitions and animations.
+
+## Token guard
+
+`web/src/tokens.test.ts` fails the web suite if any `.vue` or `.css` file under `web/src` other than `web/src/theme.css` holds a hex literal, `rgb(` or named color in a value position: CSS declarations, `.vue` style blocks, `style`/`:style`/`v-bind` values, Tailwind arbitrary values and `fill`/`stroke`/`color` attributes. Comments, selectors, `data-*` attribute values, `transparent`, `currentColor` and `inherit` are allowed. Literal colors belong in `theme.css` only.
+
+Known limits (the check uses regular expressions; task B2 replaces it with a parser-based check using `@vue/compiler-sfc` and a CSS parser):
+- a color in a backtick string inside an object binding, such as `:style="{ fill: \`#abc\` }"`, is not caught;
+- `red` as the value of a `data-*` key inside a `v-bind="{ ... }"` object is wrongly flagged;
+- a color in a CSS rule that also contains a nested rule (`.a { color: #abc; &:hover { ... } }`) is not caught.
+
 
 ## Type scale
 
