@@ -1,6 +1,6 @@
 # Athena beta: unified task list
 
-**Status:** DRAFT for user approval, 2026-11-21. Written by the master (t6).
+**Status:** Active, 2026-11-21. Written by the master (t6). Read with `requirements.md` (R1 to R14) and `design.md` (architecture and the agent workflow in section 5) in this folder.
 **Replaces as the working plan:** the open tasks of `.kiro/specs/athena-batch-2/tasks.md` (G6.2 to G18) and `.agents/tasks/erp-kernel-roadmap.md`. Those files stay as the source text for each group; this list sets the order, adds the design, product and security work, and is the only checklist agents tick.
 **Sources merged:** `AGENTS.md`, `README.md`, `docs/architecture/*`, `docs/decisions/*` (ADR-0001 to 0023), `docs/revamp/*` (playbook, process catalogue, industry, checkout and learning, records and movements, research), `.kiro/specs/athena-batch-2/*`, `.agents/tasks/*`, `docs/design/athena-design-system.md`, `.agents/tasks/orchestration-plan.md`.
 **Beta definition:** a person installs Athena, creates a Workspace from the CLI, signs in as the root administrator, sets up a company with a logo, installs the Business starter Packs, invites a storekeeper and a cashier, and they buy, sell, count stock and close a month through screens a new user can use without help. Public storefront pages are indexable. Every claim is backed by a passing check.
@@ -16,7 +16,7 @@
 
 ## A. Foundation (design system first; nothing else in the Desk starts before A is merged)
 
-- [ ] **B1. Design tokens** (Muse)
+- [ ] **B1. Design tokens** (Muse) — R1. In review: first review FAIL (token guard loopholes, @theme map, touch sizes), fixes sent to t4.
   - Add the *Proposed* tokens from design-system §2.4, §2.5, §3, §6 to `web/src/theme.css` and expose them in the `@theme` map in `web/src/style.css`. Keep every existing color value.
   - Set dark `--sidebar-primary` to `var(--primary)` (§2.2).
   - Theme browser surfaces: selection, caret, scrollbars, focus ring (impeccable craft floor).
