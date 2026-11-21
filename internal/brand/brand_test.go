@@ -135,6 +135,24 @@ func TestSanitizeSVG(t *testing.T) {
 			drop: []string{"blink", "<rect"},
 		},
 		{
+			name: "set cannot rewrite href",
+			in:   `<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8"><image width="8" height="8"><set attributeName="href" to="http://evil/x.png"/></image></svg>`,
+			keep: []string{"<image"},
+			drop: []string{"<set", "http://evil"},
+		},
+		{
+			name: "animate cannot rewrite href",
+			in:   `<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8"><image width="8" height="8"><animate attributeName="href" values="http://evil/x.png" dur="1s"/></image></svg>`,
+			keep: []string{"<image"},
+			drop: []string{"<animate", "http://evil"},
+		},
+		{
+			name: "set cannot plant an event handler",
+			in:   `<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8"><rect width="8" height="8"><set attributeName="onclick" to="alert(1)"/></rect></svg>`,
+			keep: []string{"<rect"},
+			drop: []string{"<set", "onclick", "alert(1)"},
+		},
+		{
 			name: "namespaces round-trip without duplication",
 			in:   `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="8" height="8"><defs><linearGradient id="g"><stop offset="0"/></linearGradient></defs><use xlink:href="#g"/><rect width="8" height="8"/></svg>`,
 			keep: []string{`xlink:href="#g"`},

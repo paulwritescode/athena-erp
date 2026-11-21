@@ -45,8 +45,9 @@ var keepElements = map[string]bool{
 	"title": true, "desc": true, "switch": true, "view": true,
 	"font": true, "font-face": true, "glyph": true, "missing-glyph": true,
 	"hkern": true, "vkern": true, "image": true,
-	"animate": true, "animatetransform": true, "animatemotion": true,
-	"mpath": true, "set": true,
+	// No animate, animateTransform, animateMotion, mpath or set: a logo has
+	// no business animating, and their attributeName/to/from/by/values can
+	// rewrite href or event handlers at render time.
 }
 
 // urlAttrs may carry url() references, which must stay local.
