@@ -1,5 +1,5 @@
 // The Record Type editor (§§19-20): one saved type per address, created
-// through the name-first dialog. Header, tabs (Form placeholder, Fields,
+// through the name-first dialog. Header, tabs (Form builder, Fields,
 // Settings, Rules, History) and the full editing behaviour moved unchanged
 // from the old inline form.
 <script setup lang="ts">
@@ -12,6 +12,7 @@ import type { Field, Kind, RecordType } from '../types'
 import { validateNamingSeries } from '../fieldRules'
 import { formatWhen } from '../times'
 import FieldSettingsDialog from '../components/FieldSettingsDialog.vue'
+import FormBuilder from '../forms/FormBuilder.vue'
 import ActionButton from '@/components/ActionButton.vue'
 import HelpHint from '@/copy/HelpHint.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
@@ -278,11 +279,7 @@ const kindBadge = computed(() => kinds.find((item) => item.value === props.curre
           <TabsTrigger value="history">History</TabsTrigger>
         </TabsList>
         <TabsContent value="form">
-          <EmptyState
-            :icon="icon('layout-template')"
-            title="Form builder coming soon"
-            body="Design the layout of this form here: sections, columns, field order and help text. The Fields and Settings tabs work today."
-          />
+          <FormBuilder :record-type="currentRecordType" />
         </TabsContent>
         <TabsContent value="fields">
           <div class="overflow-x-auto"><div class="field-table min-w-[540px]"><div class="field-head"><span>Label</span><span>Key</span><span>Type</span><span>Required</span><span></span></div><div v-for="(field, index) in currentRecordType.fields" :key="fieldKey(field)" class="field-row"><span><Input :model-value="field.label" :aria-label="`Field ${index + 1} label`" @update:model-value="updateFieldLabel(field, $event)" /></span><span><Input :model-value="field.name" :readonly="!isNewField(field)" :aria-label="`Field ${index + 1} database name`" @update:model-value="updateFieldName(field, $event)" @blur="normalizeNewFieldName(field)" /></span><span><select v-model="field.type" aria-label="Field type" @change="changeType(field)"><option v-for="type in fieldTypes" :key="type">{{ type }}</option></select></span><span><input v-model="field.required" type="checkbox" :aria-label="`${field.label} required`" /></span><span class="field-actions"><ActionButton kind="quiet" density="inline" icon-only :label="`Settings for ${field.label}`" icon="sliders-horizontal" @press="settingsField = field" /><ActionButton kind="quiet" density="inline" icon-only :label="`Remove ${field.label}`" icon="x" @press="currentRecordType.fields.splice(index, 1)" /></span><div v-if="field.type === 'Link'" class="relationship-editor"><label>Links to<select v-model="field.target_record_type"><option :value="undefined" disabled>Select a Record Type</option><option v-for="target in recordTypes.filter((item) => item.name !== currentRecordType.name)" :key="target.name" :value="target.name">{{ target.label }}</option></select></label></div></div></div></div>

@@ -5,10 +5,10 @@
 // or the record is deleted: files keep their own versions and audit.
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { Code, ConnectError } from '@connectrpc/connect'
+import { ConnectError } from '@connectrpc/connect'
 import { fileClient } from '@/api'
-import { imageDataUrl } from '@/images'
-import { maxImageBytes, type ImageFieldValue } from '@/fieldRules'
+import { describeImageUpload, imageDataUrl, uploadImage } from '@/images'
+import type { ImageFieldValue } from '@/fieldRules'
 import FieldShell from './FieldShell.vue'
 import WorkspaceImage from '@/components/WorkspaceImage.vue'
 import TextField from './TextField.vue'
@@ -33,46 +33,18 @@ const downloading = ref(false)
 const uploadError = ref('')
 const shownError = computed(() => uploadError.value || props.error)
 
-function extensionFor(file: File): string {
-  if (file.type === 'image/png') return '.png'
-  if (file.type === 'image/jpeg') return '.jpg'
-  if (file.type === 'image/webp') return '.webp'
-  const name = file.name.toLowerCase()
-  if (name.endsWith('.png')) return '.png'
-  if (name.endsWith('.jpg') || name.endsWith('.jpeg')) return '.jpg'
-  if (name.endsWith('.webp')) return '.webp'
-  return ''
-}
-
-function slug(text: string): string {
-  return text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'image'
-}
-
-function describeUpload(err: unknown): string {
-  if (!(err instanceof ConnectError)) return 'The image could not be uploaded.'
-  if (err.code === Code.PermissionDenied) return 'You do not have permission to upload images.'
-  if (err.code === Code.Canceled) return 'The upload was cancelled.'
-  return `The image could not be uploaded: ${err.rawMessage}`
-}
-
 async function upload(file: File) {
   uploadError.value = ''
-  if (file.size > maxImageBytes) {
-    uploadError.value = 'Images are at most 5 MB.'
-    return
-  }
-  const extension = extensionFor(file)
-  if (!extension) {
-    uploadError.value = 'Use a PNG, JPEG or WebP image.'
-    return
-  }
   uploading.value = true
   try {
-    const path = `images/${slug(props.recordTypeKey)}-${slug(props.fieldName)}-${crypto.randomUUID().slice(0, 8)}${extension}`
-    const res = await fileClient.putImage({ path, content: new Uint8Array(await file.arrayBuffer()), expectedHash: '' })
-    emit('update:modelValue', { path, hash: res.info?.hash ?? '', altText: props.modelValue?.altText ?? '' })
+    const uploaded = await uploadImage(`${props.recordTypeKey}-${props.fieldName}`, file)
+    if ('error' in uploaded) {
+      uploadError.value = uploaded.error
+      return
+    }
+    emit('update:modelValue', { path: uploaded.path, hash: uploaded.hash, altText: props.modelValue?.altText ?? '' })
   } catch (err) {
-    uploadError.value = describeUpload(err)
+    uploadError.value = describeImageUpload(err)
   } finally {
     uploading.value = false
   }

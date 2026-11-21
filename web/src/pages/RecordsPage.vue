@@ -5,7 +5,7 @@ import { Code, ConnectError } from '@connectrpc/connect'
 import { recordClient } from '../api'
 import { keyMatchesRoute } from '../composables/useRecordTypes'
 import { docstates, fieldEditable, isCalculated, validateField, validateImageValue, validateManualName, type ImageFieldValue } from '../fieldRules'
-import { planSections, type PlannedFieldItem, type PlannedSection } from '../forms/layout'
+import { itemSpanClass, planSections, type PlannedSection } from '../forms/layout'
 import { gloss } from '../copy/glossary'
 import { forgetLabels, labelWithState, resolveRecords } from '../lookup'
 import { formatWhen, formatWhenFull } from '../times'
@@ -20,6 +20,7 @@ import PullToRefresh from '@/components/PullToRefresh.vue'
 import { buildRecordColumns, combineRecordFilter } from '@/components/records/recordColumns'
 import { loadPageSize, savePageSize } from '@/tablePrefs'
 import WorkspaceImage from '@/components/WorkspaceImage.vue'
+import ArtPlaceholder from '../forms/ArtPlaceholder.vue'
 import CheckboxField from '@/components/fields/CheckboxField.vue'
 import DateField from '@/components/fields/DateField.vue'
 import ImageField from '@/components/fields/ImageField.vue'
@@ -29,7 +30,7 @@ import NumberField from '@/components/fields/NumberField.vue'
 import SelectField from '@/components/fields/SelectField.vue'
 import TextField from '@/components/fields/TextField.vue'
 import { Marker, MarkerContent, MarkerIcon } from '@/components/ui/marker'
-import { CalendarPlus, Clock, Fingerprint, Hash, Image as ImageIcon, Layers, Pencil, Plus, Trash2, User } from '@/icons'
+import { CalendarPlus, Clock, Fingerprint, Hash, Layers, Pencil, Plus, Trash2, User } from '@/icons'
 import { toast } from 'vue-sonner'
 
 // recordType is null when no saved Record Type exists yet. recordId comes from the page
@@ -454,11 +455,8 @@ async function evaluateVisibility() {
     }
   }))
 }
-// A half-width field takes one column of a two-column section; everything
-// else spans the grid.
-function spanClass(section: PlannedSection, item: PlannedFieldItem): string {
-  return item.width === 'half' && section.columns === 2 ? '' : 'is-wide'
-}
+// The template reads the shared span rule through this alias.
+const spanClass = itemSpanClass
 const hasExpressions = computed(() => props.recordType?.fields.some((field) => field.formula || field.required_if || field.read_only_if || field.validate || field.depends_on) ?? false)
 function schedulePreview(delay = 250) {
   clearTimeout(previewTimer)
@@ -737,7 +735,7 @@ function calculatedError(field: Field): string | undefined {
               <template v-for="(item, itemIndex) in section.items" :key="itemIndex">
                 <p v-if="item.kind === 'text'" class="layout-text is-wide">{{ item.text }}</p>
                 <WorkspaceImage v-else-if="item.kind === 'image'" :path="item.path" alt="" class="is-wide layout-block-image" />
-                <div v-else-if="item.kind === 'art'" class="is-wide layout-art" role="note"><ImageIcon class="size-4" aria-hidden="true" /><span>Artwork appears here</span></div>
+                <ArtPlaceholder v-else-if="item.kind === 'art'" class="is-wide" />
                 <template v-else-if="item.kind === 'field' && !states[item.field.name]?.hidden">
                   <LinkField
                     v-if="item.field.type === 'Link' && item.field.target_record_type"

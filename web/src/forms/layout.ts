@@ -80,6 +80,14 @@ export function layoutToMessage(layout: FormLayout | undefined): FormLayoutMessa
   })
 }
 
+/**
+ * The grid span of a field item: a half-width field takes one column of a
+ * two-column section; everything else spans the grid.
+ */
+export function itemSpanClass(section: { columns: 1 | 2 }, item: { width: LayoutWidth }): string {
+  return item.width === 'half' && section.columns === 2 ? '' : 'is-wide'
+}
+
 /** True when two layouts carry the same sections and items. */
 export function sameLayout(a: FormLayout | undefined, b: FormLayout | undefined): boolean {
   const x = layoutToMessage(a)
