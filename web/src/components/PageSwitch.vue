@@ -64,14 +64,32 @@ const ctx = computed<PageContext>(() => ({
   canWriteRules: session.canWriteRules.value,
   canWriteFiles: session.canWriteFiles.value,
   canWriteLedger: session.canWriteLedger.value,
+  typesLoaded: library.loaded.value,
+  typesLoadFailed: library.loadFailed.value,
 }))
 
 const entryProps = computed<Record<string, unknown>>(() => entry.value?.props?.(ctx.value) ?? {})
+// The list takes only what it shows; the editor takes the full entry props.
+const listProps = computed<Record<string, unknown>>(() => ({
+  recordTypes: library.recordTypes.value,
+  typesLoaded: library.loaded.value,
+  typesLoadFailed: library.loadFailed.value,
+}))
 const asyncPage = computed(() => (entry.value ? defineAsyncComponent(entry.value.load) : null))
+const asyncEditor = defineAsyncComponent(() => import('@/pages/RecordTypeEditorPage.vue'))
+const showEditor = computed(() => route.mode.value === 'build' && route.page.value === 'record-types' && route.recordTypeRoute.value !== '')
+const editorProps = computed(() => ({
+  recordTypes: library.recordTypes.value,
+  currentRecordType: library.currentRecordType.value,
+  databaseState: session.databaseState.value,
+  typesLoaded: library.loaded.value,
+  typesLoadFailed: library.loadFailed.value,
+  editorKey: route.recordTypeRoute.value,
+}))
 
 const loadError = ref(false)
 const retryKey = ref(0)
-watch([() => route.mode.value, () => route.page.value], () => { loadError.value = false })
+watch([() => route.mode.value, () => route.page.value, () => route.recordTypeRoute.value], () => { loadError.value = false })
 
 onErrorCaptured(() => {
   loadError.value = true
@@ -99,19 +117,33 @@ function goHome() {
 const listeners = {
   navigate: (page: Page) => route.openBuildPage(page),
   createRecordType: () => {
-    route.openBuildPage('record-types')
     library.addRecordType()
+    route.openRecordTypeEditor('new')
   },
-  select: (name: string) => { route.selectedRecordType.value = name },
-  addRecordType: () => library.addRecordType(),
+  openEditor: (key: string) => route.openRecordTypeEditor(key),
+  closeEditor: () => route.openBuildPage('record-types'),
+  viewRecords: (key: string) => route.openRecordType(key),
+  openRules: () => route.openBuildPage('rules'),
+  savedAs: (key: string) => route.replaceRecordTypeEditor(key),
+  reloadRecordTypes: () => { void library.load() },
+  addRecordType: () => {
+    library.addRecordType()
+    route.openRecordTypeEditor('new')
+  },
   addField: () => library.addField(),
   rename: (from: string, to: string) => library.renameRecordType(from, to),
-  delete: (recordType: RecordType) => { void library.removeRecordType(recordType) },
+  delete: (recordType: RecordType) => { void removeFromEditor(recordType) },
   save: (complete: (saved: boolean) => void) => { void library.saveCurrent(complete, () => session.databaseState.value === 'Connected') },
-  preview: () => route.setMode('view'),
   openRecordTypes: () => route.openBuildPage('record-types'),
   back: () => route.setMode('build'),
   goHome: () => goHome(),
+}
+
+// Only the editor deletes now. A delete that lands returns to the list; a
+// refused one stays so the toast explains what happened.
+async function removeFromEditor(recordType: RecordType) {
+  await library.removeRecordType(recordType)
+  if (!library.recordTypes.value.includes(recordType) && route.recordTypeRoute.value) route.openBuildPage('record-types')
 }
 </script>
 
@@ -140,7 +172,9 @@ const listeners = {
     <ErrorState v-else-if="loadError" @retry="retry" />
     <Suspense v-else>
       <template #default>
-        <component :is="asyncPage" :key="`${route.page.value}:${retryKey}`" v-bind="entryProps" v-on="listeners" />
+        <component :is="asyncEditor" v-if="showEditor" :key="`editor:${route.recordTypeRoute.value}:${retryKey}`" v-bind="editorProps" v-on="listeners" />
+        <component :is="asyncPage" v-else-if="route.page.value === 'record-types'" :key="`record-types:${retryKey}`" v-bind="listProps" v-on="listeners" />
+        <component :is="asyncPage" v-else :key="`${route.page.value}:${retryKey}`" v-bind="entryProps" v-on="listeners" />
       </template>
       <template #fallback>
         <LoadingSkeleton />

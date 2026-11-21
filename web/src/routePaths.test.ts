@@ -23,6 +23,15 @@ describe('route paths', () => {
     expect(parseRoutePath(pathname)).toBeNull()
   })
 
+  it.each([
+    ['/build/record-types', { kind: 'build', page: 'record-types' }],
+    ['/build/record-types/new', { kind: 'build', page: 'record-types', recordType: 'new' }],
+    ['/build/record-types/invoice', { kind: 'build', page: 'record-types', recordType: 'invoice' }],
+    ['/build/ledger/extra', { kind: 'build', page: 'ledger' }],
+  ])('parses editor %s', (pathname, expected) => {
+    expect(parseRoutePath(pathname)).toEqual(expected)
+  })
+
   it('routes a Record Type keyed like a stub to its own records', () => {
     expect(parseRoutePath('/view/queue')).toEqual({ kind: 'records', recordType: 'queue', record: '' })
     expect(parseRoutePath('/view/count')).toEqual({ kind: 'records', recordType: 'count', record: '' })
@@ -39,5 +48,14 @@ describe('route paths', () => {
     ['view', 'overview', '', '', '/view'],
   ])('builds %s', (mode, page, selected, record, expected) => {
     expect(buildRoutePath(mode as 'build' | 'view', page as Page, selected as string, record as string)).toBe(expected)
+  })
+
+  it.each([
+    ['record-types', '', '/build/record-types'],
+    ['record-types', 'new', '/build/record-types/new'],
+    ['record-types', 'invoice', '/build/record-types/invoice'],
+    ['ledger', 'invoice', '/build/ledger'],
+  ])('builds editor %s', (page, editor, expected) => {
+    expect(buildRoutePath('build', page as Page, '', '', editor)).toBe(expected)
   })
 })

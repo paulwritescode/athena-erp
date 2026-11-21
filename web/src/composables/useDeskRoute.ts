@@ -29,6 +29,9 @@ export function useDeskRoute() {
   const selectedRecordType = ref('')
   // The open Record in View: '' for the table, 'new' for the create form, or a Record ID.
   const recordRoute = ref('')
+  // The open Record Type editor in Build: '' for the list, 'new' for a draft,
+  // or the type key.
+  const recordTypeRoute = ref('')
   const lastBuildPage = ref<Page>('overview')
   const lastViewPage = ref<Page>('overview')
   const landedExplicit = window.location.pathname !== '/' || window.location.search !== ''
@@ -48,34 +51,45 @@ export function useDeskRoute() {
       mode.value = 'build'
       page.value = parsed.page
       recordRoute.value = ''
-      selectedRecordType.value = query.get('record_type') ?? ''
+      recordTypeRoute.value = parsed.page === 'record-types' ? parsed.recordType ?? '' : ''
+      // The editor address names its own selection; the list keeps the legacy
+      // query fallback. A fresh /new starts unselected so the editor drafts.
+      if (recordTypeRoute.value === 'new') selectedRecordType.value = ''
+      else if (recordTypeRoute.value) selectedRecordType.value = recordTypeRoute.value
+      else selectedRecordType.value = query.get('record_type') ?? ''
     } else if (parsed?.kind === 'stub') {
       mode.value = 'view'
       page.value = parsed.page
       recordRoute.value = ''
+      recordTypeRoute.value = ''
     } else if (parsed?.kind === 'records') {
       mode.value = 'view'
       page.value = 'overview'
       selectedRecordType.value = parsed.recordType
       recordRoute.value = parsed.record
+      recordTypeRoute.value = ''
     } else if (parsed?.kind === 'view') {
       mode.value = 'view'
       page.value = 'overview'
       recordRoute.value = ''
+      recordTypeRoute.value = ''
     } else {
       mode.value = query.get('mode') === 'view' ? 'view' : 'build'
       const requested = query.get('page')
       page.value = pageKeys().find((item) => item === requested) ?? 'overview'
       selectedRecordType.value = query.get('record_type') ?? ''
       recordRoute.value = mode.value === 'view' ? query.get('record') ?? '' : ''
+      recordTypeRoute.value = ''
     }
     syncLast()
   }
 
   function targetLocation(): string {
-    const path = buildRoutePath(mode.value, page.value, selectedRecordType.value, recordRoute.value)
+    const path = buildRoutePath(mode.value, page.value, selectedRecordType.value, recordRoute.value, recordTypeRoute.value)
     const query = new URLSearchParams()
-    if (mode.value === 'build' && selectedRecordType.value) query.set('record_type', selectedRecordType.value)
+    // The editor address already names its type; other Build pages keep the
+    // legacy selection query.
+    if (mode.value === 'build' && selectedRecordType.value && !(page.value === 'record-types' && recordTypeRoute.value)) query.set('record_type', selectedRecordType.value)
     return query.toString().length > 0 ? `${path}?${query.toString()}` : path
   }
 
@@ -95,7 +109,7 @@ export function useDeskRoute() {
   window.addEventListener('popstate', readLocation)
   onUnmounted(() => window.removeEventListener('popstate', readLocation))
 
-  watch([mode, page, selectedRecordType, recordRoute], () => {
+  watch([mode, page, selectedRecordType, recordRoute, recordTypeRoute], () => {
     if (replaceNext) {
       replaceNext = false
       replaceLocation()
@@ -116,6 +130,7 @@ export function useDeskRoute() {
       page.value = lastBuildPage.value
     } else {
       page.value = lastViewPage.value
+      recordTypeRoute.value = ''
       if (page.value === 'overview' && !selectedRecordType.value) {
         const first = defaultTypeResolver()
         if (first) selectedRecordType.value = first
@@ -128,6 +143,7 @@ export function useDeskRoute() {
     lastBuildPage.value = key
     mode.value = 'build'
     page.value = key
+    recordTypeRoute.value = ''
   }
 
   function openRecordType(name: string) {
@@ -136,6 +152,7 @@ export function useDeskRoute() {
     lastViewPage.value = 'overview'
     selectedRecordType.value = name
     recordRoute.value = ''
+    recordTypeRoute.value = ''
   }
 
   function openViewStub(key: 'queue' | 'count') {
@@ -143,6 +160,25 @@ export function useDeskRoute() {
     mode.value = 'view'
     page.value = key
     recordRoute.value = ''
+    recordTypeRoute.value = ''
+  }
+
+  // Opens a Record Type in the editor: a saved key (which becomes the
+  // selection), or 'new' for a draft the caller selects first. The editor
+  // creates that draft on arrival when a reload finds none.
+  function openRecordTypeEditor(key: string) {
+    lastBuildPage.value = 'record-types'
+    mode.value = 'build'
+    page.value = 'record-types'
+    if (key !== 'new') selectedRecordType.value = key
+    recordTypeRoute.value = key
+  }
+
+  // After a draft saves, its address becomes its key without adding history:
+  // going back to /new would only draft again.
+  function replaceRecordTypeEditor(key: string) {
+    replaceNext = true
+    recordTypeRoute.value = key
   }
 
   // Names the resolved list without adding history: the bare address it
@@ -154,7 +190,7 @@ export function useDeskRoute() {
   }
 
   return {
-    mode, page, selectedRecordType, recordRoute, landedExplicit, setMode, openBuildPage, openRecordType, openViewStub, resolveSelected,
+    mode, page, selectedRecordType, recordRoute, recordTypeRoute, landedExplicit, setMode, openBuildPage, openRecordType, openViewStub, openRecordTypeEditor, replaceRecordTypeEditor, resolveSelected,
     setDefaultTypeResolver(resolver: () => string) {
       defaultTypeResolver = resolver
     },

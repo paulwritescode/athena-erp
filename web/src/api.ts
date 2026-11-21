@@ -151,6 +151,11 @@ function fromMessage(recordType: RecordTypeMessage): RecordType {
     ...(recordType.labelField ? { label_field: recordType.labelField } : {}),
     fields: recordType.fields.map(fieldFromMessage),
     ...(recordType.access ? { access: { actions: recordType.access.actions, permission_level: recordType.access.permissionLevel } } : {}),
+    record_count: Number(recordType.recordCount),
+    ...(recordType.countHidden ? { count_hidden: true } : {}),
+    ...(recordType.updatedAt ? { updated_at: recordType.updatedAt } : {}),
+    ...(recordType.updatedBy ? { updated_by: recordType.updatedBy } : {}),
+    ...(recordType.packKey ? { pack_key: recordType.packKey } : {}),
   }
 }
 

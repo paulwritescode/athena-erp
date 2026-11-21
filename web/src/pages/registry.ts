@@ -24,6 +24,8 @@ export type PageContext = {
   canWriteRules: boolean
   canWriteFiles: boolean
   canWriteLedger: boolean
+  typesLoaded: boolean
+  typesLoadFailed: boolean
 }
 
 export type PageEntry = {
@@ -56,7 +58,7 @@ export const pageEntries: PageEntry[] = [
     key: 'record-types', title: 'Record Types', shortTitle: 'Types', blurb: 'Define the kinds of records you keep.', icon: icon('layout-template'),
     modes: ['build'], gate: { build: true }, nav: true, group: 'build',
     load: () => import('@/pages/RecordTypesPage.vue'),
-    props: (ctx) => ({ recordTypes: ctx.recordTypes, currentRecordType: ctx.currentRecordType, databaseState: ctx.databaseState }),
+    props: (ctx) => ({ recordTypes: ctx.recordTypes, currentRecordType: ctx.currentRecordType, databaseState: ctx.databaseState, typesLoaded: ctx.typesLoaded, typesLoadFailed: ctx.typesLoadFailed }),
   },
   {
     key: 'packs', title: 'Packs', shortTitle: 'Packs', blurb: 'Installable bundles of Record Types.', icon: icon('package'),

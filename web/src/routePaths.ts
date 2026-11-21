@@ -7,7 +7,7 @@ import { buildPageKeys, viewStubKeys } from '@/pages/registry'
 import type { Page } from '@/types'
 
 export type ParsedPath =
-  | { kind: 'build'; page: Page }
+  | { kind: 'build'; page: Page; recordType?: string }
   | { kind: 'stub'; page: Page }
   | { kind: 'records'; recordType: string; record: string }
   | { kind: 'view' }
@@ -27,6 +27,9 @@ export function parseRoutePath(pathname: string): ParsedPath | null {
     .map(decode)
   if (segments.length === 0) return null
   if (segments[0] === 'build' && (buildPageKeys() as string[]).includes(segments[1] ?? '')) {
+    // /build/record-types/<key> opens that type in the editor; /new starts a
+    // draft. Other pages ignore a third segment.
+    if (segments[1] === 'record-types' && segments[2]) return { kind: 'build', page: segments[1] as Page, recordType: segments[2] }
     return { kind: 'build', page: segments[1] as Page }
   }
   if (segments[0] === 'view' && segments[1] === '-' && (viewStubKeys() as string[]).includes(segments[2] ?? '')) {
@@ -39,8 +42,11 @@ export function parseRoutePath(pathname: string): ParsedPath | null {
   return null
 }
 
-export function buildRoutePath(mode: 'build' | 'view', page: Page, selectedRecordType: string, recordRoute: string): string {
-  if (mode === 'build') return `/build/${page}`
+export function buildRoutePath(mode: 'build' | 'view', page: Page, selectedRecordType: string, recordRoute: string, recordTypeRoute = ''): string {
+  if (mode === 'build') {
+    if (page === 'record-types' && recordTypeRoute) return `/build/record-types/${encodeURIComponent(recordTypeRoute)}`
+    return `/build/${page}`
+  }
   if (page === 'queue' || page === 'count') return `/view/-/${page}`
   if (selectedRecordType) {
     const base = `/view/${encodeURIComponent(selectedRecordType)}`

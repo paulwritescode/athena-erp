@@ -164,12 +164,6 @@ body,.page-content{background:var(--background);color:var(--foreground)}
 .entries-table tbody tr:hover,.entries-table tbody tr:focus-visible{background:var(--accent);outline:none}
 .record-preview{border-radius:var(--radius-lg)}
 .view-menu{border-radius:var(--radius-lg)}
-.records-layout{display:grid;grid-template-columns:200px minmax(0,1fr);gap:24px;align-items:start}
-.records-list{display:grid;gap:2px}
-.records-list [data-slot=input]{margin-bottom:8px}
-.records-list-item{border:0;background:transparent;text-align:left;padding:7px 10px;border-radius:var(--radius-md);color:var(--muted-foreground);font-size:var(--type-body-sm-size)}
-.records-list-item:hover{color:var(--foreground)}
-.records-list-item.chosen{background:var(--accent);color:var(--foreground);font-weight:500}
 .record-editor{display:grid;gap:16px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px}
 .record-editor-head{display:flex;align-items:center;gap:12px}
 .record-editor-head .toolbar-actions{margin-left:auto}
