@@ -16,7 +16,7 @@
 
 ## A. Foundation (design system first; nothing else in the Desk starts before A is merged)
 
-- [ ] **B1. Design tokens** (Muse) — R1. In review: first review FAIL (token guard loopholes, @theme map, touch sizes), fixes sent to t4.
+- [x] **B1. Design tokens** (Muse) — R1. Merged 2026-11-21 after three review loops; three token-guard edge cases recorded as known limits (user chose option A) and moved to B2.
   - Add the *Proposed* tokens from design-system §2.4, §2.5, §3, §6 to `web/src/theme.css` and expose them in the `@theme` map in `web/src/style.css`. Keep every existing color value.
   - Set dark `--sidebar-primary` to `var(--primary)` (§2.2).
   - Theme browser surfaces: selection, caret, scrollbars, focus ring (impeccable craft floor).
@@ -27,7 +27,8 @@
   - Rebuild the shell: header, sidebar (desktop), rail (tablet), bottom nav and More sheet (mobile), user menu, command palette stub, Build/View mode switch as a segmented control.
   - Replace the hard-coded nav and page switch in `web/src/App.vue` with a page registry (`web/src/pages/registry.ts`: key, label, icon, mode, permission, component). Stub pages with empty states for Reports, Jobs, Settings, Work queue, Count, Setup.
   - Build shared compositions in `web/src/components/`: PageHeader, EmptyState, ErrorState, PermissionDenied, LoadingSkeleton, ConfirmDialog, FormSection, FieldRow, DetailSheet, StatusBadge, DataTable (TanStack, stacked rows on mobile).
-  - Accept: every existing page renders inside the new shell; component gallery page in Build mode (`/build/gallery`) shows every component in every state.
+  - Replace the regex token guard in `web/src/tokens.test.ts` with a parser-based check (`@vue/compiler-sfc` for templates and bindings, a CSS parser such as `postcss` for nested rules) that closes the three known limits in `docs/architecture/frontend-theme-and-type.md`. Keep every existing fixture.
+  - Accept: every existing page renders inside the new shell; component gallery page in Build mode (`/build/gallery`) shows every component in every state; the token guard has no known limits.
 - [ ] **B3. Typography and icons** (Muse)
   - Apply design-system §4 roles to every page; `text-wrap` rules; tabular numbers in tables.
   - Create `web/src/icons.ts` (safe Lucide registry with fallback) and use the §5 table everywhere.
