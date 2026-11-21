@@ -1,0 +1,8 @@
+# B9a server review loop 1 (Codex FAIL): fix all, same worktree
+
+1. **Scoped readers see full counts** (record_types.go:291 uses Can, which ignores row conditions and Assignment scope; :336 counts every row). Include a table in the UNION only when `Principal.Scope(name, auth.ActionRead)` (principal.go:207) is unrestricted. Otherwise return 0 and count_hidden=true. Tests: a Grant with a row condition, a scoped Assignment (company=acme), and a separate unrestricted read Grant that makes the count visible again.
+2. **A rolled-back child save shows as the last save** (record_types.go:258 ranks every completed member save; compensation at :463 marks only the group failed). Mark compensated member operations, or exclude members of a failed or compensated group when selecting the last save, so the surviving revision's actor and time are shown. Test: editor 1 saves the child, editor 2's pair save fails and is compensated, and the list still shows editor 1.
+3. **Soft-deleted Master Records are counted** (record_types.go:336). Apply the live-record rule from records.go:512 to the count. Test: delete the only customer, and the count is 0.
+4. **Follow-up, do now:** run the table-existence precheck and the placeholders through the dialect (record_types.go:308,342), not `DATABASE()` and bare `?`. If a table disappears between the precheck and the UNION, retry once after a missing-table error, classified narrowly through the dialect. Test the retry with an injected error.
+
+Checks: gofmt -l, go build, go vet, make test. Update server-report.md, then hc send t6 "B9A SERVER LOOP1: PASS or BLOCKED".
