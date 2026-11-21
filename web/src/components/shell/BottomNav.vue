@@ -1,11 +1,11 @@
-// BottomNav is phone navigation below 640 px: the first four destinations
-// plus a More sheet with the rest. Build shows registry pages; View shows
-// saved Record Types, then the Work queue and Count.
+// BottomNav is floating phone navigation below 640 px (§13.1): inset from
+// the sides and bottom, four destinations plus a More drawer. Build shows
+// registry pages; View shows saved Record Types, then the Work queue and
+// Count. It hides while the keyboard is open and while a drawer is open.
 <script setup lang="ts">
-import { computed, ref, type Component } from 'vue'
-import { Ellipsis } from '@lucide/vue'
-import { Button } from '@/components/ui/button'
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { computed, onMounted, onUnmounted, ref, type Component } from 'vue'
+import { Ellipsis } from '@/icons'
+import BottomDrawer from '@/components/BottomDrawer.vue'
 import { recordTypeIcon, visibleViewStubs, type PageEntry } from '@/pages/registry'
 import type { Page, RecordType } from '@/types'
 
@@ -22,6 +22,20 @@ const props = defineProps<{
 const emit = defineEmits<{ navigate: [page: Page]; recordType: [name: string] }>()
 
 const moreOpen = ref(false)
+const keyboardOpen = ref(false)
+
+function onViewportResize() {
+  const viewport = window.visualViewport
+  keyboardOpen.value = !!viewport && window.innerHeight - viewport.height > 150
+}
+
+onMounted(() => {
+  window.visualViewport?.addEventListener('resize', onViewportResize)
+  onViewportResize()
+})
+onUnmounted(() => {
+  window.visualViewport?.removeEventListener('resize', onViewportResize)
+})
 
 const items = computed<NavItem[]>(() => {
   if (props.mode === 'build') {
@@ -51,8 +65,9 @@ const items = computed<NavItem[]>(() => {
 })
 
 const primary = computed(() => items.value.slice(0, 4))
-const overflow = computed(() => items.value.slice(4))
-const overflowActive = computed(() => overflow.value.some((item) => item.active))
+const overflow = computed(() => items.value.length > 4)
+const overflowItems = computed(() => items.value.slice(4))
+const overflowActive = computed(() => overflowItems.value.some((item) => item.active))
 
 function go(item: NavItem) {
   moreOpen.value = false
@@ -61,49 +76,53 @@ function go(item: NavItem) {
 </script>
 
 <template>
-  <nav class="bg-background/95 supports-[backdrop-filter]:bg-background/60 fixed inset-x-0 bottom-0 z-20 border-t backdrop-blur min-[640px]:hidden" aria-label="Primary">
-    <div class="flex items-start px-2 pt-1 pb-[calc(0.25rem+env(safe-area-inset-bottom))]">
+  <nav
+    data-bottom-nav
+    aria-label="Primary"
+    :inert="keyboardOpen || undefined"
+    :class="[
+      'fixed inset-x-3 z-30 transition-[transform,opacity] duration-200 min-[640px]:hidden',
+      keyboardOpen ? 'pointer-events-none translate-y-[130%] opacity-0' : undefined,
+    ]"
+    :style="{ bottom: 'calc(var(--space-3) + env(safe-area-inset-bottom, 0px))' }"
+  >
+    <div class="bg-card flex h-16 items-stretch gap-1 rounded-[calc(var(--radius)*2)] border px-2 py-1.5 shadow-xl">
       <button
         v-for="item in primary"
         :key="item.key"
-        class="flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-md px-1 py-1.5 text-[10px] leading-tight"
+        class="flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-xl px-1 text-caption leading-tight"
         :class="item.active ? 'text-primary font-medium' : 'text-muted-foreground'"
         :aria-current="item.active ? 'page' : undefined"
         @click="item.go()"
       >
-        <component :is="item.icon" class="size-5" aria-hidden="true" />
+        <component :is="item.icon" class="size-6" aria-hidden="true" />
         <span class="w-full text-center leading-tight break-words">{{ item.label }}</span>
       </button>
       <button
-        v-if="overflow.length > 0"
-        class="flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-md px-1 py-1.5 text-[10px] leading-tight"
+        v-if="overflow"
+        class="flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-xl px-1 text-caption leading-tight"
         :class="overflowActive ? 'text-primary font-medium' : 'text-muted-foreground'"
         :aria-expanded="moreOpen"
         @click="moreOpen = true"
       >
-        <Ellipsis class="size-5" aria-hidden="true" />
+        <Ellipsis class="size-6" aria-hidden="true" />
         <span class="w-full text-center leading-tight">More</span>
       </button>
     </div>
   </nav>
-  <Sheet v-model:open="moreOpen">
-    <SheetContent side="bottom" class="px-4" aria-label="More pages">
-      <SheetHeader class="px-0 text-left">
-        <SheetTitle>More</SheetTitle>
-      </SheetHeader>
-      <div class="flex flex-col gap-1 pb-4">
-        <Button
-          v-for="item in overflow"
-          :key="item.key"
-          variant="ghost"
-          class="justify-start"
-          :class="item.active ? 'text-primary' : undefined"
-          @click="go(item)"
-        >
-          <component :is="item.icon" class="size-4" aria-hidden="true" />
-          <span>{{ item.label }}</span>
-        </Button>
-      </div>
-    </SheetContent>
-  </Sheet>
+  <BottomDrawer v-model:open="moreOpen" title="More">
+    <div class="drawer-menu" role="menu" aria-label="More pages">
+      <button
+        v-for="item in overflowItems"
+        :key="item.key"
+        type="button"
+        role="menuitem"
+        :aria-current="item.active ? 'page' : undefined"
+        @click="go(item)"
+      >
+        <component :is="item.icon" class="size-4" aria-hidden="true" />
+        <span>{{ item.label }}</span>
+      </button>
+    </div>
+  </BottomDrawer>
 </template>

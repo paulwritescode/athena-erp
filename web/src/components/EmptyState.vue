@@ -11,8 +11,8 @@ defineProps<{ icon: Component; title: string; body: string }>()
     <div class="bg-muted flex size-10 items-center justify-center rounded-lg border">
       <component :is="icon" class="text-muted-foreground size-5" aria-hidden="true" />
     </div>
-    <h2 class="mt-4 text-base font-medium">{{ title }}</h2>
-    <p class="text-muted-foreground mt-1 max-w-sm text-sm">{{ body }}</p>
+    <h2 class="mt-4">{{ title }}</h2>
+    <p class="text-muted-foreground mt-1 max-w-sm text-base">{{ body }}</p>
     <div v-if="$slots.action" class="mt-4">
       <slot name="action" />
     </div>

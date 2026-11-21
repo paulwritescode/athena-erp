@@ -385,8 +385,8 @@ function stripConditions(code: string): string {
   return out
 }
 
-function valueLiterals(code: string): string[] {
-  return stringLiterals(stripConditions(code))
+function valueLiterals(rawCode: string): string[] {
+  return stringLiterals(stripConditions(cleanJs(rawCode)))
 }
 
 // Every string literal in a binding expression, single/double/backtick
@@ -414,7 +414,8 @@ function stringLiterals(expr: string): string[] {
 
 // Values of an object binding's pairs, skipping data-* keys: the key is a
 // name, never a color, and data-* values belong to the page, not the paint.
-function objectValues(expr: string): string[] {
+function objectValues(rawExpr: string): string[] {
+  const expr = cleanJs(rawExpr)
   const trimmed = expr.trim()
   if (!trimmed.startsWith('{') || !trimmed.endsWith('}')) return []
   const values: string[] = []
@@ -477,7 +478,8 @@ const PAINT_ATTRS = new Set(['fill', 'stroke', 'color', 'stop-color', 'flood-col
 
 // Values of a bare v-bind object. Only style, class and paint keys can carry
 // a color; every other key (title, data-*, id, ...) is text.
-function bindObjectValues(exp: string): string[] {
+function bindObjectValues(rawExp: string): string[] {
+  const exp = cleanJs(rawExp)
   const values: string[] = []
   const spans = objectSpans(exp)
   for (const span of spans) {
@@ -505,7 +507,8 @@ function bindObjectValues(exp: string): string[] {
 
 // Values of a :style binding: objects scan pair by pair, anything else scans
 // as literals.
-function styleExpValues(exp: string): string[] {
+function styleExpValues(rawExp: string): string[] {
+  const exp = cleanJs(rawExp)
   const values: string[] = []
   const spans = objectSpans(exp)
   for (const span of spans) values.push(...objectValues(`{${span.inner}}`))
@@ -638,29 +641,113 @@ function violations(label: string, values: string[]): string[] {
 // Files with a legitimate reason list here; the list is empty today.
 const SCRIPT_EXCEPTIONS = new Set<string>([])
 
-// JavaScript comments, string-aware. A // inside a regex literal would read
-// as a comment start; no script in this tree shapes one that way.
-function stripJsComments(code: string): string {
+// JavaScript only (never CSS): comments blanked, regex literals blanked, so
+// neither confuses the scanners. A / starts a regex unless the previous
+// significant token is an operand (identifier, number, string, regex, )
+// or ]); keywords that take values allow one. Regex contents are patterns,
+// never paint.
+const REGEX_AFTER_KEYWORDS = new Set([
+  'return', 'typeof', 'case', 'in', 'of', 'new', 'do', 'else', 'yield', 'await', 'instanceof', 'throw', 'delete', 'void',
+])
+
+function isWordChar(c: string | undefined): boolean {
+  return c !== undefined && /[\w$#]/.test(c)
+}
+
+// Index just past the regex starting at i, or -1 when it never terminates.
+function readRegex(code: string, i: number): number {
+  let j = i + 1
+  let inClass = false
+  while (j < code.length) {
+    const c = code[j]
+    if (c === '\\') {
+      j += 2
+    } else if (c === '[') {
+      inClass = true
+      j += 1
+    } else if (c === ']') {
+      inClass = false
+      j += 1
+    } else if (c === '/' && !inClass) {
+      j += 1
+      while (j < code.length && /[a-z]/.test(code[j])) j += 1
+      return j
+    } else if (c === '\n') {
+      return -1
+    } else {
+      j += 1
+    }
+  }
+  return -1
+}
+
+function cleanJs(code: string): string {
   let out = ''
   let i = 0
+  let prevOperand = false
+  let prevWord = ''
+  const blanks = (from: number, to: number) => {
+    out += ' '.repeat(to - from)
+  }
   while (i < code.length) {
     const c = code[i]
     if (c === '"' || c === "'") {
       const end = readQuoted(code, i, c)
       out += code.slice(i, end)
       i = end
+      prevOperand = true
+      prevWord = ''
     } else if (c === '`') {
       const end = readTemplate(code, i)
       out += code.slice(i, end)
       i = end
+      prevOperand = true
+      prevWord = ''
+    } else if (isWordChar(c)) {
+      let j = i + 1
+      while (j < code.length && isWordChar(code[j])) j += 1
+      const word = code.slice(i, j)
+      out += word
+      i = j
+      prevWord = word
+      prevOperand = !REGEX_AFTER_KEYWORDS.has(word)
     } else if (c === '/' && code[i + 1] === '/') {
       const end = code.indexOf('\n', i + 2)
-      i = end === -1 ? code.length : end + 1
+      const to = end === -1 ? code.length : end
+      blanks(i, to)
+      i = to
     } else if (c === '/' && code[i + 1] === '*') {
       const end = code.indexOf('*/', i + 2)
-      i = end === -1 ? code.length : end + 2
+      const to = end === -1 ? code.length : end + 2
+      blanks(i, to)
+      i = to
+    } else if ((c === '+' || c === '-') && code[i + 1] === c) {
+      out += c + c
+      i += 2
+      prevOperand = true
+      prevWord = ''
+    } else if (c === '/') {
+      const end = !prevOperand || REGEX_AFTER_KEYWORDS.has(prevWord) ? readRegex(code, i) : -1
+      if (end === -1) {
+        out += c
+        i += 1
+        prevOperand = false
+        prevWord = ''
+      } else {
+        blanks(i, end)
+        i = end
+        prevOperand = true
+        prevWord = ''
+      }
     } else {
       out += c
+      if (c === ')' || c === ']') {
+        prevOperand = true
+        prevWord = ''
+      } else if (!/\s/.test(c)) {
+        prevOperand = false
+        prevWord = ''
+      }
       i += 1
     }
   }
@@ -668,7 +755,7 @@ function stripJsComments(code: string): string {
 }
 
 function scriptValues(content: string): string[] {
-  return stringLiterals(stripJsComments(content))
+  return stringLiterals(cleanJs(content))
 }
 
 function checkFile(path: string, body: string): string[] {
@@ -746,6 +833,9 @@ describe('design tokens', () => {
     ['v-bind style string', 'A.vue', `<div v-bind="{ style: 'color: red' }"/>`, ['named color red']],
     ['ternary branches flagged, condition skipped', 'A.vue', `<svg><circle :fill="accent === 'red' ? '#abc' : '#def'"/></svg>`, ['hex #abc', 'hex #def']],
     ['script object with hex', 'A.vue', `<template><div :style="theme"/></template><script setup>const theme = { fill: '#123456' }</script>`, ['hex #123456']],
+    ['data key beside regex braces', 'A.vue', `<svg><circle v-bind="{ 'data-x': /{/g, fill: '#abc' }"/></svg>`, ['hex #abc']],
+    ['color after regex with slashes', 'A.vue', `<template><div/></template><script setup>const re = /\\/\\//; const c = '#abc'</script>`, ['hex #abc']],
+    ['division keeps color branches', 'A.vue', `<svg><circle :fill="w / 2 > 1 ? 'red' : 'blue'"/></svg>`, ['named color red', 'named color blue']],
   ])('fails: %s', (_name, file, body, expected) => {
     const got = checkFile(join(root, file), body).map((v) => v.slice(v.indexOf(': ') + 2))
     expect(got).toEqual(expected)
@@ -782,6 +872,7 @@ describe('design tokens', () => {
     ['ternary condition is not paint', 'A.vue', `<svg><circle :fill="accent === 'red' ? 'currentColor' : 'none'"/></svg>`],
     ['script comment with color', 'A.vue', `<template><div/></template><script setup>// fill #abc\nconst x = 1</script>`],
     ['script identifier with color word', 'A.vue', `<template><div/></template><script setup>const preferred = true</script>`],
+    ['regex contents are not paint', 'A.vue', `<svg><circle :fill="s.replace(/red|#abc/g, x)"/>`],
   ])('passes: %s', (_name, file, body) => {
     expect(checkFile(join(root, file), body)).toEqual([])
   })

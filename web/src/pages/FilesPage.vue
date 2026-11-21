@@ -1,19 +1,22 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { Code, ConnectError } from '@connectrpc/connect'
 import { toast } from 'vue-sonner'
 import { fileClient } from '../api'
 import type { FileInfo, FileVersion } from '../gen/athena/v1/files_pb'
 import { fileExtensions, fileFolders, maxFileBytes, validateFilePath, withinFileLimit } from '../filePaths'
-import { Button } from '@/components/ui/button'
+import ActionButton from '@/components/ActionButton.vue'
+import ActionGroup from '@/components/ActionGroup.vue'
+import type { ActionItem } from '@/components/actions'
+import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import DetailSheet from '@/components/DetailSheet.vue'
+import { formatWhen } from '../times'
 import { Badge } from '@/components/ui/badge'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
+import ResponsiveDialog from '@/components/ResponsiveDialog.vue'
+import TextField from '@/components/fields/TextField.vue'
 
 // The Files page manages the Workspace files through FileService. The server
 // checks every path, size and type, and Record Type files against their file
@@ -84,26 +87,39 @@ async function refresh() {
     withoutFile.value = res.recordTypesWithoutFile
     unavailable.value = ''
   } catch (err) {
-    if (err instanceof ConnectError && err.code === Code.FailedPrecondition) unavailable.value = err.rawMessage
+    if (err instanceof ConnectError && err.code === Code.FailedPrecondition) {
+      unavailable.value = err.rawMessage.includes('Workspace directory')
+        ? 'This server keeps no Workspace directory, so there are no files to show. Ask the person who runs Athena to start it with athena run.'
+        : err.rawMessage
+    }
     else toast.error(describe(err, 'load the files'))
   } finally {
     loaded.value = true
   }
 }
 
+// Each open gets a number so a slow response for a previously tapped file
+// never overwrites the current editor.
+let openRequest = 0
+
 async function loadVersions() {
-  if (!selected.value) return
+  const path = selected.value
+  if (!path) return
   try {
-    versions.value = (await fileClient.listFileVersions({ path: selected.value })).versions
+    const res = await fileClient.listFileVersions({ path })
+    if (selected.value === path) versions.value = res.versions
   } catch (err) {
+    if (selected.value !== path) return
     versions.value = []
     if (!(err instanceof ConnectError && err.code === Code.NotFound)) toast.error(describe(err, 'load the history'))
   }
 }
 
 async function open(path: string) {
+  const request = ++openRequest
   try {
     const res = await fileClient.getFile({ path })
+    if (request !== openRequest) return
     text.value = decoder.decode(res.content)
     savedText.value = text.value
     baseHash.value = res.info?.hash ?? ''
@@ -112,6 +128,7 @@ async function open(path: string) {
     detail.value = 'editor'
     versions.value = []
   } catch (err) {
+    if (request !== openRequest) return
     toast.error(describe(err, 'open the file'))
   }
 }
@@ -122,6 +139,70 @@ function choose(path: string) {
   if (path === selected.value) return
   if (dirty.value) discardFor.value = path
   else void open(path)
+}
+
+// The §16 detail sheet: tapping a tree row inspects the file (path, size,
+// versions, backing Record Type or Rule) with Open in editor, Rename,
+// Download and Delete. The editor workspace stays a page area.
+const detailPath = ref('')
+const detailVersions = ref<FileVersion[]>([])
+const detailFile = computed(() => files.value.find((file) => file.path === detailPath.value) ?? null)
+const detailName = computed(() => detailPath.value.split('/').pop() ?? detailPath.value)
+let detailVersionsRequest = 0
+
+async function loadDetailVersions() {
+  const path = detailPath.value
+  detailVersions.value = []
+  if (!path) return
+  const request = ++detailVersionsRequest
+  try {
+    const res = await fileClient.listFileVersions({ path })
+    if (request === detailVersionsRequest) detailVersions.value = res.versions
+  } catch {
+    if (request === detailVersionsRequest) detailVersions.value = []
+  }
+}
+
+watch(detailPath, () => { void loadDetailVersions() })
+
+function openDetail(path: string) {
+  detailPath.value = detailPath.value === path ? '' : path
+}
+
+function openInEditor() {
+  const path = detailPath.value
+  detailPath.value = ''
+  if (path) choose(path)
+}
+
+function formatSize(bytes: bigint): string {
+  const n = Number(bytes)
+  if (n < 1024) return `${n} bytes`
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KiB`
+  return `${(n / 1024 / 1024).toFixed(1)} MiB`
+}
+
+function backingLine(file: FileInfo): string {
+  const b = file.backing
+  if (!b) return 'No Record Type or Rule uses this file.'
+  return `${kindLabels[b.kind] ?? b.kind} ${b.key} (${b.saved ? 'saved' : 'not saved yet'})`
+}
+
+const detailActions = computed<ActionItem[]>(() => {
+  const items: ActionItem[] = [{ id: 'open', label: 'Open in editor', kind: 'primary', icon: 'pencil', busy: busy.value }]
+  items.push({ id: 'download', label: 'Download', kind: 'secondary', icon: 'download', busy: busy.value })
+  if (props.canWrite) {
+    items.push({ id: 'rename', label: 'Rename', kind: 'secondary', icon: 'pencil', busy: busy.value })
+    items.push({ id: 'delete', label: 'Delete', kind: 'destructive', icon: 'trash-2', busy: busy.value })
+  }
+  return items
+})
+
+function onDetailAction(id: string) {
+  if (id === 'open') openInEditor()
+  else if (id === 'download') void downloadDetail()
+  else if (id === 'rename') startRename(detailPath.value)
+  else if (id === 'delete') deleting.value = true
 }
 function discard() {
   const path = discardFor.value
@@ -164,24 +245,47 @@ function download() {
   URL.revokeObjectURL(url)
 }
 
+async function downloadDetail() {
+  const path = detailPath.value
+  if (!path) return
+  try {
+    const body = path === selected.value ? text.value : decoder.decode((await fileClient.getFile({ path })).content)
+    const link = document.createElement('a')
+    const url = URL.createObjectURL(new Blob([body], { type: 'text/plain;charset=utf-8' }))
+    link.href = url
+    link.download = path.split('/').pop() ?? 'file.txt'
+    link.click()
+    URL.revokeObjectURL(url)
+  } catch (err) {
+    toast.error(describe(err, 'download the file'))
+  }
+}
+
 // New file, upload and rename share one dialog.
 const dialog = ref<'' | 'new' | 'rename'>('')
 const dialogPath = ref('')
 const uploaded = ref<string | null>(null)
 const pathProblem = computed(() => (dialogPath.value ? validateFilePath(dialogPath.value) : null))
+const pathSnapshot = ref('')
+watch(dialog, (open) => {
+  if (open !== '') pathSnapshot.value = dialogPath.value
+})
+const pathDirty = computed(() => dialog.value !== '' && dialogPath.value !== pathSnapshot.value)
 
 function startNew() {
   dialog.value = 'new'
   dialogPath.value = 'record_types/'
   uploaded.value = null
 }
-function startRename() {
+const renameFrom = ref('')
+function startRename(path?: string) {
   if (dirty.value) {
     toast.error('Save or discard your edits before renaming.')
     return
   }
+  renameFrom.value = path ?? selected.value
   dialog.value = 'rename'
-  dialogPath.value = selected.value
+  dialogPath.value = renameFrom.value
 }
 const picker = ref<HTMLInputElement | null>(null)
 async function chosenUpload(event: Event) {
@@ -224,10 +328,12 @@ async function submitDialog() {
       await refresh()
       await open(path)
     } else {
-      const from = selected.value
-      await fileClient.moveFile({ from, to: path, expectedHash: baseHash.value })
+      const from = renameFrom.value || selected.value
+      const hash = from === selected.value ? baseHash.value : (files.value.find((file) => file.path === from)?.hash ?? '')
+      await fileClient.moveFile({ from, to: path, expectedHash: hash })
       toast.success(`Moved ${from} to ${path}.`)
       dialog.value = ''
+      if (detailPath.value === from) detailPath.value = ''
       await refresh()
       await open(path)
     }
@@ -239,14 +345,23 @@ async function submitDialog() {
 }
 
 const deleting = ref(false)
+// The editor sits behind the sheet overlay, so a Delete press with the sheet
+// open always means the sheet file.
+const deleteTarget = computed(() => detailPath.value || selected.value)
 async function remove() {
   deleting.value = false
+  const path = deleteTarget.value
+  if (!path) return
   busy.value = true
   try {
-    await fileClient.deleteFile({ path: selected.value, expectedHash: baseHash.value })
-    toast.success(`Deleted ${selected.value}. Its versions are kept.`)
-    selected.value = ''
-    text.value = savedText.value = ''
+    const hash = path === selected.value ? baseHash.value : (files.value.find((file) => file.path === path)?.hash ?? '')
+    await fileClient.deleteFile({ path, expectedHash: hash })
+    toast.success(`Deleted ${path}. Its versions are kept.`)
+    if (path === selected.value) {
+      selected.value = ''
+      text.value = savedText.value = ''
+    }
+    if (path === detailPath.value) detailPath.value = ''
     await refresh()
   } catch (err) {
     toast.error(describe(err, 'delete the file'))
@@ -281,20 +396,16 @@ function backingStatus(file: FileInfo): string {
 }
 const kindLabels: Record<string, string> = { record_type: 'Record Type', rule: 'Rule', report: 'Report', generated_source: 'Generated source' }
 
-function when(iso: string): string {
-  return iso ? new Date(iso).toLocaleString() : ''
-}
-
 onMounted(refresh)
 </script>
 
 <template>
   <section class="page-content files-page">
     <div class="page-title-row">
-      <div><h1>Files</h1><p class="lead">Record Type definitions, Rule sources, Pack layout and generated source in this Workspace.</p></div>
+      <div><h1>Files</h1><p class="lead">Source files for Record Types, Rules and Packs.</p></div>
       <div v-if="canWrite && !unavailable" class="toolbar-actions">
-        <Button variant="outline" @click="picker?.click()">Upload</Button>
-        <Button @click="startNew">＋ New file</Button>
+        <ActionButton kind="secondary" label="Upload" icon="upload" @press="picker?.click()" />
+        <ActionButton kind="primary" label="New file" icon="plus" @press="startNew" />
         <input ref="picker" class="files-picker" type="file" :accept="fileExtensions.join(',')" aria-label="Upload a file" @change="chosenUpload">
       </div>
     </div>
@@ -315,7 +426,7 @@ onMounted(refresh)
                 <button v-if="row.kind === 'folder'" class="files-node is-folder" :style="{ paddingLeft: `${8 + row.depth * 14}px` }" @click="collapsed.has(row.path) ? collapsed.delete(row.path) : collapsed.add(row.path)">
                   <span aria-hidden="true">{{ collapsed.has(row.path) ? '▸' : '▾' }}</span>{{ row.name }}
                 </button>
-                <button v-else class="files-node" :class="{ chosen: row.path === selected }" :style="{ paddingLeft: `${8 + row.depth * 14}px` }" :title="row.path" @click="choose(row.path)">
+                <button v-else class="files-node" :class="{ chosen: row.path === detailPath || row.path === selected }" :style="{ paddingLeft: `${8 + row.depth * 14}px` }" :title="row.path" @click="openDetail(row.path)">
                   <span class="files-name">{{ row.name }}</span>
                   <span v-if="!row.file.recorded && row.file.revision > 0" class="files-flag" title="Changed outside Athena">edited</span>
                 </button>
@@ -330,10 +441,10 @@ onMounted(refresh)
                   <Badge variant="secondary">r{{ revision }}</Badge>
                   <Badge v-if="dirty" variant="outline">Unsaved</Badge>
                   <div class="toolbar-actions">
-                    <Button v-if="canWrite" :disabled="!dirty || busy" @click="save">Save</Button>
-                    <Button variant="outline" @click="download">Download</Button>
-                    <Button v-if="canWrite" variant="outline" :disabled="busy" @click="startRename">Rename</Button>
-                    <Button v-if="canWrite" variant="ghost" :disabled="busy" @click="deleting = true">Delete</Button>
+                    <ActionButton v-if="canWrite" kind="primary" label="Save" icon="save" :busy="busy" :disabled-reason="!dirty ? 'No changes to save.' : null" @press="save" />
+                    <ActionButton kind="secondary" label="Download" icon="download" @press="download" />
+                    <ActionButton v-if="canWrite" kind="secondary" label="Rename" icon="pencil" :busy="busy" @press="startRename" />
+                    <ActionButton v-if="canWrite" kind="destructive" label="Delete" icon="trash-2" :busy="busy" @press="deleting = true" />
                   </div>
                 </div>
                 <Tabs :model-value="detail" @update:model-value="onDetail">
@@ -344,8 +455,8 @@ onMounted(refresh)
                   <TabsContent value="editor">
                     <Textarea v-model="text" class="files-editor" spellcheck="false" :readonly="!canWrite" :aria-label="`Contents of ${selected}`" @keydown.meta.s.prevent="save" @keydown.ctrl.s.prevent="save" />
                     <p class="files-hint">{{ current?.backing ? `${kindLabels[current.backing.kind] ?? current.backing.kind}: ${current.backing.key}` : 'Not tied to a Record Type, Rule or Report.' }}
-                      <Button v-if="dirty" variant="link" size="sm" @click="reload">Discard edits</Button>
-                      <Button v-else variant="link" size="sm" @click="reload">Reload from disk</Button></p>
+                      <ActionButton v-if="dirty" kind="quiet" density="inline" label="Discard edits" icon="undo-2" @press="reload" />
+                      <ActionButton v-else kind="quiet" density="inline" label="Reload from disk" icon="refresh-ccw" @press="reload" /></p>
                   </TabsContent>
                   <TabsContent value="history">
                     <Table class="files-table">
@@ -354,10 +465,10 @@ onMounted(refresh)
                         <TableRow v-for="version in versions" :key="String(version.revision)">
                           <TableCell>r{{ version.revision }}</TableCell>
                           <TableCell>{{ version.action }}<small v-if="version.path !== selected" class="files-sub"> {{ version.path }}</small></TableCell>
-                          <TableCell>{{ when(version.createdAt) }}</TableCell>
+                          <TableCell>{{ formatWhen(version.createdAt) }}</TableCell>
                           <TableCell>{{ version.actor }}</TableCell>
                           <TableCell><code>{{ version.hash.slice(0, 10) }}</code></TableCell>
-                          <TableCell><Button v-if="version.hasContent && canWrite" variant="ghost" size="sm" @click="loadRevision(version)">Load into editor</Button></TableCell>
+                          <TableCell><ActionButton v-if="version.hasContent && canWrite" kind="restore" density="row" label="Load into editor" icon="rotate-ccw" :busy="busy" @press="loadRevision(version)" /></TableCell>
                         </TableRow>
                       </TableBody>
                     </Table>
@@ -375,7 +486,7 @@ onMounted(refresh)
             <Table class="files-table">
               <TableHeader><TableRow><TableHead>File</TableHead><TableHead>Backs</TableHead><TableHead>Key</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
               <TableBody>
-                <TableRow v-for="file in backed" :key="file.path" class="files-map-row" tabindex="0" @click="open(file.path); view = 'files'" @keydown.enter="open(file.path); view = 'files'">
+                <TableRow v-for="file in backed" :key="file.path" class="files-map-row" tabindex="0" @click="detailPath = file.path; view = 'files'" @keydown.enter="detailPath = file.path; view = 'files'">
                   <TableCell>{{ file.path }}</TableCell>
                   <TableCell>{{ kindLabels[file.backing?.kind ?? ''] }}</TableCell>
                   <TableCell><code>{{ file.backing?.key }}</code></TableCell>
@@ -395,34 +506,75 @@ onMounted(refresh)
       </Tabs>
     </template>
 
-    <Dialog :open="dialog !== ''" @update:open="(value: boolean) => { if (!value) dialog = '' }">
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{{ dialog === 'rename' ? 'Rename file' : uploaded !== null ? 'Upload file' : 'New file' }}</DialogTitle>
-          <DialogDescription>Folders: {{ fileFolders.join(', ') }}. Lowercase letters, digits, _, - and . only. Types: {{ fileExtensions.join(' ') }}.</DialogDescription>
-        </DialogHeader>
+    <ResponsiveDialog
+      :open="dialog !== ''"
+      :title="dialog === 'rename' ? 'Rename file' : uploaded !== null ? 'Upload file' : 'New file'"
+      :description="'Folders: ' + fileFolders.join(', ') + '. Lowercase letters, digits, _, - and . only. Types: ' + fileExtensions.join(' ') + '.'"
+      :dirty="pathDirty"
+      @update:open="(value: boolean) => { if (!value) dialog = '' }"
+    >
         <form id="file-path" class="sign-in-form" @submit.prevent="submitDialog">
-          <div class="settings-field"><Label for="file-path-input">Path</Label><Input id="file-path-input" v-model="dialogPath" autocomplete="off" spellcheck="false" :aria-invalid="pathProblem !== null" /><small v-if="pathProblem" class="files-problem">{{ pathProblem }}</small></div>
+          <TextField id="file-path-input" label="Path" v-model="dialogPath" autocomplete="off" :error="pathProblem ?? undefined" />
         </form>
-        <DialogFooter>
-          <Button variant="outline" @click="dialog = ''">Cancel</Button>
-          <Button type="submit" form="file-path" :disabled="busy || !dialogPath || pathProblem !== null">{{ dialog === 'rename' ? 'Rename' : 'Create' }}</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        <template #footer>
+          <ActionButton kind="secondary" label="Cancel" icon="x" @press="dialog = ''" />
+          <ActionButton type="submit" form="file-path" kind="primary" :label="dialog === 'rename' ? 'Rename' : 'Create'" :icon="dialog === 'rename' ? 'pencil' : 'plus'" :busy="busy" :disabled-reason="!dialogPath ? 'Enter a path.' : pathProblem" />
+        </template>
+    </ResponsiveDialog>
 
-    <AlertDialog :open="deleting" @update:open="(value: boolean) => { deleting = value }">
-      <AlertDialogContent>
-        <AlertDialogHeader><AlertDialogTitle>Delete {{ selected }}?</AlertDialogTitle><AlertDialogDescription>The file is removed from disk. Its versions stay in the history.</AlertDialogDescription></AlertDialogHeader>
-        <AlertDialogFooter><AlertDialogCancel>Keep it</AlertDialogCancel><AlertDialogAction variant="destructive" @click="remove">Delete file</AlertDialogAction></AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+    <ConfirmDialog
+      v-model:open="deleting"
+      :title="`Delete ${deleteTarget}?`"
+      body="The file is removed from disk. Its versions stay in the history."
+      confirm-label="Delete file"
+      cancel-label="Keep it"
+      :busy="busy"
+      @confirm="remove"
+    />
 
-    <AlertDialog :open="discardFor !== ''" @update:open="(value: boolean) => { if (!value) discardFor = '' }">
-      <AlertDialogContent>
-        <AlertDialogHeader><AlertDialogTitle>Discard your edits?</AlertDialogTitle><AlertDialogDescription>{{ selected }} has changes that are not saved.</AlertDialogDescription></AlertDialogHeader>
-        <AlertDialogFooter><AlertDialogCancel>Keep editing</AlertDialogCancel><AlertDialogAction variant="destructive" @click="discard">Discard edits</AlertDialogAction></AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+    <ConfirmDialog
+      :open="discardFor !== ''"
+      title="Discard your edits?"
+      :body="`${selected} has changes that are not saved.`"
+      confirm-label="Discard edits"
+      cancel-label="Keep editing"
+      confirm-icon="x"
+      @confirm="discard"
+      @update:open="(value: boolean) => { if (!value) discardFor = '' }"
+    />
+
+    <DetailSheet
+      v-if="detailFile"
+      :open="true"
+      :title="detailName"
+      @update:open="(value: boolean) => { if (!value) detailPath = '' }"
+    >
+      <template #subtitle>
+        <p class="text-caption text-muted-foreground font-mono">{{ detailFile.path }}</p>
+      </template>
+      <template #status>
+        <Badge variant="secondary">r{{ detailFile.revision }}</Badge>
+        <Badge v-if="!detailFile.recorded && detailFile.revision > BigInt(0)" variant="outline">Edited outside Athena</Badge>
+      </template>
+      <div class="sheet-section">
+        <p class="sheet-label">Size</p>
+        <p class="sheet-lead">{{ formatSize(detailFile.size) }}</p>
+        <p v-if="detailFile.modifiedAt" class="muted-label">Changed {{ formatWhen(detailFile.modifiedAt) }}{{ detailFile.modifiedBy ? ` by ${detailFile.modifiedBy}` : '' }}</p>
+      </div>
+      <div class="sheet-section">
+        <p class="sheet-label">Backing</p>
+        <p class="sheet-lead">{{ backingLine(detailFile) }}</p>
+      </div>
+      <div class="sheet-section">
+        <p class="sheet-label">Versions</p>
+        <ul v-if="detailVersions.length > 0" class="sheet-events">
+          <li v-for="version in detailVersions" :key="String(version.revision)"><span>r{{ version.revision }} · {{ version.action }}</span><span class="muted-label">{{ formatWhen(version.createdAt) }} · {{ version.actor }}</span></li>
+        </ul>
+        <p v-else class="files-empty">No recorded versions.</p>
+      </div>
+      <template #footer>
+        <ActionGroup :actions="detailActions" stack-on-phones aria-label="File actions" @press="onDetailAction" />
+      </template>
+    </DetailSheet>
   </section>
 </template>

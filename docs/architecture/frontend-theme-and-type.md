@@ -9,6 +9,8 @@
 
 The shadcn-vue Button component defines default, outline, secondary, ghost, destructive, and link variants using semantic color utilities. The global base styles must not force `color: inherit` onto buttons, because that overrides each variant's foreground and can make primary button text unreadable in dark mode. The current primary button pairs `--primary` with `--primary-foreground`; light and dark values are set in `theme.css`.
 
+The design-system §14 action system (`ActionButton`, `ActionGroup`) builds its six kinds on the default, outline and ghost variants plus token-colored outlines. The destructive kind is an outline at rest and fills `--destructive` on hover, with `--destructive-foreground` text (near-white on light, near-black on dark; 4.71/6.18 verified at authoring, so both themes pass 4.5:1). The §16 detail sheet (`DetailSheet`) is a full-height right sheet, 480 px wide or 640 px with `wide`, with a dim overlay and no backdrop blur.
+
 ## Chart series, status, spacing, sizes and motion
 
 `theme.css` also carries the design-system §2.4 chart series (`--chart-1` to `--chart-5`, both themes), the §2.5 status tokens (`--success`, `--warning`, `--info`, each with a `-foreground` verified ≥ 4.5:1 on the solid color and a `-soft` 12% badge tint), the §3 spacing scale (`--space-1` to `--space-16`, 4 px base), control/icon/row sizes (`--size-*`, desktop and touch, including `--size-icon-touch`), and the §6 motion tokens (`--duration-fast/base/slow`, `--ease-out/in-out`). Spacing, sizes and motion are theme-invariant and live in `:root` only. The `@theme` map exposes the colors, the spacing scale, every size token under a distinct `--spacing-*` alias, easings under distinct `--ease-athena-*` aliases, and durations under distinct `--transition-duration-athena-*` aliases (verified: `duration-athena-fast` emits `transition-duration: var(--duration-fast)`). Same-name mappings such as `--ease-out: var(--ease-out)` are forbidden: they emit circular CSS that poisons the token (verified in the built bundle during review).
@@ -27,10 +29,7 @@ Selection, caret, scrollbars and the focus ring come from tokens in the `style.c
 
 The check is structural since B2: `@vue/compiler-sfc` parses each `.vue` file into blocks and the template block into the real template AST, which is walked for paint attributes and bindings by exact name. Bare `v-bind` objects scan only style, class and paint keys; ternary conditions never count (only branch values reach paint); `url()` contents never count. String literals in `<script>` and `<script setup>` count as well, since a palette object reaches paint through `:style`; files with a legitimate reason list in `SCRIPT_EXCEPTIONS` (empty today). A brace/string-aware CSS scanner reads every declaration value in every rule, nested or not. The B1 regex limits are closed and covered by fixtures (backtick bindings, `data-*` keys inside `v-bind` objects, colors beside nested rules), as are conditional `v-bind` objects, `stop-color`, `title` strings, `url(#fragment)` references and script palette objects. `@vue/compiler-dom` and `postcss` are transitive-only, so expression and CSS scanning are purpose-built in the test file.
 
-Remaining limits:
-- a `//` inside a JavaScript regex literal reads as a comment start to the script scanner, so code after it on that line goes unscanned;
-- a regex literal holding braces next to a `data-*` key in one `v-bind` object could mis-split the pair.
-Neither shape appears in this tree; both are covered by staying out of it rather than by handling it.
+JavaScript first passes a lexer that blanks comments and regex literals (regex versus division by the previous significant token, with escapes and character classes), so neither confuses the scanners; the two B2 residual limits are closed with fixtures. There are no known limits.
 
 ## Shell breakpoints and overlays
 
@@ -42,6 +41,8 @@ B2 adapts the shadcn-vue sidebar to the R2 breakpoints: full sidebar at 1024 px 
 `web/src/typography.css` is the single source for typography values extracted from the supplied design specification. It defines Cal Sans display styles; Inter title, body, caption, button, and navigation styles; and JetBrains Mono code styles. The control desk uses display-sm for page headings, title-md/title-sm for section/card headings, body-sm for normal text, caption for dense metadata, and the specified button and nav styles. Display-xl through display-md remain available for future larger surfaces.
 
 Only typography values were extracted from the supplied specification; its spacing, radius, and component layout sections were not applied through this typography file.
+
+B3 applies the section 4 roles: headings balance, body copy renders pretty, table cells use tabular figures, and component titles carrying the h2 role (dialog, sheet, alert, drawer and card titles) resolve through `.cn-font-heading` to Satori title-md. Labels and table headers use the `text-caption` utility mapped from the caption tokens. Sign-in, empty states and phone form controls run at body-md. Icons come only from `web/src/icons.ts` (kebab-case names, `FileText` fallback) or `components/ui`; no other file imports `@lucide/vue`.
 
 ## Maintenance
 

@@ -1,12 +1,20 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { Code, ConnectError } from '@connectrpc/connect'
 import { toast } from 'vue-sonner'
 import { authClient } from '../api'
-import type { AccessUser, Assignment, AssignmentExplanation, Role, RoleHolder, Session } from '../gen/athena/v1/auth_pb'
+import type { AccessEvent, AccessUser, Assignment, AssignmentExplanation, Role, RoleHolder, Session } from '../gen/athena/v1/auth_pb'
 import type { RecordType } from '../types'
 import { actionLegend, actionLetter, describeScope, diffAssignments, parseScope, previewRoleGrants } from '../assignmentPreview'
+import { formatWhen, formatWhenFull } from '../times'
 import { Button } from '@/components/ui/button'
+import ActionButton from '@/components/ActionButton.vue'
+import ActionGroup from '@/components/ActionGroup.vue'
+import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import DetailSheet from '@/components/DetailSheet.vue'
+import MultiSelectField from '@/components/fields/MultiSelectField.vue'
+import SelectField from '@/components/fields/SelectField.vue'
+import type { ActionItem } from '@/components/actions'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
@@ -14,8 +22,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
+import ResponsiveDialog from '@/components/ResponsiveDialog.vue'
 
 // The Users & Roles page administers access through AuthService: inviting
 // users, scoped dated assignments, sessions and the Permission Explorer.
@@ -27,6 +34,7 @@ const canUsers = computed(() => props.permissions.includes('access:users'))
 const canRoles = computed(() => props.permissions.includes('access:roles'))
 const canAssign = computed(() => props.permissions.includes('access:assign'))
 const canExplore = computed(() => props.permissions.includes('access:explore'))
+const canAudit = computed(() => props.permissions.includes('audit'))
 
 const tab = ref(canUsers.value ? 'users' : canRoles.value ? 'roles' : 'sessions')
 const users = ref<AccessUser[]>([])
@@ -53,10 +61,6 @@ function stateVariant(state: string): 'default' | 'secondary' | 'destructive' | 
     default:
       return 'outline'
   }
-}
-
-function when(iso: string): string {
-  return iso ? new Date(iso).toLocaleString() : ''
 }
 
 function scopeText(assignment: Assignment): string {
@@ -88,7 +92,7 @@ async function refresh() {
     await Promise.all([refreshUsers(), refreshRoles()])
     unavailable.value = ''
   } catch (err) {
-    if (err instanceof ConnectError && err.code === Code.Unavailable) unavailable.value = err.rawMessage
+    if (err instanceof ConnectError && err.code === Code.Unavailable) unavailable.value = 'The Athena server is unavailable. Check that it is running, then try again.'
   } finally {
     loaded.value = true
   }
@@ -98,21 +102,114 @@ async function refresh() {
 const selectedUser = ref('')
 const assignments = ref<Assignment[]>([])
 const assignmentsLoaded = ref(false)
+// Supplementary sheet rows, best-effort: a failed fetch hides its row.
+const sessionCount = ref<number | null>(null)
+const userEvents = ref<AccessEvent[]>([])
+
+// Each user selection gets a number so a slow response for a previously
+// selected user never overwrites the current sheet.
+let userRequest = 0
 
 async function selectUser(username: string) {
+  const request = ++userRequest
   selectedUser.value = username
   assignmentsLoaded.value = false
+  sessionCount.value = null
+  userEvents.value = []
   if (!username) {
     assignments.value = []
     return
   }
   try {
-    assignments.value = (await authClient.listAssignments({ username })).assignments
+    const res = await authClient.listAssignments({ username })
+    if (request !== userRequest) return
+    assignments.value = res.assignments
   } catch (err) {
+    if (request !== userRequest) return
     toast.error(describe(err, 'load the assignments'))
   } finally {
-    assignmentsLoaded.value = true
+    if (request === userRequest) assignmentsLoaded.value = true
   }
+  try {
+    const res = await authClient.listSessions({ username })
+    if (request !== userRequest) return
+    sessionCount.value = res.sessions.length
+  } catch {
+    if (request === userRequest) sessionCount.value = null
+  }
+  if (canAudit.value) {
+    try {
+      const res = await authClient.listAccessLog({ pageSize: 50 })
+      if (request !== userRequest) return
+      userEvents.value = res.events.filter((event) => event.username === username).slice(0, 5)
+    } catch {
+      if (request === userRequest) userEvents.value = []
+    }
+  }
+}
+
+// The account state in one plain line.
+function stateLine(user: AccessUser): string {
+  if (user.locked) return 'Locked after too many failed sign-ins.'
+  if (user.disabled) return 'Suspended, cannot sign in.'
+  switch (user.state) {
+    case 'invited':
+      return 'Invited, has not set a password yet.'
+    case 'reset_required':
+      return 'A reset was started, a new password is needed.'
+    default:
+      return 'Active, can sign in.'
+  }
+}
+
+// Access Log events in plain words (vocabulary from internal/auth/accesslog.go).
+function describeAccessEvent(event: AccessEvent): string {
+  switch (event.event) {
+    case 'login':
+      return event.outcome === 'ok' ? 'Signed in' : 'Sign-in failed'
+    case 'login_failed':
+      return event.detail === 'locked' ? 'Sign-in failed (account locked)' : 'Sign-in failed'
+    case 'lockout':
+      return 'Locked after too many tries'
+    case 'logout':
+      return 'Signed out'
+    case 'denied':
+      return event.recordTypeKey ? `Denied ${event.action} on ${event.recordTypeKey}` : `Denied ${event.procedure}`
+    case 'password_changed':
+      return 'Changed their password'
+    case 'password_reset':
+      return 'Password was reset'
+    case 'user_created':
+      return 'Account created'
+    case 'user_updated':
+      return 'Account updated'
+    case 'role_saved':
+      return 'Role saved'
+    case 'role_deleted':
+      return 'Role deleted'
+    case 'invite_created':
+      return 'Invite created'
+    case 'invite_resent':
+      return 'Invite resent'
+    case 'reset_started':
+      return 'Reset started'
+    case 'challenge_issued':
+      return 'Challenge issued'
+    case 'challenge_completed':
+      return 'Challenge completed'
+    case 'challenge_failed':
+      return 'Challenge failed'
+    default:
+      return event.outcome ? `${event.event} · ${event.outcome}` : event.event
+  }
+}
+
+// Jump from a user sheet into their sessions.
+function gotoSessions(username: string) {
+  void selectUser('')
+  sessionUser.value = username
+  tab.value = 'sessions'
+  void loadSessions()
 }
 
 const selected = computed(() => users.value.find((user) => user.username === selectedUser.value) ?? null)
@@ -121,6 +218,30 @@ const selected = computed(() => users.value.find((user) => user.username === sel
 // the desk: invites, resets, suspension and assignments cannot touch it.
 const rootUsername = 'administrator'
 const isRootSelected = computed(() => selected.value?.username === rootUsername)
+
+// The user sheet footer: Assign first, then the secondary pair, then the
+// caution or its restore opposite. The root account gets no actions.
+const userActions = computed<ActionItem[]>(() => {
+  if (!selected.value || isRootSelected.value) return []
+  const items: ActionItem[] = []
+  if (canAssign.value) items.push({ id: 'assign', label: 'Assign Role', kind: 'primary', icon: 'plus', busy: busy.value })
+  if (canUsers.value && selected.value.state === 'invited') items.push({ id: 'resend', label: 'Resend invite', kind: 'secondary', icon: 'send', busy: busy.value })
+  if (canUsers.value && (selected.value.state === 'active' || selected.value.state === 'reset_required')) {
+    items.push({ id: 'reset', label: 'Reset', kind: 'secondary', icon: 'key-round', busy: busy.value })
+  }
+  if (canUsers.value && !selected.value.disabled) items.push({ id: 'suspend', label: 'Suspend', kind: 'caution', icon: 'pause', busy: busy.value })
+  if (canUsers.value && selected.value.disabled) items.push({ id: 'reactivate', label: 'Reactivate', kind: 'restore', icon: 'play', busy: busy.value })
+  return items
+})
+
+function onUserAction(id: string) {
+  if (!selected.value) return
+  if (id === 'assign') openNewAssignment()
+  else if (id === 'resend') void resend(selected.value.username)
+  else if (id === 'reset') resetting.value = true
+  else if (id === 'suspend') suspending.value = true
+  else if (id === 'reactivate') void reactivate()
+}
 
 // Field names across Record Types feed the Scope dimension suggestions: a
 // dimension only ever matches a field of the same name.
@@ -132,8 +253,15 @@ const scopeDimensions = computed(() => {
 
 // Inviting. The Challenge is shown once in its own dialog.
 const inviting = ref(false)
-const inviteForm = ref({ username: '', displayName: '', roles: '' })
+const inviteForm = ref({ username: '', displayName: '', roles: [] as string[] })
 const inviteProblem = ref('')
+
+// Dirty snapshots: closing a dialog with unsaved typing asks first.
+const inviteSnapshot = ref('')
+watch(inviting, (open) => {
+  if (open) inviteSnapshot.value = JSON.stringify(inviteForm.value)
+})
+const inviteDirty = computed(() => inviting.value && JSON.stringify(inviteForm.value) !== inviteSnapshot.value)
 
 const challengeOpen = ref(false)
 const challengeTitle = ref('')
@@ -157,10 +285,7 @@ async function copyChallenge() {
 async function invite() {
   inviteProblem.value = ''
   const username = inviteForm.value.username.trim()
-  const names = inviteForm.value.roles
-    .split(',')
-    .map((name) => name.trim())
-    .filter((name) => name !== '')
+  const names = [...inviteForm.value.roles]
   for (const name of names) {
     if (!roles.value.some((role) => role.name === name)) {
       inviteProblem.value = `No Role named ${name}.`
@@ -175,7 +300,7 @@ async function invite() {
   try {
     const res = await authClient.inviteUser({ username, displayName: inviteForm.value.displayName.trim(), roles: names })
     inviting.value = false
-    inviteForm.value = { username: '', displayName: '', roles: '' }
+    inviteForm.value = { username: '', displayName: '', roles: [] }
     await refreshUsers()
     await selectUser(res.user?.username ?? '')
     if (res.challenge) showChallenge(`Invite for ${res.user?.username}`, res.challenge)
@@ -206,6 +331,7 @@ async function resend(username: string) {
 const resetting = ref(false)
 const actorPassword = ref('')
 const resetProblem = ref('')
+const resetDirty = computed(() => resetting.value && actorPassword.value !== '')
 
 async function startReset() {
   resetProblem.value = ''
@@ -269,6 +395,15 @@ const assignmentOpen = ref(false)
 const assignmentForm = ref<AssignmentForm>(blankAssignment())
 const assignmentProblem = ref('')
 const assignmentRevision = ref<bigint>(BigInt(0))
+const assignmentSnapshot = ref('')
+watch(assignmentOpen, (open) => {
+  if (open) assignmentSnapshot.value = JSON.stringify(assignmentForm.value, (_, value) => (typeof value === 'bigint' ? String(value) : value))
+})
+const assignmentDirty = computed(
+  () =>
+    assignmentOpen.value &&
+    JSON.stringify(assignmentForm.value, (_, value) => (typeof value === 'bigint' ? String(value) : value)) !== assignmentSnapshot.value,
+)
 
 // formScope validates every row through the shared parser and reports the
 // first problem, if any.
@@ -325,6 +460,18 @@ function addScopeRow() {
 
 function removeScopeRow(index: number) {
   assignmentForm.value.rows.splice(index, 1)
+}
+
+function assignmentActions(): ActionItem[] {
+  return [
+    { id: 'edit', label: 'Edit', kind: 'secondary', icon: 'pencil', busy: busy.value },
+    { id: 'revoke', label: 'Revoke', kind: 'caution', icon: 'undo-2', busy: busy.value },
+  ]
+}
+
+function onAssignmentAction(assignment: Assignment, id: string) {
+  if (id === 'edit') openEditAssignment(assignment)
+  else revoking.value = assignment
 }
 
 const previewOpen = ref(false)
@@ -427,6 +574,20 @@ async function revoke() {
 const selectedRole = ref('')
 const roleDetail = computed(() => roles.value.find((role) => role.name === selectedRole.value) ?? null)
 
+const roleActions = computed<ActionItem[]>(() => {
+  if (!roleDetail.value) return []
+  return [
+    { id: 'edit', label: 'Edit', kind: 'secondary', icon: 'pencil', busy: busy.value },
+    { id: 'delete', label: 'Delete', kind: 'destructive', icon: 'trash-2', busy: busy.value },
+  ]
+})
+
+function onRoleAction(id: string) {
+  if (!roleDetail.value) return
+  if (id === 'edit') openEditRole(roleDetail.value)
+  else if (id === 'delete') deletingRole.value = roleDetail.value
+}
+
 const systemPermissionOptions = [
   'build',
   'audit',
@@ -446,6 +607,11 @@ const roleDialogOpen = ref(false)
 const roleEditing = ref(false)
 const roleForm = ref({ name: '', description: '', permissions: [] as string[] })
 const roleProblem = ref('')
+const roleSnapshot = ref('')
+watch(roleDialogOpen, (open) => {
+  if (open) roleSnapshot.value = JSON.stringify(roleForm.value)
+})
+const roleDirty = computed(() => roleDialogOpen.value && JSON.stringify(roleForm.value) !== roleSnapshot.value)
 
 function openNewRole() {
   roleEditing.value = false
@@ -544,16 +710,22 @@ const holdersOpen = ref(false)
 const holdersTitle = ref({ role: '', typeKey: '', action: '' })
 const holders = ref<RoleHolder[]>([])
 
+let holdersRequest = 0
+
 async function openHolders(role: string, typeKey: string, action: string) {
+  const request = ++holdersRequest
   busy.value = true
   try {
-    holders.value = (await authClient.listRoleHolders({ role, recordTypeKey: typeKey, action })).holders
+    const res = await authClient.listRoleHolders({ role, recordTypeKey: typeKey, action })
+    if (request !== holdersRequest) return
+    holders.value = res.holders
     holdersTitle.value = { role, typeKey, action }
     holdersOpen.value = true
   } catch (err) {
+    if (request !== holdersRequest) return
     toast.error(describe(err, 'load the holders'))
   } finally {
-    busy.value = false
+    if (request === holdersRequest) busy.value = false
   }
 }
 
@@ -575,21 +747,38 @@ function explainHolder(holder: RoleHolder) {
 // Sessions tab. Every user lists their own; another user's need the
 // sessions permission, which the server checks.
 const sessionUser = ref(props.username)
+const loadedSessionUser = ref('')
 const sessions = ref<Session[]>([])
 const selectedSession = ref('')
 const sessionDetail = computed(() => sessions.value.find((session) => session.id === selectedSession.value) ?? null)
 
+const sessionActions = computed<ActionItem[]>(() => {
+  if (!sessionDetail.value) return []
+  return [{ id: 'end', label: 'End session', kind: 'caution', icon: 'log-out', busy: busy.value }]
+})
+
+function onSessionAction(id: string) {
+  if (id === 'end' && sessionDetail.value) endingSession.value = sessionDetail.value
+}
+
 async function loadSessions() {
-  if (!sessionUser.value.trim()) return
+  const username = sessionUser.value.trim()
+  if (!username) return
   busy.value = true
   try {
-    sessions.value = (await authClient.listSessions({ username: sessionUser.value.trim() })).sessions
+    const res = await authClient.listSessions({ username })
+    if (sessionUser.value.trim() !== username) return
+    sessions.value = res.sessions
+    loadedSessionUser.value = username
   } catch (err) {
+    if (sessionUser.value.trim() !== username) return
     toast.error(describe(err, 'load the sessions'))
   } finally {
-    busy.value = false
+    if (sessionUser.value.trim() === username) busy.value = false
   }
 }
+
+const endingSession = ref<Session | null>(null)
 
 async function revokeSession(id: string) {
   busy.value = true
@@ -604,6 +793,12 @@ async function revokeSession(id: string) {
   }
 }
 
+function confirmEndSession() {
+  const session = endingSession.value
+  endingSession.value = null
+  if (session) void revokeSession(session.id)
+}
+
 // Permission Explorer. With a Record the verdicts test row conditions and
 // Scopes against it; without one they cover dates, required Scope and
 // Grants only.
@@ -611,24 +806,30 @@ const grantActions = ['read', 'create', 'write', 'delete', 'submit', 'cancel', '
 const exploreForm = ref({ username: props.username, action: 'read', recordType: '', recordId: '' })
 const explanation = ref<{ allowed: boolean; assignments: AssignmentExplanation[] } | null>(null)
 
+let explainRequest = 0
+
 async function explain() {
   if (!exploreForm.value.username.trim() || !exploreForm.value.recordType.trim()) {
     toast.error('Enter a username and a Record Type.')
     return
   }
+  const request = ++explainRequest
   busy.value = true
   try {
-    explanation.value = await authClient.explainAccess({
+    const res = await authClient.explainAccess({
       username: exploreForm.value.username.trim(),
       action: exploreForm.value.action,
       recordTypeKey: exploreForm.value.recordType.trim(),
       recordId: exploreForm.value.recordId.trim(),
     })
+    if (request !== explainRequest) return
+    explanation.value = res
   } catch (err) {
+    if (request !== explainRequest) return
     explanation.value = null
     toast.error(describe(err, 'explain the access'))
   } finally {
-    busy.value = false
+    if (request === explainRequest) busy.value = false
   }
 }
 
@@ -645,8 +846,8 @@ onMounted(async () => {
 <template>
   <section class="page-content files-page">
     <div class="page-title-row">
-      <div><h1>Access</h1><p class="lead">Invite users, hand out scoped Roles, inspect sessions and explain access decisions.</p></div>
-      <div v-if="tab === 'users' && canUsers && !unavailable" class="toolbar-actions"><Button @click="inviting = true">＋ Invite user</Button></div>
+      <div><h1>Access</h1><p class="lead">Invite users, give them Roles, and see who can do what.</p></div>
+      <div v-if="tab === 'users' && canUsers && !unavailable" class="toolbar-actions"><ActionButton kind="primary" label="Invite user" icon="plus" :busy="busy" @press="inviting = true" /></div>
     </div>
     <div v-if="unavailable" class="empty-builder"><div class="card-icon">⌘</div><h2>Access is unavailable</h2><p>{{ unavailable }}</p></div>
     <Tabs v-else :model-value="tab" @update:model-value="onTab">
@@ -658,58 +859,80 @@ onMounted(async () => {
         <TabsTrigger v-if="canExplore" value="explore">Explore</TabsTrigger>
       </TabsList>
       <TabsContent value="users">
-        <div class="access-split">
-          <div class="access-main">
-            <p v-if="loaded && users.length === 0" class="files-empty">No users yet.</p>
-            <Table v-else class="datatable-stacked">
+        <p v-if="loaded && users.length === 0" class="files-empty">No users yet.</p>
+        <Table v-else class="datatable-stacked">
               <TableHeader><TableRow><TableHead>Username</TableHead><TableHead>Display name</TableHead><TableHead>State</TableHead><TableHead>Roles</TableHead><TableHead>Last sign-in</TableHead></TableRow></TableHeader>
               <TableBody>
                 <TableRow v-for="user in users" :key="user.username" class="cursor-pointer" :data-state="user.username === selectedUser ? 'selected' : undefined" @click="selectUser(user.username === selectedUser ? '' : user.username)">
                   <TableCell data-label="Username"><button type="button" class="row-open" :aria-expanded="user.username === selectedUser" :aria-label="`Open details for ${user.username}`" @click.stop="selectUser(user.username === selectedUser ? '' : user.username)">{{ user.username }}</button> <Badge v-if="user.owner" variant="secondary">Owner</Badge></TableCell>
                   <TableCell data-label="Display name">{{ user.displayName }}</TableCell>
                   <TableCell data-label="State"><Badge :variant="stateVariant(user.state)">{{ user.state || 'active' }}</Badge><Badge v-if="user.locked" variant="destructive">Locked</Badge></TableCell>
-                  <TableCell data-label="Roles" class="datatable-hide-mobile">{{ user.roles.join(', ') }}</TableCell>
-                  <TableCell data-label="Last sign-in" class="datatable-hide-mobile">{{ when(user.lastLoginAt) }}</TableCell>
+                  <TableCell data-label="Roles" class="datatable-hide-mobile"><span v-if="user.roles.length > 0">{{ user.roles.join(', ') }}</span><span v-else-if="user.username === rootUsername" class="muted-label">Full access</span><span v-else class="muted-label">No roles</span></TableCell>
+                  <TableCell data-label="Last sign-in" class="datatable-hide-mobile" :title="formatWhenFull(user.lastLoginAt)">{{ formatWhen(user.lastLoginAt) }}</TableCell>
                 </TableRow>
               </TableBody>
             </Table>
-          </div>
-          <aside v-if="selected" class="access-drawer" aria-label="User details">
-            <div class="record-editor-head">
-              <h2 class="files-title">{{ selected.username }}</h2>
-              <Badge :variant="stateVariant(selected.state)">{{ selected.state || 'active' }}</Badge>
-              <div class="toolbar-actions"><Button variant="ghost" size="sm" aria-label="Close details" @click="selectUser('')">✕</Button></div>
-            </div>
-            <p v-if="selected.lastLoginAt" class="muted-label">Last sign-in {{ when(selected.lastLoginAt) }}</p>
-            <p v-if="isRootSelected" class="editor-footnote">The root account is managed outside the desk and cannot be changed here.</p>
-            <div v-else class="toolbar-actions access-drawer-actions">
-              <Button v-if="canUsers && selected.state === 'invited'" variant="outline" size="sm" :disabled="busy" @click="resend(selected.username)">Resend invite</Button>
-              <Button v-if="canUsers && (selected.state === 'active' || selected.state === 'reset_required')" variant="outline" size="sm" :disabled="busy" @click="resetting = true">Reset</Button>
-              <Button v-if="canUsers" variant="outline" size="sm" :disabled="busy || selected.disabled" @click="suspending = true">Suspend</Button>
-              <Button v-if="canUsers" variant="outline" size="sm" :disabled="busy || !selected.disabled" @click="reactivate">Reactivate</Button>
-              <Button v-if="canAssign" size="sm" :disabled="busy" @click="openNewAssignment">＋ Assign Role</Button>
-            </div>
+        <DetailSheet
+          v-if="selected"
+          :open="true"
+          :title="selected.displayName || selected.username"
+          wide
+          @update:open="(value: boolean) => { if (!value) selectUser('') }"
+        >
+          <template #status>
+            <Badge :variant="stateVariant(selected.state)">{{ selected.state || 'active' }}</Badge>
+            <Badge v-if="selected.locked" variant="destructive">Locked</Badge>
+          </template>
+          <template #subtitle>
+            <p class="text-caption text-muted-foreground font-mono">{{ selected.username }}</p>
+          </template>
+          <p class="muted-label">{{ stateLine(selected) }}</p>
+          <p v-if="selected.lastLoginAt" class="muted-label" :title="formatWhenFull(selected.lastLoginAt)">Last sign-in {{ formatWhen(selected.lastLoginAt) }}</p>
+          <p v-if="isRootSelected" class="editor-footnote">The root account is managed outside the desk and cannot be changed here.</p>
+          <div class="sheet-section">
+            <p class="sheet-label">Roles</p>
             <p v-if="assignmentsLoaded && assignments.length === 0" class="files-empty">No assignments. {{ canAssign && !isRootSelected ? 'Assign a Role.' : '' }}</p>
             <ul v-else class="access-assignments">
               <li v-for="assignment in assignments" :key="assignment.id" class="access-assignment">
                 <Badge>{{ assignment.role }}</Badge>
                 <span class="muted-label">{{ scopeText(assignment) }}</span>
                 <span v-if="assignment.activeFrom || assignment.expiresAt" class="muted-label">{{ assignment.activeFrom || '…' }} → {{ assignment.expiresAt || '…' }}</span>
-                <span v-if="canAssign && !isRootSelected" class="toolbar-actions">
-                  <Button variant="ghost" size="sm" :disabled="busy" @click="openEditAssignment(assignment)">Edit</Button>
-                  <Button variant="ghost" size="sm" :disabled="busy" @click="revoking = assignment">Revoke</Button>
-                </span>
+                <ActionGroup
+                  v-if="canAssign && !isRootSelected"
+                  :actions="assignmentActions()"
+                  density="row"
+                  class="access-assignment-actions"
+                  :aria-label="`Actions for ${assignment.role}`"
+                  @press="(id: string) => onAssignmentAction(assignment, id)"
+                />
               </li>
             </ul>
-          </aside>
-        </div>
+          </div>
+          <div v-if="sessionCount !== null" class="sheet-section">
+            <p class="sheet-label">Sessions</p>
+            <div class="sheet-inline">
+              <span class="muted-label">{{ sessionCount === 0 ? 'No active sessions.' : `${sessionCount} active ${sessionCount === 1 ? 'session' : 'sessions'}.` }}</span>
+              <ActionButton v-if="sessionCount > 0" kind="quiet" density="inline" label="View in Sessions" icon="eye" @press="gotoSessions(selected.username)" />
+            </div>
+          </div>
+          <div v-if="userEvents.length > 0" class="sheet-section">
+            <p class="sheet-label">Recent events</p>
+            <ul class="sheet-events">
+              <li v-for="event in userEvents" :key="String(event.id)">
+                <span>{{ describeAccessEvent(event) }}</span>
+                <span class="muted-label">{{ formatWhenFull(event.at) }}</span>
+              </li>
+            </ul>
+          </div>
+          <template v-if="userActions.length > 0" #footer>
+            <ActionGroup :actions="userActions" stack-on-phones aria-label="User actions" @press="onUserAction" />
+          </template>
+        </DetailSheet>
       </TabsContent>
       <TabsContent value="roles">
-        <div class="access-split">
-          <div class="access-main">
-            <div class="toolbar-actions access-tab-actions"><Button size="sm" :disabled="busy" @click="openNewRole">＋ New Role</Button></div>
-            <p v-if="loaded && roles.length === 0" class="files-empty">No Roles yet.</p>
-            <Table v-else class="datatable-stacked">
+        <div class="toolbar-actions access-tab-actions"><ActionButton kind="primary" density="row" label="New Role" icon="plus" :busy="busy" @press="openNewRole" /></div>
+        <p v-if="loaded && roles.length === 0" class="files-empty">No Roles yet.</p>
+        <Table v-else class="datatable-stacked">
               <TableHeader><TableRow><TableHead>Role</TableHead><TableHead>Description</TableHead><TableHead>System permissions</TableHead><TableHead>Grants</TableHead></TableRow></TableHeader>
               <TableBody>
                 <TableRow v-for="role in roles" :key="role.name" class="cursor-pointer" :data-state="role.name === selectedRole ? 'selected' : undefined" @click="selectedRole = role.name === selectedRole ? '' : role.name">
@@ -720,28 +943,33 @@ onMounted(async () => {
                 </TableRow>
               </TableBody>
             </Table>
+        <DetailSheet
+          v-if="roleDetail"
+          :open="true"
+          :title="roleDetail.name"
+          wide
+          @update:open="(value: boolean) => { if (!value) selectedRole = '' }"
+        >
+          <p class="sheet-lead">{{ roleDetail.description || 'No description.' }}</p>
+          <div class="sheet-section">
+            <p class="sheet-label">System permissions</p>
+            <p class="muted-label">{{ roleDetail.systemPermissions.length > 0 ? roleDetail.systemPermissions.join(', ') : 'None.' }}</p>
           </div>
-          <aside v-if="roleDetail" class="access-drawer" aria-label="Role details">
-            <div class="record-editor-head">
-              <h2 class="files-title">{{ roleDetail.name }}</h2>
-              <div class="toolbar-actions">
-                <Button variant="ghost" size="sm" :disabled="busy" @click="openEditRole(roleDetail)">Edit</Button>
-                <Button variant="ghost" size="sm" :disabled="busy" @click="deletingRole = roleDetail">Delete</Button>
-                <Button variant="ghost" size="sm" aria-label="Close details" @click="selectedRole = ''">✕</Button>
-              </div>
-            </div>
-            <p v-if="roleDetail.description" class="muted-label">{{ roleDetail.description }}</p>
-            <p v-if="roleDetail.systemPermissions.length > 0" class="muted-label">System permissions: {{ roleDetail.systemPermissions.join(', ') }}</p>
+          <div class="sheet-section">
+            <p class="sheet-label">Grants</p>
             <p v-if="roleDetail.grants.length === 0" class="files-empty">No Grants. Roles gain Grants from the command line.</p>
             <ul v-else class="access-grants">
               <li v-for="(grant, index) in roleDetail.grants" :key="index">
-                <strong>{{ grant.actions.join(', ') }}</strong> {{ grant.recordTypeKey }} <span class="muted-label">level {{ grant.permissionLevel }}</span>
+                <strong>{{ grant.actions.join(', ') }}</strong> {{ grant.recordTypeKey === '*' ? 'everything' : grant.recordTypeKey }}
                 <span v-if="grant.condition" class="muted-label">where {{ grant.condition }}</span>
                 <Badge v-if="grant.separateDuties" variant="outline">Separate duties</Badge>
               </li>
             </ul>
-          </aside>
-        </div>
+          </div>
+          <template #footer>
+            <ActionGroup :actions="roleActions" stack-on-phones aria-label="Role actions" @press="onRoleAction" />
+          </template>
+        </DetailSheet>
       </TabsContent>
       <TabsContent value="permissions">
         <p v-if="loaded && roles.length === 0" class="files-empty">No Roles yet.</p>
@@ -750,9 +978,9 @@ onMounted(async () => {
           <TableBody>
             <TableRow v-for="typeKey in matrixTypes" :key="typeKey">
               <TableCell data-label="Record Type">{{ typeKey === '*' ? 'All record types' : typeKey }}</TableCell>
-              <TableCell v-for="role in roles" :key="role.name" :data-label="role.name">
+              <TableCell v-for="role in roles" :key="role.name" :data-label="role.name" :class="cellActions(role, typeKey).length === 0 ? 'datatable-hide-mobile' : undefined">
                 <span v-if="cellActions(role, typeKey).length === 0" class="muted-label">·</span>
-                <Button v-for="action in cellActions(role, typeKey)" :key="action" variant="ghost" size="sm" class="access-letter" :disabled="busy" :title="`${action} ${typeKey === '*' ? 'everything' : typeKey} — show holders`" @click="openHolders(role.name, typeKey, action)">{{ actionLetter(action) }}</Button>
+                <ActionButton v-for="action in cellActions(role, typeKey)" :key="action" kind="quiet" density="row" :label="actionLetter(action)" :aria-label="`${action} ${typeKey === '*' ? 'everything' : typeKey} — show holders`" :title="`${action} ${typeKey === '*' ? 'everything' : typeKey} — show holders`" :disabled-reason="busy ? 'Please wait.' : null" class="access-letter" @press="openHolders(role.name, typeKey, action)" />
               </TableCell>
             </TableRow>
           </TableBody>
@@ -765,39 +993,40 @@ onMounted(async () => {
             <Label for="session-user">User</Label>
             <Input id="session-user" v-model="sessionUser" autocomplete="off" :disabled="busy" @keyup.enter="loadSessions" />
           </div>
-          <div class="toolbar-actions"><Button variant="outline" :disabled="busy" @click="loadSessions">List sessions</Button></div>
+          <div class="toolbar-actions"><ActionButton kind="secondary" label="List sessions" icon="refresh-ccw" :busy="busy" @press="loadSessions" /></div>
         </div>
         <p v-if="sessions.length === 0" class="files-empty">No live sessions.</p>
-        <div v-else class="access-split">
-          <div class="access-main">
-            <Table class="datatable-stacked">
+        <Table v-else class="datatable-stacked">
               <TableHeader><TableRow><TableHead>Started</TableHead><TableHead>Last seen</TableHead><TableHead>Expires</TableHead><TableHead>Device</TableHead><TableHead></TableHead><TableHead></TableHead></TableRow></TableHeader>
               <TableBody>
                 <TableRow v-for="session in sessions" :key="session.id" class="cursor-pointer" :data-state="session.id === selectedSession ? 'selected' : undefined" @click="selectedSession = session.id === selectedSession ? '' : session.id">
-                  <TableCell data-label="Started" class="datatable-hide-mobile">{{ when(session.createdAt) }}</TableCell>
-                  <TableCell data-label="Last seen">{{ when(session.lastSeenAt) }}</TableCell>
-                  <TableCell data-label="Expires" class="datatable-hide-mobile">{{ when(session.expiresAt) }}</TableCell>
+                  <TableCell data-label="Started" class="datatable-hide-mobile" :title="formatWhenFull(session.createdAt)">{{ formatWhen(session.createdAt) }}</TableCell>
+                  <TableCell data-label="Last seen" :title="formatWhenFull(session.lastSeenAt)">{{ formatWhen(session.lastSeenAt) }}</TableCell>
+                  <TableCell data-label="Expires" class="datatable-hide-mobile" :title="formatWhenFull(session.expiresAt)">{{ formatWhen(session.expiresAt) }}</TableCell>
                   <TableCell data-label="Device"><button type="button" class="row-open" :aria-expanded="session.id === selectedSession" :aria-label="`Open details for session ${session.id.slice(0, 8)}`" @click.stop="selectedSession = session.id === selectedSession ? '' : session.id">{{ session.device || '—' }}</button></TableCell>
                   <TableCell data-label="Status" :class="!session.current ? 'datatable-hide-mobile' : undefined"><Badge v-if="session.current" variant="secondary">This device</Badge></TableCell>
-                  <TableCell><Button variant="ghost" size="sm" :disabled="busy" @click.stop="revokeSession(session.id)">End</Button></TableCell>
+                  <TableCell><span @click.stop="() => {}"><ActionButton kind="caution" density="row" label="End" icon="log-out" :disabled-reason="busy ? 'Please wait.' : null" class="max-sm:hidden" @press="endingSession = session" /></span></TableCell>
                 </TableRow>
               </TableBody>
             </Table>
-          </div>
-          <aside v-if="sessionDetail" class="access-drawer" aria-label="Session details">
-            <div class="record-editor-head">
-              <h2 class="files-title">{{ sessionDetail.device || 'Session' }}</h2>
-              <Badge v-if="sessionDetail.current" variant="secondary">This device</Badge>
-              <div class="toolbar-actions"><Button variant="ghost" size="sm" aria-label="Close details" @click="selectedSession = ''">✕</Button></div>
-            </div>
-            <p class="muted-label">Started {{ when(sessionDetail.createdAt) }}</p>
-            <p class="muted-label">Last seen {{ when(sessionDetail.lastSeenAt) }}</p>
-            <p class="muted-label">Expires {{ when(sessionDetail.expiresAt) }}</p>
-            <div class="toolbar-actions access-drawer-actions">
-              <Button variant="ghost" size="sm" :disabled="busy" @click="revokeSession(sessionDetail.id)">End session</Button>
-            </div>
-          </aside>
-        </div>
+        <DetailSheet
+          v-if="sessionDetail"
+          :open="true"
+          :title="sessionDetail.device || 'Session'"
+          @update:open="(value: boolean) => { if (!value) selectedSession = '' }"
+        >
+          <template #status>
+            <Badge v-if="sessionDetail.current" variant="secondary">This device</Badge>
+          </template>
+          <p class="sheet-lead">Signed in as {{ loadedSessionUser }}</p>
+          <p class="muted-label">Session <code>{{ sessionDetail.id.slice(0, 8) }}</code></p>
+          <p class="muted-label" :title="formatWhenFull(sessionDetail.createdAt)">Started {{ formatWhen(sessionDetail.createdAt) }}</p>
+          <p class="muted-label" :title="formatWhenFull(sessionDetail.lastSeenAt)">Last seen {{ formatWhen(sessionDetail.lastSeenAt) }}</p>
+          <p class="muted-label" :title="formatWhenFull(sessionDetail.expiresAt)">Expires {{ formatWhen(sessionDetail.expiresAt) }}</p>
+          <template #footer>
+            <ActionGroup :actions="sessionActions" stack-on-phones aria-label="Session actions" @press="onSessionAction" />
+          </template>
+        </DetailSheet>
       </TabsContent>
       <TabsContent value="explore">
         <div class="editor-toolbar explore-form">
@@ -810,7 +1039,7 @@ onMounted(async () => {
           </div>
           <div class="settings-field"><Label for="explore-type">Record Type</Label><Input id="explore-type" v-model="exploreForm.recordType" autocomplete="off" spellcheck="false" :disabled="busy" /></div>
           <div class="settings-field"><Label for="explore-record">Record ID (optional)</Label><Input id="explore-record" v-model="exploreForm.recordId" autocomplete="off" spellcheck="false" :disabled="busy" /></div>
-          <div class="toolbar-actions"><Button :disabled="busy" @click="explain">Explain</Button></div>
+          <div class="toolbar-actions"><ActionButton kind="primary" label="Explain" icon="circle-help" :busy="busy" @press="explain" /></div>
         </div>
         <div v-if="explanation" class="record-editor files-editor-card">
           <div class="record-editor-head">
@@ -830,50 +1059,57 @@ onMounted(async () => {
       </TabsContent>
     </Tabs>
 
-    <Dialog :open="inviting" @update:open="(value: boolean) => { inviting = value }">
-      <DialogContent>
-        <DialogHeader><DialogTitle>Invite user</DialogTitle><DialogDescription>The user signs in for the first time with a one-time challenge, shown once.</DialogDescription></DialogHeader>
+    <ResponsiveDialog v-model:open="inviting" title="Invite user" description="The user signs in for the first time with a one-time code, shown once." :dirty="inviteDirty">
         <div class="settings-field"><Label for="invite-username">Username</Label><Input id="invite-username" v-model="inviteForm.username" autocomplete="off" spellcheck="false" :disabled="busy" /></div>
         <div class="settings-field"><Label for="invite-display">Display name</Label><Input id="invite-display" v-model="inviteForm.displayName" autocomplete="off" :disabled="busy" /></div>
-        <div class="settings-field"><Label for="invite-roles">Roles (comma-separated, optional)</Label><Input id="invite-roles" v-model="inviteForm.roles" autocomplete="off" spellcheck="false" :disabled="busy" /></div>
+        <MultiSelectField
+          id="invite-roles"
+          label="Roles"
+          optional
+          v-model="inviteForm.roles"
+          placeholder="Add Roles…"
+          :help="roles.length > 0 ? 'The person holds these from day one.' : 'No Roles visible to you.'"
+          :options="roles.map((role) => ({ value: role.name, label: role.name }))"
+          :disabled="busy"
+        />
         <small v-if="inviteProblem" class="files-problem">{{ inviteProblem }}</small>
-        <DialogFooter><Button variant="outline" :disabled="busy" @click="inviting = false">Cancel</Button><Button :disabled="busy" @click="invite">Invite</Button></DialogFooter>
-      </DialogContent>
-    </Dialog>
+        <template #footer><ActionButton kind="secondary" label="Cancel" icon="x" :busy="busy" @press="inviting = false" /><ActionButton kind="primary" label="Invite" icon="plus" :busy="busy" @press="invite" /></template>
+    </ResponsiveDialog>
 
-    <Dialog :open="challengeOpen" @update:open="(value: boolean) => { challengeOpen = value }">
-      <DialogContent>
-        <DialogHeader><DialogTitle>{{ challengeTitle }}</DialogTitle><DialogDescription>Hand this challenge to the user through a channel you trust. It is shown once and never again.</DialogDescription></DialogHeader>
+    <ResponsiveDialog v-model:open="challengeOpen" :title="`${challengeTitle}`" description="Hand this code to the user through a channel you trust. It is shown once and never again.">
         <code class="access-challenge">{{ challengeValue }}</code>
-        <DialogFooter><Button variant="outline" @click="copyChallenge">Copy challenge</Button><Button @click="challengeOpen = false">Done</Button></DialogFooter>
-      </DialogContent>
-    </Dialog>
+        <template #footer><ActionButton kind="secondary" label="Copy code" icon="copy" @press="copyChallenge" /><ActionButton kind="primary" label="Done" icon="check" @press="challengeOpen = false" /></template>
+    </ResponsiveDialog>
 
-    <Dialog :open="resetting" @update:open="(value: boolean) => { resetting = value }">
-      <DialogContent>
-        <DialogHeader><DialogTitle>Reset {{ selectedUser }}</DialogTitle><DialogDescription>A reset ends their sessions. Prove it is you with your own password first.</DialogDescription></DialogHeader>
+    <ResponsiveDialog v-model:open="resetting" :title="`Reset ${selectedUser}`" description="A reset ends their sessions. Prove it is you with your own password first." :dirty="resetDirty">
         <div class="settings-field"><Label for="reset-password">Your password</Label><Input id="reset-password" v-model="actorPassword" type="password" autocomplete="current-password" :disabled="busy" /></div>
         <small v-if="resetProblem" class="files-problem">{{ resetProblem }}</small>
-        <DialogFooter><Button variant="outline" :disabled="busy" @click="resetting = false">Cancel</Button><Button :disabled="busy" @click="startReset">Start reset</Button></DialogFooter>
-      </DialogContent>
-    </Dialog>
+        <template #footer><ActionButton kind="secondary" label="Cancel" icon="x" :busy="busy" @press="resetting = false" /><ActionButton kind="primary" label="Start reset" icon="key-round" :busy="busy" @press="startReset" /></template>
+    </ResponsiveDialog>
 
-    <AlertDialog :open="suspending" @update:open="(value: boolean) => { suspending = value }">
-      <AlertDialogContent>
-        <AlertDialogHeader><AlertDialogTitle>Suspend {{ selectedUser }}?</AlertDialogTitle><AlertDialogDescription>Their sessions end at once. Reactivating later needs a review of their privileged assignments.</AlertDialogDescription></AlertDialogHeader>
-        <AlertDialogFooter><AlertDialogCancel>Keep them</AlertDialogCancel><AlertDialogAction variant="destructive" @click="suspend">Suspend user</AlertDialogAction></AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+    <ConfirmDialog
+      v-model:open="suspending"
+      :title="`Suspend ${selectedUser}?`"
+      body="Their sessions end at once. Reactivating later needs a review of their privileged assignments."
+      confirm-label="Suspend user"
+      cancel-label="Keep them"
+      confirm-icon="pause"
+      :danger="false"
+      @confirm="suspend"
+    />
 
-    <Dialog :open="assignmentOpen" @update:open="(value: boolean) => { assignmentOpen = value }">
-      <DialogContent>
-        <DialogHeader><DialogTitle>{{ assignmentForm.id ? 'Edit assignment' : `Assign a Role to ${selectedUser}` }}</DialogTitle><DialogDescription>One Role with its own limits and dates. Nothing applies before the preview is confirmed.</DialogDescription></DialogHeader>
-        <div class="settings-field"><Label for="assignment-role">Role</Label>
-          <Select v-if="roles.length > 0" v-model="assignmentForm.role" :disabled="busy">
-            <SelectTrigger id="assignment-role"><SelectValue placeholder="Role" /></SelectTrigger>
-            <SelectContent><SelectItem v-for="role in roles" :key="role.name" :value="role.name">{{ role.name }}</SelectItem></SelectContent>
-          </Select>
-          <Input v-else id="assignment-role" v-model="assignmentForm.role" autocomplete="off" spellcheck="false" :disabled="busy" />
+    <ResponsiveDialog v-model:open="assignmentOpen" :title="assignmentForm.id ? 'Edit assignment' : 'Assign a Role to ' + selectedUser" description="One Role with its own limits and dates. Nothing applies before the preview is confirmed." :dirty="assignmentDirty">
+        <SelectField
+          v-if="roles.length > 0"
+          id="assignment-role"
+          label="Role"
+          placeholder="Role"
+          :options="roles.map((role) => ({ value: role.name, label: role.name }))"
+          v-model="assignmentForm.role"
+          :disabled="busy"
+        />
+        <div v-else class="settings-field"><Label for="assignment-role">Role</Label>
+          <Input id="assignment-role" v-model="assignmentForm.role" autocomplete="off" spellcheck="false" :disabled="busy" />
         </div>
         <fieldset class="access-section">
           <legend>Scope limits</legend>
@@ -887,14 +1123,14 @@ onMounted(async () => {
               <Label :for="`scope-values-${index}`">Values (comma-separated)</Label>
               <Input :id="`scope-values-${index}`" v-model="row.values" autocomplete="off" spellcheck="false" placeholder="acme, globex" :disabled="busy" />
             </div>
-            <Button variant="ghost" size="sm" :disabled="busy" :aria-label="`Remove limit ${index + 1}`" @click="removeScopeRow(index)">✕</Button>
+            <ActionButton kind="quiet" density="row" icon-only :label="`Remove limit ${index + 1}`" icon="x" :busy="busy" @press="removeScopeRow(index)" />
           </div>
           <small v-for="(row, index) in assignmentForm.rows" :key="`problem-${index}`">
             <span v-if="rowProblem(row)" class="files-problem">{{ rowProblem(row) }}</span>
           </small>
           <datalist id="scope-dimensions"><option v-for="name in scopeDimensions" :key="name" :value="name" /></datalist>
           <p v-if="scopeDimensions.length === 0" class="editor-footnote">No fields exist yet — create a Record Type first. A limit only ever matches a field of the same name.</p>
-          <div class="toolbar-actions"><Button variant="outline" size="sm" :disabled="busy" @click="addScopeRow">＋ Add limit</Button></div>
+          <div class="toolbar-actions"><ActionButton kind="secondary" density="row" label="Add limit" icon="plus" :busy="busy" @press="addScopeRow" /></div>
         </fieldset>
         <fieldset class="access-section">
           <legend>Active period</legend>
@@ -906,13 +1142,10 @@ onMounted(async () => {
           <div v-if="assignmentForm.expiresMode === 'date'" class="settings-field"><Label for="assignment-to">Expiry date</Label><Input id="assignment-to" v-model="assignmentForm.expiresAt" type="date" :disabled="busy" /></div>
         </fieldset>
         <small v-if="assignmentProblem" class="files-problem">{{ assignmentProblem }}</small>
-        <DialogFooter><Button variant="outline" :disabled="busy" @click="assignmentOpen = false">Cancel</Button><Button :disabled="busy" @click="openPreview">Preview</Button></DialogFooter>
-      </DialogContent>
-    </Dialog>
+        <template #footer><ActionButton kind="secondary" label="Cancel" icon="x" :busy="busy" @press="assignmentOpen = false" /><ActionButton kind="primary" label="Preview" icon="eye" :busy="busy" @press="openPreview" /></template>
+    </ResponsiveDialog>
 
-    <Dialog :open="previewOpen" @update:open="(value: boolean) => { previewOpen = value }">
-      <DialogContent>
-        <DialogHeader><DialogTitle>Confirm the change</DialogTitle><DialogDescription>Affects {{ selectedUser }}.</DialogDescription></DialogHeader>
+    <ResponsiveDialog v-model:open="previewOpen" title="Confirm the change" :description="`Affects ${selectedUser}.`">
         <ul class="access-diff">
           <li v-for="line in previewLines" :key="line">{{ line }}</li>
           <li v-if="previewLines.length === 0">No changes.</li>
@@ -920,13 +1153,10 @@ onMounted(async () => {
         <ul v-if="previewGrants.length > 0" class="access-diff">
           <li v-for="line in previewGrants" :key="line">{{ line }}</li>
         </ul>
-        <DialogFooter><Button variant="outline" :disabled="busy" @click="previewOpen = false">Back</Button><Button :disabled="busy || previewLines.length === 0" @click="confirmSaveAssignment">Apply</Button></DialogFooter>
-      </DialogContent>
-    </Dialog>
+        <template #footer><ActionButton kind="secondary" label="Back" icon="arrow-left" :busy="busy" @press="previewOpen = false" /><ActionButton kind="primary" label="Apply" icon="check" :busy="busy" :disabled-reason="previewLines.length === 0 && !busy ? 'No changes to apply.' : null" @press="confirmSaveAssignment" /></template>
+    </ResponsiveDialog>
 
-    <Dialog :open="holdersOpen" @update:open="(value: boolean) => { holdersOpen = value }">
-      <DialogContent>
-        <DialogHeader><DialogTitle>Holders of {{ holdersTitle.action }} on {{ holdersTitle.typeKey === '*' ? 'everything' : holdersTitle.typeKey }}</DialogTitle><DialogDescription>Users holding {{ holdersTitle.role }} with a covering Grant. Usable covers dates, state and required Scope; row conditions and Scope matching still apply per Record.</DialogDescription></DialogHeader>
+    <ResponsiveDialog v-model:open="holdersOpen" :title="`Holders of ${holdersTitle.action} on ${holdersTitle.typeKey === '*' ? 'everything' : holdersTitle.typeKey}`" :description="`Users holding ${holdersTitle.role} with a covering Grant. Usable covers dates, state and required Scope; row conditions and Scope matching still apply per Record.`">
         <p v-if="holders.length === 0" class="files-empty">No holders.</p>
         <ul v-else class="access-holders">
           <li v-for="holder in holders" :key="holder.username + holder.activeFrom">
@@ -934,16 +1164,13 @@ onMounted(async () => {
             <Badge :variant="holder.usable ? 'default' : 'outline'">{{ holder.usable ? 'Usable' : holder.state }}</Badge>
             <span class="muted-label">{{ holderScope(holder) }}</span>
             <span v-if="holder.activeFrom || holder.expiresAt" class="muted-label">{{ holder.activeFrom || '…' }} → {{ holder.expiresAt || '…' }}</span>
-            <Button v-if="canExplore" variant="ghost" size="sm" @click="explainHolder(holder)">Explain</Button>
+            <ActionButton v-if="canExplore" kind="quiet" density="row" label="Explain" icon="circle-help" @press="explainHolder(holder)" />
           </li>
         </ul>
-        <DialogFooter><Button @click="holdersOpen = false">Done</Button></DialogFooter>
-      </DialogContent>
-    </Dialog>
+        <template #footer><ActionButton kind="primary" label="Done" icon="check" @press="holdersOpen = false" /></template>
+    </ResponsiveDialog>
 
-    <Dialog :open="roleDialogOpen" @update:open="(value: boolean) => { roleDialogOpen = value }">
-      <DialogContent>
-        <DialogHeader><DialogTitle>{{ roleEditing ? `Edit ${roleForm.name}` : 'New Role' }}</DialogTitle><DialogDescription>Names, descriptions and system permissions live here. Grants are saved from the command line{{ roleEditing ? '; editing keeps them untouched' : '' }}.</DialogDescription></DialogHeader>
+    <ResponsiveDialog v-model:open="roleDialogOpen" :title="roleEditing ? 'Edit ' + roleForm.name : 'New Role'" :description="'Names, descriptions and system permissions live here. Grants are saved from the command line' + (roleEditing ? '; editing keeps them untouched' : '') + '.'" :dirty="roleDirty">
         <div class="settings-field"><Label for="role-name">Name</Label><Input id="role-name" v-model="roleForm.name" autocomplete="off" spellcheck="false" :disabled="busy || roleEditing" /></div>
         <div class="settings-field"><Label for="role-description">Description</Label><Input id="role-description" v-model="roleForm.description" autocomplete="off" :disabled="busy" /></div>
         <fieldset class="access-section">
@@ -956,22 +1183,42 @@ onMounted(async () => {
           </div>
         </fieldset>
         <small v-if="roleProblem" class="files-problem">{{ roleProblem }}</small>
-        <DialogFooter><Button variant="outline" :disabled="busy" @click="roleDialogOpen = false">Cancel</Button><Button :disabled="busy" @click="saveRole">{{ roleEditing ? 'Save' : 'Create' }}</Button></DialogFooter>
-      </DialogContent>
-    </Dialog>
+        <template #footer><ActionButton kind="secondary" label="Cancel" icon="x" :busy="busy" @press="roleDialogOpen = false" /><ActionButton kind="primary" :label="roleEditing ? 'Save' : 'Create'" :icon="roleEditing ? 'save' : 'plus'" :busy="busy" @press="saveRole" /></template>
+    </ResponsiveDialog>
 
-    <AlertDialog :open="deletingRole !== null" @update:open="(value: boolean) => { if (!value) deletingRole = null }">
-      <AlertDialogContent>
-        <AlertDialogHeader><AlertDialogTitle>Delete {{ deletingRole?.name }}?</AlertDialogTitle><AlertDialogDescription>Its users lose its Grants at once. The last owner cannot be stranded this way.</AlertDialogDescription></AlertDialogHeader>
-        <AlertDialogFooter><AlertDialogCancel>Keep it</AlertDialogCancel><AlertDialogAction variant="destructive" @click="deleteRole">Delete</AlertDialogAction></AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+    <ConfirmDialog
+      :open="deletingRole !== null"
+      :title="`Delete ${deletingRole?.name}?`"
+      body="Its users lose its Grants at once. The last owner cannot be stranded this way."
+      confirm-label="Delete"
+      cancel-label="Keep it"
+      @confirm="deleteRole"
+      @update:open="(value: boolean) => { if (!value) deletingRole = null }"
+    />
 
-    <AlertDialog :open="revoking !== null" @update:open="(value: boolean) => { if (!value) revoking = null }">
-      <AlertDialogContent>
-        <AlertDialogHeader><AlertDialogTitle>Revoke {{ revoking?.role }}?</AlertDialogTitle><AlertDialogDescription>{{ selectedUser }} loses that Role at once.</AlertDialogDescription></AlertDialogHeader>
-        <AlertDialogFooter><AlertDialogCancel>Keep it</AlertDialogCancel><AlertDialogAction variant="destructive" @click="revoke">Revoke</AlertDialogAction></AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+    <ConfirmDialog
+      :open="revoking !== null"
+      :title="`Revoke ${revoking?.role}?`"
+      :body="`${selectedUser} loses that Role at once.`"
+      confirm-label="Revoke"
+      cancel-label="Keep it"
+      confirm-icon="undo-2"
+      :danger="false"
+      @confirm="revoke"
+      @update:open="(value: boolean) => { if (!value) revoking = null }"
+    />
+
+    <ConfirmDialog
+      :open="endingSession !== null"
+      title="End this session?"
+      :body="endingSession?.current ? 'This is the session you are using now. You will be signed out immediately.' : `${loadedSessionUser || 'The user'} is signed out on that device immediately.`"
+      confirm-label="End session"
+      cancel-label="Keep it"
+      confirm-icon="log-out"
+      :danger="false"
+      :busy="busy"
+      @confirm="confirmEndSession"
+      @update:open="(value: boolean) => { if (!value) endingSession = null }"
+    />
   </section>
 </template>

@@ -6,7 +6,10 @@ import { ruleClient } from '../api'
 import type { Rule, RuleRun, RuleVersion, SimulateRuleResponse } from '../gen/athena/v1/rules_pb'
 import { isRuleType, ruleEvents, ruleProblem, ruleTypeHelp, ruleTypes, starterSource, type RuleType } from '../ruleDefinitions'
 import type { RecordType } from '../types'
-import { Button } from '@/components/ui/button'
+import ActionButton from '@/components/ActionButton.vue'
+import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import DetailSheet from '@/components/DetailSheet.vue'
+import { formatWhen } from '../times'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -15,8 +18,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
+import ResponsiveDialog from '@/components/ResponsiveDialog.vue'
 
 // The Rules page edits Starlark Rules through RuleService. The server compiles
 // every source on save and returns the line of a mistake; ruleDefinitions.ts
@@ -64,7 +66,7 @@ async function refresh() {
     rules.value = (await ruleClient.listRules({})).rules
     unavailable.value = ''
   } catch (err) {
-    if (err instanceof ConnectError && err.code === Code.Unavailable) unavailable.value = err.rawMessage
+    if (err instanceof ConnectError && err.code === Code.Unavailable) unavailable.value = 'The Athena server is unavailable. Check that it is running, then try again.'
     else toast.error(describe(err, 'load the Rules'))
   } finally {
     loaded.value = true
@@ -79,6 +81,7 @@ function open(rule: Rule) {
   selected.value = rule.definition?.key ?? ''
   creating.value = false
   detail.value = 'editor'
+  selectedRun.value = null
   runs.value = []
   versions.value = []
 }
@@ -102,6 +105,7 @@ function startNew() {
     selected.value = ''
     creating.value = true
     detail.value = 'editor'
+    selectedRun.value = null
   })
 }
 function proceed() {
@@ -136,23 +140,35 @@ async function save() {
 }
 
 async function loadRuns() {
-  if (!selected.value) return
+  const key = selected.value
+  if (!key) return
   try {
-    runs.value = (await ruleClient.listRuleRuns({ ruleKey: selected.value, pageSize: 50 })).runs
+    const res = await ruleClient.listRuleRuns({ ruleKey: key, pageSize: 50 })
+    if (selected.value === key) runs.value = res.runs
   } catch (err) {
-    toast.error(describe(err, 'load the runs'))
+    if (selected.value === key) toast.error(describe(err, 'load the runs'))
   }
 }
 async function loadVersions() {
-  if (!selected.value) return
+  const key = selected.value
+  if (!key) return
   try {
-    versions.value = (await ruleClient.listRuleVersions({ key: selected.value })).versions
+    const res = await ruleClient.listRuleVersions({ key })
+    if (selected.value === key) versions.value = res.versions
   } catch (err) {
-    toast.error(describe(err, 'load the versions'))
+    if (selected.value === key) toast.error(describe(err, 'load the versions'))
   }
 }
+// The §16 run sheet: tapping a run row shows the outcome, the messages it
+// reported and the input hash. Rows carry everything, so no fetch races.
+const selectedRun = ref<RuleRun | null>(null)
+function openRun(run: RuleRun) {
+  selectedRun.value = selectedRun.value?.id === run.id ? null : run
+}
+
 function onDetail(value: string | number) {
   detail.value = value === 'runs' ? 'runs' : value === 'versions' ? 'versions' : 'editor'
+  selectedRun.value = null
   if (detail.value === 'runs') void loadRuns()
   if (detail.value === 'versions') void loadVersions()
 }
@@ -187,6 +203,7 @@ const simulating = ref(false)
 const simulation = ref<SimulateRuleResponse | null>(null)
 const recordId = ref('')
 const valueLines = ref('')
+const simulateDirty = computed(() => simulating.value && (recordId.value !== '' || valueLines.value !== ''))
 type Values = Record<string, { kind: { case: 'stringValue'; value: string } }>
 function parseValues(): Values | string {
   const out: Values = {}
@@ -215,9 +232,6 @@ async function simulate() {
   }
 }
 
-function when(iso: string): string {
-  return iso ? new Date(iso).toLocaleString() : ''
-}
 function microseconds(value: bigint): string {
   const n = Number(value)
   return n >= 1000 ? `${(n / 1000).toFixed(1)} ms` : `${n} µs`
@@ -228,8 +242,8 @@ onMounted(refresh)
 <template>
   <section class="page-content files-page">
     <div class="page-title-row">
-      <div><h1>Rules</h1><p class="lead">Starlark programs that validate, derive and guard documents as they are saved. Go checks permissions and limits every run.</p></div>
-      <div v-if="canWrite && !unavailable" class="toolbar-actions"><Button @click="startNew">＋ New Rule</Button></div>
+      <div><h1>Rules</h1><p class="lead">Starlark programs that check, fill in and guard records as they are saved.</p></div>
+      <div v-if="canWrite && !unavailable" class="toolbar-actions"><ActionButton kind="primary" label="New Rule" icon="plus" @press="startNew" /></div>
     </div>
     <div v-if="unavailable" class="empty-builder"><div class="card-icon">⌘</div><h2>Rules are unavailable</h2><p>{{ unavailable }}</p></div>
     <div v-else class="files-layout">
@@ -241,16 +255,16 @@ onMounted(refresh)
         </button>
       </nav>
       <div class="record-editor files-editor-card">
-        <p v-if="!isOpen" class="files-empty">Select a Rule, or create one. A Rule cannot reach SQL, files, the network, the clock or floating-point numbers.</p>
+        <p v-if="!isOpen" class="files-empty">{{ loaded && rules.length === 0 ? 'Rules calculate from the record itself; they cannot reach files, the network or the time of day.' : 'Select a Rule, or create one.' }}</p>
         <template v-else>
           <div class="record-editor-head">
             <h2 class="files-title">{{ creating ? 'New Rule' : selected }}</h2>
             <Badge v-if="!creating" variant="secondary">v{{ version }}</Badge>
             <Badge v-if="dirty" variant="outline">Unsaved</Badge>
             <div class="toolbar-actions">
-              <Button v-if="canWrite" :disabled="!dirty || busy || problem !== null" @click="save">Save</Button>
-              <Button v-if="canWrite" variant="outline" :disabled="busy || problem !== null" @click="simulation = null; simulating = true">Simulate</Button>
-              <Button v-if="canWrite && !creating" variant="ghost" :disabled="busy" @click="deleting = true">Delete</Button>
+              <ActionButton v-if="canWrite" kind="primary" label="Save" icon="save" :busy="busy" :disabled-reason="!dirty ? 'No changes to save.' : problem" @press="save" />
+              <ActionButton v-if="canWrite" kind="secondary" label="Simulate" icon="play" :busy="busy" :disabled-reason="problem" @press="simulation = null; simulating = true" />
+              <ActionButton v-if="canWrite && !creating" kind="destructive" label="Delete" icon="trash-2" :busy="busy" @press="deleting = true" />
             </div>
           </div>
           <Tabs :model-value="detail" @update:model-value="onDetail">
@@ -277,6 +291,7 @@ onMounted(refresh)
                     <SelectTrigger id="rule-record-type"><SelectValue :placeholder="form.ruleType === 'transform' ? 'Not used' : 'Document Record Type'" /></SelectTrigger>
                     <SelectContent><SelectItem v-for="item in documentTypes" :key="item.name" :value="item.name">{{ item.label }}</SelectItem></SelectContent>
                   </Select>
+                  <small v-if="documentTypes.length === 0 && form.ruleType !== 'transform'" class="files-sub">No Document Record Types yet. Create one under Record Types first.</small>
                 </div>
                 <div class="settings-field">
                   <Label for="rule-event">Event</Label>
@@ -296,8 +311,8 @@ onMounted(refresh)
               <Table class="files-table">
                 <TableHeader><TableRow><TableHead>When</TableHead><TableHead>Version</TableHead><TableHead>Event</TableHead><TableHead>Outcome</TableHead><TableHead>Steps</TableHead><TableHead>Duration</TableHead><TableHead>By</TableHead><TableHead>Input</TableHead></TableRow></TableHeader>
                 <TableBody>
-                  <TableRow v-for="run in runs" :key="run.id">
-                    <TableCell>{{ when(run.createdAt) }}</TableCell>
+                  <TableRow v-for="run in runs" :key="run.id" class="cursor-pointer" :data-state="selectedRun?.id === run.id ? 'selected' : undefined" @click="openRun(run)">
+                    <TableCell><button type="button" class="row-open" :aria-expanded="selectedRun?.id === run.id" :aria-label="`Open details for the run at ${formatWhen(run.createdAt)}`" @click.stop="openRun(run)">{{ formatWhen(run.createdAt) }}</button></TableCell>
                     <TableCell>v{{ run.ruleVersion }}</TableCell>
                     <TableCell>{{ run.event || 'called' }}<small v-if="run.dryRun" class="files-sub"> dry run</small></TableCell>
                     <TableCell><Badge :variant="run.outcome === 'ok' ? 'secondary' : 'outline'">{{ run.outcome }}</Badge><small v-if="run.code" class="files-sub"> {{ run.code }}</small></TableCell>
@@ -316,10 +331,10 @@ onMounted(refresh)
                 <TableBody>
                   <TableRow v-for="item in versions" :key="String(item.version)">
                     <TableCell>v{{ item.version }}</TableCell>
-                    <TableCell>{{ when(item.createdAt) }}</TableCell>
+                    <TableCell>{{ formatWhen(item.createdAt) }}</TableCell>
                     <TableCell>{{ item.actor }}</TableCell>
                     <TableCell><code>{{ item.sourceHash.slice(0, 10) }}</code></TableCell>
-                    <TableCell><Button v-if="canWrite" variant="ghost" size="sm" @click="loadVersion(item)">Load into editor</Button></TableCell>
+                    <TableCell><ActionButton v-if="canWrite" kind="restore" density="row" label="Load into editor" icon="rotate-ccw" :busy="busy" @press="loadVersion(item)" /></TableCell>
                   </TableRow>
                 </TableBody>
               </Table>
@@ -328,12 +343,12 @@ onMounted(refresh)
         </template>
       </div>
     </div>
-    <Dialog :open="simulating" @update:open="(value: boolean) => { simulating = value }">
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Simulate {{ form.key || 'Rule' }}</DialogTitle>
-          <DialogDescription>A dry run of the source in the editor. Nothing is saved; the run is logged as a dry run. Reads follow your own permissions.</DialogDescription>
-        </DialogHeader>
+    <ResponsiveDialog
+      v-model:open="simulating"
+      :title="'Simulate ' + (form.key || 'Rule')"
+      description="A dry run of the source in the editor. Nothing is saved; the run is logged as a dry run. Reads follow your own permissions."
+      :dirty="simulateDirty"
+    >
         <form id="rule-simulate" class="sign-in-form" @submit.prevent="simulate">
           <div class="settings-field"><Label for="sim-record">Stored Record ID (optional)</Label><Input id="sim-record" v-model="recordId" autocomplete="off" spellcheck="false" /></div>
           <div class="settings-field"><Label for="sim-values">Values, one field=value per line</Label><Textarea id="sim-values" v-model="valueLines" spellcheck="false" placeholder="qty=2&#10;rate=1.50" /></div>
@@ -348,23 +363,62 @@ onMounted(refresh)
           <p v-for="(l, i) in simulation.logs" :key="`l${i}`" class="files-hint">log {{ l.code }}: {{ l.text }}</p>
           <p class="files-hint">{{ simulation.steps }} steps, {{ simulation.reads }} reads, {{ microseconds(simulation.durationMicros) }}, input <code>{{ simulation.inputHash.slice(0, 10) }}</code></p>
         </div>
-        <DialogFooter>
-          <Button variant="outline" @click="simulating = false">Close</Button>
-          <Button type="submit" form="rule-simulate" :disabled="busy">Run</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-    <AlertDialog :open="deleting" @update:open="(value: boolean) => { deleting = value }">
-      <AlertDialogContent>
-        <AlertDialogHeader><AlertDialogTitle>Delete {{ selected }}?</AlertDialogTitle><AlertDialogDescription>The Rule stops running. Its versions and Rule Runs stay in the log.</AlertDialogDescription></AlertDialogHeader>
-        <AlertDialogFooter><AlertDialogCancel>Keep it</AlertDialogCancel><AlertDialogAction variant="destructive" @click="remove">Delete Rule</AlertDialogAction></AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
-    <AlertDialog :open="pending !== null" @update:open="(value: boolean) => { if (!value) pending = null }">
-      <AlertDialogContent>
-        <AlertDialogHeader><AlertDialogTitle>Discard your edits?</AlertDialogTitle><AlertDialogDescription>The Rule has changes that are not saved.</AlertDialogDescription></AlertDialogHeader>
-        <AlertDialogFooter><AlertDialogCancel>Keep editing</AlertDialogCancel><AlertDialogAction variant="destructive" @click="proceed">Discard edits</AlertDialogAction></AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+        <template #footer>
+          <ActionButton kind="secondary" label="Close" icon="x" @press="simulating = false" />
+          <ActionButton type="submit" form="rule-simulate" kind="primary" label="Run" icon="play" :busy="busy" />
+        </template>
+    </ResponsiveDialog>
+    <ConfirmDialog
+      v-model:open="deleting"
+      :title="`Delete ${selected}?`"
+      body="The Rule stops running. Its versions and Rule Runs stay in the log."
+      confirm-label="Delete Rule"
+      cancel-label="Keep it"
+      :busy="busy"
+      @confirm="remove"
+    />
+    <ConfirmDialog
+      :open="pending !== null"
+      title="Discard your edits?"
+      body="The Rule has changes that are not saved."
+      confirm-label="Discard edits"
+      cancel-label="Keep editing"
+      confirm-icon="x"
+      @confirm="proceed"
+      @update:open="(value: boolean) => { if (!value) pending = null }"
+    />
+
+    <DetailSheet
+      v-if="selectedRun"
+      :open="true"
+      title="Rule run"
+      @update:open="(value: boolean) => { if (!value) selectedRun = null }"
+    >
+      <template #subtitle>
+        <p class="text-caption text-muted-foreground font-mono">{{ selectedRun.id }}</p>
+      </template>
+      <template #status>
+        <Badge :variant="selectedRun.outcome === 'ok' ? 'secondary' : 'outline'">{{ selectedRun.outcome }}</Badge>
+        <Badge v-if="selectedRun.dryRun" variant="outline">Dry run</Badge>
+      </template>
+      <div class="sheet-section">
+        <p class="sheet-label">Outcome</p>
+        <p class="sheet-lead">{{ selectedRun.message || selectedRun.code || selectedRun.outcome }}</p>
+        <p class="muted-label">{{ formatWhen(selectedRun.createdAt) }} · v{{ selectedRun.ruleVersion }} · {{ selectedRun.event || 'called' }} · {{ selectedRun.actor }}</p>
+      </div>
+      <div class="sheet-section">
+        <p class="sheet-label">Messages</p>
+        <ul v-if="selectedRun.warnings.length + selectedRun.logs.length > 0" class="sheet-events">
+          <li v-for="(entry, index) in [...selectedRun.warnings, ...selectedRun.logs]" :key="index"><span>{{ entry.text }}</span><span class="muted-label">{{ entry.code }}</span></li>
+        </ul>
+        <p v-else class="files-empty">The rule reported nothing.</p>
+      </div>
+      <div class="sheet-section">
+        <p class="sheet-label">Input</p>
+        <p class="text-caption font-mono">{{ selectedRun.inputHash }}</p>
+        <p v-if="selectedRun.recordId" class="muted-label">For {{ selectedRun.recordTypeKey }} {{ selectedRun.recordId }}</p>
+        <p class="muted-label">{{ selectedRun.steps }} steps · {{ selectedRun.reads }} reads · {{ selectedRun.writes }} writes · {{ microseconds(selectedRun.durationMicros) }}</p>
+      </div>
+    </DetailSheet>
   </section>
 </template>

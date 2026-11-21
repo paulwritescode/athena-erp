@@ -3,11 +3,10 @@ import { computed, nextTick, reactive, ref } from 'vue'
 import type { Field, Kind, RecordType } from '../types'
 import { validateNamingSeries } from '../fieldRules'
 import FieldSettingsDialog from '../components/FieldSettingsDialog.vue'
-import { Button } from '@/components/ui/button'
+import ActionButton from '@/components/ActionButton.vue'
+import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
-import { SlidersHorizontalIcon } from '@lucide/vue'
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
 const props = defineProps<{ recordTypes: RecordType[]; currentRecordType: RecordType; databaseState: string }>()
 const emit = defineEmits<{ select: [name: string]; addRecordType: []; addField: []; rename: [from: string, to: string]; delete: [recordType: RecordType]; save: [complete: (saved: boolean) => void]; preview: [] }>()
 const search = ref('')
@@ -150,6 +149,7 @@ function setAmendable(value: boolean) {
   else delete props.currentRecordType.amendable
 }
 const settingsField = ref<Field | null>(null)
+const confirmingTypeDelete = ref(false)
 const fieldTypes = ['Text', 'Long text', 'Email', 'Phone', 'Number', 'Currency', 'Money', 'Quantity', 'Date', 'Select', 'Enum', 'Link', 'Checkbox']
 
 function save() {
@@ -166,8 +166,8 @@ function isNewField(field: Field) {
 
 <template>
   <section class="page-content builder-page">
-    <div class="page-title-row"><div><h1>Record Types</h1><p class="lead">Each Record Type defines the fields of one table.</p></div><Button @click="emit('addRecordType')">New Record Type</Button></div>
-    <div v-if="recordTypes.length === 0" class="empty-builder"><h2>No Record Types yet</h2><p>Create a Record Type, add its fields and save it to start adding records.</p><Button @click="emit('addRecordType')">Create your first Record Type</Button></div>
+    <div class="page-title-row"><div><h1>Record Types</h1><p class="lead">Each Record Type defines the fields of one kind of record.</p></div><ActionButton kind="primary" label="New Record Type" icon="plus" @press="emit('addRecordType')" /></div>
+    <div v-if="recordTypes.length === 0" class="empty-builder"><h2>No Record Types yet</h2><p>Create a Record Type, add its fields and save it to start adding records.</p><ActionButton kind="primary" label="Create your first Record Type" icon="plus" @press="emit('addRecordType')" /></div>
     <div v-else class="records-layout">
       <aside class="records-list">
         <Input v-if="recordTypes.length > 6" v-model="search" placeholder="Find a Record Type" aria-label="Find a Record Type" />
@@ -179,20 +179,19 @@ function isNewField(field: Field) {
           <Input :model-value="currentRecordType.label" class="record-title-input" placeholder="Record Type name" aria-label="Record Type label" @update:model-value="updateRecordTypeLabel" />
           <span class="muted-label">{{ recordTypeIsSaved ? 'Saved' : 'Not saved' }}</span>
           <div class="toolbar-actions">
-            <AlertDialog>
-              <AlertDialogTrigger as-child><Button variant="ghost" size="sm">Delete</Button></AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>{{ recordTypeIsSaved ? `Delete ${currentRecordType.label}?` : `Discard ${currentRecordType.label}?` }}</AlertDialogTitle>
-                  <AlertDialogDescription>{{ recordTypeIsSaved ? 'Its table and every record in it are deleted. This cannot be undone.' : 'This Record Type has not been saved, so nothing is stored yet.' }}</AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction variant="destructive" @click="emit('delete', currentRecordType)">{{ recordTypeIsSaved ? 'Delete Record Type' : 'Discard' }}</AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-            <Button variant="outline" size="sm" :disabled="!recordTypeIsSaved" :title="recordTypeIsSaved ? '' : 'Save the Record Type first'" @click="emit('preview')">Record Types</Button><Button size="sm" @click="save">Save</Button></div>
+            <ActionButton kind="secondary" density="row" label="View records" icon="eye" :disabled-reason="recordTypeIsSaved ? null : 'Save the Record Type first.'" @press="emit('preview')" />
+            <ActionButton kind="primary" density="row" label="Save" icon="save" @press="save" />
+            <ActionButton kind="destructive" density="row" label="Delete" icon="trash-2" @press="confirmingTypeDelete = true" />
+            <ConfirmDialog
+              v-model:open="confirmingTypeDelete"
+              :title="recordTypeIsSaved ? `Delete ${currentRecordType.label}?` : `Discard ${currentRecordType.label}?`"
+              :body="recordTypeIsSaved ? 'Its table and every record in it are deleted. This cannot be undone.' : 'This Record Type has not been saved, so nothing is stored yet.'"
+              :confirm-label="recordTypeIsSaved ? 'Delete Record Type' : 'Discard'"
+              :confirm-icon="recordTypeIsSaved ? 'trash-2' : 'x'"
+              :danger="recordTypeIsSaved"
+              @confirm="confirmingTypeDelete = false; emit('delete', currentRecordType)"
+            />
+          </div>
         </div>
         <div class="record-meta">
           <label>Key<Input :model-value="currentRecordType.name" :readonly="recordTypeIsSaved" aria-label="Record Type name" @input="typeRecordTypeName" @blur="normalizeRecordTypeName" /><small>{{ recordTypeIsSaved ? 'Fixed after the first save.' : 'Follows the name until you edit it.' }}</small></label>
@@ -206,11 +205,11 @@ function isNewField(field: Field) {
           <label v-if="currentRecordType.kind === 'document' && currentRecordType.submittable" :class="{ 'is-invalid': namingProblem }">Naming series<Input :model-value="currentRecordType.naming_series ?? ''" placeholder="INV-{yyyy}-{#####}" aria-label="Naming series" :aria-invalid="namingProblem ? 'true' : undefined" @update:model-value="setNamingSeries(String($event))" /><small>{{ namingProblem || 'Numbers each document when it is submitted. Tokens: {yyyy}, {yy}, {mm} and one counter such as {#####}. Empty keeps the Record ID as the name.' }}</small></label>
           <label v-if="currentRecordType.kind === 'document' && currentRecordType.submittable && currentRecordType.naming_series" class="switch-label"><span class="switch-line"><Checkbox :model-value="currentRecordType.gap_free ?? false" aria-label="Gap-free numbering" @update:model-value="setFlag('gap_free', $event === true)" />Gap-free numbering</span><small>A submit that fails returns its number, so the series has no gaps. Submits take turns. Without it numbers can skip.</small></label>
           <label v-if="currentRecordType.kind === 'document' && currentRecordType.submittable" class="switch-label"><span class="switch-line"><Checkbox :model-value="currentRecordType.allow_manual_name ?? false" aria-label="Allow manual names" @update:model-value="setFlag('allow_manual_name', $event === true)" />Allow manual names</span><small>A new document can take a name typed by hand, for example when moving old documents in. It must be unused and is logged.</small></label>
-          <label v-if="recordTypeIsSaved">Label field<select :value="currentRecordType.label_field ?? ''" aria-label="Label field" @change="setLabelField(($event.target as HTMLSelectElement).value)"><option value="">Automatic</option><option v-for="field in labelFieldChoices" :key="field.name" :value="field.name">{{ field.label }}</option></select><small>The field that names a Record when it is chosen from a list. Automatic uses the document name, then the first required text field.</small></label>
+          <label v-if="recordTypeIsSaved">Label field<select :value="currentRecordType.label_field ?? ''" aria-label="Label field" @change="setLabelField(($event.target as HTMLSelectElement).value)"><option value="">Automatic</option><option v-for="field in labelFieldChoices" :key="field.name" :value="field.name">{{ field.label }}</option></select><small>The field that names a Record when it is chosen from a list. Automatic uses the record name, then the first required text field.</small></label>
           <label v-if="currentRecordType.kind === 'child'">Belongs to<select v-model="currentRecordType.parent_record_type" :disabled="recordTypeIsSaved" aria-label="Parent Record Type"><option :value="undefined" disabled>Select a saved Record Type</option><option v-for="item in parentChoices" :key="item.name" :value="item.name">{{ item.label }}</option></select><small>{{ recordTypeIsSaved ? 'Fixed after the first save.' : 'Save the owning Record Type first.' }}</small></label>
         </div>
-        <div class="field-table"><div class="field-head"><span>Label</span><span>Key</span><span>Type</span><span>Required</span><span></span></div><div v-for="(field, index) in currentRecordType.fields" :key="fieldKey(field)" class="field-row"><span><Input :model-value="field.label" :aria-label="`Field ${index + 1} label`" @update:model-value="updateFieldLabel(field, $event)" /></span><span><Input :model-value="field.name" :readonly="!isNewField(field)" :aria-label="`Field ${index + 1} database name`" @update:model-value="updateFieldName(field, $event)" @blur="normalizeNewFieldName(field)" /></span><span><select v-model="field.type" aria-label="Field type" @change="changeType(field)"><option v-for="type in fieldTypes" :key="type">{{ type }}</option></select></span><span><input v-model="field.required" type="checkbox" :aria-label="`${field.label} required`" /></span><span class="field-actions"><button class="icon-action" :aria-label="`Settings for ${field.label}`" title="Field settings" @click="settingsField = field"><SlidersHorizontalIcon /></button><button class="icon-action" :aria-label="`Remove ${field.label}`" @click="currentRecordType.fields.splice(index, 1)">×</button></span><div v-if="field.type === 'Link'" class="relationship-editor"><label>Links to<select v-model="field.target_record_type"><option :value="undefined" disabled>Select a Record Type</option><option v-for="target in recordTypes.filter((item) => item.name !== currentRecordType.name)" :key="target.name" :value="target.name">{{ target.label }}</option></select></label></div></div></div>
-        <button class="add-field" @click="addField">+ Add field</button>
+        <div class="field-table"><div class="field-head"><span>Label</span><span>Key</span><span>Type</span><span>Required</span><span></span></div><div v-for="(field, index) in currentRecordType.fields" :key="fieldKey(field)" class="field-row"><span><Input :model-value="field.label" :aria-label="`Field ${index + 1} label`" @update:model-value="updateFieldLabel(field, $event)" /></span><span><Input :model-value="field.name" :readonly="!isNewField(field)" :aria-label="`Field ${index + 1} database name`" @update:model-value="updateFieldName(field, $event)" @blur="normalizeNewFieldName(field)" /></span><span><select v-model="field.type" aria-label="Field type" @change="changeType(field)"><option v-for="type in fieldTypes" :key="type">{{ type }}</option></select></span><span><input v-model="field.required" type="checkbox" :aria-label="`${field.label} required`" /></span><span class="field-actions"><ActionButton kind="quiet" density="inline" icon-only :label="`Settings for ${field.label}`" icon="sliders-horizontal" @press="settingsField = field" /><ActionButton kind="quiet" density="inline" icon-only :label="`Remove ${field.label}`" icon="x" @press="currentRecordType.fields.splice(index, 1)" /></span><div v-if="field.type === 'Link'" class="relationship-editor"><label>Links to<select v-model="field.target_record_type"><option :value="undefined" disabled>Select a Record Type</option><option v-for="target in recordTypes.filter((item) => item.name !== currentRecordType.name)" :key="target.name" :value="target.name">{{ target.label }}</option></select></label></div></div></div>
+        <ActionButton kind="quiet" label="Add field" icon="plus" @press="addField" />
         <p v-if="databaseState !== 'Connected'" class="muted-label">The database is not connected. Changes stay in this browser session.</p>
       </div>
     </div>

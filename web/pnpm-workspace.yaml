@@ -1,0 +1,4 @@
+# vue-demi (via vaul-vue) may run its install script: it selects the Vue 3
+# entry, already correct here, and pnpm errors on unapproved ignored builds.
+allowBuilds:
+  vue-demi: true

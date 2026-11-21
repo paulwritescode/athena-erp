@@ -2,8 +2,8 @@
 // directly by address). Hidden nav items keep this rare; the server still
 // checks every call.
 <script setup lang="ts">
-import { Lock } from '@lucide/vue'
-import { Button } from '@/components/ui/button'
+import { Lock } from '@/icons'
+import ActionButton from '@/components/ActionButton.vue'
 
 defineProps<{ pageTitle: string }>()
 const emit = defineEmits<{ goHome: [] }>()
@@ -14,10 +14,10 @@ const emit = defineEmits<{ goHome: [] }>()
     <div class="bg-muted flex size-10 items-center justify-center rounded-lg border">
       <Lock class="text-muted-foreground size-5" aria-hidden="true" />
     </div>
-    <h2 class="mt-4 text-base font-medium">You don't have access to {{ pageTitle }}</h2>
+    <h2 class="mt-4">You don't have access to {{ pageTitle }}</h2>
     <p class="text-muted-foreground mt-1 max-w-sm text-sm">Ask your administrator for access if you need this page.</p>
     <div class="mt-4">
-      <Button variant="outline" @click="emit('goHome')">Back to Overview</Button>
+      <ActionButton kind="secondary" label="Back to Overview" icon="house" @press="emit('goHome')" />
     </div>
   </div>
 </template>

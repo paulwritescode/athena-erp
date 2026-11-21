@@ -3,8 +3,9 @@
 // Record, recent items) lands with the safe row registry in B3.
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted } from 'vue'
-import { LogOut, Moon, Sun } from '@lucide/vue'
-import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator } from '@/components/ui/command'
+import { LogOut, Moon, Sun } from '@/icons'
+import ResponsiveDialog from '@/components/ResponsiveDialog.vue'
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator } from '@/components/ui/command'
 import { recordTypeIcon, visibleViewStubs, type PageEntry } from '@/pages/registry'
 import type { Page, RecordType } from '@/types'
 
@@ -36,9 +37,10 @@ function goRecordType(name: string) {
 </script>
 
 <template>
-  <CommandDialog v-model:open="open">
-    <CommandInput placeholder="Search pages, Records and actions..." />
-    <CommandList>
+  <ResponsiveDialog v-model:open="open" title="Search" description="Pages, Records and actions.">
+    <Command>
+      <CommandInput placeholder="Search pages, Records and actions..." />
+      <CommandList>
       <CommandEmpty>No matches.</CommandEmpty>
       <CommandGroup heading="Build">
         <CommandItem v-for="entry in buildEntries" :key="entry.key" :value="`${entry.title} ${entry.blurb}`" @select="go(entry.key)">
@@ -69,6 +71,7 @@ function goRecordType(name: string) {
           <span>Sign out</span>
         </CommandItem>
       </CommandGroup>
-    </CommandList>
-  </CommandDialog>
+      </CommandList>
+    </Command>
+  </ResponsiveDialog>
 </template>

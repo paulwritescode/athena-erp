@@ -1,7 +1,7 @@
 // Reports (stub): saved lists and totals from Records. The real page lands
 // in a later batch; until then this holds the nav slot with an empty state.
 <script setup lang="ts">
-import { ChartColumn } from '@lucide/vue'
+import { ChartColumn } from '@/icons'
 import PageHeader from '@/components/PageHeader.vue'
 import EmptyState from '@/components/EmptyState.vue'
 </script>

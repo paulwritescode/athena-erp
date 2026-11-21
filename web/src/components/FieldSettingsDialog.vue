@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import type { EnumChoice, Field } from '../types'
-import { Button } from '@/components/ui/button'
+import ActionButton from '@/components/ActionButton.vue'
+import ResponsiveDialog from '@/components/ResponsiveDialog.vue'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { validateExpressionText } from '../fieldRules'
@@ -76,12 +76,7 @@ function onOpenChange(open: boolean) {
 </script>
 
 <template>
-  <Dialog :open="field !== null" @update:open="onOpenChange">
-    <DialogContent v-if="field" class="field-settings">
-      <DialogHeader>
-        <DialogTitle>{{ field.label || 'Field' }} settings</DialogTitle>
-        <DialogDescription>The server checks these on every save, so they hold for the API and the command line too.</DialogDescription>
-      </DialogHeader>
+  <ResponsiveDialog v-if="field" :open="field !== null" :title="`${field.label || 'Field'} settings`" description="The server checks these on every save, so they hold for the API and the command line too." wide @update:open="onOpenChange">
       <div class="settings-grid">
         <template v-if="type === 'Money'">
           <div class="settings-field"><Label for="fs-currency">Currency code</Label><Input id="fs-currency" :model-value="field.currency ?? ''" maxlength="3" placeholder="USD" @update:model-value="setText('currency', $event)" /></div>
@@ -124,7 +119,6 @@ function onOpenChange(open: boolean) {
         <label><Checkbox :model-value="field.no_copy ?? false" @update:model-value="setFlag('no_copy', $event)" />Do not copy <small>Left empty when a document is amended.</small></label>
         <label v-if="lifecycle"><Checkbox :model-value="field.allow_on_submit ?? false" @update:model-value="setFlag('allow_on_submit', $event)" />Allow on submit <small>Still editable after the document is submitted. Every change is audited.</small></label>
       </div>
-      <DialogFooter><Button @click="emit('close')">Done</Button></DialogFooter>
-    </DialogContent>
-  </Dialog>
+      <template #footer><ActionButton kind="primary" label="Done" icon="check" @press="emit('close')" /></template>
+  </ResponsiveDialog>
 </template>

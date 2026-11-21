@@ -4,7 +4,7 @@
 // the right. Below 640 px it keeps the mark, search, notifications and the
 // avatar; the mode switch moves into the user menu.
 <script setup lang="ts">
-import { Moon, Search, Sun } from '@lucide/vue'
+import { Moon, Search, Sun } from '@/icons'
 import markDark from '@/assets/brand/athena-white.png'
 import markLight from '@/assets/brand/athena-black.png'
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb'
@@ -19,11 +19,11 @@ const emit = defineEmits<{ parentClick: []; setMode: ['build' | 'view']; openPal
 </script>
 
 <template>
-  <header class="bg-background/95 supports-[backdrop-filter]:bg-background/60 sticky top-0 z-10 flex h-14 shrink-0 items-center gap-2 border-b px-3 backdrop-blur min-[640px]:px-4">
+  <header class="bg-background/95 supports-[backdrop-filter]:bg-background/60 sticky top-0 z-30 flex h-14 shrink-0 items-center gap-2 border-b px-3 backdrop-blur min-[640px]:px-4">
     <img :src="markLight" alt="" class="size-7 shrink-0 rounded-md min-[640px]:hidden dark:hidden" />
     <img :src="markDark" alt="" class="hidden size-7 shrink-0 rounded-md dark:block dark:min-[640px]:hidden" />
     <span class="min-w-0 flex-1 truncate text-sm font-semibold min-[640px]:hidden">{{ workspaceName || 'Athena' }}</span>
-    <Breadcrumb v-if="breadcrumb" class="min-w-0 flex-1">
+    <Breadcrumb v-if="breadcrumb" class="min-w-0 flex-1 max-[639px]:hidden">
       <BreadcrumbList class="flex-nowrap">
         <BreadcrumbItem class="min-w-0 shrink">
           <BreadcrumbLink as-child>
@@ -40,7 +40,7 @@ const emit = defineEmits<{ parentClick: []; setMode: ['build' | 'view']; openPal
       <Button variant="outline" class="text-muted-foreground hidden w-56 justify-start font-normal min-[1024px]:inline-flex" aria-label="Search pages and actions" @click="emit('openPalette')">
         <Search class="size-4" aria-hidden="true" />
         <span>Search...</span>
-        <kbd class="bg-muted ml-auto rounded border px-1 text-[10px] font-medium">⌘K</kbd>
+        <kbd class="bg-muted ml-auto rounded border px-1 text-caption font-medium">⌘K</kbd>
       </Button>
       <Button variant="ghost" size="icon-sm" class="min-[1024px]:hidden" aria-label="Search pages and actions" @click="emit('openPalette')">
         <Search class="size-4" aria-hidden="true" />

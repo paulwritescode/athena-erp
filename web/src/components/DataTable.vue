@@ -2,7 +2,7 @@
 // that stack into labelled cards below 640 px. Columns are TanStack column
 // definitions; a column sets meta.label to name its stacked row (else the
 // string header is used) and meta.hideOnMobile to drop out of the stacked
-// rows. On phones the header hides, so a sort select sits above the rows.
+// rows. On phones the header hides, so sorting opens from a toolbar drawer.
 <script setup lang="ts" generic="TData extends RowData">
 import { computed, ref } from 'vue'
 import {
@@ -17,9 +17,11 @@ import {
   type SortingState,
   type Updater,
 } from '@tanstack/vue-table'
-import { ArrowDown, ArrowUp, ArrowUpDown, Inbox } from '@lucide/vue'
+import { ArrowUpDown, Inbox } from '@/icons'
 import EmptyState from '@/components/EmptyState.vue'
 import ErrorState from '@/components/ErrorState.vue'
+import ActionButton from '@/components/ActionButton.vue'
+import BottomDrawer from '@/components/BottomDrawer.vue'
 import { Button } from '@/components/ui/button'
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -74,6 +76,12 @@ function hiddenOnMobile(column: { columnDef: { meta?: unknown } }): boolean {
 const sortableColumns = computed(() => table.getAllColumns().filter((column) => column.getCanSort()))
 const sortId = computed(() => sorting.value[0]?.id ?? '')
 const sortDesc = computed(() => sorting.value[0]?.desc === true)
+const activeSortColumn = computed(() => sortableColumns.value.find((column) => column.id === sortId.value) ?? null)
+const sortOpen = ref(false)
+const sortButtonLabel = computed(() => {
+  if (!sortId.value || !activeSortColumn.value) return 'Sort rows'
+  return `Sorted by ${stackLabel(activeSortColumn.value) || sortId.value}`
+})
 
 function chooseSort(id: string) {
   if (!id) {
@@ -95,16 +103,22 @@ function activate(row: TData) {
 
 <template>
   <div>
-    <div v-if="sortableColumns.length > 0" class="mb-3 flex items-center gap-2 min-[640px]:hidden">
-      <NativeSelect class="min-w-0 flex-1" :model-value="sortId" aria-label="Sort rows" @update:model-value="chooseSort(String($event))">
-        <NativeSelectOption value="">Sort…</NativeSelectOption>
-        <NativeSelectOption v-for="column in sortableColumns" :key="column.id" :value="column.id">
-          {{ stackLabel(column) || column.id }}
-        </NativeSelectOption>
-      </NativeSelect>
-      <Button variant="outline" size="icon" :disabled="!sortId" :aria-label="sortDesc ? 'Sort ascending' : 'Sort descending'" @click="flipDirection">
-        <component :is="sortDesc ? ArrowDown : ArrowUp" class="size-4" aria-hidden="true" />
-      </Button>
+    <div v-if="sortableColumns.length > 0" class="mb-3 min-[640px]:hidden">
+      <ActionButton kind="secondary" :label="sortButtonLabel" icon="arrow-up-down" full-bleed @press="sortOpen = true" />
+      <BottomDrawer v-model:open="sortOpen" title="Sort rows">
+        <div class="flex items-center gap-2">
+          <NativeSelect class="min-w-0 flex-1" :model-value="sortId" aria-label="Sort rows" @update:model-value="chooseSort(String($event))">
+            <NativeSelectOption value="">No sorting</NativeSelectOption>
+            <NativeSelectOption v-for="column in sortableColumns" :key="column.id" :value="column.id">
+              {{ stackLabel(column) || column.id }}
+            </NativeSelectOption>
+          </NativeSelect>
+          <ActionButton icon-only kind="secondary" :label="sortDesc ? 'Sort ascending' : 'Sort descending'" :icon="sortDesc ? 'arrow-down' : 'arrow-up'" :disabled-reason="!sortId ? 'Choose a column to sort.' : null" @press="flipDirection" />
+        </div>
+        <template #footer>
+          <ActionButton kind="primary" label="Done" icon="check" full-bleed @press="sortOpen = false" />
+        </template>
+      </BottomDrawer>
     </div>
     <div class="datatable-stacked overflow-x-auto rounded-lg border">
       <Table>

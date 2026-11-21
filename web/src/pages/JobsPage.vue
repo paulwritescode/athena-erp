@@ -1,7 +1,7 @@
 // Jobs (stub): imports, exports and scheduled work. The real page lands in
 // a later batch; until then this holds the nav slot with an empty state.
 <script setup lang="ts">
-import { ListChecks } from '@lucide/vue'
+import { ListChecks } from '@/icons'
 import PageHeader from '@/components/PageHeader.vue'
 import EmptyState from '@/components/EmptyState.vue'
 </script>

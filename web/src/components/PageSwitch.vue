@@ -4,12 +4,12 @@
 // page that fails to load shows ErrorState with a retry.
 <script setup lang="ts">
 import { computed, defineAsyncComponent, onErrorCaptured, ref, watch } from 'vue'
-import { FileX2 } from '@lucide/vue'
+import { FileX2 } from '@/icons'
 import EmptyState from '@/components/EmptyState.vue'
 import ErrorState from '@/components/ErrorState.vue'
 import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
 import PermissionDenied from '@/components/PermissionDenied.vue'
-import { Button } from '@/components/ui/button'
+import ActionButton from '@/components/ActionButton.vue'
 import RecordsPage from '@/pages/RecordsPage.vue'
 import { isEntryVisible, pageEntry, visibleBuildKeys, type PageContext } from '@/pages/registry'
 import type { DeskRoute } from '@/composables/useDeskRoute'
@@ -116,7 +116,7 @@ const listeners = {
 </script>
 
 <template>
-  <div class="min-w-0 flex-1 p-4 pb-20 sm:p-6 lg:p-8">
+  <div data-page-main class="min-w-0 flex-1 p-4 pb-20 sm:p-6 lg:p-8">
     <EmptyState
       v-if="unknownType"
       :icon="FileX2"
@@ -124,7 +124,7 @@ const listeners = {
       body="The Record Type was renamed or deleted, or the address is mistyped."
     >
       <template #action>
-        <Button variant="link" @click="goViewHome">Back to Records</Button>
+        <ActionButton kind="primary" label="Back to Records" icon="arrow-left" @press="goViewHome" />
       </template>
     </EmptyState>
     <LoadingSkeleton v-else-if="typesPending" />

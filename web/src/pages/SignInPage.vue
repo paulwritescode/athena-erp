@@ -4,10 +4,12 @@ import { authClient } from '../api'
 import { classify, describeFailure, type Failure } from '../apiErrors'
 import type { SessionInfo } from '../gen/athena/v1/auth_pb'
 import { challengeProblems, type ChallengeProblems, signInProblems, type SignInProblems } from '../signInRules'
+import ActionButton from '@/components/ActionButton.vue'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { Card, CardContent, CardDescription, CardHeader } from '@/components/ui/card'
+import TextField from '@/components/fields/TextField.vue'
+import markDark from '@/assets/brand/athena-white.png'
+import markLight from '@/assets/brand/athena-black.png'
 import { toast } from 'vue-sonner'
 
 // The card shows the state the desk is in. A state that lasts until something
@@ -104,23 +106,25 @@ async function complete() {
 <template>
   <main class="sign-in">
     <Card class="sign-in-card">
-      <CardHeader>
-        <CardTitle class="sign-in-title">Athena</CardTitle>
-        <CardDescription>{{ workspaceName ? `Sign in to ${workspaceName}.` : 'Sign in to continue.' }}</CardDescription>
+      <CardHeader class="items-center justify-items-center text-center">
+        <img :src="markLight" alt="" class="size-12 rounded-md dark:hidden" />
+        <img :src="markDark" alt="" class="hidden size-12 rounded-md dark:block" />
+        <h1>Athena</h1>
+        <CardDescription class="text-base">{{ workspaceName ? `Sign in to ${workspaceName}.` : 'Sign in to continue.' }}</CardDescription>
       </CardHeader>
       <CardContent>
         <div v-if="pageState" class="sign-in-state is-error" role="alert">
           <strong>{{ pageState.kind === 'database' ? 'Database not connected' : 'Server unreachable' }}</strong>
           <p>{{ pageState.message }}</p>
-          <Button variant="outline" :disabled="checking" @click="emit('recheck')">{{ checking ? 'Checking…' : 'Check again' }}</Button>
+          <ActionButton kind="secondary" :label="checking ? 'Checking…' : 'Check again'" icon="refresh-ccw" :busy="checking" @press="emit('recheck')" />
         </div>
         <div v-else-if="!hasUsers" class="sign-in-setup">
           <strong>No users yet</strong>
-          <p>Create the instance owner on the server, then choose a password with the shown challenge on the First login screen:</p>
+          <p>Create the instance owner on the server, then choose a password with the shown code on the First login screen:</p>
           <code>{{ ownerCommand }}</code>
           <div class="toolbar-actions">
-            <Button variant="outline" @click="copyCommand">Copy command</Button>
-            <Button :disabled="checking" @click="emit('recheck')">{{ checking ? 'Checking…' : 'Check again' }}</Button>
+            <ActionButton kind="secondary" label="Copy command" icon="copy" @press="copyCommand" />
+            <ActionButton kind="primary" :label="checking ? 'Checking…' : 'Check again'" icon="refresh-ccw" :busy="checking" @press="emit('recheck')" />
           </div>
         </div>
         <form v-if="showForm && screen === 'signin'" class="sign-in-form" novalidate @submit.prevent="signIn">
@@ -129,46 +133,22 @@ async function complete() {
             <strong>{{ formState.kind === 'locked' ? 'Account locked' : formState.kind === 'disabled' ? 'Account disabled' : formState.kind === 'database' ? 'Database not connected' : 'Server unreachable' }}</strong>
             <p>{{ formState.message }}</p>
           </div>
-          <div class="settings-field">
-            <Label for="sign-in-username">Username</Label>
-            <Input id="sign-in-username" v-model="username" autocomplete="username" autofocus :disabled="busy" :aria-invalid="problems.username !== undefined" aria-describedby="sign-in-username-problem" @input="problems.username = undefined" />
-            <small v-if="problems.username" id="sign-in-username-problem" class="files-problem">{{ problems.username }}</small>
-          </div>
-          <div class="settings-field">
-            <Label for="sign-in-password">Password</Label>
-            <Input id="sign-in-password" v-model="password" type="password" autocomplete="current-password" :disabled="busy" :aria-invalid="problems.password !== undefined" aria-describedby="sign-in-password-problem" @input="problems.password = undefined" />
-            <small v-if="problems.password" id="sign-in-password-problem" class="files-problem">{{ problems.password }}</small>
-          </div>
-          <Button type="submit" class="sign-in-submit" :disabled="busy">{{ busy ? 'Signing in…' : 'Sign in' }}</Button>
-          <Button type="button" variant="link" :disabled="busy" @click="screen = 'complete'">Have an invite or reset code? First login</Button>
+          <TextField id="sign-in-username" label="Username" v-model="username" autocomplete="username" autofocus :spellcheck="false" :error="problems.username" :disabled="busy" @update:model-value="problems.username = undefined" />
+          <TextField id="sign-in-password" label="Password" type="password" v-model="password" autocomplete="current-password" :error="problems.password" :disabled="busy" @update:model-value="problems.password = undefined" />
+          <ActionButton type="submit" kind="primary" class="sign-in-submit" :label="busy ? 'Signing in…' : 'Sign in'" icon="key-round" :busy="busy" />
+          <button type="button" class="sign-in-link" :disabled="busy" @click="screen = 'complete'">Have an invite or reset code? First login</button>
         </form>
         <form v-if="showForm && screen === 'complete'" class="sign-in-form" novalidate @submit.prevent="complete">
-          <div class="complete-toggle" role="group" aria-label="Challenge purpose">
+          <div class="complete-toggle" role="group" aria-label="Code purpose">
             <Button type="button" :variant="purpose === 'first_login' ? 'secondary' : 'ghost'" size="sm" :disabled="busy" @click="purpose = 'first_login'">First login</Button>
             <Button type="button" :variant="purpose === 'reset' ? 'secondary' : 'ghost'" size="sm" :disabled="busy" @click="purpose = 'reset'">Password reset</Button>
           </div>
-          <div class="settings-field">
-            <Label for="complete-username">Username</Label>
-            <Input id="complete-username" v-model="challengeUsername" autocomplete="username" :disabled="busy" @input="challengeIssues.username = undefined" />
-            <small v-if="challengeIssues.username" class="files-problem">{{ challengeIssues.username }}</small>
-          </div>
-          <div class="settings-field">
-            <Label for="complete-challenge">{{ purpose === 'reset' ? 'Reset code' : 'Invite code' }}</Label>
-            <Input id="complete-challenge" v-model="challenge" autocomplete="off" spellcheck="false" :disabled="busy" @input="challengeIssues.challenge = undefined" />
-            <small v-if="challengeIssues.challenge" class="files-problem">{{ challengeIssues.challenge }}</small>
-          </div>
-          <div class="settings-field">
-            <Label for="complete-password">New password</Label>
-            <Input id="complete-password" v-model="newPassword" type="password" autocomplete="new-password" :disabled="busy" @input="challengeIssues.password = undefined" />
-            <small v-if="challengeIssues.password" class="files-problem">{{ challengeIssues.password }}</small>
-          </div>
-          <div class="settings-field">
-            <Label for="complete-confirm">Repeat the password</Label>
-            <Input id="complete-confirm" v-model="confirmPassword" type="password" autocomplete="new-password" :disabled="busy" @input="challengeIssues.confirm = undefined" />
-            <small v-if="challengeIssues.confirm" class="files-problem">{{ challengeIssues.confirm }}</small>
-          </div>
-          <Button type="submit" class="sign-in-submit" :disabled="busy">{{ busy ? 'Signing in…' : 'Choose password and sign in' }}</Button>
-          <Button type="button" variant="link" :disabled="busy" @click="screen = 'signin'">Back to sign in</Button>
+          <TextField id="complete-username" label="Username" v-model="challengeUsername" autocomplete="username" :error="challengeIssues.username" :disabled="busy" @update:model-value="challengeIssues.username = undefined" />
+          <TextField id="complete-challenge" :label="purpose === 'reset' ? 'Reset code' : 'Invite code'" v-model="challenge" autocomplete="off" :error="challengeIssues.challenge" :disabled="busy" @update:model-value="challengeIssues.challenge = undefined" />
+          <TextField id="complete-password" label="New password" type="password" v-model="newPassword" autocomplete="new-password" :error="challengeIssues.password" :disabled="busy" @update:model-value="challengeIssues.password = undefined" />
+          <TextField id="complete-confirm" label="Repeat the password" type="password" v-model="confirmPassword" autocomplete="new-password" :error="challengeIssues.confirm" :disabled="busy" @update:model-value="challengeIssues.confirm = undefined" />
+          <ActionButton type="submit" kind="primary" class="sign-in-submit" :label="busy ? 'Signing in…' : 'Choose password and sign in'" icon="check" :busy="busy" />
+          <button type="button" class="sign-in-link" :disabled="busy" @click="screen = 'signin'">Back to sign in</button>
         </form>
       </CardContent>
     </Card>

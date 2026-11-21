@@ -3,10 +3,14 @@
 // (?mode=build&page=gallery, /build/gallery).
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { CalendarDays, ChartColumn, Inbox } from '@lucide/vue'
+import { CalendarDays, ChartColumn, Inbox } from '@/icons'
 
 import { toast } from 'vue-sonner'
+import ActionButton from '@/components/ActionButton.vue'
+import ActionGroup from '@/components/ActionGroup.vue'
+import type { ActionItem } from '@/components/actions'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import ResponsiveDialog from '@/components/ResponsiveDialog.vue'
 import DataTable from '@/components/DataTable.vue'
 import DetailSheet from '@/components/DetailSheet.vue'
 import EmptyState from '@/components/EmptyState.vue'
@@ -30,7 +34,21 @@ const busyOpen = ref(false)
 const busyWorking = ref(false)
 const disabledOpen = ref(false)
 const sheetOpen = ref(false)
+const wideSheetOpen = ref(false)
 const galleryName = ref('')
+const responsiveOpen = ref(false)
+const responsiveNote = ref('')
+
+const demoActions: ActionItem[] = [
+  { id: 'assign', label: 'Assign Role', kind: 'primary', icon: 'plus' },
+  { id: 'resend', label: 'Resend invite', kind: 'secondary', icon: 'send' },
+  { id: 'reset', label: 'Reset', kind: 'secondary', icon: 'key-round' },
+  { id: 'suspend', label: 'Suspend', kind: 'caution', icon: 'pause' },
+  { id: 'delete', label: 'Delete', kind: 'destructive', icon: 'trash-2' },
+]
+const demoRestore: ActionItem[] = [
+  { id: 'reactivate', label: 'Reactivate', kind: 'restore', icon: 'play' },
+]
 
 function confirmBusy() {
   busyWorking.value = true
@@ -69,9 +87,47 @@ function onPick(next: unknown) {
   <div class="mx-auto w-full max-w-3xl space-y-10">
     <PageHeader title="Gallery" description="Every shared composition in every state.">
       <template #actions>
-        <Button variant="outline" @click="emit('goHome')">Back to Overview</Button>
+        <ActionButton kind="secondary" label="Back to Overview" icon="house" @press="emit('goHome')" />
       </template>
     </PageHeader>
+
+    <section aria-labelledby="gal-actions">
+      <h2 id="gal-actions" class="text-lg font-medium">ActionButton</h2>
+      <p class="text-muted-foreground mt-1 text-sm">One labelled action in six kinds, five densities, with busy and disabled-with-reason states. Hover the disabled one for its reason.</p>
+      <div class="mt-4 space-y-4 rounded-[var(--radius)] border p-4">
+        <div class="flex flex-wrap items-center gap-2">
+          <ActionButton kind="primary" label="Invite user" icon="plus" @press="toast.info('Invite (demo).')" />
+          <ActionButton kind="secondary" label="Edit" icon="pencil" @press="toast.info('Edit (demo).')" />
+          <ActionButton kind="quiet" label="View" icon="eye" @press="toast.info('View (demo).')" />
+          <ActionButton kind="caution" label="Suspend" icon="pause" @press="toast.info('Suspend (demo).')" />
+          <ActionButton kind="destructive" label="Delete" icon="trash-2" @press="toast.info('Delete (demo).')" />
+          <ActionButton kind="restore" label="Reactivate" icon="play" @press="toast.info('Reactivate (demo).')" />
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <ActionButton kind="secondary" density="page" label="Page" icon="plus" />
+          <ActionButton kind="secondary" density="section" label="Section" icon="plus" />
+          <ActionButton kind="secondary" density="row" label="Row" icon="plus" />
+          <ActionButton kind="secondary" density="inline" label="Inline" icon="plus" />
+          <ActionButton kind="secondary" density="touch" label="Touch" icon="plus" />
+          <ActionButton kind="quiet" density="row" icon-only label="More actions" icon="ellipsis" />
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <ActionButton kind="primary" label="Saving" icon="save" busy />
+          <ActionButton kind="secondary" label="Delete" icon="trash-2" disabled-reason="Close its open jobs first." />
+          <ActionButton kind="secondary" label="Inbox" icon="inbox" counter="12" shortcut="⌘1" helper="New" />
+        </div>
+        <ActionButton kind="primary" label="Full-width in drawers" icon="plus" full-bleed @press="toast.info('Full bleed (demo).')" />
+      </div>
+    </section>
+
+    <section aria-labelledby="gal-actiongroup">
+      <h2 id="gal-actiongroup" class="text-lg font-medium">ActionGroup</h2>
+      <p class="text-muted-foreground mt-1 text-sm">Actions grouped by kind: close within a kind, wider between kinds, a divider before destructive. Below 640 px the stacked group becomes full-width buttons.</p>
+      <div class="mt-4 space-y-4 rounded-[var(--radius)] border p-4">
+        <ActionGroup :actions="demoActions" aria-label="User actions" @press="(id) => toast.info(`${id} (demo).`)" />
+        <ActionGroup :actions="demoRestore" stack-on-phones aria-label="Restore actions" @press="(id) => toast.info(`${id} (demo).`)" />
+      </div>
+    </section>
 
     <section aria-labelledby="gal-pageheader">
       <h2 id="gal-pageheader" class="text-lg font-medium">PageHeader</h2>
@@ -84,14 +140,14 @@ function onPick(next: unknown) {
     <section aria-labelledby="gal-emptystate">
       <h2 id="gal-emptystate" class="text-lg font-medium">EmptyState</h2>
       <p class="text-muted-foreground mt-1 text-sm">Nothing here yet: icon, title, one helpful line, optional action.</p>
-      <div class="mt-4 grid gap-4 min-[640px]:grid-cols-2">
+      <div class="mt-4 grid grid-cols-1 gap-4 min-[640px]:grid-cols-2">
         <div class="rounded-[var(--radius)] border">
           <EmptyState :icon="Inbox" title="All caught up" body="Records assigned to you will show up here." />
         </div>
         <div class="rounded-[var(--radius)] border">
           <EmptyState :icon="ChartColumn" title="No reports yet" body="Build a report to rerun a list or total any time.">
             <template #action>
-              <Button size="sm" @click="toast.info('New report (demo).')">New report</Button>
+              <ActionButton kind="primary" density="row" label="New report" icon="plus" @press="toast.info('New report (demo).')" />
             </template>
           </EmptyState>
         </div>
@@ -101,7 +157,7 @@ function onPick(next: unknown) {
     <section aria-labelledby="gal-errorstate">
       <h2 id="gal-errorstate" class="text-lg font-medium">ErrorState</h2>
       <p class="text-muted-foreground mt-1 text-sm">A page that failed, with a retry.</p>
-      <div class="mt-4 grid gap-4 min-[640px]:grid-cols-2">
+      <div class="mt-4 grid grid-cols-1 gap-4 min-[640px]:grid-cols-2">
         <div class="rounded-[var(--radius)] border">
           <ErrorState @retry="toast.info('Retry (demo).')" />
         </div>
@@ -122,7 +178,7 @@ function onPick(next: unknown) {
     <section aria-labelledby="gal-loading">
       <h2 id="gal-loading" class="text-lg font-medium">LoadingSkeleton</h2>
       <p class="text-muted-foreground mt-1 text-sm">Holds the page shape while its code loads.</p>
-      <div class="mt-4 grid gap-4 min-[640px]:grid-cols-2">
+      <div class="mt-4 grid grid-cols-1 gap-4 min-[640px]:grid-cols-2">
         <div class="rounded-[var(--radius)] border p-4">
           <LoadingSkeleton />
         </div>
@@ -136,10 +192,10 @@ function onPick(next: unknown) {
       <h2 id="gal-confirm" class="text-lg font-medium">ConfirmDialog</h2>
       <p class="text-muted-foreground mt-1 text-sm">Asks before a destructive action, with busy and disabled-with-reason states. Opens from the buttons below.</p>
       <div class="mt-4 flex flex-wrap gap-2">
-        <Button variant="outline" @click="dangerOpen = true">Delete record…</Button>
-        <Button variant="outline" @click="plainOpen = true">Discard draft…</Button>
-        <Button variant="outline" @click="busyOpen = true">Delete with busy…</Button>
-        <Button variant="outline" @click="disabledOpen = true">Delete disabled…</Button>
+        <ActionButton kind="destructive" label="Delete record…" icon="trash-2" @press="dangerOpen = true" />
+        <ActionButton kind="secondary" label="Discard draft…" icon="x" @press="plainOpen = true" />
+        <ActionButton kind="destructive" label="Delete with busy…" icon="trash-2" @press="busyOpen = true" />
+        <ActionButton kind="destructive" label="Delete disabled…" icon="trash-2" @press="disabledOpen = true" />
       </div>
       <ConfirmDialog
         v-model:open="dangerOpen"
@@ -154,6 +210,7 @@ function onPick(next: unknown) {
         body="Your edits since the last save go away."
         confirm-label="Discard"
         cancel-label="Keep editing"
+        confirm-icon="x"
         :danger="false"
         @confirm="plainOpen = false; toast.info('Draft discarded (demo).')"
       />
@@ -210,11 +267,15 @@ function onPick(next: unknown) {
 
     <section aria-labelledby="gal-detailsheet">
       <h2 id="gal-detailsheet" class="text-lg font-medium">DetailSheet</h2>
-      <p class="text-muted-foreground mt-1 text-sm">One object beside the page; a bottom sheet on phones. Opens from the button below.</p>
-      <div class="mt-4">
-        <Button variant="outline" @click="sheetOpen = true">Open record…</Button>
+      <p class="text-muted-foreground mt-1 text-sm">One object in a full-height sheet with its own header, status and footer actions; a bottom sheet on phones. Opens from the buttons below.</p>
+      <div class="mt-4 flex flex-wrap gap-2">
+        <ActionButton kind="secondary" label="Open record…" icon="eye" @press="sheetOpen = true" />
+        <ActionButton kind="secondary" label="Open wide…" icon="eye" @press="wideSheetOpen = true" />
       </div>
       <DetailSheet v-model:open="sheetOpen" title="Review the beta shell" description="Task · opened from the list.">
+        <template #status>
+          <StatusBadge status="open" />
+        </template>
         <div class="space-y-4">
           <FieldRow label="Title" for="gallery-sheet-title" stacked>
             <Input id="gallery-sheet-title" value="Review the beta shell" />
@@ -224,10 +285,43 @@ function onPick(next: unknown) {
           </FieldRow>
         </div>
         <template #footer>
-          <Button variant="outline" @click="sheetOpen = false">Close</Button>
-          <Button @click="sheetOpen = false; toast.success('Saved (demo).')">Save</Button>
+          <ActionGroup
+            :actions="[
+              { id: 'save', label: 'Save', kind: 'primary', icon: 'save' },
+              { id: 'close', label: 'Close', kind: 'secondary', icon: 'x' },
+            ]"
+            stack-on-phones
+            aria-label="Record actions"
+            @press="(id) => { sheetOpen = false; if (id === 'save') toast.success('Saved (demo).') }"
+          />
         </template>
       </DetailSheet>
+      <DetailSheet v-model:open="wideSheetOpen" title="Ada Lovelace" description="Last sign-in today." wide>
+        <template #status>
+          <StatusBadge status="active" />
+        </template>
+        <p class="text-muted-foreground text-sm">The wide sheet fits detail lists: assignments, grants, versions.</p>
+        <template #footer>
+          <ActionGroup :actions="demoActions" stack-on-phones aria-label="User actions" @press="(id) => toast.info(`${id} (demo).`)" />
+        </template>
+      </DetailSheet>
+    </section>
+
+    <section aria-labelledby="gal-responsive">
+      <h2 id="gal-responsive" class="text-lg font-medium">ResponsiveDialog</h2>
+      <p class="text-muted-foreground mt-1 text-sm">A centered dialog at 1024 px and wider, a bottom drawer below. Type below, then dismiss: a dirty form asks first.</p>
+      <div class="mt-4">
+        <ActionButton kind="secondary" label="Open dialog…" icon="eye" @press="responsiveOpen = true" />
+      </div>
+      <ResponsiveDialog v-model:open="responsiveOpen" title="Demo dialog" description="Resize below 1024 px to see the drawer." :dirty="responsiveNote !== ''">
+        <FieldRow label="Note" for="gallery-dialog-note" stacked>
+          <Input id="gallery-dialog-note" v-model="responsiveNote" placeholder="Type to make it dirty" />
+        </FieldRow>
+        <template #footer>
+          <ActionButton kind="secondary" label="Close" icon="x" @press="responsiveOpen = false" />
+          <ActionButton kind="primary" label="Save" icon="save" @press="responsiveOpen = false; responsiveNote = ''; toast.success('Saved (demo).')" />
+        </template>
+      </ResponsiveDialog>
     </section>
 
     <section aria-labelledby="gal-statusbadge">
@@ -240,7 +334,7 @@ function onPick(next: unknown) {
 
     <section aria-labelledby="gal-datatable">
       <h2 id="gal-datatable" class="text-lg font-medium">DataTable</h2>
-      <p class="text-muted-foreground mt-1 text-sm">Sortable grid; rows stack into labelled cards below 640 px, where a sort select replaces the header. Kind hides on phones. Click a row.</p>
+      <p class="text-muted-foreground mt-1 text-sm">Sortable grid; rows stack into labelled cards below 640 px, where sorting opens from a toolbar drawer. Kind hides on phones. Click a row.</p>
       <div class="mt-4 space-y-4">
         <DataTable
           :columns="demoColumns"
@@ -254,10 +348,10 @@ function onPick(next: unknown) {
           @retry="tableError = null; toast.info('Retry (demo).')"
         />
         <div class="flex flex-wrap items-center gap-2">
-          <Button variant="outline" size="sm" @click="demoRows = []">Show empty state</Button>
-          <Button v-if="tableEmpty" variant="outline" size="sm" @click="demoRows = [{ name: 'Task', kind: 'master', records: 12 }]">Restore one row</Button>
-          <Button variant="outline" size="sm" @click="tableLoading = !tableLoading">{{ tableLoading ? 'Hide loading' : 'Show loading' }}</Button>
-          <Button variant="outline" size="sm" @click="tableError = 'The server took too long.'">Show error</Button>
+          <ActionButton kind="quiet" density="row" label="Show empty state" icon="eye" @press="demoRows = []" />
+          <ActionButton v-if="tableEmpty" kind="restore" density="row" label="Restore one row" icon="rotate-ccw" @press="demoRows = [{ name: 'Task', kind: 'master', records: 12 }]" />
+          <ActionButton kind="quiet" density="row" :label="tableLoading ? 'Hide loading' : 'Show loading'" icon="eye" @press="tableLoading = !tableLoading" />
+          <ActionButton kind="quiet" density="row" label="Show error" icon="circle-alert" @press="tableError = 'The server took too long.'" />
         </div>
         <DataTable v-if="tableEmpty && !tableLoading && !tableError" :columns="demoColumns" :data="demoRows" :empty-icon="Inbox" empty-title="No record types" empty-body="Define one to see it here." />
       </div>

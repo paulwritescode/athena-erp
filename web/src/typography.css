@@ -23,6 +23,13 @@ body { font-family:var(--font-body); font-size:var(--type-body-sm-size); font-we
 h1 { font-family:var(--font-display); font-size:var(--type-display-sm-size); font-weight:var(--type-display-sm-weight); line-height:var(--type-display-sm-line); letter-spacing:var(--type-display-sm-tracking); }
 h2 { font-family:var(--font-display); font-size:var(--type-title-md-size); font-weight:400; line-height:var(--type-title-md-line); letter-spacing:var(--type-title-md-tracking); }
 h3 { font-family:var(--font-body); font-size:var(--type-title-sm-size); font-weight:var(--type-title-sm-weight); line-height:var(--type-title-sm-line); letter-spacing:var(--type-title-sm-tracking); }
+h1, h2, h3 { text-wrap:balance; }
+p { text-wrap:pretty; }
+td, th { font-variant-numeric:tabular-nums; }
+/* Component titles that carry the h2 role (dialog, sheet, alert, drawer and
+   card titles): Satori title-md. Unlayered, so it wins over the Inter
+   utilities those components also carry. */
+.cn-font-heading { font-family:var(--font-display); font-size:var(--type-title-md-size); font-weight:400; line-height:var(--type-title-md-line); }
 [data-slot="button"] { font-family:var(--font-body); font-size:var(--type-button-size); font-weight:var(--type-button-weight); line-height:var(--type-button-line); letter-spacing:var(--type-button-tracking); }
 .nav-item, .mode-switch button, .view-menu button { font-size:var(--type-nav-size); font-weight:var(--type-nav-weight); line-height:var(--type-nav-line); letter-spacing:var(--type-nav-tracking); }
 .lead, .status-copy p, .foundation-card > p, .record-description, .empty-builder p, .inspector-note p { font-size:var(--type-body-sm-size); font-weight:var(--type-body-sm-weight); line-height:var(--type-body-sm-line); letter-spacing:var(--type-body-sm-tracking); }

@@ -1,7 +1,7 @@
 // ErrorState covers a page that failed to load, with a retry.
 <script setup lang="ts">
-import { CircleAlert } from '@lucide/vue'
-import { Button } from '@/components/ui/button'
+import { CircleAlert } from '@/icons'
+import ActionButton from '@/components/ActionButton.vue'
 
 withDefaults(defineProps<{ title?: string; message?: string }>(), {
   title: 'This page did not load',
@@ -15,10 +15,10 @@ const emit = defineEmits<{ retry: [] }>()
     <div class="bg-muted flex size-10 items-center justify-center rounded-lg border">
       <CircleAlert class="text-muted-foreground size-5" aria-hidden="true" />
     </div>
-    <h2 class="mt-4 text-base font-medium">{{ title }}</h2>
+    <h2 class="mt-4">{{ title }}</h2>
     <p class="text-muted-foreground mt-1 max-w-sm text-sm">{{ message }}</p>
     <div class="mt-4">
-      <Button variant="outline" @click="emit('retry')">Try again</Button>
+      <ActionButton kind="primary" label="Try again" icon="refresh-ccw" @press="emit('retry')" />
     </div>
   </div>
 </template>

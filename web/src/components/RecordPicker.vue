@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import { onBeforeUnmount, ref, watch } from 'vue'
+import { useMediaQuery } from '@vueuse/core'
 import { ConnectError } from '@connectrpc/connect'
-import { CheckIcon, ChevronsUpDownIcon, SearchIcon, XIcon } from '@lucide/vue'
+import { ChevronsUpDown } from '@/icons'
 import { toast } from 'vue-sonner'
 import type { LookupItem } from '../gen/athena/v1/records_pb'
 import { labelWithState, resolveRecords, searchRecords } from '../lookup'
+import BottomDrawer from '@/components/BottomDrawer.vue'
+import RecordPickerList from '@/components/RecordPickerList.vue'
 import { Button } from '@/components/ui/button'
-import { Command, CommandGroup, CommandItem, CommandList } from '@/components/ui/command'
-import { InputGroup, InputGroupAddon } from '@/components/ui/input-group'
-import { ListboxFilter } from 'reka-ui'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 
 // Chooses a Record of one Record Type by its label. The value is the Record ID;
@@ -27,6 +27,8 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{ 'update:modelValue': [id: string]; blur: [] }>()
 
+// Phones and tablets pick from a bottom drawer (§13.2); desktop keeps the popover.
+const isDesktop = useMediaQuery('(min-width: 1024px)')
 const open = ref(false)
 const query = ref('')
 const items = ref<LookupItem[]>([])
@@ -93,35 +95,44 @@ function choose(item: LookupItem | null) {
 </script>
 
 <template>
-  <Popover v-model:open="open">
+  <Popover v-if="isDesktop" v-model:open="open">
     <PopoverTrigger as-child>
       <Button :id="id" type="button" variant="outline" role="combobox" class="picker-trigger" :disabled="disabled" :aria-expanded="open" :aria-invalid="invalid ? 'true' : undefined" :aria-required="required || undefined" :aria-describedby="describedby">
         <span :class="selected ? undefined : 'muted-label'">{{ selected ? labelWithState(selected) : `Choose a ${targetLabel}…` }}</span>
-        <ChevronsUpDownIcon class="picker-icon" aria-hidden="true" />
+        <ChevronsUpDown class="picker-icon" aria-hidden="true" />
       </Button>
     </PopoverTrigger>
     <PopoverContent class="picker-content" align="start">
-      <Command>
-        <!-- The server filters, so the search text stays out of the Command's own client-side filter. -->
-        <div class="p-1 pb-0">
-          <InputGroup class="bg-input/50 h-9">
-            <ListboxFilter v-model="query" auto-focus data-slot="command-input" class="w-full text-sm outline-hidden" :placeholder="`Search ${targetLabel}…`" :aria-label="`Search ${targetLabel}`" />
-            <InputGroupAddon><SearchIcon class="size-4 shrink-0 opacity-50" aria-hidden="true" /></InputGroupAddon>
-          </InputGroup>
-        </div>
-        <CommandList>
-          <CommandGroup>
-          <CommandItem v-if="!required && modelValue" value="__clear" @select="choose(null)"><XIcon aria-hidden="true" />Clear selection</CommandItem>
-          <CommandItem v-for="item in items" :key="item.id" :value="item.id" @select="choose(item)">
-            <span class="picker-label">{{ item.label }}</span>
-            <CheckIcon v-if="item.id === modelValue" class="picker-check" aria-hidden="true" />
-          </CommandItem>
-          <p v-if="loading" class="picker-note" role="status">Loading…</p>
-          <p v-else-if="items.length === 0" class="picker-note" role="status">{{ query ? `No ${targetLabel} records match.` : `No ${targetLabel} records yet.` }}</p>
-          <CommandItem v-if="nextPageToken && !loading" value="__more" @select.prevent="search(true)">Show more</CommandItem>
-          </CommandGroup>
-        </CommandList>
-      </Command>
+      <RecordPickerList
+        v-model:query="query"
+        :target-label="targetLabel"
+        :items="items"
+        :loading="loading"
+        :next-page-token="nextPageToken"
+        :model-value="modelValue"
+        :can-clear="!required && modelValue !== ''"
+        @select="choose"
+        @more="search(true)"
+      />
     </PopoverContent>
   </Popover>
+  <template v-else>
+    <Button :id="id" type="button" variant="outline" role="combobox" class="picker-trigger" :disabled="disabled" :aria-expanded="open" :aria-invalid="invalid ? 'true' : undefined" :aria-required="required || undefined" :aria-describedby="describedby" @click="open = true">
+      <span :class="selected ? undefined : 'muted-label'">{{ selected ? labelWithState(selected) : `Choose a ${targetLabel}…` }}</span>
+      <ChevronsUpDown class="picker-icon" aria-hidden="true" />
+    </Button>
+    <BottomDrawer v-model:open="open" :title="`Choose a ${targetLabel}`">
+      <RecordPickerList
+        v-model:query="query"
+        :target-label="targetLabel"
+        :items="items"
+        :loading="loading"
+        :next-page-token="nextPageToken"
+        :model-value="modelValue"
+        :can-clear="!required && modelValue !== ''"
+        @select="choose"
+        @more="search(true)"
+      />
+    </BottomDrawer>
+  </template>
 </template>

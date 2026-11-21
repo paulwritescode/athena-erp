@@ -17,8 +17,10 @@ import DeskTopBar from './components/shell/DeskTopBar.vue'
 import { useDeskRoute } from './composables/useDeskRoute'
 import { useRecordTypes } from './composables/useRecordTypes'
 import { useSession } from './composables/useSession'
+import { useSwipeNav } from './composables/useSwipeNav'
 import { useTheme } from './composables/useTheme'
 import SignInPage from './pages/SignInPage.vue'
+import { sheetDepth } from './components/overlayPresence'
 import { visibleBuildEntries } from './pages/registry'
 import type { Page } from './types'
 
@@ -27,6 +29,14 @@ const library = useRecordTypes(route)
 route.setDefaultTypeResolver(() => library.viewRecordTypes.value[0]?.name ?? '')
 const session = useSession(route, library)
 const theme = useTheme()
+useSwipeNav()
+// Phones toast top-center below the header (§17); larger screens toast
+// bottom-right, or beside an open sheet through the body class in style.css.
+// Below 1024 px the lane beside a sheet is narrower than a toast, so a
+// sheet open there toasts top-center over everything instead.
+const isPhone = useMediaQuery('(max-width: 639px)')
+const belowWide = useMediaQuery('(max-width: 1023px)')
+const toastTop = computed(() => isPhone.value || (belowWide.value && sheetDepth.value > 0))
 
 // The sidebar is full at >=1024 and an icon rail from 640 to 1023. The
 // footer toggle overrides that until the viewport crosses the breakpoint.
@@ -63,6 +73,17 @@ function go(key: Page) {
   else route.openBuildPage(key)
 }
 
+// Home follows the mode: the Build overview, or the first Record Type list
+// in View.
+function goHome() {
+  if (route.mode.value === 'view') {
+    const first = library.viewRecordTypes.value[0]
+    route.openRecordType(first?.name ?? '')
+  } else {
+    route.openBuildPage('overview')
+  }
+}
+
 onMounted(async () => {
   theme.init()
   await session.startDesk()
@@ -92,7 +113,8 @@ onMounted(async () => {
       :view-record-types="library.viewRecordTypes.value"
       :active-record-type="activeRecordType"
       :workspace-name="session.workspaceName.value"
-      @home="route.openBuildPage('overview')"
+      :username="session.user.value?.username ?? ''"
+      @home="goHome"
       @navigate="go"
       @record-type="route.openRecordType"
       @toggle="toggleSidebar"
@@ -134,13 +156,17 @@ onMounted(async () => {
       @sign-out="session.signOut"
     />
     <MigrationDialog
-      v-if="library.pendingSave.value"
-      :record-type="library.pendingSave.value.recordType"
-      :plan="library.pendingSave.value.plan"
+      :record-type="library.pendingSave.value?.recordType ?? library.currentRecordType.value"
+      :plan="library.pendingSave.value?.plan ?? null"
       @confirm="library.confirmPendingSave"
       @cancel="library.cancelPendingSave"
     />
     <ChangePasswordDialog v-model:open="session.changingPassword.value" />
   </SidebarProvider>
-  <Toaster position="bottom-right" :theme="theme.isDark.value ? 'dark' : 'light'" />
+  <Toaster
+    :position="toastTop ? 'top-center' : 'bottom-right'"
+    :offset="toastTop ? { top: 'calc(var(--space-16) + var(--space-2))' } : undefined"
+    :mobile-offset="isPhone ? { top: 'calc(var(--space-16) + var(--space-2))' } : undefined"
+    :theme="theme.isDark.value ? 'dark' : 'light'"
+  />
 </template>
