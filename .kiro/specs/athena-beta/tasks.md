@@ -58,6 +58,7 @@
 - [ ] **B8. Root administrator and Build/View presentation** (Codex then Muse)
   - Confirm ADR-0018 behavior end to end: created at `athena new` / first boot with the database password, bypasses all gates, cannot be suspended, edited, have Roles changed, or be deleted, through API, CLI or Desk (tests per path). Every root action is audit-logged as root. Change-password rotates only root's own password.
   - Desk: root sees a quiet "Root administrator" caption and a `lock` badge on its own user row with the reason; its row actions are disabled with the reason.
+  - Fix: a fresh load of `?mode=build` lands in View because the `canBuildDesk` watch fires during startup (found in B2, present before B2).
   - Build/View: mode switch per design-system §7; Build shows a persistent "Building" caption and a hairline-separated sidebar group; View hides all Build navigation; a "Preview as" control in Build shows View as a chosen Role (read-only, from playbook §8 "Developer entry").
 - [ ] **B9. Form builder for Record Types** (Codex then Muse, ADR required, changes durable definitions)
   - Record Type definitions gain a layout: sections, columns (1 or 2), field order, field width, help text, conditional visibility (CEL expression, ADR-0013), and an Image field type (stored through Workspace files, thumbnails, alt text required) plus static image and text blocks.
