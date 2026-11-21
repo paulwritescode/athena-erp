@@ -315,6 +315,14 @@ Toasts never cover actions: while a right sheet is open on desktop and tablet, t
 
 Settings → Appearance (permission `settings:appearance`) lets a Workspace choose the accent: the `ink` and `red` presets as swatches, or Custom with a color picker for the accent and, optionally, the five chart colors. The page previews buttons, focus ring, selected navigation and a chart in light and dark side by side before saving. On save the server checks contrast (text on the accent ≥ 4.5:1 in both themes) and offers the nearest passing lightness if it fails. Only the accent tokens of §2.1 change; surfaces stay neutral. The choice is stored per Workspace and applied for every user on next load, without a rebuild. A user can also choose light, dark or system for themselves.
 
+## 19. Record Types: list, then a dedicated editor (decided 2026-11-21)
+
+Following Frappe's DocType list: the Record Types page is a list first, and editing happens on its own page.
+
+- **Desktop and tablet list:** a DataTable with Name (with its icon), Description, Kind (Master, Document, Setting and so on, as a badge), Fields (count), Records (count), Pack (or "None"), Last changed (readable time, §14) and Changed by. Search, a Kind filter and a Pack filter sit above it. Sort by any column. The primary action is "New Record Type". No form shows on this page.
+- **Phone list:** stacked rows with Name, Kind badge and Fields count. Tapping a row opens a bottom drawer with the summary (description, counts, Pack, last changed) and two actions: "Open editor" (goes to the editor page) and "View records".
+- **Editor page** at `/build/record-types/<key>` (and `/build/record-types/new`): the page header shows the name, Kind and saved state, with Save as the primary action and Delete in the destructive slot. Tabs: **Form** (the form builder, task B9: sections, columns, drag and keyboard reordering, field settings in a right sheet, optional image and text blocks, and an optional hairline or ASCII header chosen from the art registry, §9), **Fields** (the table of fields with type, key, required and link target), **Settings** (key, description, kind, label field, naming), **Rules** (Rules attached to this Record Type), and **History** (saves from the journal). A live preview shows the form at phone and desktop width. On phones the editor page opens full screen with the tabs as a segmented control, and the form builder uses move up and move down instead of drag.
+
 ## 12. Checks before a screen is done
 
 - Opened in a browser at 375, 768, 1280 and 1440 px, light and dark.
