@@ -83,6 +83,12 @@ Each row with durable data, a security change or a new public surface gets an AD
 
 `go build ./...`, `go vet ./...`, `gofmt -l cmd internal` (empty), `make test` (it sets `ATHENA_TEST_DATABASE_URL`; a plain `go test ./...` skips MariaDB tests), `make generate` twice with no diff, `CI=true pnpm --dir web run typecheck`, `test` and `build`. UI tasks also need screenshots at 375, 768, 1280 and 1440 px in both themes. Restore `internal/webui/dist/.gitkeep` after a web build.
 
+### Merge small and often (user direction, 2026-11-21)
+
+- A task is cut into slices that each work end to end on their own (one screen, one flow, one server capability). Each slice merges to `main` as soon as it passes, without waiting for the rest of the task.
+- One review per slice. Findings that break behavior, lose data, open a security hole or make a screen unusable block the merge; everything else is merged and recorded as a follow-up in `tasks.md`.
+- The master merges within minutes of a PASS, restarts the user's server, and tells the user what to try.
+
 ### Parallelism
 
 At most three workers at once. Tasks that edit the same shared file (`App.vue`, `gate.go`, `sysmigrations.go`, `api.ts`, a proto file) do not run at the same time. Docs edits are small appends in the task's own section.
