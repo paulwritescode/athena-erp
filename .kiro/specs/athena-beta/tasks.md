@@ -111,6 +111,7 @@ Order follows dependencies. Desk parts of each group follow the design system an
   - Slice 2 merged 2026-11-22 (6be771e): event bus (Emit/Claim/Declare/Match + dispatcher) + posting/lifecycle emit hooks + Property 13 inbox dedup. Z4/Z2 clean. Open: slices 3+ (jobs/worker, workflows, secrets/lifetimes once Z4 is decided).
 - [ ] **C3. G10 Pack packaging.** PackService, install plan preview, PacksPage.
 - [ ] **C4. G13 Trees, effective dating, determination specificity, UoM.**
+  - Slice 1 merged 2026-11-23 (d54d6e4): migration 18 `trees_effective_uom` + ADR-0029 (Proposed). Open: slices 2–6 (attributes, UoM, Property 25, CLI + Desk, docs + checkpoint).
 - [ ] **C5. G7 Party ledger, settlements, realised FX.** "What customers owe" and "What we owe" in View vocabulary.
 - [ ] **C6. G9 Balances, Query compiler, Reports v1, Report Runs.** ReportsPage with charts using `--chart-*` only.
 - [ ] **C7. G11 Stock ledger, reservations, serial and batch, valuation.** (Needs valuation method, Z3.)
@@ -186,6 +187,7 @@ Gates per name: pattern, 1 to 2 syllables, clean as `athena-<noun>`, the user ca
 - B10 slice 2: filtered Rules table + open runs tab can show two figures at once; empty-users/roles/sessions/runs figures unit-tested but never observed live.
 - C1 slice 1: fitsLedger allows 28 significant digits vs DECIMAL(28,6) 22 integer digits (raw DB error on huge values); validDate accepts non-calendar dates; no multi-company balance test; hashPlan hashes Decimal text (100.00 vs 100 differ — normalize in slice 2); zero-value Engine Dialect panic risk on concurrent-insert race.
 - C1 slice 3: same-op-id submit+cancel conflict untested (one-line TestReverseReplay addition); no concurrent-reversal test (racing reversals in Property 10 would close the loop); assertMirror does not pin bijectivity; checkIdentity wording on the reversal path; consider TypePostingReversed in the events package instead of the posting-local literal.
+- C4 slice 1: backfill leftover-row error says "cycle or missing parent" but also fires for chains deeper than 100 passes (cosmetic; name the depth bound).
 
 ## Z. Decisions the user must make (OPEN)
 
