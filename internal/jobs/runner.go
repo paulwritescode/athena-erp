@@ -299,8 +299,10 @@ func (r *Runner) release(ctx context.Context, job Job, cause error) error {
 
 // Recover releases expired leases back to queued after a restart, so
 // work in flight when the process stopped runs again. It reports how
-// many jobs it released. Jobs already out of attempts park dead with
-// their owner instead of running again.
+// many jobs it released and how many it parked dead. Jobs already out
+// of attempts park dead with their owner instead of running again; the
+// threshold is row-first like maxAttempts, so a restart never parks a
+// job the live reclaim path would still run.
 func (r *Runner) Recover(ctx context.Context) (released, dead int64, err error) {
 	now := r.now()
 	maxAttempts := r.MaxAttempts
@@ -312,7 +314,7 @@ func (r *Runner) Recover(ctx context.Context) (released, dead int64, err error) 
 			owner_user_id = COALESCE(owner_user_id, ?), owner_role = COALESCE(owner_role, ?),
 			lease_owner = NULL, lease_expires_at = NULL
 		WHERE status = 'leased' AND lease_expires_at < ?
-			AND attempts >= LEAST(max_attempts, ?)`, nullText(r.DefaultOwnerUserID), nullText(r.DefaultOwnerRole), now, maxAttempts)
+			AND attempts >= CASE WHEN max_attempts > 0 THEN max_attempts ELSE ? END`, nullText(r.DefaultOwnerUserID), nullText(r.DefaultOwnerRole), now, maxAttempts)
 	if err != nil {
 		return 0, 0, fmt.Errorf("jobs: recover dead: %w", err)
 	}

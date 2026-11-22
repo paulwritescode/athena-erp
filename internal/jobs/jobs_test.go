@@ -231,6 +231,29 @@ func TestRecoverParksExhaustedLeasesDead(t *testing.T) {
 	}
 }
 
+func TestRecoverHonorsRowMaxAttempts(t *testing.T) {
+	ctx := context.Background()
+	db := setup(t)
+	id, err := jobs.Enqueue(ctx, db, jobs.EnqueueOptions{Kind: "work", MaxAttempts: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	past := time.Now().UTC().Add(-time.Hour)
+	if _, err := db.Exec(`UPDATE athena_jobs SET status = 'leased', lease_owner = 'dead-worker', lease_expires_at = ?, attempts = 7 WHERE id = ?`, past, id); err != nil {
+		t.Fatal(err)
+	}
+	released, dead, err := runner(db).Recover(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if released != 1 || dead != 0 {
+		t.Fatalf("recovered %d released %d dead, want 1 and 0", released, dead)
+	}
+	if status, _, _ := jobStatus(t, db, id); status != "queued" {
+		t.Fatalf("status = %q, want queued", status)
+	}
+}
+
 func TestExpiredLeaseReclaimCountsAnAttempt(t *testing.T) {
 	ctx := context.Background()
 	db := setup(t)
