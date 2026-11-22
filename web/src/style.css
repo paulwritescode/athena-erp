@@ -166,7 +166,7 @@ body,.page-content{background:var(--background);color:var(--foreground)}
 .record-editor .field-table{border:1px solid var(--border);border-radius:var(--radius-md);overflow:hidden}
 .record-editor .field-head{background:transparent;font-weight:500;letter-spacing:0}
 .record-editor .field-row:last-child{border-bottom:0}
-@media(max-width:760px){.records-layout,.record-meta{grid-template-columns:minmax(0,1fr)}.record-editor-head{flex-wrap:wrap}.record-editor-head>*{min-width:0}.record-editor-head .record-title-input{flex:1 1 140px}.record-editor-head .toolbar-actions{flex-wrap:wrap}}
+@media(max-width:760px){.record-meta{grid-template-columns:minmax(0,1fr)}.record-editor-head{flex-wrap:wrap}.record-editor-head>*{min-width:0}.record-editor-head .record-title-input{flex:1 1 140px}.record-editor-head .toolbar-actions{flex-wrap:wrap}}
 /* Form controls: transparent fill with a hairline border in both themes, so
    dark mode shows the outline instead of a black block. The [data-slot=sidebar-wrapper] prefix
    outranks the older per-area input rules above. */
