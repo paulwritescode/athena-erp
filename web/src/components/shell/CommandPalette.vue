@@ -9,7 +9,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { recordTypeIcon, visibleViewStubs, type PageEntry } from '@/pages/registry'
 import type { Page, RecordType } from '@/types'
 
-const props = defineProps<{ buildEntries: PageEntry[]; recordTypes: RecordType[]; isDark: boolean }>()
+const props = defineProps<{ buildEntries: PageEntry[]; recordTypes: RecordType[]; isDark: boolean; mode: 'build' | 'view' }>()
 const emit = defineEmits<{ navigate: [page: Page]; recordType: [name: string]; toggleTheme: []; signOut: [] }>()
 const open = defineModel<boolean>('open', { required: true })
 
@@ -42,7 +42,9 @@ function goRecordType(name: string) {
       <CommandInput placeholder="Search pages, Records and actions..." />
       <CommandList>
       <CommandEmpty>No matches.</CommandEmpty>
-      <CommandGroup heading="Build">
+      <!-- View hides all Build navigation: the palette shows View lists
+      and actions only. -->
+      <CommandGroup v-if="mode === 'build'" heading="Build">
         <CommandItem v-for="entry in buildEntries" :key="entry.key" :value="`${entry.title} ${entry.blurb}`" @select="go(entry.key)">
           <component :is="entry.icon" class="size-4" aria-hidden="true" />
           <span>{{ entry.title }}</span>

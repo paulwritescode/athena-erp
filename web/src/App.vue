@@ -19,6 +19,7 @@ import CommandPalette from './components/shell/CommandPalette.vue'
 import DeskTopBar from './components/shell/DeskTopBar.vue'
 import { useDeskRoute } from './composables/useDeskRoute'
 import { useOnlineStatus } from './composables/useOnlineStatus'
+import { usePreview } from './composables/usePreview'
 import { useRecordTypes } from './composables/useRecordTypes'
 import { useSession } from './composables/useSession'
 import { useSwipeNav } from './composables/useSwipeNav'
@@ -35,6 +36,24 @@ const { online } = useOnlineStatus()
 const library = useRecordTypes(route)
 route.setDefaultTypeResolver(() => library.viewRecordTypes.value[0]?.name ?? '')
 const session = useSession(route, library)
+// Role preview ("Preview as") needs the full type universe (build) and the
+// Role list (access:roles); without either the control stays disabled with
+// the reason. Preview lives in Build mode only: leaving Build exits it.
+const preview = usePreview()
+const canListRoles = computed(() => session.user.value?.systemPermissions.includes('access:roles') ?? false)
+const previewAllowed = computed(() => session.canBuild.value && canListRoles.value)
+const previewDeniedReason = computed(() => {
+  if (!session.canBuild.value && !canListRoles.value) return 'Needs the build and access:roles permissions.'
+  if (!session.canBuild.value) return 'Needs the build permission.'
+  return 'Needs the access:roles permission.'
+})
+watch(() => session.user.value, (user) => {
+  if (user?.systemPermissions.includes('access:roles')) void preview.load()
+  else preview.unload()
+})
+watch(() => route.mode.value, (mode) => {
+  if (mode !== 'build') preview.exit()
+})
 watch(online, (up) => { if (up) void session.recheck() })
 const theme = useTheme()
 // The Appearance page offers the theme beside the Workspace choices.
@@ -144,10 +163,16 @@ onMounted(async () => {
       :active-record-type="activeRecordType"
       :workspace-name="session.workspaceName.value"
       :username="session.user.value?.username ?? ''"
+      :preview="preview"
+      :preview-allowed="previewAllowed"
+      :preview-denied-reason="previewDeniedReason"
       @home="goHome"
       @navigate="go"
       @record-type="route.openRecordType"
       @toggle="toggleSidebar"
+      @preview-select="preview.enter"
+      @preview-exit="preview.exit"
+      @preview-retry="preview.load"
     />
     <SidebarInset class="min-w-0">
       <DeskTopBar
@@ -159,6 +184,9 @@ onMounted(async () => {
         :theme-mode="theme.mode.value"
         :theme-label="theme.modeLabel.value"
         :workspace-name="session.workspaceName.value"
+        :preview="preview"
+        :preview-allowed="previewAllowed"
+        :preview-denied-reason="previewDeniedReason"
         @parent-click="route.recordRoute.value = ''"
         @set-mode="route.setMode"
         @open-palette="paletteOpen = true"
@@ -167,8 +195,11 @@ onMounted(async () => {
         @navigate-notification="goNotification"
         @change-password="session.changingPassword.value = true"
         @sign-out="session.signOut"
+        @preview-select="preview.enter"
+        @preview-exit="preview.exit"
+        @preview-retry="preview.load"
       />
-      <PageSwitch :route="route" :session="session" :library="library" />
+      <PageSwitch :route="route" :session="session" :library="library" :preview="preview" />
     </SidebarInset>
     <BottomNav
       :mode="route.mode.value"
@@ -184,6 +215,7 @@ onMounted(async () => {
       :build-entries="buildEntries"
       :record-types="library.viewRecordTypes.value"
       :is-dark="theme.isDark.value"
+      :mode="route.mode.value"
       @navigate="go"
       @record-type="route.openRecordType"
       @toggle-theme="theme.toggle"

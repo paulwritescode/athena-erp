@@ -13,14 +13,16 @@ import ActionButton from '@/components/ActionButton.vue'
 import RecordTypeCreateDialog from '@/components/record-types/RecordTypeCreateDialog.vue'
 import NotFoundPage from '@/pages/NotFoundPage.vue'
 import RecordsPage from '@/pages/RecordsPage.vue'
+import RolePreviewPanel from '@/components/shell/RolePreviewPanel.vue'
 import { isEntryVisible, pageEntry, visibleBuildKeys, type PageContext } from '@/pages/registry'
 import type { DeskRoute } from '@/composables/useDeskRoute'
+import type { PreviewState } from '@/composables/usePreview'
 import type { NewRecordTypeInput, RecordTypeLibrary } from '@/composables/useRecordTypes'
 import type { SessionState } from '@/composables/useSession'
 import type { Page, RecordType } from '@/types'
 
-const props = defineProps<{ route: DeskRoute; session: SessionState; library: RecordTypeLibrary }>()
-const { route, session, library } = props
+const props = defineProps<{ route: DeskRoute; session: SessionState; library: RecordTypeLibrary; preview: PreviewState }>()
+const { route, session, library, preview } = props
 
 const showRecords = computed(() => route.mode.value === 'view' && route.page.value !== 'queue' && route.page.value !== 'count')
 // A named type that is not saved (renamed, deleted, mistyped) never falls
@@ -154,7 +156,18 @@ function createFromDialog(input: NewRecordTypeInput, complete: (saved: boolean) 
 
 <template>
   <div data-page-main class="min-w-0 flex-1 p-4 pb-20 sm:p-6 lg:p-8">
-    <NotFoundPage v-if="route.notFound.value" @go-home="goHome" />
+    <!-- The persistent Build caption (§7): quiet, always there in Build so
+    the mode is never ambiguous. Hidden from assistive tech: the mode
+    switch already announces the mode. -->
+    <p v-if="route.mode.value === 'build'" aria-hidden="true" class="text-muted-foreground mb-4 text-caption">Building</p>
+    <!-- An active Role preview replaces the page until the builder exits it. -->
+    <RolePreviewPanel
+      v-if="preview.previewing.value && preview.role.value"
+      :role="preview.role.value"
+      :types="library.viewRecordTypes.value"
+      @exit="preview.exit()"
+    />
+    <NotFoundPage v-else-if="route.notFound.value" @go-home="goHome" />
     <EmptyState
       v-else-if="unknownType"
       :icon="FileX2"
@@ -173,6 +186,7 @@ function createFromDialog(input: NewRecordTypeInput, complete: (saved: boolean) 
       :record-type-key="route.selectedRecordType.value"
       :record-types="library.viewRecordTypes.value"
       :username="session.user.value?.username ?? ''"
+      :can-build="session.canBuild.value"
       @back="route.setMode('build')"
     />
     <PermissionDenied v-else-if="denied" :page-title="deniedTitle" @go-home="goHome" />

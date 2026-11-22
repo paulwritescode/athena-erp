@@ -15,9 +15,10 @@ import type { NotificationTarget } from '@/notifications'
 import ModeSwitch from './ModeSwitch.vue'
 import NotificationsPopover from './NotificationsPopover.vue'
 import UserMenu from './UserMenu.vue'
+import type { PreviewState } from '@/composables/usePreview'
 
-defineProps<{ breadcrumb: { parent: string; current: string } | null; mode: 'build' | 'view'; canBuildDesk: boolean; user: SessionUser | null; isDark: boolean; themeMode: ThemeMode; themeLabel: string; workspaceName: string }>()
-const emit = defineEmits<{ parentClick: []; setMode: ['build' | 'view']; openPalette: []; toggleTheme: []; setTheme: [ThemeMode]; changePassword: []; signOut: []; navigateNotification: [NotificationTarget] }>()
+defineProps<{ breadcrumb: { parent: string; current: string } | null; mode: 'build' | 'view'; canBuildDesk: boolean; user: SessionUser | null; isDark: boolean; themeMode: ThemeMode; themeLabel: string; workspaceName: string; preview: PreviewState; previewAllowed: boolean; previewDeniedReason: string }>()
+const emit = defineEmits<{ parentClick: []; setMode: ['build' | 'view']; openPalette: []; toggleTheme: []; setTheme: [ThemeMode]; changePassword: []; signOut: []; navigateNotification: [NotificationTarget]; previewSelect: [name: string]; previewExit: []; previewRetry: [] }>()
 </script>
 
 <template>
@@ -51,7 +52,7 @@ const emit = defineEmits<{ parentClick: []; setMode: ['build' | 'view']; openPal
         <component :is="isDark ? Sun : Moon" class="size-4" aria-hidden="true" />
       </Button>
       <NotificationsPopover @navigate="(target) => emit('navigateNotification', target)" />
-      <UserMenu v-if="user" :user="user" :is-dark="isDark" :theme-mode="themeMode" :mode="mode" :can-build-desk="canBuildDesk" @set-mode="(next) => emit('setMode', next)" @set-theme="(next) => emit('setTheme', next)" @change-password="emit('changePassword')" @sign-out="emit('signOut')" />
+      <UserMenu v-if="user" :user="user" :is-dark="isDark" :theme-mode="themeMode" :mode="mode" :can-build-desk="canBuildDesk" :preview="preview" :preview-allowed="previewAllowed" :preview-denied-reason="previewDeniedReason" @set-mode="(next) => emit('setMode', next)" @set-theme="(next) => emit('setTheme', next)" @change-password="emit('changePassword')" @sign-out="emit('signOut')" @preview-select="(name) => emit('previewSelect', name)" @preview-exit="emit('previewExit')" @preview-retry="emit('previewRetry')" />
     </div>
   </header>
 </template>

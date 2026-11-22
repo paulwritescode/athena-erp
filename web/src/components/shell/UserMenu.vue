@@ -7,14 +7,39 @@ import { useMediaQuery } from '@vueuse/core'
 import { Check, ChevronDown, Monitor, Moon, Sun } from '@/icons'
 import BottomDrawer from '@/components/BottomDrawer.vue'
 import { hasLogo, identity } from '@/identity'
+import { gloss } from '@/copy/glossary'
+import { isRootUsername } from '@/rootUser'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import type { PreviewState } from '@/composables/usePreview'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import type { SessionUser } from '@/types'
 import type { ThemeMode } from '@/composables/useTheme'
 
-const props = defineProps<{ user: SessionUser; isDark: boolean; themeMode: ThemeMode; mode: 'build' | 'view'; canBuildDesk: boolean }>()
-const emit = defineEmits<{ setMode: ['build' | 'view']; setTheme: [ThemeMode]; changePassword: []; signOut: [] }>()
+const props = defineProps<{
+  user: SessionUser
+  isDark: boolean
+  themeMode: ThemeMode
+  mode: 'build' | 'view'
+  canBuildDesk: boolean
+  preview: PreviewState
+  previewAllowed: boolean
+  previewDeniedReason: string
+}>()
+const emit = defineEmits<{
+  setMode: ['build' | 'view']
+  setTheme: [ThemeMode]
+  changePassword: []
+  signOut: []
+  previewSelect: [name: string]
+  previewExit: []
+  previewRetry: []
+}>()
+
+function pickedPreview(value: unknown) {
+  if (typeof value === 'string' && value) emit('previewSelect', value)
+}
 
 const themeChoices: { mode: ThemeMode; label: string }[] = [
   { mode: 'light', label: 'Light' },
@@ -23,6 +48,7 @@ const themeChoices: { mode: ThemeMode; label: string }[] = [
 ]
 
 const name = computed(() => props.user.displayName || props.user.username)
+const caption = computed(() => (isRootUsername(props.user.username) ? gloss('rootAdministrator').label : props.user.owner ? 'Instance owner' : props.user.username))
 const initials = computed(() => name.value.trim().split(/\s+/).map((part) => part[0]).slice(0, 2).join('').toUpperCase() || '?')
 const isDesktop = useMediaQuery('(min-width: 1024px)')
 const open = ref(false)
@@ -47,7 +73,7 @@ function pick(action: () => void) {
     <DropdownMenuContent align="end" class="w-56">
       <DropdownMenuLabel>
         <span class="block truncate font-medium">{{ name }}</span>
-        <small class="text-muted-foreground block truncate font-normal">{{ user.owner ? 'Instance owner' : user.username }}</small>
+        <small class="text-muted-foreground block truncate font-normal">{{ caption }}</small>
       </DropdownMenuLabel>
       <DropdownMenuSeparator />
       <DropdownMenuLabel class="text-xs font-normal">Theme</DropdownMenuLabel>
@@ -71,7 +97,38 @@ function pick(action: () => void) {
         <AvatarFallback>{{ initials }}</AvatarFallback>
       </Avatar>
     </Button>
-    <BottomDrawer v-model:open="open" :title="name" :description="user.owner ? 'Instance owner' : user.username">
+    <BottomDrawer v-model:open="open" :title="name" :description="caption">
+      <!-- Phones and tablets preview Roles here: the sidebar group needs labels. -->
+      <div v-if="mode === 'build'" class="preview-drawer-block">
+        <p class="text-muted-foreground px-3 text-caption">Preview as</p>
+        <p v-if="!previewAllowed" class="text-muted-foreground px-3 py-1 text-caption">{{ previewDeniedReason }}</p>
+        <template v-else-if="preview.rolesState.value === 'failed'">
+          <p class="text-destructive px-3 py-1 text-caption">Could not load Roles.</p>
+          <div class="drawer-menu" role="menu" aria-label="Preview">
+            <button type="button" role="menuitem" @click="emit('previewRetry')">
+              <span>Retry</span>
+            </button>
+          </div>
+        </template>
+        <Select
+          v-else
+          :model-value="preview.previewName.value === '' ? undefined : preview.previewName.value"
+          :disabled="preview.rolesState.value !== 'ready' || preview.roles.value.length === 0"
+          @update:model-value="pickedPreview"
+        >
+          <SelectTrigger class="w-full" aria-label="Preview as a Role">
+            <SelectValue :placeholder="preview.rolesState.value === 'loading' ? 'Loading Roles…' : preview.roles.value.length === 0 ? 'No Roles yet' : 'Choose a Role…'" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem v-for="role in preview.roles.value" :key="role.name" :value="role.name">{{ role.name }}</SelectItem>
+          </SelectContent>
+        </Select>
+        <div v-if="preview.previewName.value" class="drawer-menu" role="menu" aria-label="Preview">
+          <button type="button" role="menuitem" @click="pick(() => emit('previewExit'))">
+            <span>Exit preview</span>
+          </button>
+        </div>
+      </div>
       <div class="drawer-menu" role="menu" :aria-label="`Signed in as ${name}`">
         <template v-if="canBuildDesk">
           <button type="button" role="menuitemradio" :aria-checked="mode === 'build'" class="min-[640px]:hidden" @click="pick(() => emit('setMode', 'build'))">
@@ -106,3 +163,13 @@ function pick(action: () => void) {
     </BottomDrawer>
   </template>
 </template>
+
+<style scoped>
+.preview-drawer-block {
+  display: grid;
+  gap: var(--space-1);
+  padding-bottom: var(--space-3);
+  margin-bottom: var(--space-2);
+  border-bottom: 1px solid var(--border);
+}
+</style>

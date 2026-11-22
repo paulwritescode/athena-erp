@@ -10,6 +10,8 @@ import { FocusScope } from 'reka-ui'
 import WorkspaceMark from '@/components/WorkspaceMark.vue'
 import { identity } from '@/identity'
 import { ChevronDown, House, PanelLeftClose, PanelLeftOpen } from '@/icons'
+import PreviewAsGroup from '@/components/shell/PreviewAsGroup.vue'
+import type { PreviewState } from '@/composables/usePreview'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarMenu, SidebarMenuBadge, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar'
 import { isEntryVisible, loadCollapsedGroups, pageEntry, recordTypeGroups, recordTypeIcon, saveCollapsedGroups, visibleBuildGroups, visibleViewStubs, type PageEntry } from '@/pages/registry'
@@ -30,8 +32,11 @@ const props = defineProps<{
   activeRecordType: string | null
   workspaceName: string
   username: string
+  preview: PreviewState
+  previewAllowed: boolean
+  previewDeniedReason: string
 }>()
-const emit = defineEmits<{ home: []; navigate: [page: Page]; recordType: [name: string]; toggle: [] }>()
+const emit = defineEmits<{ home: []; navigate: [page: Page]; recordType: [name: string]; toggle: []; previewSelect: [name: string]; previewExit: []; previewRetry: [] }>()
 
 const buildGroups = computed(() => visibleBuildGroups(props.canBuild, props.permissions))
 const ungroupedBuild = computed(() => buildGroups.value.find((group) => group.key === null)?.entries ?? [])
@@ -159,6 +164,16 @@ function badge(entry: PageEntry): string | null {
             </CollapsibleContent>
           </Collapsible>
         </SidebarGroup>
+        <PreviewAsGroup
+          :roles="preview.roles.value"
+          :state="preview.rolesState.value"
+          :allowed="previewAllowed"
+          :denied-reason="previewDeniedReason"
+          :active-name="preview.previewName.value"
+          @select="emit('previewSelect', $event)"
+          @exit="emit('previewExit')"
+          @retry="emit('previewRetry')"
+        />
       </template>
       <template v-else>
         <SidebarGroup>

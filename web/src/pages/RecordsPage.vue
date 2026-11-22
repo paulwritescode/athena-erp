@@ -37,7 +37,7 @@ import { toast } from 'vue-sonner'
 // URL: '' for the table, 'new' for the create form, or an record ID.
 // recordTypeKey is the key the address names; writes send it, and a record
 // type that does not match it never saves.
-const props = withDefaults(defineProps<{ recordType: RecordType | null; recordTypeKey: string; recordId: string; recordTypes?: RecordType[]; username?: string }>(), { username: '' })
+const props = withDefaults(defineProps<{ recordType: RecordType | null; recordTypeKey: string; recordId: string; recordTypes?: RecordType[]; username?: string; canBuild?: boolean }>(), { username: '', canBuild: false })
 const emit = defineEmits<{ back: []; 'update:recordId': [id: string] }>()
 
 const records = ref<RecordMessage[]>([])
@@ -663,8 +663,12 @@ function calculatedError(field: Field): string | undefined {
   <section class="page-content view-page">
     <div v-if="!recordType" class="empty-builder">
       <h2>Nothing to view yet</h2>
-      <p>Define the first form in Build, then add its records here.</p>
-      <ActionButton kind="secondary" label="Go to Build" icon="hammer" @press="emit('back')" />
+      <!-- View hides all Build navigation: only builders get the way back. -->
+      <template v-if="canBuild">
+        <p>Define the first form in Build, then add its records here.</p>
+        <ActionButton kind="secondary" label="Go to Build" icon="hammer" @press="emit('back')" />
+      </template>
+      <p v-else>Lists appear here when someone shares them with you.</p>
     </div>
 
     <template v-else-if="editing">

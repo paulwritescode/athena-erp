@@ -7,6 +7,9 @@ import type { AccessEvent, AccessUser, Assignment, AssignmentExplanation, Role, 
 import type { RecordType } from '../types'
 import { actionLegend, actionLetter, describeScope, diffAssignments, parseScope, previewRoleGrants } from '../assignmentPreview'
 import { postSessionMessage } from '../sessionChannel'
+import { gloss } from '../copy/glossary'
+import { icon } from '../icons'
+import { isRootUsername } from '../rootUser'
 import { formatWhen, formatWhenFull } from '../times'
 import { Button } from '@/components/ui/button'
 import ActionButton from '@/components/ActionButton.vue'
@@ -220,14 +223,16 @@ const selected = computed(() => users.value.find((user) => user.username === sel
 
 // The workspace root account is fully visible here but never editable from
 // the desk: invites, resets, suspension and assignments cannot touch it.
-const rootUsername = 'administrator'
-const isRootSelected = computed(() => selected.value?.username === rootUsername)
+// Its actions stay visible but disabled, each carrying the reason.
+const rootCaption = gloss('rootAdministrator').label
+const rootReason = gloss('rootAdministrator').explanation
+const isRootSelected = computed(() => isRootUsername(selected.value?.username))
 
 // The user actions: Assign first, then the secondary pair, then the
-// caution or its restore opposite. The root account gets no actions. The
-// sheet footer and the row menu share them.
+// caution or its restore opposite. The root account gets the same actions
+// disabled with the reason. The sheet footer and the row menu share them.
 function userActionsFor(user: AccessUser | null): ActionItem[] {
-  if (!user || user.username === rootUsername) return []
+  if (!user) return []
   const items: ActionItem[] = []
   if (canAssign.value) items.push({ id: 'assign', label: 'Assign Role', kind: 'primary', icon: 'plus', busy: busy.value })
   if (canUsers.value && user.state === 'invited') items.push({ id: 'resend', label: 'Resend invite', kind: 'secondary', icon: 'send', busy: busy.value })
@@ -236,6 +241,12 @@ function userActionsFor(user: AccessUser | null): ActionItem[] {
   }
   if (canUsers.value && !user.disabled) items.push({ id: 'suspend', label: 'Suspend', kind: 'caution', icon: 'pause', busy: busy.value })
   if (canUsers.value && user.disabled) items.push({ id: 'reactivate', label: 'Reactivate', kind: 'restore', icon: 'play', busy: busy.value })
+  if (isRootUsername(user.username)) {
+    for (const item of items) {
+      item.disabledReason = rootReason
+      item.busy = false
+    }
+  }
   return items
 }
 const userActions = computed<ActionItem[]>(() => userActionsFor(selected.value))
@@ -288,6 +299,7 @@ const userColumns = [
     id: 'user', header: 'User', accessorFn: (user: AccessUser) => user.username.toLowerCase(), meta: { label: 'User' },
     cell: ({ row }: { row: { original: AccessUser } }) => {
       const user = row.original
+      if (isRootUsername(user.username)) return h(PrimaryCell, { title: user.username, subtitle: rootCaption })
       const second = [user.displayName, user.owner ? 'Owner' : ''].filter((part) => part !== '').join(' · ')
       return h(PrimaryCell, { title: user.username, subtitle: second || null })
     },
@@ -298,6 +310,9 @@ const userColumns = [
       const user = row.original
       const badges = [h(Badge, { variant: stateVariant(user.state) }, () => user.state || 'active')]
       if (user.locked) badges.push(h(Badge, { variant: 'destructive' }, () => 'Locked'))
+      if (isRootUsername(user.username)) {
+        badges.push(h(Badge, { variant: 'outline', title: rootReason }, () => [h(icon('lock'), { 'aria-hidden': 'true' }), 'Root']))
+      }
       return h('span', { class: 'inline-flex gap-1' }, badges)
     },
   },
@@ -306,7 +321,7 @@ const userColumns = [
     cell: ({ row }: { row: { original: AccessUser } }) => {
       const user = row.original
       if (user.roles.length > 0) return user.roles.join(', ')
-      if (user.username === rootUsername) return h('span', { class: 'text-muted-foreground' }, 'Full access')
+      if (isRootUsername(user.username)) return h('span', { class: 'text-muted-foreground' }, 'Full access')
       return h('span', { class: 'text-muted-foreground' }, 'No roles')
     },
   },
