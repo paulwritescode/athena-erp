@@ -149,6 +149,8 @@ const columns = [
           :empty-icon="fallbackIcon"
           empty-title="No Record Types yet"
           empty-body="Create a Record Type, add its fields and save it to start adding records."
+          empty-art="empty-record-types"
+          filtered-art="empty-sieve"
           @row-click="onRowClick"
           @row-action="(id, type) => emit('viewRecords', type.name)"
           @update:filters="onFiltersChanged"

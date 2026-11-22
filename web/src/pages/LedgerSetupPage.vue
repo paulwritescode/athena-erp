@@ -933,6 +933,8 @@ onMounted(async () => {
                 clickable
                 empty-title="No companies yet"
                 empty-body="Create one to get started."
+                empty-art="empty-ledger"
+                filtered-art="empty-sieve"
                 @row-click="openCompany"
               >
                 <template v-if="props.canWrite" #toolbar-actions>
@@ -1078,6 +1080,8 @@ onMounted(async () => {
                 clickable
                 empty-title="No financial years yet"
                 empty-body="Add one with the form below."
+                empty-art="empty-ledger"
+                filtered-art="empty-sieve"
                 @row-click="editFiscalYear"
               />
               <div v-if="props.canWrite && hasCompany" class="settings-grid">
@@ -1138,6 +1142,8 @@ onMounted(async () => {
                 clickable
                 empty-title="No currencies yet"
                 empty-body="Create one to get started."
+                empty-art="empty-ledger"
+                filtered-art="empty-sieve"
                 @row-click="openCurrency"
               >
                 <template v-if="props.canWrite" #toolbar-actions>
@@ -1182,6 +1188,8 @@ onMounted(async () => {
                 :filtered="accountTypeFilteredActive"
                 empty-title="No account types yet"
                 empty-body="Add one with the form below."
+                empty-art="empty-ledger"
+                filtered-art="empty-sieve"
               />
               <div v-if="props.canWrite" class="settings-grid">
                 <TextField id="ledger-type-name" label="Code" v-model="accountTypeForm.name" />

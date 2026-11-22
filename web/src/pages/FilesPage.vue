@@ -546,6 +546,8 @@ onMounted(refresh)
               clickable
               empty-title="No files yet"
               empty-body="Create one or upload one."
+              empty-art="empty-files"
+              filtered-art="empty-sieve"
               @row-click="(file) => openDetail(file.path)"
               @row-action="onFileRowAction"
               @update:filters="onFileFiltersChanged"
@@ -618,6 +620,8 @@ onMounted(refresh)
               clickable
               empty-title="Nothing mapped yet"
               empty-body="No file backs a Record Type, Rule or Report yet."
+              empty-art="empty-mapping"
+              filtered-art="empty-sieve"
               @row-click="onMapRowClick"
             />
           </div>

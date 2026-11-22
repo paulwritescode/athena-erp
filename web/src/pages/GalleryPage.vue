@@ -3,7 +3,7 @@
 // (?mode=build&page=gallery, /build/gallery).
 <script setup lang="ts">
 import { computed, h, ref } from 'vue'
-import { CalendarDays, ChartColumn, Inbox } from '@/icons'
+import { CalendarDays, Inbox } from '@/icons'
 
 import { toast } from 'vue-sonner'
 import ActionButton from '@/components/ActionButton.vue'
@@ -222,13 +222,13 @@ function onPick(next: unknown) {
 
     <section aria-labelledby="gal-emptystate">
       <h2 id="gal-emptystate" class="text-lg font-medium">EmptyState</h2>
-      <p class="text-muted-foreground mt-1 text-sm">Nothing here yet: icon, title, one helpful line, optional action.</p>
+      <p class="text-muted-foreground mt-1 text-sm">Nothing here yet: figure or icon, title, one helpful line, optional action.</p>
       <div class="mt-4 grid grid-cols-1 gap-4 min-[640px]:grid-cols-2">
         <div class="rounded-[var(--radius)] border">
           <EmptyState :icon="Inbox" title="All caught up" body="Records assigned to you will show up here." />
         </div>
         <div class="rounded-[var(--radius)] border">
-          <EmptyState :icon="ChartColumn" title="No reports yet" body="Build a report to rerun a list or total any time.">
+          <EmptyState art="empty-reports" title="No reports yet" body="Build a report to rerun a list or total any time.">
             <template #action>
               <ActionButton kind="primary" density="row" label="New report" icon="plus" @press="toast.info('New report (demo).')" />
             </template>

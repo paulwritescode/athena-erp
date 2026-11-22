@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest'
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join, relative, sep } from 'node:path'
-import { ART_INTENSITY, artFigureOptions, useArt, type FigurePlacement } from './registry'
+import { ART_INTENSITY, artFigureOptions, placementKeys, useArt, type FigurePlacement } from './registry'
 
 const artDir = dirname(fileURLToPath(import.meta.url))
 const srcDir = dirname(artDir)
@@ -28,11 +28,12 @@ function rel(path: string): string {
 }
 
 function figureEntries(): [string, FigurePlacement][] {
-  return ['signin', 'not-found', 'offline'].map((key) => {
+  const out: [string, FigurePlacement][] = []
+  for (const key of placementKeys) {
     const entry = useArt(key)
-    if (entry?.kind !== 'figure') throw new Error(`placement ${key} is not a figure`)
-    return [key, entry]
-  })
+    if (entry?.kind === 'figure') out.push([key, entry])
+  }
+  return out
 }
 
 describe('art registry', () => {
@@ -46,6 +47,18 @@ describe('art registry', () => {
     expect(useArt('not-found')).toMatchObject({ kind: 'figure', figure: 'query' })
     expect(useArt('offline')).toMatchObject({ kind: 'figure', figure: 'plug' })
     expect(useArt('signin-mark')).toMatchObject({ kind: 'ascii' })
+  })
+
+  it('maps empty states per the section 9.5 meaning table', () => {
+    expect(useArt('empty-sieve')).toMatchObject({ kind: 'figure', figure: 'sieve' })
+    expect(useArt('empty-files')).toMatchObject({ kind: 'figure', figure: 'drawer' })
+    expect(useArt('empty-reports')).toMatchObject({ kind: 'figure', figure: 'plot' })
+    for (const key of [
+      'empty-record-types', 'empty-packs', 'empty-rules', 'empty-runs', 'empty-mapping',
+      'empty-users', 'empty-roles', 'empty-sessions', 'empty-ledger',
+    ]) {
+      expect(useArt(key)?.kind, key).toBe('figure')
+    }
   })
 
   it('keeps every figure quiet: theme auto, intensity 0.3 or less, play off', () => {
@@ -67,6 +80,12 @@ describe('art registry', () => {
       expect(entry.width, key).toBeLessThanOrEqual(240)
       expect(entry.mobileWidth, `${key} mobile`).toBeLessThanOrEqual(entry.width)
       expect(entry.mobileWidth, `${key} mobile`).toBeGreaterThan(0)
+    }
+    const empties = figureEntries().filter(([key]) => key.startsWith('empty-'))
+    expect(empties.length).toBeGreaterThan(0)
+    for (const [key, entry] of empties) {
+      expect(entry.width, key).toBeLessThanOrEqual(240)
+      expect(entry.mobileWidth, `${key} mobile`).toBe(120)
     }
   })
 
@@ -111,6 +130,39 @@ describe('art registry', () => {
       if (!path.endsWith('.vue') || rel(path).startsWith('art/')) continue
       const uses = readFileSync(path, 'utf8').split('<ArtFigure').length - 1
       expect(uses, `${rel(path)} mounts at most one figure`).toBeLessThanOrEqual(1)
+    }
+  })
+
+  it('resolves every art key a template names to its kind', () => {
+    let keys = 0
+    const tag = /<(ArtFigure|AsciiMark|EmptyState|DataTable)\b((?:"[^"]*"|'[^']*'|[^>"'])*)(\/>|>)/g
+    for (const path of files(srcDir)) {
+      if (!path.endsWith('.vue') || rel(path).endsWith('.test.ts')) continue
+      const body = readFileSync(path, 'utf8')
+      for (const match of body.matchAll(tag)) {
+        const component = match[1]
+        // Static keys only; bound keys such as :art="emptyArt" resolve at
+        // runtime with an icon fallback.
+        for (const key of match[2].matchAll(/(?:^|\s)(?:art|empty-art|filtered-art|art-key)="([^"]+)"/g)) {
+          keys += 1
+          const want = component === 'AsciiMark' ? 'ascii' : 'figure'
+          expect(useArt(key[1])?.kind, `${rel(path)} ${component} names ${key[1]}`).toBe(want)
+        }
+      }
+    }
+    expect(keys, 'at least one template names art').toBeGreaterThan(0)
+  })
+
+  it('gives every empty state a figure or an icon', () => {
+    // No EmptyState open tag in this tree holds an unquoted `>` (no arrow
+    // function), so the tag ends at the first `>` outside quotes.
+    const tag = /<EmptyState\b((?:"[^"]*"|'[^']*'|[^>"'])*)(\/>|>)/g
+    for (const path of files(srcDir)) {
+      if (!path.endsWith('.vue') || rel(path).endsWith('.test.ts')) continue
+      const body = readFileSync(path, 'utf8')
+      for (const match of body.matchAll(tag)) {
+        expect(match[1], `${rel(path)} empty states carry icon or art`).toMatch(/(^|\s):?(icon|art)=/)
+      }
     }
   })
 

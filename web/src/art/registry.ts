@@ -8,7 +8,22 @@
 import type { Figure as HairlineFigure, HairlineOptions } from '@lucasmarkes/hairline'
 import { ATHENA_MARK } from './ascii'
 
-export type FigureName = 'padlock' | 'plug' | 'query'
+export type FigureName =
+  | 'basket'
+  | 'drawer'
+  | 'format'
+  | 'hub'
+  | 'lockers'
+  | 'padlock'
+  | 'plot'
+  | 'plug'
+  | 'query'
+  | 'relay'
+  | 'router'
+  | 'sieve'
+  | 'stack'
+  | 'terminal'
+  | 'vault'
 export type FigureFn = (el: HTMLElement, options?: HairlineOptions) => HairlineFigure
 export type FigureLoader = () => Promise<FigureFn>
 
@@ -44,7 +59,25 @@ const placements: Record<string, ArtPlacement> = {
   // and stay within the empty-state cap (§9.3: at most 240).
   'not-found': { kind: 'figure', figure: 'query', load: loader('query'), width: 200, mobileWidth: 160 },
   offline: { kind: 'figure', figure: 'plug', load: loader('plug'), width: 200, mobileWidth: 160 },
+  // Empty states (§9.3, §9.5): every figure matches its page and stays at
+  // most 240 wide (120 on phones). At most one art-carrying empty shows per
+  // screen (§9.2): the primary list on each page or tab carries the figure
+  // and secondary tables keep the icon empty.
+  'empty-sieve': { kind: 'figure', figure: 'sieve', load: loader('sieve'), width: 200, mobileWidth: 120 },
+  'empty-record-types': { kind: 'figure', figure: 'format', load: loader('format'), width: 200, mobileWidth: 120 },
+  'empty-packs': { kind: 'figure', figure: 'basket', load: loader('basket'), width: 200, mobileWidth: 120 },
+  'empty-rules': { kind: 'figure', figure: 'terminal', load: loader('terminal'), width: 200, mobileWidth: 120 },
+  'empty-runs': { kind: 'figure', figure: 'relay', load: loader('relay'), width: 200, mobileWidth: 120 },
+  'empty-files': { kind: 'figure', figure: 'drawer', load: loader('drawer'), width: 200, mobileWidth: 120 },
+  'empty-mapping': { kind: 'figure', figure: 'hub', load: loader('hub'), width: 200, mobileWidth: 120 },
+  'empty-users': { kind: 'figure', figure: 'lockers', load: loader('lockers'), width: 200, mobileWidth: 120 },
+  'empty-roles': { kind: 'figure', figure: 'vault', load: loader('vault'), width: 200, mobileWidth: 120 },
+  'empty-sessions': { kind: 'figure', figure: 'router', load: loader('router'), width: 200, mobileWidth: 120 },
+  'empty-ledger': { kind: 'figure', figure: 'stack', load: loader('stack'), width: 200, mobileWidth: 120 },
+  'empty-reports': { kind: 'figure', figure: 'plot', load: loader('plot'), width: 200, mobileWidth: 120 },
 }
+
+export const placementKeys: readonly string[] = Object.keys(placements)
 
 export function useArt(key: string): ArtPlacement | undefined {
   return placements[key]

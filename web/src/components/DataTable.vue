@@ -63,6 +63,11 @@ const props = withDefaults(defineProps<{
   emptyIcon?: Component
   emptyTitle?: string
   emptyBody?: string
+  /** Art registry keys for the unfiltered and filtered empties. At most one
+      art-carrying table shows per screen (§9.2): secondary tables on a page
+      leave both unset and keep the icon empty. */
+  emptyArt?: string
+  filteredArt?: string
   clickable?: boolean
   loading?: boolean
   error?: string | null
@@ -659,14 +664,14 @@ const activeFilterCount = computed(() => props.filters.reduce((count, filter) =>
             </TableRow>
           </template>
           <TableEmpty v-else-if="filtered || hasActiveFilters" :colspan="bodyColumnCount">
-            <EmptyState :icon="emptyIcon" title="No results for these filters" body="Try a different search, or clear the filters.">
+            <EmptyState :icon="emptyIcon" :art="filteredArt" title="No results for these filters" body="Try a different search, or clear the filters.">
               <template #action>
                 <ActionButton kind="secondary" density="row" label="Clear filters" icon="x" @press="clearAllFilters" />
               </template>
             </EmptyState>
           </TableEmpty>
           <TableEmpty v-else :colspan="bodyColumnCount">
-            <EmptyState :icon="emptyIcon" :title="emptyTitle" :body="emptyBody">
+            <EmptyState :icon="emptyIcon" :art="emptyArt" :title="emptyTitle" :body="emptyBody">
               <template v-if="$slots['empty-action']" #action>
                 <slot name="empty-action" />
               </template>

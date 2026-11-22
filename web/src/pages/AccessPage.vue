@@ -1021,6 +1021,8 @@ onMounted(async () => {
           clickable
           empty-title="No users yet"
           empty-body="Invite a user to see them here."
+          empty-art="empty-users"
+          filtered-art="empty-sieve"
           @row-click="(user) => selectUser(user.username === selectedUser ? '' : user.username)"
           @row-action="onUserRowAction"
           @update:filters="onUserFiltersChanged"
@@ -1101,6 +1103,8 @@ onMounted(async () => {
           clickable
           empty-title="No Roles yet"
           empty-body="Create one to get started."
+          empty-art="empty-roles"
+          filtered-art="empty-sieve"
           @row-click="(role) => { selectedRole = role.name === selectedRole ? '' : role.name }"
           @row-action="onRoleRowAction"
         >
@@ -1177,6 +1181,8 @@ onMounted(async () => {
           clickable
           empty-title="No live sessions"
           empty-body="Nobody has signed in as this user yet."
+          empty-art="empty-sessions"
+          filtered-art="empty-sieve"
           @row-click="(session) => { selectedSession = session.id === selectedSession ? '' : session.id }"
           @row-action="onSessionRowAction"
         />

@@ -405,6 +405,8 @@ onMounted(refresh)
         clickable
         empty-title="No Rules yet"
         empty-body="Create one to get started."
+        empty-art="empty-rules"
+        filtered-art="empty-sieve"
         @row-click="choose"
         @row-action="onRuleRowAction"
         @update:filters="onRuleFiltersChanged"
@@ -481,6 +483,8 @@ onMounted(refresh)
                 clickable
                 empty-title="No runs yet"
                 empty-body="This Rule has not run yet."
+                empty-art="empty-runs"
+                filtered-art="empty-sieve"
                 @row-click="openRun"
                 @update:filters="onRunFiltersChanged"
               />
