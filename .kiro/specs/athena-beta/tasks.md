@@ -89,8 +89,8 @@
   - Record Type definitions gain a layout: sections, columns (1 or 2), field order, field width, help text, conditional visibility (CEL expression, ADR-0013), and an Image field type (stored through Workspace files, thumbnails, alt text required) plus static image and text blocks.
   - Desk: drag-and-drop builder (keyboard alternative with move up/down) with live preview at mobile and desktop width, in the editor page's Form tab (B9a); optional image block and an optional hairline or ASCII header from the art registry (B10); the View form renders from the layout. Layout changes are non-destructive saves through the journaled publisher.
   - Accept: layout round trip tests; Image field upload, display, delete; keyboard-only reordering works.
-- [ ] **B10. Art registry, hairlines and ASCII** (Muse; needs approval to add `@lucasmarkes/hairline`)
-  - Slice 1 merged 2026-11-22 (82cf024): registry + sign-in/404/offline/CLI placements with stock figures. Slice 2 (empty-state figures) open.
+- [x] **B10. Art registry, hairlines and ASCII** (Muse; needs approval to add `@lucasmarkes/hairline`). Complete 2026-11-22.
+  - Slice 1 merged (82cf024): registry + sign-in/404/offline/CLI placements with stock figures. Slice 2 merged (cf95819): empty-state figures per the meaning table (Records carries no art).
   - `web/src/art/registry.ts` per design-system §9; figures on sign-in, first-run, empty states, 404 and offline; ASCII mark for the CLI banner (`cmd/athena`) and sign-in footer. Custom figures made with `hairline-create` go in `web/src/art/figures/`.
   - Accept: one figure per screen at most (test over the registry); reduced motion rests every figure.
 - [ ] **B11. Install and first-run flow** (Codex then Muse)
@@ -172,6 +172,7 @@ Gates per name: pattern, 1 to 2 syllables, clean as `athena-<noun>`, the user ca
 - B2a slice 3: current-company marker lost in the companies table (restore when DataTable supports marker rows); workspace CLI DSN lacks ParseTime so CLI period/date reads fail (Desk unaffected); no ledger bulk/delete RPCs.
 - B8 slice 1: EnsureRoot taken-name skip branch untested; serve-boot seeding duplicates kernel-open call with only one seam covered; Desk isRootSelected exact-matches lowercase (server normalizes).
 - B11 slice 1: README Homes and Workspaces lacks a direct guide link; guide CLI errors omit the log timestamp prefix; e2e script slug/port fixed (no SLUG override for parallel runs).
+- B10 slice 2: filtered Rules table + open runs tab can show two figures at once; empty-users/roles/sessions/runs figures unit-tested but never observed live.
 
 ## Z. Decisions the user must make (OPEN)
 
