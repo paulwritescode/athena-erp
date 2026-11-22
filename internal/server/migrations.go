@@ -14,17 +14,21 @@ import (
 
 // Migration step kinds reported to clients.
 const (
-	stepAddField     = "add_field"
-	stepRemoveField  = "remove_field"
-	stepChangeType   = "change_type"
-	stepChangeLink   = "change_link"
-	stepRequireField = "require_field"
-	stepCreateTable  = "create_table"
-	stepAddUnique    = "add_unique"
-	stepDropUnique   = "drop_unique"
-	stepAddIndex     = "add_index"
-	stepDropIndex    = "drop_index"
-	stepRecalculate  = "recalculate"
+	stepAddField         = "add_field"
+	stepRemoveField      = "remove_field"
+	stepChangeType       = "change_type"
+	stepChangeLink       = "change_link"
+	stepRequireField     = "require_field"
+	stepCreateTable      = "create_table"
+	stepAddUnique        = "add_unique"
+	stepDropUnique       = "drop_unique"
+	stepAddIndex         = "add_index"
+	stepDropIndex        = "drop_index"
+	stepRecalculate      = "recalculate"
+	stepEnableTree       = "enable_tree"
+	stepDisableTree      = "disable_tree"
+	stepEnableEffective  = "enable_effective"
+	stepDisableEffective = "disable_effective"
 )
 
 // saveOptions are the client's answers to a migration plan. They are stored
@@ -198,7 +202,114 @@ func planMigration(ctx context.Context, conn sqlConn, recordType recordTypeDefin
 		steps = append(steps, migrationStep{Kind: stepRecalculate, Affected: records,
 			Description: fmt.Sprintf("Recalculate the formulas of %s", plural(records, "record", "records"))})
 	}
+	flagSteps, err := planTreeEffective(ctx, conn, recordType, previous, records, count, duplicates)
+	if err != nil {
+		return nil, err
+	}
+	return append(steps, flagSteps...), nil
+}
+
+// planTreeEffective lists the steps for tree and effective-date flag changes.
+// Enabling adds columns (existing rows become top-level rows with an open
+// range); disabling drops them. Enabling effective dating is refused while
+// two live rows share one entity, because their open ranges would overlap.
+func planTreeEffective(ctx context.Context, conn sqlConn, recordType recordTypeDefinition, previous *recordTypeDefinition, records int64, count func(string) (int64, error), duplicates func(string) (int64, error)) ([]migrationStep, error) {
+	var steps []migrationStep
+	if recordType.Tree && !previous.Tree {
+		description := fmt.Sprintf("Organise %s as a tree", recordType.Label)
+		if records > 0 {
+			description += fmt.Sprintf("; %s become top-level records", plural(records, "existing record", "existing records"))
+		}
+		steps = append(steps, migrationStep{Kind: stepEnableTree, Affected: records, Description: description})
+	}
+	if previous.Tree && !recordType.Tree {
+		linked, err := count("`tree_parent_id` IS NOT NULL")
+		if err != nil {
+			return nil, internalError("check values", err)
+		}
+		step := migrationStep{Kind: stepDisableTree, Affected: linked, Destructive: linked > 0,
+			Description: fmt.Sprintf("Remove the tree from %s", recordType.Label)}
+		if linked > 0 {
+			step.Description += fmt.Sprintf(" and forget %s", plural(linked, "parent link", "parent links"))
+		}
+		steps = append(steps, step)
+	}
+	if recordType.EffectiveDated && !previous.EffectiveDated {
+		shared, err := overlappingEntitiesExist(ctx, conn, recordType)
+		if err != nil {
+			return nil, err
+		}
+		if shared {
+			return nil, connect.NewError(connect.CodeFailedPrecondition, fmt.Sprintf("%s cannot be effective-dated yet: two records share one entity and their ranges would overlap. Add a unique field that tells them apart first", recordType.Label))
+		}
+		steps = append(steps, migrationStep{Kind: stepEnableEffective, Affected: records,
+			Description: fmt.Sprintf("Track effective dates on %s", recordType.Label)})
+	}
+	if previous.EffectiveDated && !recordType.EffectiveDated {
+		// Stopping dates restores the plain unique indexes, which history
+		// rows would violate.
+		for _, field := range recordType.Fields {
+			if !field.Unique {
+				continue
+			}
+			repeated, err := duplicates(dialect.QuoteIdent(field.Name))
+			if err != nil {
+				return nil, internalError("check values", err)
+			}
+			if repeated > 0 {
+				return nil, connect.NewError(connect.CodeFailedPrecondition, fmt.Sprintf("%s cannot stop tracking effective dates yet: %s are used more than once across history. Make them different first", field.Label, plural(repeated, "value", "values")))
+			}
+		}
+		ranged, err := count("`effective_from` IS NOT NULL OR `effective_to` IS NOT NULL")
+		if err != nil {
+			return nil, internalError("check values", err)
+		}
+		step := migrationStep{Kind: stepDisableEffective, Affected: ranged, Destructive: ranged > 0,
+			Description: fmt.Sprintf("Stop tracking effective dates on %s", recordType.Label)}
+		if ranged > 0 {
+			step.Description += fmt.Sprintf(" and forget %s", plural(ranged, "stored range", "stored ranges"))
+		}
+		steps = append(steps, step)
+	}
 	return steps, nil
+}
+
+// overlappingEntitiesExist reports whether two live rows of the table would
+// share one entity with open ranges: rows no unique field tells apart,
+// scoped by parent for child types. It runs before the effective columns
+// exist, so it reads fields only.
+func overlappingEntitiesExist(ctx context.Context, conn sqlConn, recordType recordTypeDefinition) (bool, error) {
+	table := dialect.QuoteIdent(recordTypeTableName(recordType.Name))
+	hasTable, err := dialect.TableExists(ctx, conn, recordTypeTableName(recordType.Name))
+	if err != nil {
+		return false, internalError("check table", err)
+	}
+	if !hasTable {
+		return false, nil
+	}
+	conditions := []string{}
+	if recordType.kind() == kindMaster {
+		conditions = append(conditions, "`a`.`deleted_at` IS NULL", "`b`.`deleted_at` IS NULL")
+	}
+	if recordType.kind() == kindChild {
+		conditions = append(conditions, "(`a`.`parent_id` = `b`.`parent_id` OR (`a`.`parent_id` IS NULL AND `b`.`parent_id` IS NULL))")
+	}
+	for _, field := range recordType.Fields {
+		if !field.Unique {
+			continue
+		}
+		column := dialect.QuoteIdent(field.Name)
+		conditions = append(conditions, fmt.Sprintf("(`a`.%[1]s IS NULL OR `b`.%[1]s IS NULL OR `a`.%[1]s = `b`.%[1]s)", column))
+	}
+	if len(conditions) == 0 {
+		conditions = append(conditions, "1 = 1")
+	}
+	var shared bool
+	err = conn.QueryRowContext(ctx, fmt.Sprintf("SELECT EXISTS(SELECT 1 FROM %s AS `a` JOIN %s AS `b` ON `a`.`id` < `b`.`id` AND %s)", table, table, strings.Join(conditions, " AND "))).Scan(&shared)
+	if err != nil {
+		return false, internalError("check values", err)
+	}
+	return shared, nil
 }
 
 // Reasons clearPredicate gives for clearing stored values.
@@ -370,7 +481,7 @@ func migrateFields(ctx context.Context, conn sqlConn, recordType recordTypeDefin
 				return err
 			}
 		}
-		if err := ensureIndexes(ctx, conn, recordType.Name, field); err != nil {
+		if err := ensureIndexes(ctx, conn, recordType, field); err != nil {
 			return err
 		}
 		if value, ok := opts.Backfills[field.Name]; ok {
@@ -379,7 +490,46 @@ func migrateFields(ctx context.Context, conn sqlConn, recordType recordTypeDefin
 			}
 		}
 	}
+	if err := migrateTreeEffective(ctx, conn, recordType, previous); err != nil {
+		return err
+	}
 	return recalculateAfterSave(ctx, conn, recordType, previous)
+}
+
+// migrateTreeEffective applies tree and effective-date flag changes. Column
+// adds already happened in ensureSystemColumns; enabling a tree backfills
+// existing rows as top-level entries, while disabling drops the columns
+// (past the confirmation gate). Every statement tolerates the current
+// state, so a resume can repeat it.
+func migrateTreeEffective(ctx context.Context, conn sqlConn, recordType recordTypeDefinition, previous *recordTypeDefinition) error {
+	if previous == nil {
+		return nil
+	}
+	table := recordTypeTableName(recordType.Name)
+	quoted := dialect.QuoteIdent(table)
+	if recordType.Tree && !previous.Tree {
+		if _, err := conn.ExecContext(ctx, "UPDATE "+quoted+" SET `tree_path` = CONCAT('/', `id`, '/'), `tree_depth` = 0 WHERE `tree_path` IS NULL"); err != nil {
+			return err
+		}
+	}
+	if previous.Tree && !recordType.Tree {
+		if _, err := conn.ExecContext(ctx, dialect.DropForeignKey(table, recordTypeForeignKeyName(recordType.Name, "tree_parent_id"))); err != nil {
+			return err
+		}
+		for _, column := range []string{"tree_parent_id", "tree_path", "tree_depth"} {
+			if _, err := conn.ExecContext(ctx, dialect.DropColumn(table, column)); err != nil {
+				return err
+			}
+		}
+	}
+	if previous.EffectiveDated && !recordType.EffectiveDated {
+		for _, column := range []string{"effective_from", "effective_to"} {
+			if _, err := conn.ExecContext(ctx, dialect.DropColumn(table, column)); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 // describeSteps joins step descriptions for log lines.
@@ -400,15 +550,19 @@ func fieldIndexName(prefix, recordTypeName, fieldName string) string {
 
 // ensureIndexes makes the field's unique and plain indexes match its
 // attributes. A unique index serves lookups, so a unique field has no plain
-// one. Each statement checks the catalogue first, so a resume can repeat it.
-func ensureIndexes(ctx context.Context, conn sqlConn, recordTypeName string, field recordTypeField) error {
-	table := recordTypeTableName(recordTypeName)
+// one. On an effective-dated type unique means unique-at-a-time, enforced by
+// the overlap check instead of an index, because history rows share values
+// across disjoint ranges. Each statement checks the catalogue first, so a
+// resume can repeat it.
+func ensureIndexes(ctx context.Context, conn sqlConn, recordType recordTypeDefinition, field recordTypeField) error {
+	table := recordTypeTableName(recordType.Name)
+	unique := field.Unique && !recordType.EffectiveDated
 	for _, index := range []struct {
 		prefix string
 		want   bool
 		unique bool
-	}{{"uq", field.Unique, true}, {"ix", field.Index && !field.Unique, false}} {
-		name := fieldIndexName(index.prefix, recordTypeName, field.Name)
+	}{{"uq", unique, true}, {"ix", field.Index && !field.Unique, false}} {
+		name := fieldIndexName(index.prefix, recordType.Name, field.Name)
 		exists, err := dialect.IndexExists(ctx, conn, table, name)
 		if err != nil {
 			return err

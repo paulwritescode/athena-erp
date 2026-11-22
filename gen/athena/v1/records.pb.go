@@ -232,7 +232,16 @@ type Record struct {
 	// gets the original's name with a -1, -2 suffix.
 	Name string `protobuf:"bytes,14,opt,name=name,proto3" json:"name,omitempty"`
 	// Amendable documents only: the cancelled document this one replaces.
-	AmendedFrom   string `protobuf:"bytes,15,opt,name=amended_from,json=amendedFrom,proto3" json:"amended_from,omitempty"`
+	AmendedFrom string `protobuf:"bytes,15,opt,name=amended_from,json=amendedFrom,proto3" json:"amended_from,omitempty"`
+	// Tree Record Types only: the parent row's ID (empty for a top-level row),
+	// the depth below the top level, and the slash-joined path of IDs.
+	TreeParentId string `protobuf:"bytes,16,opt,name=tree_parent_id,json=treeParentId,proto3" json:"tree_parent_id,omitempty"`
+	TreeDepth    int64  `protobuf:"varint,17,opt,name=tree_depth,json=treeDepth,proto3" json:"tree_depth,omitempty"`
+	TreePath     string `protobuf:"bytes,18,opt,name=tree_path,json=treePath,proto3" json:"tree_path,omitempty"`
+	// Effective-dated Record Types only: the end-exclusive range as YYYY-MM-DD.
+	// Empty means open on that side.
+	EffectiveFrom string `protobuf:"bytes,19,opt,name=effective_from,json=effectiveFrom,proto3" json:"effective_from,omitempty"`
+	EffectiveTo   string `protobuf:"bytes,20,opt,name=effective_to,json=effectiveTo,proto3" json:"effective_to,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -372,6 +381,41 @@ func (x *Record) GetAmendedFrom() string {
 	return ""
 }
 
+func (x *Record) GetTreeParentId() string {
+	if x != nil {
+		return x.TreeParentId
+	}
+	return ""
+}
+
+func (x *Record) GetTreeDepth() int64 {
+	if x != nil {
+		return x.TreeDepth
+	}
+	return 0
+}
+
+func (x *Record) GetTreePath() string {
+	if x != nil {
+		return x.TreePath
+	}
+	return ""
+}
+
+func (x *Record) GetEffectiveFrom() string {
+	if x != nil {
+		return x.EffectiveFrom
+	}
+	return ""
+}
+
+func (x *Record) GetEffectiveTo() string {
+	if x != nil {
+		return x.EffectiveTo
+	}
+	return ""
+}
+
 type ListRecordsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	RecordTypeKey string                 `protobuf:"bytes,1,opt,name=record_type_key,json=recordTypeKey,proto3" json:"record_type_key,omitempty"`
@@ -379,12 +423,16 @@ type ListRecordsRequest struct {
 	PageSize int32 `protobuf:"varint,2,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
 	// Opaque cursor from a previous response.
 	PageToken string `protobuf:"bytes,3,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
-	// Child Record Types only: list the Records of this parent.
+	// Child Record Types: list the Records of this parent. Tree Record Types:
+	// list the direct children of this row.
 	ParentId string `protobuf:"bytes,4,opt,name=parent_id,json=parentId,proto3" json:"parent_id,omitempty"`
 	// Optional expression (spec 23.6) that must be true for a Record to be
 	// listed, for example doc.total > dec("100"). It runs in the database, so
 	// it may use only the parts of the language that translate to SQL.
-	Filter        string `protobuf:"bytes,5,opt,name=filter,proto3" json:"filter,omitempty"`
+	Filter string `protobuf:"bytes,5,opt,name=filter,proto3" json:"filter,omitempty"`
+	// Effective-dated Record Types only: list the rows effective on this
+	// YYYY-MM-DD date, resolved end-exclusive.
+	AsOf          string `protobuf:"bytes,6,opt,name=as_of,json=asOf,proto3" json:"as_of,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -450,6 +498,13 @@ func (x *ListRecordsRequest) GetParentId() string {
 func (x *ListRecordsRequest) GetFilter() string {
 	if x != nil {
 		return x.Filter
+	}
+	return ""
+}
+
+func (x *ListRecordsRequest) GetAsOf() string {
+	if x != nil {
+		return x.AsOf
 	}
 	return ""
 }
@@ -608,10 +663,15 @@ type CreateRecordRequest struct {
 	RecordTypeKey string                 `protobuf:"bytes,1,opt,name=record_type_key,json=recordTypeKey,proto3" json:"record_type_key,omitempty"`
 	Values        map[string]*FieldValue `protobuf:"bytes,2,rep,name=values,proto3" json:"values,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	// Required for a child Record Type: the Record that owns the new Record.
+	// Tree Record Types: the parent row, empty for a top-level row.
 	ParentId string `protobuf:"bytes,3,opt,name=parent_id,json=parentId,proto3" json:"parent_id,omitempty"`
 	// Submittable documents whose Record Type allows manual names only: the
 	// name to use instead of a series number. It must be unused. Logged.
-	Name          string `protobuf:"bytes,4,opt,name=name,proto3" json:"name,omitempty"`
+	Name string `protobuf:"bytes,4,opt,name=name,proto3" json:"name,omitempty"`
+	// Effective-dated Record Types only: the end-exclusive range as YYYY-MM-DD.
+	// Empty means open on that side.
+	EffectiveFrom string `protobuf:"bytes,5,opt,name=effective_from,json=effectiveFrom,proto3" json:"effective_from,omitempty"`
+	EffectiveTo   string `protobuf:"bytes,6,opt,name=effective_to,json=effectiveTo,proto3" json:"effective_to,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -674,6 +734,20 @@ func (x *CreateRecordRequest) GetName() string {
 	return ""
 }
 
+func (x *CreateRecordRequest) GetEffectiveFrom() string {
+	if x != nil {
+		return x.EffectiveFrom
+	}
+	return ""
+}
+
+func (x *CreateRecordRequest) GetEffectiveTo() string {
+	if x != nil {
+		return x.EffectiveTo
+	}
+	return ""
+}
+
 type CreateRecordResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Record        *Record                `protobuf:"bytes,1,opt,name=record,proto3" json:"record,omitempty"`
@@ -725,8 +799,15 @@ type UpdateRecordRequest struct {
 	Id               string                 `protobuf:"bytes,2,opt,name=id,proto3" json:"id,omitempty"`
 	ExpectedRevision int64                  `protobuf:"varint,3,opt,name=expected_revision,json=expectedRevision,proto3" json:"expected_revision,omitempty"`
 	Values           map[string]*FieldValue `protobuf:"bytes,4,rep,name=values,proto3" json:"values,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// Tree Record Types only: move the row under a new parent. Unset leaves
+	// the parent alone; empty moves the row to the top level.
+	TreeParentId *string `protobuf:"bytes,5,opt,name=tree_parent_id,json=treeParentId,proto3,oneof" json:"tree_parent_id,omitempty"`
+	// Effective-dated Record Types only: replace the end-exclusive range side.
+	// Unset leaves the side alone; empty opens it.
+	EffectiveFrom *string `protobuf:"bytes,6,opt,name=effective_from,json=effectiveFrom,proto3,oneof" json:"effective_from,omitempty"`
+	EffectiveTo   *string `protobuf:"bytes,7,opt,name=effective_to,json=effectiveTo,proto3,oneof" json:"effective_to,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *UpdateRecordRequest) Reset() {
@@ -785,6 +866,27 @@ func (x *UpdateRecordRequest) GetValues() map[string]*FieldValue {
 		return x.Values
 	}
 	return nil
+}
+
+func (x *UpdateRecordRequest) GetTreeParentId() string {
+	if x != nil && x.TreeParentId != nil {
+		return *x.TreeParentId
+	}
+	return ""
+}
+
+func (x *UpdateRecordRequest) GetEffectiveFrom() string {
+	if x != nil && x.EffectiveFrom != nil {
+		return *x.EffectiveFrom
+	}
+	return ""
+}
+
+func (x *UpdateRecordRequest) GetEffectiveTo() string {
+	if x != nil && x.EffectiveTo != nil {
+		return *x.EffectiveTo
+	}
+	return ""
 }
 
 type UpdateRecordResponse struct {
@@ -2526,7 +2628,7 @@ const file_athena_v1_records_proto_rawDesc = "" +
 	"ImageValue\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\x12\x12\n" +
 	"\x04hash\x18\x02 \x01(\tR\x04hash\x12\x19\n" +
-	"\balt_text\x18\x03 \x01(\tR\aaltText\"\x93\x04\n" +
+	"\balt_text\x18\x03 \x01(\tR\aaltText\"\xbf\x05\n" +
 	"\x06Record\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1a\n" +
 	"\brevision\x18\x02 \x01(\x03R\brevision\x125\n" +
@@ -2549,17 +2651,24 @@ const file_athena_v1_records_proto_rawDesc = "" +
 	"\x03idx\x18\f \x01(\x03R\x03idx\x12\x1a\n" +
 	"\bdocstate\x18\r \x01(\x05R\bdocstate\x12\x12\n" +
 	"\x04name\x18\x0e \x01(\tR\x04name\x12!\n" +
-	"\famended_from\x18\x0f \x01(\tR\vamendedFrom\x1aP\n" +
+	"\famended_from\x18\x0f \x01(\tR\vamendedFrom\x12$\n" +
+	"\x0etree_parent_id\x18\x10 \x01(\tR\ftreeParentId\x12\x1d\n" +
+	"\n" +
+	"tree_depth\x18\x11 \x01(\x03R\ttreeDepth\x12\x1b\n" +
+	"\ttree_path\x18\x12 \x01(\tR\btreePath\x12%\n" +
+	"\x0eeffective_from\x18\x13 \x01(\tR\reffectiveFrom\x12!\n" +
+	"\feffective_to\x18\x14 \x01(\tR\veffectiveTo\x1aP\n" +
 	"\vValuesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12+\n" +
-	"\x05value\x18\x02 \x01(\v2\x15.athena.v1.FieldValueR\x05value:\x028\x01\"\xad\x01\n" +
+	"\x05value\x18\x02 \x01(\v2\x15.athena.v1.FieldValueR\x05value:\x028\x01\"\xc2\x01\n" +
 	"\x12ListRecordsRequest\x12&\n" +
 	"\x0frecord_type_key\x18\x01 \x01(\tR\rrecordTypeKey\x12\x1b\n" +
 	"\tpage_size\x18\x02 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
 	"page_token\x18\x03 \x01(\tR\tpageToken\x12\x1b\n" +
 	"\tparent_id\x18\x04 \x01(\tR\bparentId\x12\x16\n" +
-	"\x06filter\x18\x05 \x01(\tR\x06filter\"j\n" +
+	"\x06filter\x18\x05 \x01(\tR\x06filter\x12\x13\n" +
+	"\x05as_of\x18\x06 \x01(\tR\x04asOf\"j\n" +
 	"\x13ListRecordsResponse\x12+\n" +
 	"\arecords\x18\x01 \x03(\v2\x11.athena.v1.RecordR\arecords\x12&\n" +
 	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"J\n" +
@@ -2567,25 +2676,33 @@ const file_athena_v1_records_proto_rawDesc = "" +
 	"\x0frecord_type_key\x18\x01 \x01(\tR\rrecordTypeKey\x12\x0e\n" +
 	"\x02id\x18\x02 \x01(\tR\x02id\">\n" +
 	"\x11GetRecordResponse\x12)\n" +
-	"\x06record\x18\x01 \x01(\v2\x11.athena.v1.RecordR\x06record\"\x84\x02\n" +
+	"\x06record\x18\x01 \x01(\v2\x11.athena.v1.RecordR\x06record\"\xce\x02\n" +
 	"\x13CreateRecordRequest\x12&\n" +
 	"\x0frecord_type_key\x18\x01 \x01(\tR\rrecordTypeKey\x12B\n" +
 	"\x06values\x18\x02 \x03(\v2*.athena.v1.CreateRecordRequest.ValuesEntryR\x06values\x12\x1b\n" +
 	"\tparent_id\x18\x03 \x01(\tR\bparentId\x12\x12\n" +
-	"\x04name\x18\x04 \x01(\tR\x04name\x1aP\n" +
+	"\x04name\x18\x04 \x01(\tR\x04name\x12%\n" +
+	"\x0eeffective_from\x18\x05 \x01(\tR\reffectiveFrom\x12!\n" +
+	"\feffective_to\x18\x06 \x01(\tR\veffectiveTo\x1aP\n" +
 	"\vValuesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12+\n" +
 	"\x05value\x18\x02 \x01(\v2\x15.athena.v1.FieldValueR\x05value:\x028\x01\"A\n" +
 	"\x14CreateRecordResponse\x12)\n" +
-	"\x06record\x18\x01 \x01(\v2\x11.athena.v1.RecordR\x06record\"\x90\x02\n" +
+	"\x06record\x18\x01 \x01(\v2\x11.athena.v1.RecordR\x06record\"\xc6\x03\n" +
 	"\x13UpdateRecordRequest\x12&\n" +
 	"\x0frecord_type_key\x18\x01 \x01(\tR\rrecordTypeKey\x12\x0e\n" +
 	"\x02id\x18\x02 \x01(\tR\x02id\x12+\n" +
 	"\x11expected_revision\x18\x03 \x01(\x03R\x10expectedRevision\x12B\n" +
-	"\x06values\x18\x04 \x03(\v2*.athena.v1.UpdateRecordRequest.ValuesEntryR\x06values\x1aP\n" +
+	"\x06values\x18\x04 \x03(\v2*.athena.v1.UpdateRecordRequest.ValuesEntryR\x06values\x12)\n" +
+	"\x0etree_parent_id\x18\x05 \x01(\tH\x00R\ftreeParentId\x88\x01\x01\x12*\n" +
+	"\x0eeffective_from\x18\x06 \x01(\tH\x01R\reffectiveFrom\x88\x01\x01\x12&\n" +
+	"\feffective_to\x18\a \x01(\tH\x02R\veffectiveTo\x88\x01\x01\x1aP\n" +
 	"\vValuesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12+\n" +
-	"\x05value\x18\x02 \x01(\v2\x15.athena.v1.FieldValueR\x05value:\x028\x01\"A\n" +
+	"\x05value\x18\x02 \x01(\v2\x15.athena.v1.FieldValueR\x05value:\x028\x01B\x11\n" +
+	"\x0f_tree_parent_idB\x11\n" +
+	"\x0f_effective_fromB\x0f\n" +
+	"\r_effective_to\"A\n" +
 	"\x14UpdateRecordResponse\x12)\n" +
 	"\x06record\x18\x01 \x01(\v2\x11.athena.v1.RecordR\x06record\"z\n" +
 	"\x13DeleteRecordRequest\x12&\n" +
@@ -2865,6 +2982,7 @@ func file_athena_v1_records_proto_init() {
 		(*FieldValue_NullValue)(nil),
 		(*FieldValue_ImageValue)(nil),
 	}
+	file_athena_v1_records_proto_msgTypes[9].OneofWrappers = []any{}
 	file_athena_v1_records_proto_msgTypes[14].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{

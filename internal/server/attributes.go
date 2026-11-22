@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"time"
 
 	athenav1 "athena-erp/gen/athena/v1"
 	"athena-erp/internal/types"
@@ -108,4 +109,46 @@ func sameEnumValues(a, b []enumValue) bool {
 		}
 	}
 	return true
+}
+
+// parseEffectiveRange validates an end-exclusive effective range written as
+// YYYY-MM-DD dates and returns the database arguments, nil for an open side.
+// An empty range is fully open. Equal bounds are empty, so from must sort
+// strictly before to.
+func parseEffectiveRange(from, to string) (any, any, error) {
+	from = strings.TrimSpace(from)
+	to = strings.TrimSpace(to)
+	if from == "" && to == "" {
+		return nil, nil, nil
+	}
+	if from != "" {
+		if _, err := time.Parse(time.DateOnly, from); err != nil {
+			return nil, nil, invalid("effective from must be a date as YYYY-MM-DD")
+		}
+	}
+	if to != "" {
+		if _, err := time.Parse(time.DateOnly, to); err != nil {
+			return nil, nil, invalid("effective to must be a date as YYYY-MM-DD")
+		}
+	}
+	if from != "" && to != "" && from >= to {
+		return nil, nil, invalid("effective from must be before effective to")
+	}
+	var fromArg, toArg any
+	if from != "" {
+		fromArg = from
+	}
+	if to != "" {
+		toArg = to
+	}
+	return fromArg, toArg, nil
+}
+
+// parseAsOf validates an "as of" date for effective-dated lists and lookups.
+func parseAsOf(asOf string) (string, error) {
+	asOf = strings.TrimSpace(asOf)
+	if _, err := time.Parse(time.DateOnly, asOf); err != nil {
+		return "", invalid("as of must be a date as YYYY-MM-DD")
+	}
+	return asOf, nil
 }

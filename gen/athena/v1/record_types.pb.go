@@ -421,9 +421,16 @@ type RecordType struct {
 	// The form layout: sections of fields, text, images and art. Stored with
 	// the definition; a layout-only save bumps the revision without touching
 	// the table.
-	Layout        *FormLayout `protobuf:"bytes,21,opt,name=layout,proto3" json:"layout,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Layout *FormLayout `protobuf:"bytes,21,opt,name=layout,proto3" json:"layout,omitempty"`
+	// Master and document Record Types only: rows form a tree through
+	// tree_parent_id. The kernel stores the materialised path and depth and
+	// refuses cycles.
+	Tree bool `protobuf:"varint,22,opt,name=tree,proto3" json:"tree,omitempty"`
+	// Rows carry an end-exclusive effective range. Overlapping ranges for one
+	// entity are refused; lists resolve "as of" end-exclusive.
+	EffectiveDated bool `protobuf:"varint,23,opt,name=effective_dated,json=effectiveDated,proto3" json:"effective_dated,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *RecordType) Reset() {
@@ -601,6 +608,20 @@ func (x *RecordType) GetLayout() *FormLayout {
 		return x.Layout
 	}
 	return nil
+}
+
+func (x *RecordType) GetTree() bool {
+	if x != nil {
+		return x.Tree
+	}
+	return false
+}
+
+func (x *RecordType) GetEffectiveDated() bool {
+	if x != nil {
+		return x.EffectiveDated
+	}
+	return false
 }
 
 // FormLayout arranges a Record Type's fields into titled sections. Fields
@@ -1318,7 +1339,8 @@ func (x *PlanRecordTypeSaveRequest) GetExpectedRevision() int64 {
 type MigrationStep struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// create_table, add_field, remove_field, change_type, change_link,
-	// require_field, add_unique, drop_unique, add_index, drop_index.
+	// require_field, add_unique, drop_unique, add_index, drop_index,
+	// enable_tree, disable_tree, enable_effective, disable_effective.
 	Kind        string `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
 	FieldKey    string `protobuf:"bytes,2,opt,name=field_key,json=fieldKey,proto3" json:"field_key,omitempty"`
 	Description string `protobuf:"bytes,3,opt,name=description,proto3" json:"description,omitempty"`
@@ -1649,7 +1671,7 @@ const file_athena_v1_record_types_proto_rawDesc = "" +
 	"\n" +
 	"depends_on\x18\x19 \x01(\tR\tdependsOn\x12)\n" +
 	"\x10permission_level\x18\x1a \x01(\x05R\x0fpermissionLevelB\b\n" +
-	"\x06_scale\"\xd5\x05\n" +
+	"\x06_scale\"\x92\x06\n" +
 	"\n" +
 	"RecordType\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
@@ -1676,7 +1698,9 @@ const file_athena_v1_record_types_proto_rawDesc = "" +
 	"\n" +
 	"updated_by\x18\x13 \x01(\tR\tupdatedBy\x12\x19\n" +
 	"\bpack_key\x18\x14 \x01(\tR\apackKey\x12-\n" +
-	"\x06layout\x18\x15 \x01(\v2\x15.athena.v1.FormLayoutR\x06layout\"@\n" +
+	"\x06layout\x18\x15 \x01(\v2\x15.athena.v1.FormLayoutR\x06layout\x12\x12\n" +
+	"\x04tree\x18\x16 \x01(\bR\x04tree\x12'\n" +
+	"\x0feffective_dated\x18\x17 \x01(\bR\x0eeffectiveDated\"@\n" +
 	"\n" +
 	"FormLayout\x122\n" +
 	"\bsections\x18\x01 \x03(\v2\x16.athena.v1.FormSectionR\bsections\"\xb0\x01\n" +

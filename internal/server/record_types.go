@@ -36,11 +36,16 @@ type recordTypeDefinition struct {
 	// NamingSeries, GapFree and AllowManualName configure document names
 	// (spec 10.4, 24.3; ADR-0012). LabelField names the field that labels a
 	// Record in pickers.
-	NamingSeries    string            `json:"naming_series,omitempty"`
-	GapFree         bool              `json:"gap_free,omitempty"`
-	AllowManualName bool              `json:"allow_manual_name,omitempty"`
-	LabelField      string            `json:"label_field,omitempty"`
-	Fields          []recordTypeField `json:"fields"`
+	NamingSeries    string `json:"naming_series,omitempty"`
+	GapFree         bool   `json:"gap_free,omitempty"`
+	AllowManualName bool   `json:"allow_manual_name,omitempty"`
+	LabelField      string `json:"label_field,omitempty"`
+	// Tree organises rows into a hierarchy through tree_parent_id; the
+	// kernel stores tree_path and tree_depth. EffectiveDated gives rows an
+	// end-exclusive effective range (ADR-0029).
+	Tree           bool              `json:"tree,omitempty"`
+	EffectiveDated bool              `json:"effective_dated,omitempty"`
+	Fields         []recordTypeField `json:"fields"`
 	// Layout arranges the form. Nil means definition order.
 	Layout *formLayout `json:"layout,omitempty"`
 	// Revision is the active revision. It is read from the revision column,
@@ -100,7 +105,7 @@ var (
 // reservedColumns are the system columns the kernel adds to Record Type tables
 // (see systemColumns), reserved for every kind so a field never collides with
 // one. revision is the spec's version field.
-var reservedColumns = map[string]bool{"id": true, "revision": true, "created_at": true, "updated_at": true, "created_by": true, "modified_by": true, "owner": true, "deleted_at": true, "def_version": true, "request_id": true, "parent_id": true, "idx": true, "docstate": true, "amended_from": true}
+var reservedColumns = map[string]bool{"id": true, "revision": true, "created_at": true, "updated_at": true, "created_by": true, "modified_by": true, "owner": true, "deleted_at": true, "def_version": true, "request_id": true, "parent_id": true, "idx": true, "docstate": true, "amended_from": true, "tree_parent_id": true, "tree_path": true, "tree_depth": true, "effective_from": true, "effective_to": true}
 
 // Operation actions and states in athena_record_type_operations.
 const (
@@ -775,6 +780,9 @@ func validateRecordType(ctx context.Context, conn sqlConn, recordType recordType
 	if err := validateLifecycle(ctx, conn, recordType, previous); err != nil {
 		return err
 	}
+	if err := validateTreeEffective(recordType); err != nil {
+		return err
+	}
 	if len(recordType.Fields) == 0 {
 		return invalid("add at least one field")
 	}
@@ -1145,12 +1153,54 @@ func pendingOperations(ctx context.Context, conn sqlConn) ([]pendingOperation, e
 	return operations, rows.Err()
 }
 
+// kernelColumns lists every kernel column of the Record Type's table: the
+// base system columns plus the tree and effective-date columns when the
+// flags are set. It wraps systemColumns (which lives with the lifecycle
+// code) so the tree columns stay beside the tree logic.
+func kernelColumns(recordType recordTypeDefinition) []store.Column {
+	columns := recordType.systemColumns()
+	if recordType.Tree {
+		parent, _ := dialect.ColumnType("Link")
+		columns = append(columns, store.Column{Name: "tree_parent_id", Type: parent},
+			store.Column{Name: "tree_path", Type: store.TreePathColumnType},
+			store.Column{Name: "tree_depth", Type: dialect.BigIntType()})
+	}
+	if recordType.EffectiveDated {
+		date, _ := dialect.ColumnType("Date")
+		columns = append(columns, store.Column{Name: "effective_from", Type: date},
+			store.Column{Name: "effective_to", Type: date})
+	}
+	return columns
+}
+
+// validateTreeEffective checks the tree and effective-date flags against the
+// kind. Child Record Types already nest under a parent and settings hold one
+// row, so neither can be a tree; any kind can be effective-dated, but an
+// amendable document cannot, because amend copies values into a new row
+// without splitting ranges.
+func validateTreeEffective(recordType recordTypeDefinition) error {
+	if recordType.EffectiveDated && recordType.Amendable {
+		return invalid("an amendable document cannot track effective dates: amend copies values without splitting their range")
+	}
+	if !recordType.Tree {
+		return nil
+	}
+	switch recordType.kind() {
+	case kindMaster, kindDocument:
+		return nil
+	case kindChild:
+		return invalid("a child Record Type already nests under its parent and cannot be a tree")
+	default:
+		return invalid("a setting holds one record and cannot be a tree")
+	}
+}
+
 // applySchema creates the Record Type's table if needed, then applies field
 // changes from the previous revision. Every statement is safe to repeat.
 // Field columns are nullable; Go enforces required fields.
 func applySchema(ctx context.Context, conn sqlConn, recordType recordTypeDefinition, previous *recordTypeDefinition, opts saveOptions) error {
 	table := recordTypeTableName(recordType.Name)
-	columns := recordType.systemColumns()
+	columns := kernelColumns(recordType)
 	for _, field := range recordType.Fields {
 		columnType, err := dialect.ColumnType(field.Type)
 		if err != nil {
@@ -1164,7 +1214,7 @@ func applySchema(ctx context.Context, conn sqlConn, recordType recordTypeDefinit
 			return err
 		}
 	}
-	if err := ensureSystemColumns(ctx, conn, table, recordType.systemColumns()); err != nil {
+	if err := ensureSystemColumns(ctx, conn, table, kernelColumns(recordType)); err != nil {
 		return err
 	}
 	if err := ensureLifecycle(ctx, conn, recordType); err != nil {
@@ -1172,6 +1222,11 @@ func applySchema(ctx context.Context, conn sqlConn, recordType recordTypeDefinit
 	}
 	if recordType.kind() == kindChild {
 		if err := ensureLink(ctx, conn, recordType.Name, recordTypeField{Name: "parent_id", Type: "Link", TargetRecordType: recordType.ParentRecordType}); err != nil {
+			return err
+		}
+	}
+	if recordType.Tree {
+		if err := ensureLink(ctx, conn, recordType.Name, recordTypeField{Name: "tree_parent_id", Type: "Link", TargetRecordType: recordType.Name}); err != nil {
 			return err
 		}
 	}
@@ -1206,7 +1261,8 @@ func recordTypeForeignKeyName(recordTypeName, fieldName string) string {
 func recordTypeFromProto(recordType *athenav1.RecordType) recordTypeDefinition {
 	definition := recordTypeDefinition{Name: recordType.GetKey(), Label: strings.TrimSpace(recordType.GetLabel()), Description: strings.TrimSpace(recordType.GetDescription()),
 		Kind: normalizeKind(recordType.GetKind()), Class: recordType.GetClass(), ParentRecordType: recordType.GetParentRecordTypeKey(), Submittable: recordType.GetSubmittable(), Amendable: recordType.GetAmendable(),
-		NamingSeries: strings.TrimSpace(recordType.GetNamingSeries()), GapFree: recordType.GetGapFree(), AllowManualName: recordType.GetAllowManualName(), LabelField: recordType.GetLabelField()}
+		NamingSeries: strings.TrimSpace(recordType.GetNamingSeries()), GapFree: recordType.GetGapFree(), AllowManualName: recordType.GetAllowManualName(), LabelField: recordType.GetLabelField(),
+		Tree: recordType.GetTree(), EffectiveDated: recordType.GetEffectiveDated()}
 	for _, field := range recordType.GetFields() {
 		out := recordTypeField{Name: field.GetKey(), Label: strings.TrimSpace(field.GetLabel()), Type: field.GetType(), Required: field.GetRequired(), TargetRecordType: field.GetTargetRecordTypeKey(),
 			Unique: field.GetUnique(), Default: field.GetDefaultValue(), Min: strings.TrimSpace(field.GetMin()), Max: strings.TrimSpace(field.GetMax()), Pattern: field.GetPattern(), MaxLength: int(field.GetMaxLength()),
@@ -1228,7 +1284,8 @@ func recordTypeFromProto(recordType *athenav1.RecordType) recordTypeDefinition {
 func recordTypeToProto(recordType recordTypeDefinition, revision int64) *athenav1.RecordType {
 	result := &athenav1.RecordType{Key: recordType.Name, Label: recordType.Label, Description: recordType.Description, Revision: revision,
 		Kind: recordType.kind(), Class: recordType.Class, ParentRecordTypeKey: recordType.ParentRecordType, Submittable: recordType.Submittable, Amendable: recordType.Amendable,
-		NamingSeries: recordType.NamingSeries, GapFree: recordType.GapFree, AllowManualName: recordType.AllowManualName, LabelField: recordType.LabelField}
+		NamingSeries: recordType.NamingSeries, GapFree: recordType.GapFree, AllowManualName: recordType.AllowManualName, LabelField: recordType.LabelField,
+		Tree: recordType.Tree, EffectiveDated: recordType.EffectiveDated}
 	for _, field := range recordType.Fields {
 		out := &athenav1.RecordTypeField{Key: field.Name, Label: field.Label, Type: field.Type, Required: field.Required, TargetRecordTypeKey: field.TargetRecordType,
 			Unique: field.Unique, DefaultValue: field.Default, Min: field.Min, Max: field.Max, Pattern: field.Pattern, MaxLength: int32(field.MaxLength),

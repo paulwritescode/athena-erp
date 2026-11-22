@@ -156,6 +156,13 @@ message RecordType {
   // the definition; a layout-only save bumps the revision without touching
   // the table.
   FormLayout layout = 21;
+  // Master and document Record Types only: rows form a tree through
+  // tree_parent_id. The kernel stores the materialised path and depth and
+  // refuses cycles.
+  bool tree = 22;
+  // Rows carry an end-exclusive effective range. Overlapping ranges for one
+  // entity are refused; lists resolve "as of" end-exclusive.
+  bool effective_dated = 23;
 }
 
 // FormLayout arranges a Record Type's fields into titled sections. Fields
@@ -248,7 +255,8 @@ message PlanRecordTypeSaveRequest {
 // MigrationStep is one change the save makes to the Record Type's table.
 message MigrationStep {
   // create_table, add_field, remove_field, change_type, change_link,
-  // require_field, add_unique, drop_unique, add_index, drop_index.
+  // require_field, add_unique, drop_unique, add_index, drop_index,
+  // enable_tree, disable_tree, enable_effective, disable_effective.
   string kind = 1;
   string field_key = 2;
   string description = 3;

@@ -74,14 +74,30 @@ func (s recordService) ListRecords(ctx context.Context, req *athenav1.ListRecord
 	}
 	// UUIDv7 IDs sort by creation time, so the primary key is the keyset cursor.
 	where, args := "`id` > ?", []any{after}
-	if recordType.kind() == kindChild && req.GetParentId() != "" {
+	if req.GetParentId() != "" {
 		if _, err := uuid.Parse(req.GetParentId()); err != nil {
 			return nil, invalid("parent_id must be a record ID")
 		}
-		where += " AND `parent_id` = ?"
+		switch {
+		case recordType.kind() == kindChild:
+			where += " AND `parent_id` = ?"
+		case recordType.Tree:
+			where += " AND `tree_parent_id` = ?"
+		default:
+			return nil, invalid("only child and tree Record Types have a parent")
+		}
 		args = append(args, req.GetParentId())
-	} else if req.GetParentId() != "" {
-		return nil, invalid("only child Record Types have a parent")
+	}
+	if req.GetAsOf() != "" {
+		if !recordType.EffectiveDated {
+			return nil, invalid(fmt.Sprintf("%s does not track effective dates", recordType.Label))
+		}
+		asOf, err := parseAsOf(req.GetAsOf())
+		if err != nil {
+			return nil, err
+		}
+		where += " AND " + asOfPredicate
+		args = append(args, asOf, asOf)
 	}
 	if live := liveClause(dialect, recordType); live != "" {
 		where += " AND " + live
@@ -175,14 +191,20 @@ func (s recordService) CreateRecord(ctx context.Context, req *athenav1.CreateRec
 	if err != nil {
 		return nil, internalError("generate record ID", err)
 	}
-	if recordType.kind() != kindChild && req.GetParentId() != "" {
-		return nil, invalid("only child Record Types have a parent")
+	if req.GetParentId() != "" && recordType.kind() != kindChild && !recordType.Tree {
+		return nil, invalid("only child and tree Record Types have a parent")
+	}
+	if !recordType.EffectiveDated && (req.GetEffectiveFrom() != "" || req.GetEffectiveTo() != "") {
+		return nil, invalid(fmt.Sprintf("%s does not track effective dates", recordType.Label))
 	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, internalError("create record", err)
 	}
 	defer func() { _ = tx.Rollback() }()
+	if err := serializeTypeWrites(ctx, tx, recordType); err != nil {
+		return nil, err
+	}
 	system := map[string]any{"created_by": actorName(ctx), "modified_by": actorName(ctx), "def_version": recordType.Revision, "request_id": requestID, "owner": actorName(ctx), "docstate": int32(lifecycle.Draft), "name": id.String()}
 	switch recordType.kind() {
 	case kindSetting:
@@ -198,6 +220,25 @@ func (s recordService) CreateRecord(ctx context.Context, req *athenav1.CreateRec
 			return nil, err
 		}
 		system["parent_id"], system["idx"] = req.GetParentId(), idx
+	}
+	if recordType.Tree {
+		if req.GetParentId() == "" {
+			system["tree_path"], system["tree_depth"] = treeRootPath(id.String()), 0
+		} else {
+			parentPath, parentDepth, err := loadTreeParent(ctx, tx, recordType, req.GetParentId())
+			if err != nil {
+				return nil, err
+			}
+			system["tree_parent_id"] = req.GetParentId()
+			system["tree_path"], system["tree_depth"] = parentPath+id.String()+"/", parentDepth+1
+		}
+	}
+	var fromArg, toArg any
+	if recordType.EffectiveDated {
+		if fromArg, toArg, err = parseEffectiveRange(req.GetEffectiveFrom(), req.GetEffectiveTo()); err != nil {
+			return nil, err
+		}
+		system["effective_from"], system["effective_to"] = fromArg, toArg
 	}
 	name, err := manualName(ctx, tx, recordType, req.GetName())
 	if err != nil {
@@ -224,6 +265,11 @@ func (s recordService) CreateRecord(ctx context.Context, req *athenav1.CreateRec
 	changed := changedKeys(columns, args)
 	if err := checkUnique(ctx, tx, recordType, columns, args, ""); err != nil {
 		return nil, err
+	}
+	if recordType.EffectiveDated {
+		if err := checkEffectiveOverlap(ctx, tx, recordType, columns, args, nil, id.String(), req.GetParentId(), fromArg, toArg); err != nil {
+			return nil, err
+		}
 	}
 	if err := checkLinkTargets(ctx, tx, recordType, columns, args); err != nil {
 		return nil, err
@@ -263,7 +309,7 @@ func (s recordService) CreateRecord(ctx context.Context, req *athenav1.CreateRec
 // kernel's values by column name; columns and args come from bindValues.
 func insertRow(ctx context.Context, tx *sql.Tx, recordType recordTypeDefinition, id string, system map[string]any, columns []string, args []any) error {
 	insertColumns, insertArgs := []string{dialect.QuoteIdent("id")}, []any{id}
-	for _, column := range recordType.systemColumns() {
+	for _, column := range kernelColumns(recordType) {
 		insertColumns = append(insertColumns, dialect.QuoteIdent(column.Name))
 		insertArgs = append(insertArgs, system[column.Name])
 	}
@@ -328,6 +374,12 @@ func nextChildIndex(ctx context.Context, tx *sql.Tx, recordType recordTypeDefini
 // get a message naming the field. The unique index is the final guard against
 // a race. A soft-deleted Master keeps its values reserved (the index sees it).
 func checkUnique(ctx context.Context, tx *sql.Tx, recordType recordTypeDefinition, columns []string, args []any, selfID string) error {
+	// On an effective-dated type unique means unique-at-a-time: history rows
+	// share values across disjoint ranges, and checkEffectiveOverlap owns
+	// that check with its own message.
+	if recordType.EffectiveDated {
+		return nil
+	}
 	labels := map[string]string{}
 	unique := map[string]bool{}
 	for _, field := range recordType.Fields {
@@ -358,6 +410,242 @@ func checkUnique(ctx context.Context, tx *sql.Tx, recordType recordTypeDefinitio
 	return nil
 }
 
+// serializeTypeWrites locks the Record Type's definition row, so writes to
+// tree and effective-dated tables run one at a time per type. The parent,
+// cycle and overlap checks read rows another write could move, and no index
+// guards them the way a unique index guards checkUnique; the lock closes
+// that race. It is always taken before any row lock, so writers cannot
+// deadlock on it.
+func serializeTypeWrites(ctx context.Context, tx *sql.Tx, recordType recordTypeDefinition) error {
+	if !recordType.Tree && !recordType.EffectiveDated {
+		return nil
+	}
+	var revision int64
+	if err := tx.QueryRowContext(ctx, `SELECT revision FROM athena_record_types WHERE name = ? `+dialect.ForUpdate(), recordType.Name).Scan(&revision); err != nil {
+		return internalError("lock Record Type", err)
+	}
+	return nil
+}
+
+// treeRootPath is the path of a top-level row. IDs hold no slashes, so the
+// join is unambiguous and a path prefix always names a subtree.
+func treeRootPath(id string) string { return "/" + id + "/" }
+
+// loadTreeParent locks the parent row, refuses a missing or deleted parent,
+// repairs a missing path and returns the parent's path and depth.
+func loadTreeParent(ctx context.Context, tx *sql.Tx, recordType recordTypeDefinition, parentID string) (string, int64, error) {
+	if _, err := uuid.Parse(parentID); err != nil {
+		return "", 0, invalid("the parent must be a record ID")
+	}
+	table := dialect.QuoteIdent(recordTypeTableName(recordType.Name))
+	query := "SELECT `tree_parent_id`, `tree_path`, `tree_depth` FROM " + table + " WHERE `id` = ?"
+	if live := liveClause(dialect, recordType); live != "" {
+		query += " AND " + live
+	}
+	var grandparent, path sql.NullString
+	var depth sql.NullInt64
+	switch err := tx.QueryRowContext(ctx, query+" "+dialect.ForUpdate(), parentID).Scan(&grandparent, &path, &depth); {
+	case errors.Is(err, sql.ErrNoRows):
+		return "", 0, invalid(fmt.Sprintf("the %s that should be the parent does not exist", recordType.Label))
+	case err != nil:
+		return "", 0, internalError("check parent", err)
+	}
+	if path.String != "" {
+		return path.String, depth.Int64, nil
+	}
+	return repairTreePath(ctx, tx, recordType, parentID, grandparent.String)
+}
+
+// repairTreePath recomputes the path and depth of id from the stored parent
+// links, healing rows written before paths existed. It walks up to the
+// first ancestor with a path (or a top-level row) and writes back down;
+// the caller holds the type lock, so the chain cannot move underneath it.
+func repairTreePath(ctx context.Context, tx *sql.Tx, recordType recordTypeDefinition, id, parentID string) (string, int64, error) {
+	table := dialect.QuoteIdent(recordTypeTableName(recordType.Name))
+	chain := []string{id}
+	next := parentID
+	base, level := "", int64(0)
+	for range 100 {
+		if next == "" {
+			base, level = "/", -1
+			break
+		}
+		var grandparent, path sql.NullString
+		var depth sql.NullInt64
+		switch err := tx.QueryRowContext(ctx, "SELECT `tree_parent_id`, `tree_path`, `tree_depth` FROM "+table+" WHERE `id` = ? "+dialect.ForUpdate(), next).Scan(&grandparent, &path, &depth); {
+		case errors.Is(err, sql.ErrNoRows):
+			return "", 0, internalError("repair tree path", fmt.Errorf("parent %s is gone", next))
+		case err != nil:
+			return "", 0, internalError("repair tree path", err)
+		}
+		for _, have := range chain {
+			if have == next {
+				return "", 0, internalError("repair tree path", fmt.Errorf("cycle through %s", next))
+			}
+		}
+		if path.String != "" {
+			base, level = path.String, depth.Int64
+			break
+		}
+		chain = append(chain, next)
+		next = grandparent.String
+	}
+	if base == "" {
+		return "", 0, internalError("repair tree path", errors.New("the parent chain is deeper than 100"))
+	}
+	var got string
+	var gotDepth int64
+	for i := len(chain) - 1; i >= 0; i-- {
+		level++
+		got, gotDepth = base+chain[i]+"/", level
+		if _, err := tx.ExecContext(ctx, "UPDATE "+table+" SET `tree_path` = ?, `tree_depth` = ? WHERE `id` = ?", got, gotDepth, chain[i]); err != nil {
+			return "", 0, internalError("repair tree path", err)
+		}
+	}
+	return got, gotDepth, nil
+}
+
+// moveTreeSubtree rewrites the paths of the descendants of id after a move.
+// Paths hold UUIDs only, so the LIKE prefix matches exactly the subtree.
+func moveTreeSubtree(ctx context.Context, tx *sql.Tx, recordType recordTypeDefinition, id, oldPrefix, newPrefix string, delta int64) error {
+	table := dialect.QuoteIdent(recordTypeTableName(recordType.Name))
+	_, err := tx.ExecContext(ctx, "UPDATE "+table+" SET `tree_path` = CONCAT(?, SUBSTRING(`tree_path`, ?)), `tree_depth` = `tree_depth` + ? WHERE `tree_path` LIKE ? AND `id` <> ?",
+		newPrefix, len(oldPrefix)+1, delta, oldPrefix+"%", id)
+	if err != nil {
+		return internalError("move record", err)
+	}
+	return nil
+}
+
+// kernelAssign is one kernel column written by an update alongside fields.
+type kernelAssign struct {
+	column string
+	value  any
+}
+
+// treeMove is the moved row's own tree columns; descendants are rewritten
+// inside planTreeMove.
+type treeMove struct {
+	parent any
+	path   string
+	depth  int64
+}
+
+// planTreeMove validates a move, rewrites the descendants' paths and returns
+// the moved row's own columns. Moving under itself or its own descendant
+// would close a cycle: the new parent's path would start with the row's own
+// path prefix.
+func planTreeMove(ctx context.Context, tx *sql.Tx, recordType recordTypeDefinition, id string, current *athenav1.Record, newParent string) (treeMove, error) {
+	if newParent == id {
+		return treeMove{}, invalid("a record cannot be its own parent")
+	}
+	oldPrefix := current.GetTreePath()
+	if oldPrefix == "" {
+		oldPrefix = treeRootPath(id)
+	}
+	var moved treeMove
+	if newParent == "" {
+		moved = treeMove{path: treeRootPath(id)}
+	} else {
+		parentPath, parentDepth, err := loadTreeParent(ctx, tx, recordType, newParent)
+		if err != nil {
+			return treeMove{}, err
+		}
+		if strings.HasPrefix(parentPath, oldPrefix) {
+			return treeMove{}, invalid(fmt.Sprintf("%s is already under this record, so the move would close a cycle", recordType.Label))
+		}
+		moved = treeMove{parent: newParent, path: parentPath + id + "/", depth: parentDepth + 1}
+	}
+	if err := moveTreeSubtree(ctx, tx, recordType, id, oldPrefix, moved.path, moved.depth-current.GetTreeDepth()); err != nil {
+		return treeMove{}, err
+	}
+	return moved, nil
+}
+
+// auditText renders a tree or range value for the Audit Log; empty is nil.
+func auditText(value string) *string {
+	if value == "" {
+		return nil
+	}
+	return &value
+}
+
+// checkEffectiveOverlap refuses a range that overlaps another live row of
+// the same entity. Rows are one entity when no unique field tells them
+// apart (a NULL side never tells); a type without unique fields holds one
+// entity, and child rows are further scoped by their parent, so one line
+// code can repeat across documents. current is nil on create; unchanged
+// unique fields are read from the stored row through a self-join.
+func checkEffectiveOverlap(ctx context.Context, tx *sql.Tx, recordType recordTypeDefinition, columns []string, args []any, current *athenav1.Record, selfID, parentID string, fromArg, toArg any) error {
+	bound := map[string]any{}
+	for i, column := range columns {
+		bound[strings.Trim(column, "`")] = args[i]
+	}
+	table := dialect.QuoteIdent(recordTypeTableName(recordType.Name))
+	params := []any{}
+	from := table + " AS `o`"
+	needCurrent := false
+	if current != nil {
+		for _, field := range recordType.Fields {
+			if field.Unique {
+				if _, ok := bound[field.Name]; !ok {
+					needCurrent = true
+					break
+				}
+			}
+		}
+	}
+	if needCurrent {
+		from += " JOIN " + table + " AS `c` ON `c`.`id` = ?"
+		params = append(params, selfID)
+	}
+	conditions := []string{
+		"(? IS NULL OR `o`.`effective_to` IS NULL OR ? < `o`.`effective_to`)",
+		"(`o`.`effective_from` IS NULL OR ? IS NULL OR `o`.`effective_from` < ?)",
+		"`o`.`id` <> ?",
+	}
+	params = append(params, fromArg, fromArg, toArg, toArg, selfID)
+	if recordType.kind() == kindMaster {
+		conditions = append(conditions, "`o`.`deleted_at` IS NULL")
+	}
+	if recordType.kind() == kindChild {
+		conditions = append(conditions, "`o`.`parent_id` = ?")
+		params = append(params, parentID)
+	}
+	for _, field := range recordType.Fields {
+		if !field.Unique {
+			continue
+		}
+		column := dialect.QuoteIdent(field.Name)
+		if value, ok := bound[field.Name]; ok {
+			conditions = append(conditions, fmt.Sprintf("(`o`.%[1]s IS NULL OR ? IS NULL OR `o`.%[1]s = ?)", column))
+			params = append(params, value, value)
+		} else if needCurrent {
+			conditions = append(conditions, fmt.Sprintf("(`o`.%[1]s IS NULL OR `c`.%[1]s IS NULL OR `o`.%[1]s = `c`.%[1]s)", column))
+		}
+	}
+	var clashes bool
+	if err := tx.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM "+from+" WHERE "+strings.Join(conditions, " AND ")+")", params...).Scan(&clashes); err != nil {
+		return internalError("check effective range", err)
+	}
+	if !clashes {
+		return nil
+	}
+	var keys []string
+	for _, field := range recordType.Fields {
+		if field.Unique {
+			keys = append(keys, field.Label)
+		}
+	}
+	if len(keys) == 0 {
+		return invalid(fmt.Sprintf("these effective dates overlap another %s; %s holds one effective row at a time", recordType.Label, recordType.Label))
+	}
+	return invalid(fmt.Sprintf("these effective dates overlap another %s with the same %s", recordType.Label, strings.Join(keys, ", ")))
+}
+
+// asOfPredicate keeps the rows effective on the given date, end-exclusive.
+const asOfPredicate = "(`effective_from` IS NULL OR `effective_from` <= ?) AND (`effective_to` IS NULL OR ? < `effective_to`)"
+
 func (s recordService) UpdateRecord(ctx context.Context, req *athenav1.UpdateRecordRequest) (res *athenav1.UpdateRecordResponse, err error) {
 	ctx, requestID, end := startKernelSpan(ctx, "update_record", req.GetRecordTypeKey())
 	defer func() { end(err) }()
@@ -376,7 +664,20 @@ func (s recordService) UpdateRecord(ctx context.Context, req *athenav1.UpdateRec
 	if err := checkWritable(hidden, recordType, req.GetValues()); err != nil {
 		return nil, err
 	}
-	columns, args, err := bindValues(recordType, req.GetValues(), false)
+	if req.TreeParentId != nil && !recordType.Tree {
+		return nil, invalid(fmt.Sprintf("%s is not a tree", recordType.Label))
+	}
+	if (req.EffectiveFrom != nil || req.EffectiveTo != nil) && !recordType.EffectiveDated {
+		return nil, invalid(fmt.Sprintf("%s does not track effective dates", recordType.Label))
+	}
+	// A move or range change may carry no field values.
+	var columns []string
+	var args []any
+	if req.TreeParentId != nil || req.EffectiveFrom != nil || req.EffectiveTo != nil {
+		columns, args, err = bindUpdateValues(recordType, req.GetValues())
+	} else {
+		columns, args, err = bindValues(recordType, req.GetValues(), false)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -386,6 +687,9 @@ func (s recordService) UpdateRecord(ctx context.Context, req *athenav1.UpdateRec
 	}
 	defer func() { _ = tx.Rollback() }()
 	if err := authorizeRecord(ctx, tx, p, recordType, req.GetId(), auth.ActionWrite); err != nil {
+		return nil, err
+	}
+	if err := serializeTypeWrites(ctx, tx, recordType); err != nil {
 		return nil, err
 	}
 	current, err := loadRecord(ctx, tx, recordType, req.GetId(), dialect.ForUpdate())
@@ -423,7 +727,17 @@ func (s recordService) UpdateRecord(ctx context.Context, req *athenav1.UpdateRec
 		changedArgs = append(changedArgs, args[i])
 		changed = append(changed, key)
 	}
-	if len(changed) == 0 {
+	// A move or range change counts as a change even with no field values.
+	move := req.TreeParentId != nil && *req.TreeParentId != current.GetTreeParentId()
+	newFrom, newTo := current.GetEffectiveFrom(), current.GetEffectiveTo()
+	if req.EffectiveFrom != nil {
+		newFrom = *req.EffectiveFrom
+	}
+	if req.EffectiveTo != nil {
+		newTo = *req.EffectiveTo
+	}
+	rangeChange := newFrom != current.GetEffectiveFrom() || newTo != current.GetEffectiveTo()
+	if len(changed) == 0 && !move && !rangeChange {
 		maskRecord(hidden, current)
 		return &athenav1.UpdateRecordResponse{Record: current}, nil
 	}
@@ -455,9 +769,50 @@ func (s recordService) UpdateRecord(ctx context.Context, req *athenav1.UpdateRec
 	if err := checkLinkTargets(ctx, tx, recordType, changedColumns, changedArgs); err != nil {
 		return nil, err
 	}
+	// Tree moves and range changes run after the field checks, against the
+	// final unique values.
+	var extraAssigns []kernelAssign
+	var extraChanges []audit.Change
+	var extraKeys []string
+	if move {
+		moved, err := planTreeMove(ctx, tx, recordType, req.GetId(), current, *req.TreeParentId)
+		if err != nil {
+			return nil, err
+		}
+		extraAssigns = append(extraAssigns,
+			kernelAssign{column: "tree_parent_id", value: moved.parent},
+			kernelAssign{column: "tree_path", value: moved.path},
+			kernelAssign{column: "tree_depth", value: moved.depth})
+		extraChanges = append(extraChanges, audit.Change{Field: "tree_parent_id", Old: auditText(current.GetTreeParentId()), New: auditText(*req.TreeParentId)})
+		extraKeys = append(extraKeys, "tree_parent_id")
+	}
+	if rangeChange {
+		fromArg, toArg, err := parseEffectiveRange(newFrom, newTo)
+		if err != nil {
+			return nil, err
+		}
+		if err := checkEffectiveOverlap(ctx, tx, recordType, changedColumns, changedArgs, current, req.GetId(), current.GetParentId(), fromArg, toArg); err != nil {
+			return nil, err
+		}
+		extraAssigns = append(extraAssigns,
+			kernelAssign{column: "effective_from", value: fromArg},
+			kernelAssign{column: "effective_to", value: toArg})
+		if newFrom != current.GetEffectiveFrom() {
+			extraChanges = append(extraChanges, audit.Change{Field: "effective_from", Old: auditText(current.GetEffectiveFrom()), New: auditText(newFrom)})
+			extraKeys = append(extraKeys, "effective_from")
+		}
+		if newTo != current.GetEffectiveTo() {
+			extraChanges = append(extraChanges, audit.Change{Field: "effective_to", Old: auditText(current.GetEffectiveTo()), New: auditText(newTo)})
+			extraKeys = append(extraKeys, "effective_to")
+		}
+	}
 	assignments := []string{dialect.QuoteIdent("revision") + " = " + dialect.QuoteIdent("revision") + " + 1"}
 	for _, column := range changedColumns {
 		assignments = append(assignments, column+" = ?")
+	}
+	for _, extra := range extraAssigns {
+		assignments = append(assignments, dialect.QuoteIdent(extra.column)+" = ?")
+		changedArgs = append(changedArgs, extra.value)
 	}
 	for _, kernel := range []struct {
 		column string
@@ -485,7 +840,10 @@ func (s recordService) UpdateRecord(ctx context.Context, req *athenav1.UpdateRec
 	if err != nil {
 		return nil, err
 	}
-	if err := writeAudit(ctx, tx, recordType.Name, req.GetId(), current.GetRevision()+1, "updated", fieldChanges(changed, current, updated)); err != nil {
+	changes := fieldChanges(changed, current, updated)
+	changes = append(changes, extraChanges...)
+	changed = append(changed, extraKeys...)
+	if err := writeAudit(ctx, tx, recordType.Name, req.GetId(), current.GetRevision()+1, "updated", changes); err != nil {
 		return nil, err
 	}
 	if recordType.Submittable && state == lifecycle.Submitted {
@@ -545,6 +903,9 @@ func (s recordService) DeleteRecord(ctx context.Context, req *athenav1.DeleteRec
 	if err := authorizeRecord(ctx, tx, p, recordType, req.GetId(), auth.ActionDelete); err != nil {
 		return nil, err
 	}
+	if err := serializeTypeWrites(ctx, tx, recordType); err != nil {
+		return nil, err
+	}
 	table := dialect.QuoteIdent(recordTypeTableName(recordType.Name))
 	var parentID string
 	switch recordType.kind() {
@@ -574,6 +935,11 @@ func (s recordService) DeleteRecord(ctx context.Context, req *athenav1.DeleteRec
 	// parent_id never fires. Check for children here, in the same transaction.
 	if err := ensureNoChildRecords(ctx, tx, recordType.Name, req.GetId()); err != nil {
 		return nil, err
+	}
+	if recordType.Tree {
+		if err := ensureNoTreeChildren(ctx, tx, recordType, req.GetId()); err != nil {
+			return nil, err
+		}
 	}
 	// A Master is soft-deleted: the row stays, marked, so nothing that refers
 	// to it breaks and the data can be audited. Other kinds remove the row.
@@ -611,6 +977,23 @@ func (s recordService) DeleteRecord(ctx context.Context, req *athenav1.DeleteRec
 		s.fireAfter(ctx, lifecycle.Sequence(lifecycle.Trash), event)
 	}
 	return &athenav1.DeleteRecordResponse{}, nil
+}
+
+// ensureNoTreeChildren returns FailedPrecondition when a live row sits under
+// the doomed row. The type lock serializes this against creates and moves.
+func ensureNoTreeChildren(ctx context.Context, tx *sql.Tx, recordType recordTypeDefinition, id string) error {
+	query := "SELECT EXISTS(SELECT 1 FROM " + dialect.QuoteIdent(recordTypeTableName(recordType.Name)) + " WHERE `tree_parent_id` = ?"
+	if live := liveClause(dialect, recordType); live != "" {
+		query += " AND " + live
+	}
+	var children bool
+	if err := tx.QueryRowContext(ctx, query+")", id).Scan(&children); err != nil {
+		return internalError("check children", err)
+	}
+	if children {
+		return connect.NewError(connect.CodeFailedPrecondition, fmt.Sprintf("this %s still has records under it; move or delete them first", recordType.Label))
+	}
+	return nil
 }
 
 // ensureNoChildRecords returns FailedPrecondition when any child Record Type
@@ -783,7 +1166,7 @@ func (s recordService) checkChanged(ctx context.Context, recordType recordTypeDe
 
 func selectColumns(recordType recordTypeDefinition) string {
 	columns := []string{dialect.QuoteIdent("id"), dialect.QuoteIdent("revision"), dialect.QuoteIdent("created_at"), dialect.QuoteIdent("updated_at")}
-	for _, column := range recordType.systemColumns() {
+	for _, column := range kernelColumns(recordType) {
 		columns = append(columns, dialect.QuoteIdent(column.Name))
 	}
 	for _, field := range recordType.Fields {
@@ -801,8 +1184,12 @@ func scanRecord(rows *sql.Rows, recordType recordTypeDefinition) (*athenav1.Reco
 	var defVersion, idx, docstate sql.NullInt64
 	var name, amendedFrom sql.NullString
 	var deletedAt sql.NullTime
-	system := map[string]any{"created_by": &createdBy, "modified_by": &modifiedBy, "request_id": &requestID, "owner": &owner, "parent_id": &parentID, "def_version": &defVersion, "idx": &idx, "deleted_at": &deletedAt, "docstate": &docstate, "name": &name, "amended_from": &amendedFrom}
-	for _, column := range recordType.systemColumns() {
+	var treeParentID, treePath sql.NullString
+	var treeDepth sql.NullInt64
+	var effectiveFrom, effectiveTo sql.NullTime
+	system := map[string]any{"created_by": &createdBy, "modified_by": &modifiedBy, "request_id": &requestID, "owner": &owner, "parent_id": &parentID, "def_version": &defVersion, "idx": &idx, "deleted_at": &deletedAt, "docstate": &docstate, "name": &name, "amended_from": &amendedFrom,
+		"tree_parent_id": &treeParentID, "tree_path": &treePath, "tree_depth": &treeDepth, "effective_from": &effectiveFrom, "effective_to": &effectiveTo}
+	for _, column := range kernelColumns(recordType) {
 		targets = append(targets, system[column.Name])
 	}
 	values := make([]any, len(recordType.Fields))
@@ -827,6 +1214,18 @@ func scanRecord(rows *sql.Rows, recordType recordTypeDefinition) (*athenav1.Reco
 	record.CreatedBy, record.ModifiedBy, record.Owner, record.RequestId, record.ParentId = createdBy.String, modifiedBy.String, owner.String, requestID.String, parentID.String
 	record.DefVersion, record.Idx = defVersion.Int64, idx.Int64
 	record.Docstate, record.Name, record.AmendedFrom = int32(docstate.Int64), name.String, amendedFrom.String
+	record.TreeParentId, record.TreePath, record.TreeDepth = treeParentID.String, treePath.String, treeDepth.Int64
+	if recordType.Tree && record.TreePath == "" && record.TreeParentId == "" {
+		// A parentless row is a top-level entry even when its path was
+		// never written; the next write under it heals the stored row.
+		record.TreePath = treeRootPath(record.Id)
+	}
+	if effectiveFrom.Valid {
+		record.EffectiveFrom = effectiveFrom.Time.Format(time.DateOnly)
+	}
+	if effectiveTo.Valid {
+		record.EffectiveTo = effectiveTo.Time.Format(time.DateOnly)
+	}
 	record.Values = make(map[string]*athenav1.FieldValue, len(recordType.Fields))
 	for i, field := range recordType.Fields {
 		value := &athenav1.FieldValue{}
@@ -880,6 +1279,16 @@ func trimDecimal(text string) string {
 // quoted column names with matching bound arguments. Creating requires every
 // required field and fills defaults; updating checks only the fields sent.
 func bindValues(recordType recordTypeDefinition, values map[string]*athenav1.FieldValue, creating bool) ([]string, []any, error) {
+	return bindValuesInner(recordType, values, creating, false)
+}
+
+// bindUpdateValues binds an update that may change only tree or effective
+// columns, with no field values.
+func bindUpdateValues(recordType recordTypeDefinition, values map[string]*athenav1.FieldValue) ([]string, []any, error) {
+	return bindValuesInner(recordType, values, false, true)
+}
+
+func bindValuesInner(recordType recordTypeDefinition, values map[string]*athenav1.FieldValue, creating, allowEmpty bool) ([]string, []any, error) {
 	fields := fieldsByKey(recordType)
 	for key := range values {
 		if _, ok := fields[key]; !ok {
@@ -929,7 +1338,7 @@ func bindValues(recordType recordTypeDefinition, values map[string]*athenav1.Fie
 		columns = append(columns, dialect.QuoteIdent(field.Name))
 		args = append(args, arg)
 	}
-	if !creating && len(columns) == 0 {
+	if !creating && len(columns) == 0 && !allowEmpty {
 		return nil, nil, invalid("no field values to update")
 	}
 	return columns, args, nil

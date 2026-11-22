@@ -144,6 +144,11 @@ type Dialect interface {
 // valid here is valid on both. Dialect.MaxIdentLength stays the engine fact.
 const GeneratedIdentLimit = 63
 
+// TreePathColumnType holds a materialised tree path (`/root/child/`) on a
+// Record Type table. Both engines accept this spelling; MariaDB is the only
+// tested one.
+const TreePathColumnType = "VARCHAR(2048)"
+
 // ShortenIdentifier returns name unchanged when it is at most limit bytes.
 // Otherwise it keeps a prefix and appends "_" and 12 hex characters of the
 // SHA-256 of the full name, so the result is deterministic and exactly limit

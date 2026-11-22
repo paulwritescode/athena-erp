@@ -91,6 +91,15 @@ message Record {
   string name = 14;
   // Amendable documents only: the cancelled document this one replaces.
   string amended_from = 15;
+  // Tree Record Types only: the parent row's ID (empty for a top-level row),
+  // the depth below the top level, and the slash-joined path of IDs.
+  string tree_parent_id = 16;
+  int64 tree_depth = 17;
+  string tree_path = 18;
+  // Effective-dated Record Types only: the end-exclusive range as YYYY-MM-DD.
+  // Empty means open on that side.
+  string effective_from = 19;
+  string effective_to = 20;
 }
 
 message ListRecordsRequest {
@@ -99,12 +108,16 @@ message ListRecordsRequest {
   int32 page_size = 2;
   // Opaque cursor from a previous response.
   string page_token = 3;
-  // Child Record Types only: list the Records of this parent.
+  // Child Record Types: list the Records of this parent. Tree Record Types:
+  // list the direct children of this row.
   string parent_id = 4;
   // Optional expression (spec 23.6) that must be true for a Record to be
   // listed, for example doc.total > dec("100"). It runs in the database, so
   // it may use only the parts of the language that translate to SQL.
   string filter = 5;
+  // Effective-dated Record Types only: list the rows effective on this
+  // YYYY-MM-DD date, resolved end-exclusive.
+  string as_of = 6;
 }
 
 message ListRecordsResponse {
@@ -126,10 +139,15 @@ message CreateRecordRequest {
   string record_type_key = 1;
   map<string, FieldValue> values = 2;
   // Required for a child Record Type: the Record that owns the new Record.
+  // Tree Record Types: the parent row, empty for a top-level row.
   string parent_id = 3;
   // Submittable documents whose Record Type allows manual names only: the
   // name to use instead of a series number. It must be unused. Logged.
   string name = 4;
+  // Effective-dated Record Types only: the end-exclusive range as YYYY-MM-DD.
+  // Empty means open on that side.
+  string effective_from = 5;
+  string effective_to = 6;
 }
 
 message CreateRecordResponse {
@@ -142,6 +160,13 @@ message UpdateRecordRequest {
   string id = 2;
   int64 expected_revision = 3;
   map<string, FieldValue> values = 4;
+  // Tree Record Types only: move the row under a new parent. Unset leaves
+  // the parent alone; empty moves the row to the top level.
+  optional string tree_parent_id = 5;
+  // Effective-dated Record Types only: replace the end-exclusive range side.
+  // Unset leaves the side alone; empty opens it.
+  optional string effective_from = 6;
+  optional string effective_to = 7;
 }
 
 message UpdateRecordResponse {
