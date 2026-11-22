@@ -63,8 +63,19 @@ main{flex:1;position:relative;overflow:hidden}
 .node .foot{position:absolute;left:14px;right:12px;bottom:8px;display:flex;gap:6px;align-items:center;font-size:11px;color:var(--faint);white-space:nowrap;overflow:hidden}
 .av{display:inline-flex;align-items:center;gap:4px;background:var(--card2);border-radius:999px;padding:1px 7px 1px 3px;color:var(--text)}
 .av .ic{width:16px;height:16px;border-radius:50%;display:grid;place-items:center;font-size:10px}
+.ai{width:1.15em;height:1.15em;vertical-align:-.2em}
+.av .ic .ai{width:12px;height:12px}
+.node.agent .big .ai{width:22px;height:22px}
+.node.agent.working .big{box-shadow:0 0 0 2px var(--running);animation:pulse 1.2s infinite}
+.logo{position:relative;display:inline-grid;place-items:center;width:100%;height:100%;color:var(--text)}
+.logo img{width:64%;height:64%}.logo img.mono,img.ai.mono{filter:invert(1)}
+.logo .badge{position:absolute;right:-5px;bottom:-5px;width:15px;height:15px;border-radius:50%;background:var(--panel);border:1px solid var(--t);display:grid;place-items:center}
+.logo .badge .ai{width:10px;height:10px}
+.av .ic{width:18px;height:18px;background:var(--card)}.av .ic .badge{display:none}
+.node.agent .cli{font-weight:400;font-size:11px;color:var(--muted);margin-left:4px}
+.mini{display:inline-block;width:16px;height:16px;vertical-align:-3px}.mini.lg{width:22px;height:22px;vertical-align:-5px}.mini .badge{display:none}
 .node.agent{height:96px}
-.node.agent .big{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;font-size:18px;background:var(--card2);float:left;margin:4px 10px 0 0}
+.node.agent .big{width:40px;height:40px;border:1px solid var(--line);border-radius:10px;display:grid;place-items:center;font-size:18px;background:var(--card2);float:left;margin:4px 10px 0 0}
 .port{position:absolute;top:50%;width:10px;height:10px;margin-top:-5px;border-radius:50%;background:var(--card);border:1.5px solid var(--faint)}
 .port.in{left:-6px}.port.out{right:-6px}
 path.e{fill:none;stroke:#4a4a58;stroke-width:1.5;transition:opacity .3s,stroke .3s}
@@ -142,7 +153,16 @@ const STATES = {
   merged:  {label: "Done · merged to main", color: "var(--merged)", icon: "✔"},
 };
 const SECNAME = {A: "Foundation", B: "Platform", C: "Kernel", D: "Product", E: "Beta release"};
-const ICON = {stylus: "✒️", master: "🧭", worker: "🤖", reviewer: "🔍"};
+const SVGP = {
+  stylus: '<path d="M12 19l7-7 3 3-7 7z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18z"/><path d="M2 2l7.6 7.6"/><circle cx="11" cy="11" r="2"/>',
+  master: '<circle cx="12" cy="12" r="10"/><path d="M16.2 7.8l-2 6.3-6.4 2.1 2-6.3z"/>',
+  worker: '<rect x="4" y="8" width="16" height="12" rx="3"/><path d="M12 8V4"/><circle cx="12" cy="3.2" r="1"/><circle cx="9" cy="14" r="1.2"/><circle cx="15" cy="14" r="1.2"/><path d="M2 14h2M20 14h2"/>',
+  reviewer: '<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/><path d="M8.5 11l2 2 3.5-4"/>'};
+const TINT = {stylus: "var(--review)", master: "var(--master)", worker: "var(--running)", reviewer: "var(--started)"};
+const MONO = new Set(["muse", "agent", "zsh", "sh"]);
+const CLINAME = {muse: "Muse Spark", kiro: "Kiro CLI", codex: "Codex", claude: "Claude Code"};
+const LOGO = a => `<span class="logo" style="--t:${TINT[a.role] || "var(--muted)"}"><img class="${MONO.has(a.cli || "agent") ? "mono" : ""}" src="/icon/${encodeURIComponent(a.cli || "agent")}.svg" alt="${esc(CLINAME[a.cli] || a.cli || "agent")}"><span class="badge">${ICON[a.role]}</span></span>`;
+const ICON = new Proxy({}, {get: (_, r) => `<svg class="ai" viewBox="0 0 24 24" fill="none" stroke="${TINT[r] || "currentColor"}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${SVGP[r] || SVGP.worker}</svg>`});
 const NW = 260, NH = 118, AH = 96, GAP = 18, COLGAP = 110, PAD = 22, HEAD = 56;
 let S = null, sel = null, nodes = {}, prev = {}, pos = {}, firstFit = true;
 const $ = id => document.getElementById(id);
@@ -215,7 +235,7 @@ function renderStats(st) {
     <div class="sub">branches not in main: ${st.branches.unmerged.length ? esc(st.branches.unmerged.join(", ")) : "none"}</div></div>
   <div class="stat"><div class="k">Agents</div><div class="v">${st.workers.length + st.master.length} <small>${working} working</small></div>
     ${bar([[pct(working, st.workers.length), "var(--running)"], [pct(st.workers.length - working, st.workers.length), "var(--merged)"]])}
-    <div class="sub">✒️🧭 ${st.master.length} leads · 🤖 ${st.workers.filter(w => w.role === "worker").length} workers · 🔍 ${st.workers.filter(w => w.role === "reviewer").length} reviewers</div></div>
+    <div class="sub">${ICON.master} ${st.master.length} leads · ${ICON.worker} ${st.workers.filter(w => w.role === "worker").length} workers · ${ICON.reviewer} ${st.workers.filter(w => w.role === "reviewer").length} reviewers</div></div>
   <div class="stat click" id="errStat" title="Show errors"><div class="k">Errors seen</div><div class="v" style="color:${st.errors.length ? "var(--error)" : "var(--merged)"}">${st.errors.length} <small>${st.errors.length ? "click to see" : "none"}</small></div>
     ${bar([[st.errors.length ? 100 : 0, "var(--error)"]])}<div class="sub">${st.errors.length ? esc(st.errors[st.errors.length - 1].who + ": " + st.errors[st.errors.length - 1].text) : "test failures, BLOCKED, panics, crashed terminals"}</div></div>`;
   $("errStat").onclick = showErrors;
@@ -226,7 +246,7 @@ function renderStats(st) {
   $("unpushed").hidden = !st.unpushed;
   $("unpushed").textContent = st.unpushed + " commit" + (st.unpushed === 1 ? "" : "s") + " on main not pushed";
   $("legend").innerHTML = Object.entries(STATES).map(([k, v]) => `<span><i style="background:${v.color}"></i>${v.icon} ${v.label}</span>`).join("") +
-    `<span>✒️ Stylus</span><span>🧭 master</span><span>🤖 worker</span><span>🔍 reviewer</span><span><svg width="26" height="8"><path d="M0,4H20" stroke="#7b8cff" stroke-width="2"/><path d="M18,0L26,4L18,8z" fill="#7b8cff"/></svg> needs</span><span><svg width="26" height="8"><path d="M0,4H20" stroke="#f5b83d" stroke-width="2"/><path d="M18,0L26,4L18,8z" fill="#f5b83d"/></svg> unlocks</span>`;
+    `<span>${ICON.stylus} Stylus</span><span>${ICON.master} master</span><span>${ICON.worker} worker</span><span>${ICON.reviewer} reviewer</span><span><img class="ai" src="/icon/kiro.svg" alt=""> Kiro</span><span><img class="ai mono" src="/icon/muse.svg" alt=""> Muse</span><span><svg width="26" height="8"><path d="M0,4H20" stroke="#7b8cff" stroke-width="2"/><path d="M18,0L26,4L18,8z" fill="#7b8cff"/></svg> needs</span><span><svg width="26" height="8"><path d="M0,4H20" stroke="#f5b83d" stroke-width="2"/><path d="M18,0L26,4L18,8z" fill="#f5b83d"/></svg> unlocks</span>`;
 }
 
 function agentById(st, addr) { return [...st.master, ...st.workers].find(a => a.addr === addr); }
@@ -234,7 +254,7 @@ function agentById(st, addr) { return [...st.master, ...st.workers].find(a => a.
 function taskHTML(t, st) {
   const S_ = STATES[t.state];
   const ags = (t.agents || []).map(a => agentById(st, a)).filter(Boolean)
-    .map(a => `<span class="av" title="${esc(a.name)} ${esc(a.status)}"><span class="ic">${ICON[a.role] || "🤖"}</span>${esc(a.addr)} ${esc(a.status)}</span>`).join("");
+    .map(a => `<span class="av" title="${esc(a.name)} ${esc(a.status)}"><span class="ic">${LOGO(a)}</span>${esc(a.addr)} ${esc(a.status)}</span>`).join("");
   let foot = ags;
   if (t.branch) foot += `<span title="branch">⎇ ${esc(t.branch.replace(/^feat\//, ""))}</span>`;
   if (t.ahead) foot += `<span title="commits not in main">+${t.ahead}</span>`;
@@ -251,8 +271,8 @@ function agentHTML(a) {
   const role = a.role;
   const status = a.role === "stylus" ? "reasoning" : a.role === "master" ? (a.status || "orchestrating") : a.status;
   const task = a.task ? "→ " + a.task : (a.role === "stylus" ? "plans and reasons, delegates to master" : a.role === "master" ? "briefs workers, reviews, merges, closes panes" : "no task");
-  return `<div class="big">${ICON[role]}</div><div class="top"><span class="id">${esc(a.addr)}</span><span>${role}</span><span class="st"><span class="dot"></span>${esc(status)}</span></div>
-    <div class="title">${esc(a.role === "stylus" ? "Stylus" : a.role === "master" ? "Master" : a.name)}</div><div class="about" style="height:auto">${esc(task)}</div>
+  return `<div class="big">${LOGO(a)}</div><div class="top"><span class="id">${esc(a.addr)}</span><span>${role}</span><span class="st"><span class="dot"></span>${esc(status)}</span></div>
+    <div class="title">${esc(a.role === "stylus" ? "Stylus" : a.role === "master" ? "Master" : a.name)} <span class="cli">${esc(CLINAME[a.cli] || a.cli || "")}</span></div><div class="about" style="height:auto">${esc(task)}</div>
     <span class="port in"></span><span class="port out"></span>`;
 }
 
@@ -400,7 +420,7 @@ async function showTask(id) {
       <div>Status</div><div style="color:${S_.color}">${S_.label}</div>
       <div>Group</div><div>${esc(t.sec)} · ${esc(SECNAME[t.sec])}</div>
       <div>Owner</div><div>${esc(d.owner || "—")}</div>
-      <div>Agents</div><div>${ags.length ? ags.map(a => `<span class="chip" data-agent="${esc(a.addr)}">${ICON[a.role]} ${esc(a.name)} · ${esc(a.status)}</span>`).join(" ") : "none"}</div>
+      <div>Agents</div><div>${ags.length ? ags.map(a => `<span class="chip" data-agent="${esc(a.addr)}"><span class="mini">${LOGO(a)}</span> ${esc(a.name)} · ${esc(a.status)}</span>`).join(" ") : "none"}</div>
       <div>Branch</div><div>${wt ? esc(wt.branch) : "—"}</div>
       <div>Worktree</div><div>${wt ? esc(wt.worktree.split("/").pop()) : "—"}</div>
       <div>Not in main</div><div>${wt ? `${wt.ahead} commits · ${wt.dirty} uncommitted · ${wt.untracked} untracked` : "—"}</div>
@@ -426,14 +446,14 @@ function showAgent(addr, refresh) {
   const html = isMaster ? `
     <div class="kv"><div>Terminal</div><div>${esc(a.addr)}</div><div>Folder</div><div>${esc(a.cwd)}</div>
     <div>Workers</div><div>${S.workers.length} (${S.workers.filter(w => w.status === "working").length} working)</div></div>
-    <h3>Agents</h3><div class="chips">${S.workers.map(w => `<span class="chip" data-agent="${esc(w.addr)}">${ICON[w.role]} ${esc(w.name)} · ${esc(w.status)}${w.task ? " → " + esc(w.task) : ""}</span>`).join("")}</div>
+    <h3>Agents</h3><div class="chips">${S.workers.map(w => `<span class="chip" data-agent="${esc(w.addr)}"><span class="mini">${LOGO(w)}</span> ${esc(w.name)} · ${esc(w.status)}${w.task ? " → " + esc(w.task) : ""}</span>`).join("")}</div>
     <h3>Job</h3><p>${role === "stylus" ? "Stylus does the reasoning and planning, and hands the actioning to the master." : "Briefs and starts workers and reviewers in split panes, merges passing branches into main, closes finished panes, keeps the night log and report."}</p>
     <h3>Screen (last lines)</h3><pre>${esc((a.tail || []).join("\n") || "(empty)")}</pre>` : `
     <div class="kv"><div>Terminal</div><div>${esc(a.addr)}</div><div>Role</div><div>${role}</div><div>Status</div><div>${esc(a.status)}</div>
     <div>Turn</div><div>${a.turn}</div><div>Task</div><div>${a.task ? `<span class="chip" data-go="${esc(a.task)}">${esc(a.task)}</span>` : "none"}</div><div>Folder</div><div>${esc(a.cwd.split("/").pop())}</div></div>
     <h3>Screen (last lines, refreshes live)</h3><pre>${esc((a.tail || []).join("\n") || "(empty)")}</pre>
     ${S.errors.filter(e => e.who === a.name).length ? `<h3>Errors on its screen</h3>` + S.errors.filter(e => e.who === a.name).map(e => `<div class="err">${esc(e.text)}</div>`).join("") : ""}`;
-  if (refresh) { $("dBody").innerHTML = html; } else openDrawer(`${ICON[role]} ${esc(role === "stylus" ? "Stylus" : role === "master" ? "Master" : a.name)} · ${esc(a.addr)}`, html);
+  if (refresh) { $("dBody").innerHTML = html; } else openDrawer(`<span class="mini lg">${LOGO(a)}</span> ${esc(role === "stylus" ? "Stylus" : role === "master" ? "Master" : a.name)} · ${esc(a.addr)}`, html);
   $("dBody").querySelectorAll("[data-agent]").forEach(c => c.onclick = () => select("ag:" + c.dataset.agent, true));
 }
 

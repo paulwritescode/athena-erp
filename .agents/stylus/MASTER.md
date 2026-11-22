@@ -66,6 +66,15 @@ herdr-app do terminal.keep --terminal <address> --place right   # or down, to ke
 
 ## Queue (in this order; skip anything blocked)
 
+**RESUME 2026-11-22 evening (supersedes the "already running" list below; read `.agents/tasks/RESUME.md` first).** MariaDB is running; no workers are alive. Do, one full `make test` at a time (never two suites in parallel):
+1. `athena-erp-c1` (`feat/c1-posting`, `ccaf482`, slice 3 review PASS): rebase on main, run `make test` alone, merge and push if green, else triage `insertOutbox`.
+2. `athena-erp-b11` (`feat/b11-install`, `5fbf685`, review PASS round 2): same; tick B11 when merged.
+3. `athena-erp-c2` (`aec5366`, slice 3 unreviewed): start `r-c2`, then workers for slices 4 to 6.
+4. Remaining C1 (6.8 to 6.12) without Z2, then C4, C3, B4a, D1 and D2 drafts.
+Remove the merged `athena-erp-b9-server` worktree. Agents are split panes in tab `1`, never new tabs; the dashboard stays in its own tab. Start a new `shift.json` and keep the old night log as `night-log-2026-11-21.md`.
+
+(Older queue from the first shift, for reference:)
+
 Already running when you start (adopt them; tell each to report to `master` from now on):
 - `w-b9b` (t1v) B9b, committed `0596b2e`; reviewer `r-b9b` (t20) is reviewing. Merge on PASS.
 - `w-b4b` (t1y) B4b, committed `d91ad3b`; reviewer `r-b4b` (t21) is reviewing. Merge on PASS.

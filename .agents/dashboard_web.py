@@ -17,6 +17,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 TASKS = os.path.join(ROOT, ".kiro/specs/athena-beta/tasks.md")
 PAGE = os.path.join(HERE, "dashboard.html")
+ICONS = os.path.expanduser("~/.config/herdr-app/icons")  # Herdr's bundled agent logos (LobeHub, MIT)
 PORT = 8765
 SECTIONS = {"A": "Foundation", "B": "Platform", "C": "Kernel", "D": "Product", "E": "Beta release"}
 EDGES = [  # design.md section 6, plus the B-group order in tasks.md
@@ -154,7 +155,7 @@ def state():
             if ERR.search(l) and "0 errors" not in l:
                 errors.append({"who": w.get("name") or w["address"], "task": task, "text": l.strip()[:220]})
         wout.append({"addr": w["address"], "name": w.get("name") or w["address"], "status": w.get("status") or "idle",
-                     "turn": w.get("turn", 0), "task": task,
+                     "turn": w.get("turn", 0), "task": task, "cli": w.get("agent") or "agent",
                      "role": "reviewer" if (w.get("name") or "").startswith("r-") else "worker", "cwd": w.get("cwd", ""), "tail": tail})
     for t in dead[-5:]:
         errors.append({"who": t.get("name") or t["address"], "task": None, "text": f"terminal exited with code {t.get('exit_code')}"})
@@ -197,7 +198,7 @@ def state():
     ahead_main = run(["git", "rev-list", "--count", "origin/main..main"]).strip()
     return {"time": time.strftime("%H:%M:%S"), "main": run(["git", "rev-parse", "--short", "main"]).strip(),
             "unpushed": int(ahead_main) if ahead_main.isdigit() else 0,
-            "master": [{"addr": m["address"], "role": m["role"], "name": m.get("name") or m["address"], "status": m.get("status") or "",
+            "master": [{"addr": m["address"], "role": m["role"], "cli": "kiro" if m["role"] == "stylus" else (m.get("agent") or "muse"), "name": m.get("name") or m["address"], "status": m.get("status") or "",
                         "cwd": m.get("cwd", ""), "tail": [l for l in screen(m["address"]).splitlines() if l.strip()][-10:]} for m in masters],
             "workers": wout, "tasks": out, "edges": edges, "sections": secs, "errors": errors[-30:],
             "branches": {"merged": merged_br, "unmerged": unmerged_br},
@@ -263,6 +264,11 @@ class H(BaseHTTPRequestHandler):
                 body, ctype = json.dumps(state()).encode(), "application/json"
             elif u.path == "/report":
                 body, ctype = json.dumps(report()).encode(), "application/json"
+            elif u.path.startswith("/icon/"):
+                name = re.sub(r"[^a-z0-9-]", "", u.path[6:].removesuffix(".svg")) or "agent"
+                f = os.path.join(ICONS, name + ".svg")
+                body = open(f if os.path.exists(f) else os.path.join(ICONS, "agent.svg"), "rb").read()
+                ctype = "image/svg+xml"
             elif u.path == "/detail":
                 body, ctype = json.dumps(detail(parse_qs(u.query).get("id", [""])[0])).encode(), "application/json"
             else:
