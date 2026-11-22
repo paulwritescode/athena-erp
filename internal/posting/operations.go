@@ -122,38 +122,63 @@ func insertOperation(ctx context.Context, tx *sql.Tx, actor string, operationID,
 // already posted this voucher revision, event and book, so this attempt
 // posts nothing and returns the first result (R6.10). The winner's operation
 // row is read through a fresh connection: it committed with the group row,
-// which a repeatable-read transaction snapshot might not see yet. When the
-// winner carries this same operation id, the payloads must match or the
-// attempt conflicts (R6.8); any other operation id replays unconditionally.
+// which a repeatable-read transaction snapshot might not see yet. Operation
+// ids are namespaced per actor, so several rows can share the winner's id
+// string; the winner is the one whose stored result points back at this
+// group row. When the winner carries this same operation id, the payloads
+// must match or the attempt conflicts (R6.8); any other operation id
+// replays unconditionally.
 func (e *Engine) replayGroupResult(ctx context.Context, tx *sql.Tx, plan Plan, operationID string, opts PostOptions, hash string) (Result, error) {
-	var winnerID string
-	err := e.DB.QueryRowContext(ctx, `SELECT operation_id FROM athena_posting_groups WHERE voucher_type = ? AND voucher_id = ? AND voucher_revision = ? AND event = ? AND book = ?`,
-		plan.VoucherType, plan.VoucherID, plan.Revision, plan.Event, plan.Book).Scan(&winnerID)
-	if err != nil {
+	fail := func(err error) (Result, error) {
 		e.logFailure(ctx, plan, operationID, opts, OutcomeError, CodeInternal, hash, err)
 		return Result{}, err
 	}
-	var winnerActor, winnerHash, winnerResult string
-	err = e.DB.QueryRowContext(ctx, `SELECT actor, payload_hash, result_json FROM athena_operations WHERE command = ? AND operation_id = ? LIMIT 1`,
-		CommandPost, winnerID).Scan(&winnerActor, &winnerHash, &winnerResult)
+	var groupID, winnerID string
+	err := e.DB.QueryRowContext(ctx, `SELECT id, operation_id FROM athena_posting_groups WHERE voucher_type = ? AND voucher_id = ? AND voucher_revision = ? AND event = ? AND book = ?`,
+		plan.VoucherType, plan.VoucherID, plan.Revision, plan.Event, plan.Book).Scan(&groupID, &winnerID)
 	if err != nil {
-		e.logFailure(ctx, plan, operationID, opts, OutcomeError, CodeInternal, hash, err)
-		return Result{}, err
+		return fail(err)
 	}
-	if winnerID == operationID && winnerActor == opts.Actor && winnerHash != hash {
+	rows, err := e.DB.QueryContext(ctx, `SELECT actor, payload_hash, result_json FROM athena_operations WHERE command = ? AND operation_id = ?`,
+		CommandPost, winnerID)
+	if err != nil {
+		return fail(err)
+	}
+	defer rows.Close()
+	var winner storedOperation
+	matched := false
+	for rows.Next() {
+		var candidate storedOperation
+		var raw string
+		if err := rows.Scan(&candidate.Actor, &candidate.PayloadHash, &raw); err != nil {
+			return fail(err)
+		}
+		var result Result
+		if err := json.Unmarshal([]byte(raw), &result); err != nil {
+			continue
+		}
+		if result.PostingGroupID != groupID {
+			continue
+		}
+		candidate.Result = result
+		winner, matched = candidate, true
+		break
+	}
+	if err := rows.Err(); err != nil {
+		return fail(err)
+	}
+	if !matched {
+		return fail(fmt.Errorf("no operation row for %q points at group %q", winnerID, groupID))
+	}
+	if winnerID == operationID && winner.Actor == opts.Actor && winner.PayloadHash != hash {
 		e.logFailure(ctx, plan, operationID, opts, OutcomeConflict, CodeConflict, hash, ErrConflict)
 		return Result{}, fmt.Errorf("%w: operation %q already posted another payload", ErrConflict, operationID)
 	}
-	var result Result
-	if err := json.Unmarshal([]byte(winnerResult), &result); err != nil {
-		e.logFailure(ctx, plan, operationID, opts, OutcomeError, CodeInternal, hash, err)
-		return Result{}, fmt.Errorf("decode stored result: %w", err)
-	}
-	result.Replayed = true
+	winner.Result.Replayed = true
 	if err := insertLogRow(ctx, tx, plan, operationID, opts, OutcomeReplayed, CodeDuplicateGroup, "", hash); err != nil {
 		return Result{}, err
 	}
-	return result, nil
+	return winner.Result, nil
 }
 
 // replayOperationResult answers an operations-table collision: this

@@ -499,6 +499,13 @@ func opOpts(operationID string) posting.PostOptions {
 	return options
 }
 
+func actorOpts(actor, operationID string) posting.PostOptions {
+	options := opts()
+	options.Actor = actor
+	options.OperationID = operationID
+	return options
+}
+
 func equalResults(a, b posting.Result) bool {
 	return a.PostingGroupID == b.PostingGroupID && slices.Equal(a.RowIDs, b.RowIDs) &&
 		a.PlanHash == b.PlanHash && a.OperationID == b.OperationID && a.Replayed == b.Replayed
@@ -607,6 +614,56 @@ func TestDifferentOperationSameVoucher(t *testing.T) {
 	}
 	if got := logCount(t, db, otherID, posting.OutcomeReplayed, posting.CodeDuplicateGroup); got != "1" {
 		t.Fatalf("duplicate-group log rows = %s, want 1", got)
+	}
+}
+
+// TestGroupCollisionAcrossActorsFindsWinner is the regression test for
+// review B1: operation ids are namespaced per actor, so several rows can
+// share one id string, and a group collision must replay the row whose
+// stored result points at the collided group — not whichever row a bare
+// LIMIT 1 scan returns first. Carol posts first under the shared id, so a
+// scan-ordered lookup would hand her row to bob; bob must still get alice's
+// result for alice's voucher exactly.
+func TestGroupCollisionAcrossActorsFindsWinner(t *testing.T) {
+	ctx := context.Background()
+	engine, masters, db := setup(t)
+	seedBasics(t, masters)
+
+	carolPlan := basePlan()
+	carol, err := engine.Post(ctx, carolPlan, actorOpts("carol", "op-1"))
+	if err != nil {
+		t.Fatalf("carol: %v", err)
+	}
+	alicePlan := basePlan()
+	alice, err := engine.Post(ctx, alicePlan, actorOpts("alice", "op-1"))
+	if err != nil {
+		t.Fatalf("alice: %v", err)
+	}
+	bob, err := engine.Post(ctx, alicePlan, actorOpts("bob", "op-1"))
+	if err != nil {
+		t.Fatalf("bob: %v", err)
+	}
+	want := alice
+	want.Replayed = true
+	if !equalResults(bob, want) {
+		t.Fatalf("bob = %+v, want %+v", bob, want)
+	}
+	if bob.PostingGroupID == carol.PostingGroupID {
+		t.Fatalf("bob got carol's group %q for alice's voucher", bob.PostingGroupID)
+	}
+	var groupID string
+	err = db.QueryRow(`SELECT id FROM athena_posting_groups WHERE voucher_type = 'journal' AND voucher_id = ?`, alicePlan.VoucherID).Scan(&groupID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if groupID != alice.PostingGroupID {
+		t.Fatalf("group row = %q, alice's result points at %q", groupID, alice.PostingGroupID)
+	}
+	if rows := voucherRows(t, db, alicePlan.VoucherID); rows != 2 {
+		t.Fatalf("alice rows = %d, want 2", rows)
+	}
+	if rows := voucherRows(t, db, carolPlan.VoucherID); rows != 2 {
+		t.Fatalf("carol rows = %d, want 2", rows)
 	}
 }
 
