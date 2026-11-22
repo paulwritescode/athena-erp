@@ -1,0 +1,51 @@
+{{define "layout"}}<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Title}}</title>
+<meta name="description" content="{{.Description}}">
+{{if .Canonical}}<link rel="canonical" href="{{.Canonical}}">{{end}}
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="{{.Name}}">
+<meta property="og:title" content="{{.Title}}">
+<meta property="og:description" content="{{.Description}}">
+{{if .Canonical}}<meta property="og:url" content="{{.Canonical}}">{{end}}
+{{if .Image}}<meta property="og:image" content="{{.Image}}">
+{{if .ImageWidth}}<meta property="og:image:width" content="{{.ImageWidth}}">{{end}}
+{{if .ImageHeight}}<meta property="og:image:height" content="{{.ImageHeight}}">{{end}}
+{{end}}
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{{.Title}}">
+<meta name="twitter:description" content="{{.Description}}">
+{{if .Image}}<meta name="twitter:image" content="{{.Image}}">{{end}}
+{{if .Favicon32}}<link rel="icon" type="image/png" sizes="32x32" href="{{.Favicon32}}">{{end}}
+{{if .Favicon180}}<link rel="apple-touch-icon" href="{{.Favicon180}}">{{end}}
+<script type="application/ld+json">{{.JSONLD}}</script>
+<style>
+:root{color-scheme:light dark}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;line-height:1.6;color:#18181b;background:#fff}
+@media (prefers-color-scheme:dark){body{color:#f4f4f5;background:#09090b}}
+.wrap{max-width:68ch;margin:0 auto;padding:0 24px}
+.site{border-bottom:1px solid #e4e4e7}
+@media (prefers-color-scheme:dark){.site{border-color:#27272a}}
+.site-row{display:flex;align-items:center;gap:12px;min-height:56px}
+.site-row img{height:24px;width:auto}
+.site-name{font-weight:600}
+.site nav{margin-left:auto;font-size:14px}
+a{color:inherit}
+main{padding:48px 0}
+footer{border-top:1px solid #e4e4e7;color:#71717a;font-size:14px;padding:24px}
+footer p{margin:0}
+@media (prefers-color-scheme:dark){footer{border-color:#27272a;color:#a1a1aa}}
+h1{font-size:28px;line-height:1.2;margin:0 0 16px}
+p{margin:0 0 16px}
+</style>
+</head>
+<body>
+<header class="site"><div class="wrap site-row">{{if .LogoURL}}<img src="{{.LogoURL}}" alt="{{.Name}} logo" height="24" decoding="async">{{end}}<span class="site-name">{{.Name}}</span><nav><a href="/">Sign in</a></nav></div></header>
+<main class="wrap">{{block "content" .}}{{end}}</main>
+<footer class="wrap"><p>Powered by Athena</p></footer>
+</body>
+</html>{{end}}

@@ -144,12 +144,14 @@ func Serve(ctx context.Context, config Config) error {
 
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("X-Robots-Tag", "noindex, nofollow")
 		w.WriteHeader(http.StatusOK)
 		_, _ = fmt.Fprintf(w, `{"status":"ok","database":%q}`, databaseStatus)
 	})
 	mux.Handle("/otlp/v1/traces", tel.BrowserTracesHandler())
 	mux.Handle("GET /brand/{name}", newBrandHandler(filesWorkspace(config), db))
-	mux.Handle("/", webui.Handler())
+	mountPublic(mux, config.Workspace, db)
+	mux.Handle("/", deskNoIndex(webui.Handler()))
 
 	srv := &http.Server{
 		Addr:              addr,

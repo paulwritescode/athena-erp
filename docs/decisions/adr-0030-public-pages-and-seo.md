@@ -73,11 +73,22 @@ Every indexable page carries: a unique `<title>`, a unique meta description, a c
 | Catalogue | `Courses — {Workspace name}` | `ItemList` of `Course` (+ `Organization`) |
 | Verify form | `Verify a transcript — {Workspace name}` | `Organization` only |
 
-`og:image` uses the page's projection image when present, else the Workspace logo, else one neutral 1200x630 fallback PNG embedded in the binary. The catalogue page embeds one `Course` node per listed course. Canonical URLs use a `public.base_url` Workspace setting when set (Settings chain, no new table) and otherwise fall back to the request's own scheme and host; while the server is loopback-only (O-008) canonicals are placeholders, and the deployment decision must set the public origin. `sitemap.xml` lists the home, storefront, catalogue and every published category, product and course URL with `lastmod` from the row's modified timestamp; `robots.txt` points at the sitemap and disallows `/build/`, `/view/`, `/verify/`, `/otlp/` and the RPC paths.
+`og:image` uses the page's projection image when present, else the Workspace logo, else one neutral 1200x630 fallback PNG embedded in the binary (slice 4; until then pages without an image omit `og:image` rather than claim dimensions they lack). The catalogue page embeds one `Course` node per listed course. Canonical URLs use a `public.base_url` Workspace setting when set (Settings chain, no new table) and otherwise fall back to the request's own scheme and host; while the server is loopback-only (O-008) canonicals are placeholders, and the deployment decision must set the public origin. `sitemap.xml` lists the home, storefront, catalogue and every published category, product and course URL with `lastmod` from the row's modified timestamp; `robots.txt` points at the sitemap and disallows `/build/`, `/view/`, `/verify/`, `/otlp/` and the RPC paths.
+
+Meta description sources (slice-1 review note (a)): the Workspace holds no tagline field, so index pages use composed strings and detail pages use the projection's `description` field, cut at 160 characters on a word boundary with the fallback below when the field is empty.
+
+| Page | Meta description source |
+| --- | --- |
+| Home | composed `Welcome to {Workspace name}.` |
+| Storefront | composed `Browse everything in the {Workspace name} shop.` |
+| Category | truncated category `description`; fallback `{Category name} at {Workspace name}.` |
+| Product | truncated product `description`; fallback `{Product name} at {Workspace name}.` |
+| Catalogue | composed `Browse courses at {Workspace name}.` |
+| Verify form | composed `Verify a {Workspace name} transcript.` |
 
 ### Noindex list
 
-These send `X-Robots-Tag: noindex, nofollow` (header, so no Desk file changes): the SPA root `/` (sign-in when signed out), every Desk path under `/build/*` and `/view/*`, verification results (`/verify/{token}`), the 404 page, and RPC/telemetry/brand-auxiliary routes. Carts, checkout and order tracking do not exist; when they land they must send `noindex` from their first version (they are personal or transactional pages: §11). The verify form itself stays indexable so people can find it.
+These send `X-Robots-Tag: noindex, nofollow` (header, so no Desk file changes): the SPA root `/` (sign-in when signed out), every Desk path under `/build/*` and `/view/*` (hashed `/assets/*` files excepted), the health check, verification results (`/verify/{token}`), and the public 404 page. RPC and telemetry paths are POST-only and stay out via `robots.txt` disallow rather than response headers. `/brand/*` content images stay indexable: they back `og:image`. Carts, checkout and order tracking do not exist; when they land they must send `noindex` from their first version (they are personal or transactional pages: §11). The verify form itself stays indexable so people can find it.
 
 ### Vitals budget
 
