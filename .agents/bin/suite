@@ -12,6 +12,10 @@ import glob, json, os, shutil, signal, subprocess, sys, time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import _stylus as s
 
+if any(a in ("-h", "--help", "help") for a in sys.argv[1:2]):  # HELP_GUARD: never queue or send a help request
+    print(__doc__.strip())
+    sys.exit(0)
+
 args = sys.argv[1:]
 label = ""
 if args[:1] == ["--label"]:
@@ -20,8 +24,8 @@ if args[:1] == ["--"]:
     args = args[1:]
 cmd = args or ["make", "test"]
 def tree_state(where):
-    head = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=where, capture_output=True, text=True).stdout.strip()
-    dirty = subprocess.run(["git", "status", "--porcelain", "--untracked-files=no"], cwd=where,
+    head = subprocess.run(["git", "--no-optional-locks", "rev-parse", "--short", "HEAD"], cwd=where, capture_output=True, text=True).stdout.strip()
+    dirty = subprocess.run(["git", "--no-optional-locks", "status", "--porcelain", "--untracked-files=no"], cwd=where,
                            capture_output=True, text=True).stdout.strip()
     return head, not dirty
 

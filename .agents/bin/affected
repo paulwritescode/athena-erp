@@ -13,10 +13,16 @@ main and picks:
   by Go and Vitest or buf config changed, or when the scope covers
   most packages anyway.
 
-Runs through .agents/bin/suite (same lock and records). --print only shows the
+Workers are refused when the branch is behind main (rebase first; --stale-ok for a scratch run),
+so no gate is wasted on a pre-rebase tree. Runs through .agents/bin/suite (same lock and records). --print only shows the
 plan. Master's merge-time gate is always the full `make test`, never this.
 """
 import json, os, subprocess, sys
+
+if any(a in ("-h", "--help", "help") for a in sys.argv[1:2]):  # HELP_GUARD: never queue or send a help request
+    print(__doc__.strip())
+    sys.exit(0)
+
 
 FULL_PATHS = ("proto/", "go.mod", "go.sum", "Makefile", "internal/server/testdata/field_rules.json",
               "buf.gen.yaml", "buf.yaml")
@@ -26,10 +32,26 @@ base = args[args.index("--base") + 1] if "--base" in args else "main"
 
 
 def git(*a):
-    return subprocess.run(["git", *a], capture_output=True, text=True).stdout
+    return subprocess.run(["git", "--no-optional-locks", *a], capture_output=True, text=True).stdout
 
 
 mb = git("merge-base", "HEAD", base).strip()
+tip = git("rev-parse", base).strip()
+DOCS = (".agents/", ".kiro/", "docs/", "posts.md")
+main_code = [f for f in git("diff", "--name-only", mb, tip).splitlines()
+             if f and not f.startswith(DOCS) and not (f.endswith(".md") and "/" not in f)]
+if mb != tip and main_code:
+    behind = git("rev-list", "--count", f"HEAD..{base}").strip()
+    tid = os.environ.get("HC_TERMINAL_ID", "")
+    try:
+        who = next((t.get("name") or "") for t in json.loads(subprocess.run(["hc", "ls"], capture_output=True, text=True).stdout)["terminals"] if t["address"] == tid)
+    except Exception:
+        who = ""
+    msg = (f"affected: {behind} commit(s) behind {base}, with {len(main_code)} code file(s) this branch lacks "
+           f"({', '.join(main_code[:3])}); a result here will not count for PASS.")
+    if who.startswith(("w-", "sw-")) and "--stale-ok" not in args:
+        sys.exit(msg + f" Rebase on {base} first (git rebase {base}), or pass --stale-ok for a scratch run.")
+    print(msg + " (continuing: reviewers check the reported commit)")
 changed = sorted({l for l in (git("diff", "--name-only", mb) + git("ls-files", "--others", "--exclude-standard")).splitlines()
                   if l and not l.startswith(".agents/")})
 mod = subprocess.run(["go", "list", "-m"], capture_output=True, text=True).stdout.strip()

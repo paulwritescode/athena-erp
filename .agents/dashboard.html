@@ -638,7 +638,7 @@ function renderOps(st) {
   $("opsNav").innerHTML = tabs.map(([k, l, n, hot]) => `<button data-t="${k}" class="${OPS.tab === k ? "on" : ""}">${l}<span class="n${hot ? " hot" : ""}">${n}</span></button>`).join("");
   $("opsNav").querySelectorAll("button").forEach(b => b.onclick = () => { OPS.tab = b.dataset.t; localStorage.setItem("ops-tab", OPS.tab); renderOps(S); });
   const body = $("opsBody"), keep = body.scrollTop, fn = {team: opsTeam, lanes: opsLanes, msgs: opsMsgs, upd: opsUpd, suite: opsSuite}[OPS.tab] || opsTeam;
-  const html = fn(st, o);
+  const html = (o.error ? `<div class="err"><b>Panel data error</b> ${esc(o.error)}</div>` : "") + fn(st, o);
   if (body._html !== html) { body.innerHTML = html; body._html = html; body.scrollTop = keep; }
   body.querySelectorAll("[data-agent]").forEach(c => c.onclick = () => select("ag:" + c.dataset.agent, true));
   body.querySelectorAll("[data-go]").forEach(c => c.onclick = () => select(c.dataset.go, true));

@@ -9,6 +9,11 @@ import os, re, subprocess, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import _stylus as s
 
+if any(a in ("-h", "--help", "help") for a in sys.argv[1:2]):  # HELP_GUARD: never queue or send a help request
+    print(__doc__.strip())
+    sys.exit(0)
+
+
 KINDS = ("UPDATE", "PASS", "BLOCKED", "QUESTION", "ANSWER", "ORDER", "ERROR", "DONE", "INFO", "BRIEF")
 
 if len(sys.argv) < 3:

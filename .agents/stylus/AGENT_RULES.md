@@ -47,7 +47,11 @@ The machine has 8 CPUs and 8 GB RAM. A full `make test`, a full `pnpm --dir web 
 /Users/iampaulking/projects/duchess/athena-erp/.agents/bin/suite --label "C1 slice 4" -- make test
 ```
 
-It waits its turn in an ordered queue (master's merge gate first, then everyone in arrival order) and logs the result. If you stop a waiting `suite` with ctrl+c it leaves the queue cleanly. Package tests (`go test ./internal/posting/...`, one Vitest file) may run without the lock. Two full suites in parallel time out; never bypass the lock.
+It waits its turn in an ordered queue (master's merge gate first, then everyone in arrival order) and logs the result. If you stop a waiting `suite` with ctrl+c it leaves the queue cleanly. Two full suites in parallel time out; never bypass the lock.
+
+Without the lock you may only run narrow checks: one package's tests filtered with `-run`, a single Vitest file, `go build`, `go vet`, typecheck. Any unfiltered run of `./internal/server`, `./internal/auth`, `./internal/posting`, `./internal/ledger`, `./internal/jobs` or `./cmd/athena` (the MariaDB-heavy packages) goes through `affected` or `suite`, whatever folder it runs in. Never copy the tree to `/tmp` to test outside the lock.
+
+Reviewers review in their own clean worktree, because the worker keeps building the next slice in the task worktree: `git worktree add --detach ../athena-erp-<task>-r <reported commit>` (copy `.env.local`), review and run `affected` there, then `git worktree remove ../athena-erp-<task>-r` when the verdict is sent.
 
 Scoped runs for workers and reviewers: `/Users/iampaulking/projects/duchess/athena-erp/.agents/bin/affected` runs, through the same lock, only the Go packages your change touches plus every package that imports them, and the web tests when `web/` changed. It falls back to the full `make test` for proto, `go.mod`, `Makefile`, shared field-rule testdata or a change that reaches most packages. `affected --print` shows the plan. Use it for slice reports and reviews. Master's merge-time gate after the rebase is always the full `make test`, so nothing reaches `main` without the whole suite.
 

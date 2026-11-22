@@ -33,9 +33,14 @@ EDGES = [  # design.md section 6, plus the B-group order in tasks.md
 ERR = re.compile(r"(--- FAIL|^FAIL\b|\bBLOCKED\b|panic:|\bError:|\berror:|Traceback|cannot save terminals|ERR_|exit status [1-9])")
 
 
+# Read-only git: never take .git/index.lock (a background `git status` refreshing
+# the index makes the master's commits fail with "index.lock exists").
+GIT_ENV = {**os.environ, "GIT_OPTIONAL_LOCKS": "0"}
+
+
 def run(args, cwd=ROOT, timeout=6):
     try:
-        return subprocess.run(args, cwd=cwd, capture_output=True, text=True, timeout=timeout).stdout
+        return subprocess.run(args, cwd=cwd, capture_output=True, text=True, timeout=timeout, env=GIT_ENV).stdout
     except Exception:
         return ""
 
@@ -177,6 +182,14 @@ def mem_free():
     return int(m.group(1)) if m else None
 
 
+def safe_ops(wout, tasks):
+    """The Operations panel must never take the whole map down."""
+    try:
+        return ops(wout, tasks)
+    except Exception as e:  # a malformed record in a .jsonl file
+        return {"error": repr(e), "lanes": [], "comms": [], "progress": [], "suite": {}, "resources": {}}
+
+
 def ops(wout, tasks):
     lane_cfg = lanes()
     by_id = {t["id"]: t for t in tasks}
@@ -194,11 +207,11 @@ def ops(wout, tasks):
     srows = jsonl("suite.jsonl", 200)
     queue = []
     for r in srows:
-        k = (r["who"], r.get("label"), r["cwd"])
-        if r["event"] == "queued":
-            queue = [q for q in queue if (q["who"], q.get("label"), q["cwd"]) != k] + [r]
-        elif r["event"] in ("start", "end", "gave-up", "reused"):
-            queue = [q for q in queue if (q["who"], q.get("label"), q["cwd"]) != k]
+        k = (r.get("who"), r.get("label"), r.get("cwd"))
+        if r.get("event") == "queued":
+            queue = [q for q in queue if (q.get("who"), q.get("label"), q.get("cwd")) != k] + [r]
+        elif r.get("event") in ("start", "end", "gave-up", "reused"):
+            queue = [q for q in queue if (q.get("who"), q.get("label"), q.get("cwd")) != k]
     ps = run(["ps", "-axo", "pid=,command="])
     live_pids = {int(l.split(None, 1)[0]) for l in ps.splitlines() if l.strip()}
     queue = [q for q in queue if (q["pid"] in live_pids if "pid" in q else ("--label " + (q.get("label") or "")) in ps)]
@@ -206,7 +219,7 @@ def ops(wout, tasks):
     du = shutil.disk_usage("/")
     return {"lanes": lane_out, "blocked": lane_cfg.get("blocked", {}),
             "comms": jsonl("comms.jsonl", 150), "progress": jsonl("progress.jsonl", 30),
-            "suite": {"holder": holder, "queue": queue, "recent": [r for r in srows if r["event"] == "end"][-12:]},
+            "suite": {"holder": holder, "queue": queue, "recent": [r for r in srows if r.get("event") == "end"][-12:]},
             "resources": {"memFreePct": mem_free(), "diskFreeGB": round(du.free / 1e9, 1),
                           "agents": len(wout), "caps": {k: v for k, v in lim.items() if k.startswith(("max", "min"))}},
             "spawned": jsonl("agents.jsonl", 60)}
@@ -278,7 +291,7 @@ def state():
     ahead_main = run(["git", "rev-list", "--count", "origin/main..main"]).strip()
     return {"time": time.strftime("%H:%M:%S"), "main": run(["git", "rev-parse", "--short", "main"]).strip(),
             "unpushed": int(ahead_main) if ahead_main.isdigit() else 0,
-            "ops": ops(wout, out),
+            "ops": safe_ops(wout, out),
             "master": [{"addr": m["address"], "role": m["role"], "cli": "kiro" if m["role"] == "stylus" else (m.get("agent") or "muse"),
                         "parent": "" if m["role"] == "stylus" else "stylus", "name": m.get("name") or m["address"], "status": m.get("status") or "",
                         "cwd": m.get("cwd", ""), "tail": [l for l in screen(m["address"]).splitlines() if l.strip()][-10:]} for m in masters],

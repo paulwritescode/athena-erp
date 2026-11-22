@@ -3,9 +3,10 @@
 update and name the agent terminals that look finished, so they get closed.
 Run it in its own pane in the dashboard tab: python3 .agents/bin/ticker
 
-A terminal is a close candidate when it has been idle for at least 10 minutes
-and either its last message was a final one (PASS, DONE, review verdicts) or
-its task is ticked in tasks.md. Exited terminals are removed from the list.
+A terminal is a close candidate when it has been idle for at least 10 minutes,
+holds or waits for no suite run, and either its task is ticked in tasks.md or
+(reviewers, subworkers, thinkers only) its last message was a final one (PASS,
+DONE, a review verdict). A worker's PASS ends a slice, not the task. Exited terminals are removed from the list.
 """
 import json, os, re, subprocess, sys, time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -23,8 +24,26 @@ def ticked():
     return {m.group(1).upper() for m in re.finditer(r"^- \[x\] \*\*([A-Z0-9a-z]+)\.", text, re.M)}
 
 
+def in_suite():
+    """Agents holding or waiting for the suite lock (still busy, never close)."""
+    busy = set()
+    try:
+        busy.add(json.load(open(s.path("locks/suite/owner.json"))).get("who"))
+    except (OSError, ValueError):
+        pass
+    qdir = s.path("locks/queue")
+    for f in os.listdir(qdir) if os.path.isdir(qdir) else []:
+        try:
+            busy.add(json.load(open(os.path.join(qdir, f))).get("who"))
+        except (OSError, ValueError):
+            pass
+    ps = subprocess.run(["ps", "-axo", "command="], capture_output=True, text=True).stdout
+    return busy, ps
+
+
 def candidates():
     done_tasks, now = ticked(), time.time() * 1000
+    busy, ps = in_suite()
     spawned = {r["name"]: r for r in s.read_jsonl("agents.jsonl") if r.get("event") == "spawn"}
     last = {}
     for m in s.read_jsonl("comms.jsonl"):
@@ -39,13 +58,15 @@ def candidates():
             continue
         info = json.loads(s.hc("get", t["address"]) or "{}")
         idle_min = (now - (info.get("status_ms") or now)) / 60000
-        if (info.get("status") or {}).get("state") == "working" or idle_min < 10:
+        if (info.get("status") or {}).get("state") == "working" or idle_min < 10 or name in busy:
             continue
         task = (spawned.get(name, {}).get("task") or "").upper()
         msg = last.get(name, {})
         why = None
         if task and task in done_tasks:
             why = f"task {task} is ticked"
+        elif name.startswith(("w-", "sm-")):
+            why = None  # a worker's PASS ends a slice, not the task: only a ticked task closes it
         elif FINAL.search((msg.get("kind") or "") + " " + (msg.get("text") or "")[:80]):
             why = f"last message {msg.get('kind')} {msg.get('ts', '')[11:16]}"
         if why:
