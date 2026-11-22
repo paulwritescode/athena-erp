@@ -31,8 +31,8 @@ export function useDeskRoute() {
   const selectedRecordType = ref('')
   // The open Record in View: '' for the table, 'new' for the create form, or a Record ID.
   const recordRoute = ref('')
-  // The open Record Type editor in Build: '' for the list, 'new' for a draft,
-  // or the type key.
+  // The open Record Type editor in Build: '' for the list, 'new' for the
+  // create dialog over the list, or the type key.
   const recordTypeRoute = ref('')
   const lastBuildPage = ref<Page>('overview')
   const lastViewPage = ref<Page>('overview')
@@ -59,7 +59,8 @@ export function useDeskRoute() {
       recordRoute.value = ''
       recordTypeRoute.value = parsed.page === 'record-types' ? parsed.recordType ?? '' : ''
       // The editor address names its own selection; the list keeps the legacy
-      // query fallback. A fresh /new starts unselected so the editor drafts.
+      // query fallback. A fresh /new starts unselected; the dialog names the
+      // new type itself.
       if (recordTypeRoute.value === 'new') selectedRecordType.value = ''
       else if (recordTypeRoute.value) selectedRecordType.value = recordTypeRoute.value
       else selectedRecordType.value = query.get('record_type') ?? ''
@@ -183,8 +184,8 @@ export function useDeskRoute() {
   }
 
   // Opens a Record Type in the editor: a saved key (which becomes the
-  // selection), or 'new' for a draft the caller selects first. The editor
-  // creates that draft on arrival when a reload finds none.
+  // selection), or 'new' for the create dialog over the list. The dialog
+  // renders from the route alone, so a reload reopens it as-is.
   function openRecordTypeEditor(key: string) {
     notFound.value = false
     lastBuildPage.value = 'record-types'
@@ -194,8 +195,8 @@ export function useDeskRoute() {
     recordTypeRoute.value = key
   }
 
-  // After a draft saves, its address becomes its key without adding history:
-  // going back to /new would only draft again.
+  // After the dialog creates its type, the address becomes the new key
+  // without adding history: going back to /new would only reopen it.
   function replaceRecordTypeEditor(key: string) {
     notFound.value = false
     replaceNext = true
