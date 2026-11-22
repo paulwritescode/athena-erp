@@ -653,7 +653,107 @@ func SystemMigrations() []store.Migration {
 				KEY idx_tasks_instance (instance_id)
 			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 		)},
+		// Trees, effective dating and UoM (ADR-0029): UoM families and
+		// conversions, materialised path and depth on the kernel tree
+		// masters, and effective ranges on account determinations. Record
+		// Type tree and effective-date columns are added by the publisher
+		// when the flag is set, so no per-Record tables change here.
+		{Version: 18, Name: "trees_effective_uom", Up: treesEffectiveUoM},
 	}
+}
+
+// treesEffectiveUoM creates the UoM masters, adds tree and effective-date
+// columns to the kernel ledger tables, and backfills path and depth from
+// the stored parent links. Nothing is seeded: families, units and ranges
+// are Workspace data.
+func treesEffectiveUoM(ctx context.Context, x store.Execer) error {
+	err := execAll(
+		`CREATE TABLE IF NOT EXISTS athena_uom_families (
+				name VARCHAR(140) NOT NULL PRIMARY KEY,
+				label VARCHAR(255) NOT NULL,
+				base_unit VARCHAR(32) NOT NULL,
+				disabled TINYINT(1) NOT NULL DEFAULT 0,
+				revision BIGINT NOT NULL DEFAULT 1,
+				created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+		`CREATE TABLE IF NOT EXISTS athena_uom_conversions (
+				family_name VARCHAR(140) NOT NULL,
+				unit VARCHAR(32) NOT NULL,
+				item_key VARCHAR(140) NOT NULL DEFAULT '',
+				factor DECIMAL(30,12) NOT NULL,
+				scale INT NOT NULL DEFAULT 6,
+				disabled TINYINT(1) NOT NULL DEFAULT 0,
+				revision BIGINT NOT NULL DEFAULT 1,
+				created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+				PRIMARY KEY (family_name, unit, item_key),
+				KEY idx_uom_conversions_family (family_name)
+			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+		`ALTER TABLE athena_accounts
+				ADD COLUMN IF NOT EXISTS tree_path VARCHAR(2048) NULL AFTER parent_name,
+				ADD COLUMN IF NOT EXISTS tree_depth INT NULL AFTER tree_path,
+				ADD INDEX IF NOT EXISTS idx_accounts_tree (tree_path(191))`,
+		`ALTER TABLE athena_branches
+				ADD COLUMN IF NOT EXISTS tree_path VARCHAR(2048) NULL AFTER parent_name,
+				ADD COLUMN IF NOT EXISTS tree_depth INT NULL AFTER tree_path,
+				ADD INDEX IF NOT EXISTS idx_branches_tree (tree_path(191))`,
+		`ALTER TABLE athena_departments
+				ADD COLUMN IF NOT EXISTS tree_path VARCHAR(2048) NULL AFTER parent_name,
+				ADD COLUMN IF NOT EXISTS tree_depth INT NULL AFTER tree_path,
+				ADD INDEX IF NOT EXISTS idx_departments_tree (tree_path(191))`,
+		`ALTER TABLE athena_cost_centres
+				ADD COLUMN IF NOT EXISTS tree_path VARCHAR(2048) NULL AFTER parent_name,
+				ADD COLUMN IF NOT EXISTS tree_depth INT NULL AFTER tree_path,
+				ADD INDEX IF NOT EXISTS idx_cost_centres_tree (tree_path(191))`,
+		`ALTER TABLE athena_account_determinations
+				ADD COLUMN IF NOT EXISTS effective_from DATE NULL AFTER match_json,
+				ADD COLUMN IF NOT EXISTS effective_to DATE NULL AFTER effective_from,
+				ADD INDEX IF NOT EXISTS idx_determinations_effective (effective_from, effective_to)`,
+	)(ctx, x)
+	if err != nil {
+		return err
+	}
+	for _, table := range []string{"athena_accounts", "athena_branches", "athena_departments", "athena_cost_centres"} {
+		if err := backfillTreePaths(ctx, x, table); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// backfillTreePaths materialises slash-joined paths (`/root/child/`, root
+// depth 0) from parent_name links. Names hold no slashes, so the join is
+// unambiguous. Roots are written first, then each pass resolves children
+// of resolved parents; a bounded pass count keeps a corrupt chain (cycle
+// or dangling parent) from looping forever, and any row left without a
+// path fails the migration naming the table. Saved masters already refuse
+// cycles and missing parents, so a failure means hand-edited rows.
+func backfillTreePaths(ctx context.Context, x store.Execer, table string) error {
+	if _, err := x.ExecContext(ctx, `UPDATE `+table+` SET tree_path = CONCAT('/', name, '/'), tree_depth = 0 WHERE parent_name IS NULL AND tree_path IS NULL`); err != nil {
+		return err
+	}
+	for range 100 {
+		result, err := x.ExecContext(ctx, `UPDATE `+table+` AS child JOIN `+table+` AS parent ON child.parent_name = parent.name SET child.tree_path = CONCAT(parent.tree_path, child.name, '/'), child.tree_depth = parent.tree_depth + 1 WHERE child.tree_path IS NULL AND parent.tree_path IS NOT NULL`)
+		if err != nil {
+			return err
+		}
+		affected, err := result.RowsAffected()
+		if err != nil {
+			return err
+		}
+		if affected == 0 {
+			break
+		}
+	}
+	var left int
+	if err := x.QueryRowContext(ctx, `SELECT COUNT(*) FROM `+table+` WHERE tree_path IS NULL`).Scan(&left); err != nil {
+		return err
+	}
+	if left > 0 {
+		return fmt.Errorf("migration 18: %d rows in %s have no tree path (cycle or missing parent)", left, table)
+	}
+	return nil
 }
 
 func execAll(statements ...string) func(context.Context, store.Execer) error {

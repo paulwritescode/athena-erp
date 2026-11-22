@@ -339,3 +339,99 @@ func TestAccessModelMigrationPreservesAccess(t *testing.T) {
 		t.Errorf("disabled user sign-in after upgrade: %v, want ErrDisabled", err)
 	}
 }
+
+// TestTreesEffectiveUoMMigrationBackfillsPaths builds a database the way
+// migration 17 leaves it, inserts an account tree, a branch tree and a
+// determination, upgrades to migration 18 and checks the UoM tables exist
+// empty, the tree paths and depths are backfilled, and the determination
+// survives with an open-ended range.
+func TestTreesEffectiveUoMMigrationBackfillsPaths(t *testing.T) {
+	ctx := context.Background()
+	db := testdb.New(t)
+	if _, err := store.Up(ctx, db, dialect, SystemMigrations(), store.UpOptions{Target: 17}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.ExecContext(ctx, `INSERT INTO athena_account_types (name, label, normal_balance) VALUES ('asset', 'Asset', 'debit')`); err != nil {
+		t.Fatal(err)
+	}
+	for _, account := range []struct {
+		name, parent string
+		group        bool
+	}{
+		{"assets", "", true},
+		{"current-assets", "assets", true},
+		{"cash", "current-assets", false},
+	} {
+		var parent any
+		if account.parent != "" {
+			parent = account.parent
+		}
+		if _, err := db.ExecContext(ctx, `INSERT INTO athena_accounts (name, label, account_type, parent_name, is_group) VALUES (?, ?, 'asset', ?, ?)`,
+			account.name, account.name, parent, account.group); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := db.ExecContext(ctx, `INSERT INTO athena_companies (name, label) VALUES ('acme', 'Acme')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.ExecContext(ctx, `INSERT INTO athena_branches (name, label, company_name, is_group) VALUES ('hq', 'HQ', 'acme', 1), ('hq-shop', 'Shop', 'acme', 0)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.ExecContext(ctx, `UPDATE athena_branches SET parent_name = 'hq' WHERE name = 'hq-shop'`); err != nil {
+		t.Fatal(err)
+	}
+	const determinationID = "01911111-2222-7333-8444-666666666666"
+	if _, err := db.ExecContext(ctx, `INSERT INTO athena_account_determinations (id, label, account_name, match_json) VALUES (?, 'Cash sales', 'cash', '{"channel":"shop"}')`, determinationID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Up(ctx, db, dialect, SystemMigrations(), store.UpOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	for _, table := range []string{"athena_uom_families", "athena_uom_conversions"} {
+		var count int
+		if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM `+table).Scan(&count); err != nil {
+			t.Errorf("table %s missing after migration 18: %v", table, err)
+			continue
+		}
+		if count != 0 {
+			t.Errorf("table %s holds %d rows, want it unseeded", table, count)
+		}
+	}
+	for _, want := range []struct {
+		name, path string
+		depth      int
+	}{
+		{"assets", "/assets/", 0},
+		{"current-assets", "/assets/current-assets/", 1},
+		{"cash", "/assets/current-assets/cash/", 2},
+	} {
+		var path string
+		var depth int
+		if err := db.QueryRowContext(ctx, `SELECT tree_path, tree_depth FROM athena_accounts WHERE name = ?`, want.name).Scan(&path, &depth); err != nil {
+			t.Errorf("account %s path: %v", want.name, err)
+			continue
+		}
+		if path != want.path || depth != want.depth {
+			t.Errorf("account %s has path %q depth %d, want %q depth %d", want.name, path, depth, want.path, want.depth)
+		}
+	}
+	var branchPath string
+	var branchDepth int
+	if err := db.QueryRowContext(ctx, `SELECT tree_path, tree_depth FROM athena_branches WHERE name = 'hq-shop'`).Scan(&branchPath, &branchDepth); err != nil {
+		t.Fatalf("branch path: %v", err)
+	}
+	if branchPath != "/hq/hq-shop/" || branchDepth != 1 {
+		t.Errorf("branch hq-shop has path %q depth %d, want /hq/hq-shop/ depth 1", branchPath, branchDepth)
+	}
+	var label, account string
+	var from, to sql.NullString
+	if err := db.QueryRowContext(ctx, `SELECT label, account_name, effective_from, effective_to FROM athena_account_determinations WHERE id = ?`, determinationID).Scan(&label, &account, &from, &to); err != nil {
+		t.Fatalf("legacy determination: %v", err)
+	}
+	if label != "Cash sales" || account != "cash" {
+		t.Errorf("legacy determination became %q -> %q, want Cash sales -> cash", label, account)
+	}
+	if from.Valid || to.Valid {
+		t.Errorf("legacy determination range is %v to %v, want open-ended NULLs", from, to)
+	}
+}
