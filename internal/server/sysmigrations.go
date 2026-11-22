@@ -659,6 +659,14 @@ func SystemMigrations() []store.Migration {
 		// Type tree and effective-date columns are added by the publisher
 		// when the flag is set, so no per-Record tables change here.
 		{Version: 18, Name: "trees_effective_uom", Up: treesEffectiveUoM},
+		// Version 19 widens athena_jobs.occurrence_key to the 602-char
+		// maximum an occurrence key can reach (140+140+255+64 part chars
+		// plus separators), with headroom; it stays well under the
+		// utf8mb4 index limit. Corrective widen under ADR-0028 (C2
+		// slice-3 review F3).
+		{Version: 19, Name: "widen_job_occurrence_key", Up: execAll(
+			`ALTER TABLE athena_jobs MODIFY COLUMN occurrence_key VARCHAR(700) NULL`,
+		)},
 	}
 }
 

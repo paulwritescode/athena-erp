@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -374,6 +375,40 @@ func TestDispatchDueLeavesCallerPayloadAlone(t *testing.T) {
 	}
 	if len(payload) != 1 || payload["book"] != "main" {
 		t.Fatalf("caller payload = %v, want it untouched", payload)
+	}
+}
+
+func TestDispatchDueHandlesLongNames(t *testing.T) {
+	ctx := context.Background()
+	db := setup(t)
+	workspace := strings.Repeat("w", 140)
+	schedule := strings.Repeat("s", 140)
+	scope := strings.Repeat("c", 255)
+	period := strings.Repeat("p", 64)
+	if _, err := jobs.EnsureOccurrence(ctx, db, store.MariaDB{}, jobs.EnsureOptions{
+		Workspace: workspace, Schedule: schedule, Scope: scope, Period: period,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	jobID, dispatched, err := jobs.DispatchDue(ctx, db, jobs.DispatchOptions{
+		Workspace: workspace, Schedule: schedule, Scope: scope, Kind: "close-day",
+	})
+	if err != nil || !dispatched {
+		t.Fatalf("dispatch = %v, %v, want a job", dispatched, err)
+	}
+	want, err := jobs.OccurrenceKey(workspace, schedule, scope, period)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(want) != 602 {
+		t.Fatalf("key length = %d, want the 602-char maximum", len(want))
+	}
+	var stored string
+	if err := db.QueryRow(`SELECT occurrence_key FROM athena_jobs WHERE id = ?`, jobID).Scan(&stored); err != nil || stored != want {
+		t.Fatalf("stored key length = %d, want the full 602-char key", len(stored))
+	}
+	if _, _, _, _, err := jobs.SplitOccurrenceKey(stored); err != nil {
+		t.Fatalf("stored key does not split: %v", err)
 	}
 }
 
