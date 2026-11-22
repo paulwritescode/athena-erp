@@ -892,6 +892,17 @@ func (s *Service) updateUserOnce(ctx context.Context, username string, update Us
 	if err != nil {
 		return User{}, err
 	}
+	// The workspace root account is never edited or given Roles: it
+	// carries no assignments (ADR-0018) and its name is fixed, so every
+	// path that changes an account refuses it the same way.
+	if IsRoot(user.Username) {
+		if update.DisplayName != nil {
+			return User{}, fmt.Errorf("%w: the Administrator account cannot be edited", ErrInvalid)
+		}
+		if update.Roles != nil {
+			return User{}, fmt.Errorf("%w: the Administrator account cannot be given Roles", ErrInvalid)
+		}
+	}
 	today := s.now().Format("2006-01-02")
 	guarded := (update.Disabled != nil && *update.Disabled != user.Disabled) || update.Roles != nil
 	before := 0

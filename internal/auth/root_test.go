@@ -152,6 +152,84 @@ func TestRootNeverCountsForTheGuard(t *testing.T) {
 	}
 }
 
+func TestRootCannotBeEditedOrGivenRoles(t *testing.T) {
+	svc, _ := challengeService(t)
+	ctx := context.Background()
+	const dbPassword = "the database password here"
+	if _, err := svc.EnsureRoot(ctx, dbPassword); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.EnsureSystemRoles(ctx); err != nil {
+		t.Fatal(err)
+	}
+	renamed := "Renamed Root"
+	if _, err := svc.UpdateUser(ctx, "administrator", auth.UserUpdate{DisplayName: &renamed}); !errors.Is(err, auth.ErrInvalid) {
+		t.Fatalf("editing root = %v, want ErrInvalid", err)
+	}
+	roles := []string{auth.RoleInstanceOwner}
+	if _, err := svc.UpdateUser(ctx, "administrator", auth.UserUpdate{Roles: &roles}); !errors.Is(err, auth.ErrInvalid) {
+		t.Fatalf("giving root Roles = %v, want ErrInvalid", err)
+	}
+	if _, err := svc.SaveAssignment(ctx, "administrator", auth.AssignmentInput{Role: auth.RoleInstanceOwner}); !errors.Is(err, auth.ErrInvalid) {
+		t.Fatalf("assigning root a Role = %v, want ErrInvalid", err)
+	}
+	// The refusals changed nothing: the name is fixed, no assignment
+	// landed, and the account still signs in.
+	users, err := svc.ListUsers(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(users) != 1 || users[0].DisplayName != "Administrator" {
+		t.Fatalf("users = %+v", users)
+	}
+	assignments, err := svc.ListAssignments(ctx, "administrator")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(assignments) != 0 {
+		t.Fatalf("root assignments = %+v, want none", assignments)
+	}
+	if _, err := svc.Login(ctx, "administrator", dbPassword, "seed"); err != nil {
+		t.Fatalf("root sign-in after the refusals: %v", err)
+	}
+}
+
+func TestRootChangePasswordRotatesOnlyItsOwn(t *testing.T) {
+	svc, _ := challengeService(t)
+	ctx := context.Background()
+	const dbPassword = "the database password here"
+	if _, err := svc.EnsureRoot(ctx, dbPassword); err != nil {
+		t.Fatal(err)
+	}
+	user, token, err := svc.CreateUser(ctx, "owner", "", true, "seed")
+	if err != nil {
+		t.Fatal(err)
+	}
+	const ownerPassword = "an owner passphrase here"
+	if _, err := svc.CompleteChallenge(ctx, user.Username, auth.ChallengePurposeFirstLogin, token, ownerPassword, "seed"); err != nil {
+		t.Fatal(err)
+	}
+	root, err := svc.Login(ctx, "administrator", dbPassword, "seed")
+	if err != nil {
+		t.Fatal(err)
+	}
+	const rotated = "a rotated root passphrase"
+	if err := svc.ChangePassword(ctx, root.Principal.UserID, dbPassword, rotated, root.Principal.SessionID); err != nil {
+		t.Fatalf("root change password: %v", err)
+	}
+	if _, err := svc.Login(ctx, "administrator", rotated, "seed"); err != nil {
+		t.Fatalf("root sign-in with the rotated password: %v", err)
+	}
+	if _, err := svc.Login(ctx, "administrator", dbPassword, "seed"); !errors.Is(err, auth.ErrInvalidCredentials) {
+		t.Fatalf("root sign-in with the old password = %v, want ErrInvalidCredentials", err)
+	}
+	// Only the root credential moved: the other account still signs in
+	// with its own password.
+	if _, err := svc.Login(ctx, "owner", ownerPassword, "seed"); err != nil {
+		t.Fatalf("owner sign-in after the root rotation: %v", err)
+	}
+}
+
 func TestBootstrapIgnoresRoot(t *testing.T) {
 	svc, _ := challengeService(t)
 	ctx := context.Background()

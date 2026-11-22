@@ -306,6 +306,11 @@ func (s *Service) saveAssignmentOnce(ctx context.Context, username string, in As
 	if err != nil {
 		return Assignment{}, err
 	}
+	// The workspace root account carries no assignments (ADR-0018): it
+	// holds everything without them, so giving it a Role is refused.
+	if IsRoot(user.Username) {
+		return Assignment{}, fmt.Errorf("%w: the Administrator account cannot be given Roles", ErrInvalid)
+	}
 	role, err := s.roleByName(ctx, tx, in.Role)
 	if err != nil {
 		return Assignment{}, err
