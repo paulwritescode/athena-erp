@@ -107,6 +107,7 @@ Order follows dependencies. Desk parts of each group follow the design system an
   - Slice 2 merged 2026-11-22 (f94fe09+367a56c): Operation_ID contract + idempotent replay + concurrent-replay property (6.4+6.5); cross-actor winner disambiguated by group id (fix loop 1). Z2 unchanged (2 sentinels, still pinned). Open: slices 3–6 (reversal, hooks, RPCs/CLI, voucher view).
   - Slice 3 merged 2026-11-22 (4334fc3): reversal mirrors + correction-period rules (6.6+6.7); Property 10 submit+cancel netting; rebase adaptation onto the C2 event bus (insertOutbox via events.Emit) delta-reviewed. Z2 unchanged (ErrCorrectionWindowOpen sentinel, still pinned). Open: slices 4–6 (hooks, RPCs/CLI, voucher view).
   - Slice 4 merged 2026-11-23 (8fd7bef): lifecycle hooks + Posting Rule type with activation gate (6.8); internal/lifecycle deviation accepted (registry suffices); records.proto +posting_preview_hash; fixture replay + plan diff + two-step named approval; Z2 sentinels byte-identical. Open: slices 5–6 (RPCs/CLI, voucher view + docs + checkpoint).
+  - Slice 5 merged 2026-11-23 (cf2f674): posting RPCs + CLI (6.9); preview-hash loop closed; dryRun side-effect-free; gate policies + both-halves test; Z2 untouched. Open: slice 6 (6.10 voucher view + 6.11 docs + 6.12 checkpoint; 6.11 committed on the branch, Desk still gated).
   - Follow-up: Posting Rule activation — approver may be the author (four-eyes not enforced for beta, Stylus-accepted); approval record keeps author (v2 actor) and approver (v3 actor) so it can be audited (Z13).
 - [ ] **C2. G8 Jobs, outbox, events, workflows, secrets, lifetimes.** Invite delivery through the outbox. JobsPage and SettingsPage.
   - Slice 1 merged 2026-11-22 (5d1e55f): migration 17 (events/outbox/inbox + subscriptions + jobs/occurrences + workflows/tasks) + ADR-0028 (8.1 adjusted); Z4 secrets/lifetimes deferred. Open: slices 2+ (subscriptions, worker, jobs, workflows, secrets/lifetimes once Z4 is decided).
@@ -191,6 +192,7 @@ Gates per name: pattern, 1 to 2 syllables, clean as `athena-<noun>`, the user ca
 - C1 slice 3: same-op-id submit+cancel conflict untested (one-line TestReverseReplay addition); no concurrent-reversal test (racing reversals in Property 10 would close the loop); assertMirror does not pin bijectivity; checkIdentity wording on the reversal path; consider TypePostingReversed in the events package instead of the posting-local literal.
 - C4 slice 1: backfill leftover-row error says "cycle or missing parent" but also fires for chains deeper than 100 passes (cosmetic; name the depth bound).
 - C1 6.8: rules.proto posting comment now stale; Desk Rules page lacks the posting type (posting Rules are API-only); parent_id filter error branches untested.
+- C1 6.9: plan legs lack voucher-line linkage; no test asserts preview leaves dry_run=1 rows only; `post log` first-page-only (no --page-token); hooks-don't-rewrite-doc assumption noted for the hash loop.
 
 ## Z. Decisions the user must make (OPEN)
 
