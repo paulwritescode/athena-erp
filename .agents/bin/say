@@ -1,0 +1,25 @@
+#!/usr/bin/env python3
+"""Send a message to another agent and record it in .agents/stylus/comms.jsonl.
+
+  say <to> "<KIND>: text"      KIND is one of UPDATE, PASS, BLOCKED, QUESTION,
+                               ANSWER, ORDER, ERROR, DONE, INFO (default INFO)
+  say stylus "..."             reaches the kiro-cli Stylus terminal
+"""
+import os, re, subprocess, sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import _stylus as s
+
+KINDS = ("UPDATE", "PASS", "BLOCKED", "QUESTION", "ANSWER", "ORDER", "ERROR", "DONE", "INFO", "BRIEF")
+
+if len(sys.argv) < 3:
+    sys.exit(__doc__)
+to, text = sys.argv[1], " ".join(sys.argv[2:]).strip()
+m = re.match(r"^([A-Z_]+)\s*:\s*", text)
+kind = m.group(1) if m and m.group(1) in KINDS else "INFO"
+sender = s.me()
+target = s.stylus_addr() if to.lower() == "stylus" else to
+r = subprocess.run(["hc", "send", target, f"{sender.upper()}→{to.upper()}: {text}"], capture_output=True, text=True)
+ok = r.returncode == 0 and '"error"' not in r.stdout
+s.append("comms.jsonl", {"from": sender, "to": to, "kind": kind, "text": text[:4000], "delivered": ok})
+if not ok:
+    sys.exit(f"say: not delivered to {to}: {r.stdout.strip()} {r.stderr.strip()}")

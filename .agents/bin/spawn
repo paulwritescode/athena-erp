@@ -1,0 +1,123 @@
+#!/usr/bin/env python3
+"""Start one agent as a split pane beside the caller and record it.
+
+  spawn <role> <name> --task B11 [--lane L4] --cwd ../athena-erp-b11 \
+        [--cli muse|kiro|codex] [--place right|down] --brief path "<first message>"
+
+Roles and name prefixes: worker w-, reviewer r-, submaster sm-, subworker sw-,
+thinker th- (read-only reasoning for Stylus). The caller becomes the parent.
+Refuses when a cap in .agents/stylus/limits.json, memory or disk would be crossed.
+"""
+import argparse, json, os, subprocess, sys, time
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import _stylus as s
+
+PREFIX = {"worker": "w-", "reviewer": "r-", "submaster": "sm-", "subworker": "sw-", "thinker": "th-"}
+CAP = {"worker": "maxWorkers", "reviewer": "maxReviewers", "submaster": "maxSubmasters"}
+DEFAULT_CLI = {"worker": "muse", "reviewer": "muse", "submaster": "kiro", "subworker": "muse", "thinker": "codex"}
+
+
+def argv_for(cli, role, msg):
+    if os.environ.get("STYLUS_SPAWN_SMOKE"):  # tests the plumbing without starting a model
+        return ["cat"]
+    if cli == "muse":
+        return ["muse", "--yolo", "--model", "muse-spark-1.3-contributor", "--reasoning-effort", "max", msg]
+    if cli == "kiro":
+        return ["kiro-cli", "chat", "--trust-all-tools", msg]
+    if cli == "codex":
+        mode = ["--sandbox", "read-only", "--ask-for-approval", "never"] if role == "thinker" \
+            else ["--dangerously-bypass-approvals-and-sandbox"]
+        return ["codex", *mode, msg]
+    sys.exit(f"spawn: unknown cli {cli}")
+
+
+def fail(msg):
+    s.append("agents.jsonl", {"event": "refused", "by": s.me(), "why": msg})
+    sys.exit("spawn refused: " + msg)
+
+
+def main():
+    p = argparse.ArgumentParser()
+    p.add_argument("role", choices=PREFIX)
+    p.add_argument("name")
+    p.add_argument("message")
+    p.add_argument("--task", required=True)
+    p.add_argument("--lane", default="")
+    p.add_argument("--cwd", required=True)
+    p.add_argument("--cli")
+    p.add_argument("--place", choices=["right", "down"], default="right")
+    p.add_argument("--brief", default="")
+    a = p.parse_args()
+
+    cli = a.cli or DEFAULT_CLI[a.role]
+    if not a.name.startswith(PREFIX[a.role]):
+        fail(f"{a.role} names start with {PREFIX[a.role]} (got {a.name})")
+    cwd = os.path.realpath(os.path.join(os.getcwd(), a.cwd))
+    if os.path.dirname(cwd) != s.WORKSPACE_PARENT or not os.path.basename(cwd).startswith("athena-erp"):
+        fail(f"cwd must be athena-erp or a sibling athena-erp-* worktree (got {cwd})")
+    if not os.path.isdir(cwd):
+        fail(f"no such worktree {cwd}")
+
+    lim, live = s.limits(), s.terminals()
+    agents = [t for t in live if (t.get("name") or "").startswith(tuple(PREFIX.values()))]
+    if len(agents) >= lim["maxAgents"]:
+        fail(f"{len(agents)} agents live, cap {lim['maxAgents']}")
+    if a.role in CAP:
+        n = sum((t.get("name") or "").startswith(PREFIX[a.role]) for t in live)
+        if n >= lim[CAP[a.role]]:
+            fail(f"{n} {a.role}s live, cap {lim[CAP[a.role]]}")
+    parent = s.me()
+    if a.role == "subworker":
+        if not parent.startswith("sm-"):
+            fail("only a submaster (sm-) starts subworkers")
+        mine = [r["name"] for r in s.read_jsonl("agents.jsonl") if r.get("event") == "spawn" and r.get("parent") == parent]
+        if sum(t.get("name") in mine for t in live) >= lim["maxSubworkersPerSubmaster"]:
+            fail(f"{parent} already has {lim['maxSubworkersPerSubmaster']} live subworkers")
+    if a.role == "submaster" and not parent.startswith("w-"):
+        fail("a submaster is started by the worker that owns the task (w-)")
+    mem, disk = s.mem_free_pct(), s.disk_free_gb()
+    if mem < lim["minMemFreePct"]:
+        fail(f"memory free {mem}% < {lim['minMemFreePct']}%")
+    if disk < lim["minDiskFreeGB"]:
+        fail(f"disk free {disk:.1f} GB < {lim['minDiskFreeGB']} GB")
+
+    rules = os.path.join(s.STY, "AGENT_RULES.md")
+    head = (f"You are {a.name}, a {a.role} ({cli}) for task {a.task}"
+            f"{' in lane ' + a.lane if a.lane else ''}. Your parent is {parent}: you report to it only. "
+            f"First read {rules} (binding rules: permissions, talking with .agents/bin/say, the suite lock, "
+            f"when to split work).{' Your brief: ' + os.path.realpath(a.brief) + '.' if a.brief else ''} ")
+    msg = head + a.message
+    out = subprocess.run(["hc", "run", "--bg", "--outlive-parent", "--json", "--name", a.name, "--cwd", cwd,
+                          "--label", f"role={a.role}", "--label", f"task={a.task}", "--label", f"lane={a.lane}",
+                          "--label", f"cli={cli}", "--", *argv_for(cli, a.role, msg)],
+                         capture_output=True, text=True)
+    try:
+        addr = json.loads(out.stdout).get("address")
+    except ValueError:
+        addr = None
+    if not addr:
+        fail(f"hc run failed: {out.stdout.strip()} {out.stderr.strip()}")
+    tid = os.environ.get("HC_TERMINAL_ID")
+    if tid:
+        subprocess.run(["herdr-app", "do", "pane.focus", "--terminal", tid], capture_output=True)
+    pane = None
+    for _ in range(20):  # Herdr sees a new terminal about a second after hc starts it
+        time.sleep(0.5)
+        r = subprocess.run(["herdr-app", "do", "terminal.keep", "--terminal", addr, "--place", a.place],
+                           capture_output=True, text=True)
+        try:
+            pane = json.loads(r.stdout).get("pane")
+        except ValueError:
+            pane = None
+        if pane:
+            break
+    if not pane:
+        print(f"spawn: {a.name} ({addr}) runs but has no pane; place it with herdr-app do terminal.keep", file=sys.stderr)
+    s.append("agents.jsonl", {"event": "spawn", "name": a.name, "addr": addr, "role": a.role, "cli": cli,
+                              "task": a.task, "lane": a.lane, "parent": parent, "cwd": cwd, "brief": a.brief,
+                              "pane": pane})
+    s.append("comms.jsonl", {"from": parent, "to": a.name, "kind": "BRIEF", "text": a.message[:2000]})
+    print(f"{a.name} started as {addr} ({cli}, parent {parent})")
+
+
+main()

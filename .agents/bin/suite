@@ -1,0 +1,86 @@
+#!/usr/bin/env python3
+"""Run a heavy command (full suite, browser pass) one at a time across all agents.
+
+  suite [--label "C1 merge"] [--] make test        (default command: make test)
+
+Waits for .agents/stylus/locks/suite, which holds one owner at a time. A lock
+whose owner process is gone is taken over. Every run is logged with its exit
+status and duration in .agents/stylus/suite.jsonl; the output tail goes to
+.agents/stylus/suite-logs/<time>-<who>.log.
+"""
+import json, os, signal, subprocess, sys, time
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import _stylus as s
+
+args = sys.argv[1:]
+label = ""
+if args[:1] == ["--label"]:
+    label, args = args[1], args[2:]
+if args[:1] == ["--"]:
+    args = args[1:]
+cmd = args or ["make", "test"]
+lock = s.path("locks/suite")
+os.makedirs(os.path.dirname(lock), exist_ok=True)
+os.makedirs(s.path("suite-logs"), exist_ok=True)
+who, cwd = s.me(), os.getcwd()
+
+
+def alive(pid):
+    try:
+        os.kill(pid, 0)
+        return True
+    except OSError:
+        return False
+
+
+waited = time.time()
+s.append("suite.jsonl", {"event": "queued", "who": who, "cwd": cwd, "cmd": " ".join(cmd), "label": label})
+while True:
+    try:
+        os.mkdir(lock)
+        break
+    except FileExistsError:
+        try:
+            owner = json.load(open(os.path.join(lock, "owner.json")))
+            if not alive(owner["pid"]):
+                os.remove(os.path.join(lock, "owner.json"))
+                os.rmdir(lock)
+                s.append("suite.jsonl", {"event": "stale", "who": owner.get("who"), "pid": owner["pid"]})
+                continue
+        except (FileNotFoundError, ValueError, KeyError):
+            if time.time() - os.path.getmtime(lock) > 60:
+                try:
+                    os.rmdir(lock)
+                except OSError:
+                    pass
+        time.sleep(5)
+
+json.dump({"pid": os.getpid(), "who": who, "cwd": cwd, "cmd": " ".join(cmd), "label": label,
+           "since": s.now()}, open(os.path.join(lock, "owner.json"), "w"))
+start = time.time()
+s.append("suite.jsonl", {"event": "start", "who": who, "cwd": cwd, "cmd": " ".join(cmd), "label": label,
+                         "waited_s": int(start - waited)})
+logf = s.path(f"suite-logs/{time.strftime('%m%d-%H%M%S')}-{who}.log")
+code = 1
+try:
+    with open(logf, "w") as log:
+        proc = subprocess.Popen(cmd, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+                                start_new_session=True)
+        limit = s.limits().get("suiteTimeoutMinutes", 30) * 60
+        for line in proc.stdout:
+            sys.stdout.write(line)
+            log.write(line)
+            if time.time() - start > limit:
+                os.killpg(proc.pid, signal.SIGTERM)
+                log.write(f"\nsuite: stopped after {limit // 60} minutes\n")
+                break
+        code = proc.wait()
+finally:
+    try:
+        os.remove(os.path.join(lock, "owner.json"))
+        os.rmdir(lock)
+    except OSError:
+        pass
+    s.append("suite.jsonl", {"event": "end", "who": who, "cwd": cwd, "cmd": " ".join(cmd), "label": label,
+                             "exit": code, "secs": int(time.time() - start), "log": os.path.basename(logf)})
+sys.exit(code)
