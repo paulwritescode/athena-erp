@@ -1,0 +1,23 @@
+# 2026/11/22 04:48:05.609896 [TestBalancedPostingsProperty] [rapid] draw freeLines: 1
+# 2026/11/22 04:48:05.609899 [TestBalancedPostingsProperty] [rapid] draw txn: false
+# 2026/11/22 04:48:05.609900 [TestBalancedPostingsProperty] [rapid] draw minor: 1
+# 2026/11/22 04:48:05.609902 [TestBalancedPostingsProperty] [rapid] draw account: 0
+# 2026/11/22 04:48:05.609902 [TestBalancedPostingsProperty] [rapid] draw debit: false
+# 2026/11/22 04:48:05.609924 [TestBalancedPostingsProperty] [rapid] draw plugAccount: 0
+# 2026/11/22 04:48:05.610806 [TestBalancedPostingsProperty] post: Error 1406 (22001): Data too long for column 'voucher_id' at row 1
+# 
+v0.4.8#7227967982469276157
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
