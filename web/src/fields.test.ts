@@ -92,6 +92,22 @@ describe('field chrome', () => {
     expect(off.el.querySelector('input')?.disabled).toBe(true)
   })
 
+  it('emits enter on Enter', async () => {
+    let entered = 0
+    const el = document.createElement('div')
+    document.body.appendChild(el)
+    const app = createApp({ render: () => h(TextField, { id: 'f-go', label: 'Go', onEnter: () => { entered += 1 } }) })
+    app.mount(el)
+    cleanups.push(() => {
+      app.unmount()
+      el.remove()
+    })
+    await nextTick()
+    el.querySelector('input')!.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', bubbles: true }))
+    await nextTick()
+    expect(entered).toBe(1)
+  })
+
   it('renders long text and numbers', async () => {
     const long = mountField(LongTextField, { id: 'f-body', label: 'Body', modelValue: 'hi' })
     await nextTick()

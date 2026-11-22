@@ -19,7 +19,7 @@ withDefaults(defineProps<{
   spellcheck?: boolean
   modelValue?: string
 }>(), { type: 'text' })
-defineEmits<{ 'update:modelValue': [value: string]; blur: [] }>()
+defineEmits<{ 'update:modelValue': [value: string]; blur: []; enter: [] }>()
 </script>
 
 <template>
@@ -41,6 +41,7 @@ defineEmits<{ 'update:modelValue': [value: string]; blur: [] }>()
         class="h-11 min-[640px]:h-10 lg:h-9"
         @update:model-value="$emit('update:modelValue', String($event))"
         @blur="$emit('blur')"
+        @keyup.enter="$emit('enter')"
       />
     </template>
   </FieldShell>

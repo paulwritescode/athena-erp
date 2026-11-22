@@ -53,10 +53,12 @@ function toggleKeyManual() {
 }
 
 function create() {
-  if (blocked.value || creating.value) return
-  creating.value = true
+  // Every submit attempt reveals the inline errors, so pressing Enter on a
+  // duplicate name flags it at once instead of waiting for blur.
   nameTouched.value = true
   keyTouched.value = true
+  if (blocked.value || creating.value) return
+  creating.value = true
   emit('create', { name: name.value.trim(), description: description.value.trim(), kind: kind.value, key: key.value, parent: parent.value || undefined }, (saved: boolean) => {
     creating.value = false
     if (!saved) nameTouched.value = true
@@ -76,6 +78,7 @@ function create() {
         :error="nameTouched ? errors.name : undefined"
         :disabled="creating"
         @blur="nameTouched = true"
+        @enter="create"
       />
       <div class="text-muted-foreground -mt-2 text-sm">
         Saved as <code class="font-mono">{{ key || '—' }}</code>{{ ' ' }}
@@ -89,6 +92,7 @@ function create() {
         :error="keyTouched ? errors.key : undefined"
         :disabled="creating"
         @blur="keyTouched = true"
+        @enter="create"
       />
       <TextField
         id="new-type-description"
@@ -97,6 +101,7 @@ function create() {
         optional
         placeholder="What this kind of record tracks"
         :disabled="creating"
+        @enter="create"
       />
       <fieldset>
         <legend class="text-sm font-medium">Kind <HelpHint term="recordKind" /></legend>
