@@ -66,7 +66,7 @@ const forceClass = computed(() => (props.force === 'light' ? 'preview-light' : p
           <Badge :variant="row.variant">{{ row.badge }}</Badge>
         </li>
       </ul>
-      <p class="flex h-9 items-center gap-2 rounded-xl bg-sidebar-accent px-3 text-sm text-sidebar-accent-foreground">
+      <p class="flex h-9 items-center gap-2 rounded-xl bg-sidebar-primary px-3 text-sm font-medium text-sidebar-primary-foreground">
         <FileText class="size-4" aria-hidden="true" />
         Invoices
       </p>
