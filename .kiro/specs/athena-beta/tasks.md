@@ -163,6 +163,7 @@ Gates per name: pattern, 1 to 2 syllables, clean as `athena-<noun>`, the user ca
 - B9 form 1: alt-text error renders twice (inner + outer); required-but-empty field in a hidden section blocks save invisibly; empty ImageField label `for` points nowhere; section list uses filtered index as key/label; WorkspaceImage comment mentions lists (forms-only until 2.3); visibility evaluates at open only, not on draft edits.
 - B5 slice 2: "No logo" empty text unreadable in mismatched swatch/theme combos; logo errors lack the CircleAlert icon pattern; clearing the display name toasts success but snaps back; theme-color static in dark theme (pre-existing); fallback favicon is the black mark in both themes.
 - B2a slice 2: no bulk RPCs anywhere (tables correctly hide select); runs list hardcoded pageSize 50, next token ignored, no total; centered columns stay centered in stacked phone rows; mapping no-file rows focusable despite no-op click; Actions column shows when row-actions returns []; unexplained px-4 py-3 rewrite in DataTable.
+- Notifications full list page (route, nav entry, permission and DataTable) needs design before it is built; the bell inbox covers design-system section 17 meanwhile.
 
 ## Z. Decisions the user must make (OPEN)
 
