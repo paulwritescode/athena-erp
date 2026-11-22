@@ -39,6 +39,7 @@ This directory describes the product and the system as it exists and as decision
 - [ADR-0026 Session lifetimes, step-up and rate limiting](decisions/adr-0026-session-policy.md) — proposed B7 server policy and operator settings.
 - [ADR-0027: Form layout storage, Image fields and image files](decisions/adr-0027-form-layout-and-images.md) — proposed: layout in the definition JSON; Image values reference `images/`; PutImage with metadata stripping and on-read thumbnails.
 - [ADR-0028: Events, jobs and workflows](decisions/adr-0028-events-jobs-and-workflows.md) — proposed: transactional outbox/inbox, leased jobs, schedules, workflows; P16 before P14; secrets and lifetimes deferred (Z4 open).
+- [ADR-0030: Public pages and SEO](decisions/adr-0030-public-pages-and-seo.md) — proposed: server-rendered public routes from fixed projections, per-page SEO contract, noindex list, vitals budget; no new tables, no Desk changes.
 - [ADR template](decisions/adr-template.md) — format for recording a consequential architecture decision.
 - [Project README](../README.md) — setup, run, build, and repository layout.
 
