@@ -9,7 +9,7 @@ import (
 	v1 "athena-erp/gen/athena/v1"
 )
 
-const appearanceUsage = "usage: athena workspace appearance show | set (--preset ink|red | --accent 'oklch(...)' [--chart1 ...] ... [--chart5 ...]) [--workspace slug]"
+const appearanceUsage = "usage: athena workspace appearance show | set (--preset ink|slate|blue|sky|green|amber|orange|brown|red|custom | --accent 'oklch(...)' [--chart1 ...] ... [--chart5 ...]) [--workspace slug]"
 
 const identityUsage = "usage: athena workspace identity show | set [--name text] [--logo-light file] [--logo-dark file] [--workspace slug]"
 
@@ -42,7 +42,7 @@ func appearanceCommand(args []string, out io.Writer) error {
 	switch verb {
 	case "show":
 	case "set":
-		f.StringVar(&a.Preset, "preset", "", "ink or red")
+		f.StringVar(&a.Preset, "preset", "", "accent preset name")
 		f.StringVar(&a.Accent, "accent", "", "custom light-theme accent")
 		for i := range charts {
 			f.StringVar(&charts[i], fmt.Sprintf("chart%d", i+1), "", "custom chart color")
