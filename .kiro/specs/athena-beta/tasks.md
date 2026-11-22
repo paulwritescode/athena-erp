@@ -103,6 +103,7 @@
 Order follows dependencies. Desk parts of each group follow the design system and come after the group's backend is merged.
 
 - [ ] **C1. G6 Posting engine** 6.2 to 6.12 (6.1 done). Desk voucher view uses DetailSheet and plain words ("Recorded in the books").
+  - Slice 1 merged 2026-11-22 (9d87fbf+a9e1d49): plan validation + single-transaction writer + balanced-postings property (6.2+6.3); Z2 policy parts return failed_precondition sentinels. Open: slices 2–6 (operations, reversal, hooks, RPCs/CLI, voucher view).
 - [ ] **C2. G8 Jobs, outbox, events, workflows, secrets, lifetimes.** Invite delivery through the outbox. JobsPage and SettingsPage.
 - [ ] **C3. G10 Pack packaging.** PackService, install plan preview, PacksPage.
 - [ ] **C4. G13 Trees, effective dating, determination specificity, UoM.**
@@ -173,6 +174,7 @@ Gates per name: pattern, 1 to 2 syllables, clean as `athena-<noun>`, the user ca
 - B8 slice 1: EnsureRoot taken-name skip branch untested; serve-boot seeding duplicates kernel-open call with only one seam covered; Desk isRootSelected exact-matches lowercase (server normalizes).
 - B11 slice 1: README Homes and Workspaces lacks a direct guide link; guide CLI errors omit the log timestamp prefix; e2e script slug/port fixed (no SLUG override for parallel runs).
 - B10 slice 2: filtered Rules table + open runs tab can show two figures at once; empty-users/roles/sessions/runs figures unit-tested but never observed live.
+- C1 slice 1: fitsLedger allows 28 significant digits vs DECIMAL(28,6) 22 integer digits (raw DB error on huge values); validDate accepts non-calendar dates; no multi-company balance test; hashPlan hashes Decimal text (100.00 vs 100 differ — normalize in slice 2); zero-value Engine Dialect panic risk on concurrent-insert race.
 
 ## Z. Decisions the user must make (OPEN)
 
