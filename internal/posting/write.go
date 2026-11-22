@@ -46,13 +46,9 @@ func (e *Engine) Post(ctx context.Context, plan Plan, opts PostOptions) (Result,
 // voucher revision, event and book; and records the attempt in the posting
 // log, through a separate connection when the attempt fails.
 func (e *Engine) PostInTx(ctx context.Context, tx *sql.Tx, plan Plan, opts PostOptions) (Result, error) {
-	operationID := opts.OperationID
-	if operationID == "" {
-		generated, err := uuid.NewV7()
-		if err != nil {
-			return Result{}, err
-		}
-		operationID = generated.String()
+	operationID, err := effectiveOperationID(opts.OperationID)
+	if err != nil {
+		return Result{}, err
 	}
 	if err := checkOptions(opts); err != nil {
 		e.logFailure(ctx, plan, operationID, opts, OutcomeRejected, CodeInvalid, "", err)
@@ -64,21 +60,8 @@ func (e *Engine) PostInTx(ctx context.Context, tx *sql.Tx, plan Plan, opts PostO
 		return Result{}, err
 	}
 	if opts.OperationID != "" {
-		found, stored, err := lookupOperation(ctx, tx, opts.Actor, CommandPost, operationID)
-		if err != nil {
-			e.logFailure(ctx, plan, operationID, opts, OutcomeError, CodeInternal, hash, err)
-			return Result{}, err
-		}
-		if found {
-			if stored.PayloadHash != hash {
-				e.logFailure(ctx, plan, operationID, opts, OutcomeConflict, CodeConflict, hash, ErrConflict)
-				return Result{}, fmt.Errorf("%w: operation %q already posted another payload", ErrConflict, operationID)
-			}
-			stored.Result.Replayed = true
-			if err := insertLogRow(ctx, tx, plan, operationID, opts, OutcomeReplayed, CodeOK, "", hash); err != nil {
-				return Result{}, err
-			}
-			return stored.Result, nil
+		if result, done, err := e.checkReplay(ctx, tx, plan, opts, operationID, hash); done || err != nil {
+			return result, err
 		}
 	}
 	if err := ValidatePlan(ctx, tx, plan); err != nil {
@@ -86,6 +69,51 @@ func (e *Engine) PostInTx(ctx context.Context, tx *sql.Tx, plan Plan, opts PostO
 		e.logFailure(ctx, plan, operationID, opts, outcome, code, hash, err)
 		return Result{}, err
 	}
+	return e.commitPost(ctx, tx, plan, opts, operationID, hash, func(result Result) error {
+		return e.writePosting(ctx, tx, plan, opts, result)
+	})
+}
+
+// effectiveOperationID keeps a caller-supplied id or generates one that
+// posts without replay cover.
+func effectiveOperationID(callers string) (string, error) {
+	if callers != "" {
+		return callers, nil
+	}
+	generated, err := uuid.NewV7()
+	if err != nil {
+		return "", err
+	}
+	return generated.String(), nil
+}
+
+// checkReplay answers a known operation id before any validation, so a
+// retry returns the first result even when the plan would no longer
+// validate. Done is true when the id was known and result is final.
+func (e *Engine) checkReplay(ctx context.Context, tx *sql.Tx, plan Plan, opts PostOptions, operationID, hash string) (Result, bool, error) {
+	found, stored, err := lookupOperation(ctx, tx, opts.Actor, CommandPost, operationID)
+	if err != nil {
+		e.logFailure(ctx, plan, operationID, opts, OutcomeError, CodeInternal, hash, err)
+		return Result{}, false, err
+	}
+	if !found {
+		return Result{}, false, nil
+	}
+	if stored.PayloadHash != hash {
+		e.logFailure(ctx, plan, operationID, opts, OutcomeConflict, CodeConflict, hash, ErrConflict)
+		return Result{}, true, fmt.Errorf("%w: operation %q already posted another payload", ErrConflict, operationID)
+	}
+	stored.Result.Replayed = true
+	if err := insertLogRow(ctx, tx, plan, operationID, opts, OutcomeReplayed, CodeOK, "", hash); err != nil {
+		return Result{}, true, err
+	}
+	return stored.Result, true, nil
+}
+
+// commitPost writes one posting group, one operation row, the ledger
+// effect through write, and the posted log row. Collisions replay the
+// winner instead of writing again.
+func (e *Engine) commitPost(ctx context.Context, tx *sql.Tx, plan Plan, opts PostOptions, operationID, hash string, write func(Result) error) (Result, error) {
 	groupID, err := uuid.NewV7()
 	if err != nil {
 		e.logFailure(ctx, plan, operationID, opts, OutcomeError, CodeInternal, hash, err)
@@ -115,7 +143,7 @@ func (e *Engine) PostInTx(ctx context.Context, tx *sql.Tx, plan Plan, opts PostO
 		e.logFailure(ctx, plan, operationID, opts, OutcomeError, CodeInternal, hash, err)
 		return Result{}, err
 	}
-	if err := e.writePosting(ctx, tx, plan, opts, result); err != nil {
+	if err := write(result); err != nil {
 		e.logFailure(ctx, plan, operationID, opts, OutcomeError, CodeInternal, hash, err)
 		return Result{}, err
 	}
@@ -128,7 +156,7 @@ func (e *Engine) PostInTx(ctx context.Context, tx *sql.Tx, plan Plan, opts PostO
 // writePosting writes the ledger rows, balance deltas, audit event and
 // outbox row of one validated post.
 func (e *Engine) writePosting(ctx context.Context, tx *sql.Tx, plan Plan, opts PostOptions, result Result) error {
-	if err := insertRows(ctx, tx, result.PostingGroupID, result.RowIDs, plan); err != nil {
+	if err := insertRows(ctx, tx, result.PostingGroupID, result.RowIDs, plan, rowFlags{}); err != nil {
 		return err
 	}
 	if err := e.applyBalances(ctx, tx, plan); err != nil {
@@ -145,7 +173,34 @@ func (e *Engine) writePosting(ctx context.Context, tx *sql.Tx, plan Plan, opts P
 	}); err != nil {
 		return fmt.Errorf("append audit event: %w", err)
 	}
-	if err := insertOutbox(ctx, tx, e.Workspace, result.PostingGroupID, result.PlanHash, plan, opts); err != nil {
+	if err := insertOutbox(ctx, tx, e.Workspace, OutboxEventType, nil, result.PostingGroupID, result.PlanHash, plan, opts); err != nil {
+		return err
+	}
+	return nil
+}
+
+// writeReversal writes the mirror rows, balance deltas, audit event and
+// outbox row of one reversal. ReversalOf is the submit group being unwound.
+func (e *Engine) writeReversal(ctx context.Context, tx *sql.Tx, plan Plan, opts PostOptions, result Result, flags rowFlags, reversalOf string) error {
+	if err := insertRows(ctx, tx, result.PostingGroupID, result.RowIDs, plan, flags); err != nil {
+		return err
+	}
+	if err := e.applyBalances(ctx, tx, plan); err != nil {
+		return err
+	}
+	if _, err := audit.Append(ctx, tx, e.Dialect, audit.Entry{
+		RecordType: plan.VoucherType, RecordID: plan.VoucherID, Revision: plan.Revision,
+		Action: AuditActionReverse,
+		Changes: []audit.Change{
+			{Field: "ledger_rows", New: ptr(strconv.Itoa(len(plan.Lines)))},
+			{Field: "posting_group", New: ptr(result.PostingGroupID)},
+			{Field: "reversal_of", New: ptr(reversalOf)},
+		},
+		Actor: opts.Actor, Source: opts.Source, RequestID: opts.RequestID,
+	}); err != nil {
+		return fmt.Errorf("append audit event: %w", err)
+	}
+	if err := insertOutbox(ctx, tx, e.Workspace, OutboxEventTypeReversed, map[string]any{"reversal_of_group_id": reversalOf}, result.PostingGroupID, result.PlanHash, plan, opts); err != nil {
 		return err
 	}
 	return nil
@@ -154,19 +209,33 @@ func (e *Engine) writePosting(ctx context.Context, tx *sql.Tx, plan Plan, opts P
 func ptr(value string) *string { return &value }
 
 func checkOptions(opts PostOptions) error {
-	if opts.Actor == "" {
+	return checkIdentity(opts.Actor, opts.Source, opts.OperationID)
+}
+
+// checkIdentity validates the audit identity posts and reversals share.
+func checkIdentity(actor, source, operationID string) error {
+	if actor == "" {
 		return fmt.Errorf("%w: a post needs its actor", ErrInvalid)
 	}
-	if opts.Source == "" {
+	if source == "" {
 		return fmt.Errorf("%w: a post needs its source", ErrInvalid)
 	}
-	if utf8.RuneCountInString(opts.OperationID) > 140 {
+	if utf8.RuneCountInString(operationID) > 140 {
 		return fmt.Errorf("%w: the operation id is longer than 140 characters", ErrInvalid)
 	}
 	return nil
 }
 
-func insertRows(ctx context.Context, tx *sql.Tx, groupID string, rowIDs []string, plan Plan) error {
+// rowFlags steers insertRows. Periods presets the period per company, for
+// callers that resolved it themselves; nil resolves through PeriodFor.
+// Reversed carries the reversed row id per line, with "" marking a plain
+// row; nil writes no reversals.
+type rowFlags struct {
+	periods  map[string]string
+	reversed []string
+}
+
+func insertRows(ctx context.Context, tx *sql.Tx, groupID string, rowIDs []string, plan Plan, flags rowFlags) error {
 	const columns = `id, company_name, book, account_name, period_name, posting_date, ` +
 		`debit_base, credit_base, txn_currency, txn_debit, txn_credit, ` +
 		`quantity, quantity_uom, dimensions, voucher_type, voucher_id, ` +
@@ -178,7 +247,7 @@ func insertRows(ctx context.Context, tx *sql.Tx, groupID string, rowIDs []string
 	args := make([]any, 0, len(plan.Lines)*21)
 	for i := range plan.Lines {
 		line := &plan.Lines[i]
-		period, err := periodName(ctx, masters, periods, line.Company, plan.Book, plan.PostingDate)
+		period, err := rowPeriod(ctx, masters, periods, flags.periods, line.Company, plan.Book, plan.PostingDate)
 		if err != nil {
 			return err
 		}
@@ -190,16 +259,35 @@ func insertRows(ctx context.Context, tx *sql.Tx, groupID string, rowIDs []string
 			statement.WriteString(", ")
 		}
 		statement.WriteString("(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+		var reversedID, isReversal any
+		if i < len(flags.reversed) && flags.reversed[i] != "" {
+			reversedID, isReversal = flags.reversed[i], true
+		} else {
+			reversedID, isReversal = nil, false
+		}
 		args = append(args,
 			rowIDs[i], line.Company, plan.Book, line.Account, period, plan.PostingDate,
 			line.DebitBase.String(), line.CreditBase.String(),
 			nullText(line.TxnCurrency), line.TxnDebit.String(), line.TxnCredit.String(),
 			nullDecimal(line.Quantity), nullText(line.QuantityUOM), string(dimensions),
-			plan.VoucherType, plan.VoucherID, plan.Revision, plan.Event, groupID, false, nil,
+			plan.VoucherType, plan.VoucherID, plan.Revision, plan.Event, groupID, isReversal, reversedID,
 		)
 	}
 	_, err := tx.ExecContext(ctx, statement.String(), args...)
 	return err
+}
+
+// rowPeriod resolves a line's period from the preset map or, when the caller
+// left it nil, through PeriodFor with a cache.
+func rowPeriod(ctx context.Context, masters *ledger.Service, cache, preset map[string]string, company, book, date string) (string, error) {
+	if preset != nil {
+		period, ok := preset[company]
+		if !ok {
+			return "", fmt.Errorf("%w: no reversal period for company %q", ErrInvalid, company)
+		}
+		return period, nil
+	}
+	return periodName(ctx, masters, cache, company, book, date)
 }
 
 // periodName resolves the open period ValidatePlan already checked, keyed by
@@ -352,9 +440,9 @@ func lookupBalanceCompany(ctx context.Context, masters *ledger.Service, cache ma
 	return company, nil
 }
 
-func insertOutbox(ctx context.Context, tx *sql.Tx, workspace, groupID, hash string, plan Plan, opts PostOptions) error {
+func insertOutbox(ctx context.Context, tx *sql.Tx, workspace, eventType string, extra map[string]any, groupID, hash string, plan Plan, opts PostOptions) error {
 	_, err := events.Emit(ctx, tx, events.Envelope{
-		EventType:       OutboxEventType,
+		EventType:       eventType,
 		Workspace:       workspace,
 		Producer:        "posting",
 		SubjectType:     plan.VoucherType,
@@ -362,19 +450,27 @@ func insertOutbox(ctx context.Context, tx *sql.Tx, workspace, groupID, hash stri
 		SubjectRevision: plan.Revision,
 		Actor:           opts.Actor,
 		CorrelationID:   opts.RequestID,
-		Payload: map[string]any{
-			"voucher_type":     plan.VoucherType,
-			"voucher_id":       plan.VoucherID,
-			"voucher_revision": plan.Revision,
-			"event":            plan.Event,
-			"book":             plan.Book,
-			"posting_date":     plan.PostingDate,
-			"posting_group_id": groupID,
-			"row_count":        len(plan.Lines),
-			"plan_hash":        hash,
-		},
+		Payload:         outboxPayload(extra, groupID, hash, plan),
 	})
 	return err
+}
+
+func outboxPayload(extra map[string]any, groupID, hash string, plan Plan) map[string]any {
+	payload := map[string]any{
+		"voucher_type":     plan.VoucherType,
+		"voucher_id":       plan.VoucherID,
+		"voucher_revision": plan.Revision,
+		"event":            plan.Event,
+		"book":             plan.Book,
+		"posting_date":     plan.PostingDate,
+		"posting_group_id": groupID,
+		"row_count":        len(plan.Lines),
+		"plan_hash":        hash,
+	}
+	for key, value := range extra {
+		payload[key] = value
+	}
+	return payload
 }
 
 // hashPlan is the SHA-256 of the plan's canonical JSON: lines in order with

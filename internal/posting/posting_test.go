@@ -6,12 +6,14 @@ package posting_test
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
 	"testing"
 	"time"
 
+	"athena-erp/internal/audit"
 	"athena-erp/internal/ledger"
 	"athena-erp/internal/posting"
 	"athena-erp/internal/server"
@@ -381,6 +383,20 @@ func drawBalancedLines(t *rapid.T, accounts []string) []posting.Line {
 		if useTxn {
 			line.TxnCurrency = "USD"
 			line.TxnDebit, line.TxnCredit = line.DebitBase, line.CreditBase
+		}
+		if rapid.Bool().Draw(t, "dimension") {
+			member := "apollo"
+			if rapid.Bool().Draw(t, "dimensionMember") {
+				member = "zeus"
+			}
+			line.Dimensions = map[string]string{"project": member}
+		}
+		if rapid.Bool().Draw(t, "quantity") {
+			qty, err := types.NewDecimal(int64(rapid.IntRange(1, 1000).Draw(t, "qtyMinor")), 0)
+			if err != nil {
+				t.Fatalf("decimal: %v", err)
+			}
+			line.Quantity, line.QuantityUOM = &qty, "pcs"
 		}
 		lines = append(lines, line)
 	}
@@ -1079,4 +1095,569 @@ func TestPostEmitsEnvelopeAndOutbox(t *testing.T) {
 		t.Fatalf("envelope mismatch: %q %q %q/%q rev %d actor %q workspace %q correlation %q outbox %q",
 			eventType, producer, subjectType, subjectID, revision, actor, workspace, correlation, status)
 	}
+}
+
+func reverseOpts() posting.ReverseOptions {
+	return posting.ReverseOptions{Actor: "tester", Source: "api", RequestID: "req-1"}
+}
+
+// ledgerRow is one l_gl row with amounts in stored text.
+type ledgerRow struct {
+	id         string
+	account    string
+	event      string
+	date       string
+	period     string
+	debit      string
+	credit     string
+	currency   string
+	txnDebit   string
+	txnCredit  string
+	quantity   sql.NullString
+	uom        sql.NullString
+	dimensions string
+	isReversal bool
+	reversedID sql.NullString
+}
+
+func groupRows(t fatalf, db *sql.DB, groupID string) []ledgerRow {
+	rows, err := db.Query(`SELECT id, account_name, event, posting_date, period_name, debit_base, credit_base, txn_currency, txn_debit, txn_credit, quantity, quantity_uom, dimensions, is_reversal, reversed_row_id FROM l_gl WHERE posting_group_id = ? ORDER BY id`, groupID)
+	if err != nil {
+		t.Fatalf("read rows: %v", err)
+	}
+	defer rows.Close()
+	var out []ledgerRow
+	for rows.Next() {
+		var row ledgerRow
+		var date time.Time
+		var currency sql.NullString
+		if err := rows.Scan(&row.id, &row.account, &row.event, &date, &row.period, &row.debit, &row.credit, &currency, &row.txnDebit, &row.txnCredit, &row.quantity, &row.uom, &row.dimensions, &row.isReversal, &row.reversedID); err != nil {
+			t.Fatalf("read rows: %v", err)
+		}
+		row.date, row.currency = date.Format("2006-01-02"), currency.String
+		out = append(out, row)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("read rows: %v", err)
+	}
+	return out
+}
+
+func decEqual(t fatalf, left, right string) {
+	a, err := types.ParseDecimal(left)
+	if err != nil {
+		t.Fatalf("parse %q: %v", left, err)
+	}
+	b, err := types.ParseDecimal(right)
+	if err != nil {
+		t.Fatalf("parse %q: %v", right, err)
+	}
+	if !a.Equal(b) {
+		t.Fatalf("%s != %s", left, right)
+	}
+}
+
+func dimsEqual(t fatalf, left, right string) {
+	var a, b map[string]string
+	if err := json.Unmarshal([]byte(left), &a); err != nil {
+		t.Fatalf("parse %q: %v", left, err)
+	}
+	if err := json.Unmarshal([]byte(right), &b); err != nil {
+		t.Fatalf("parse %q: %v", right, err)
+	}
+	rawA, _ := json.Marshal(a)
+	rawB, _ := json.Marshal(b)
+	if string(rawA) != string(rawB) {
+		t.Fatalf("dimensions %s != %s", left, right)
+	}
+}
+
+// assertMirror checks that every mirror row flags itself as a reversal of
+// exactly one original row, with swapped sides and carried amounts, rates,
+// quantities and dimensions.
+func assertMirror(t fatalf, original, mirror []ledgerRow) {
+	if len(mirror) != len(original) {
+		t.Fatalf("mirror rows = %d, want %d", len(mirror), len(original))
+	}
+	byID := make(map[string]ledgerRow, len(original))
+	for _, row := range original {
+		byID[row.id] = row
+	}
+	for _, row := range mirror {
+		if !row.isReversal {
+			t.Fatalf("mirror row %s is not flagged", row.id)
+		}
+		if !row.reversedID.Valid {
+			t.Fatalf("mirror row %s names no reversed row", row.id)
+		}
+		orig, ok := byID[row.reversedID.String]
+		if !ok {
+			t.Fatalf("mirror row %s reverses unknown row %s", row.id, row.reversedID.String)
+		}
+		if row.account != orig.account {
+			t.Fatalf("mirror account %s, want %s", row.account, orig.account)
+		}
+		decEqual(t, row.debit, orig.credit)
+		decEqual(t, row.credit, orig.debit)
+		if row.currency != orig.currency {
+			t.Fatalf("mirror currency %q, want %q", row.currency, orig.currency)
+		}
+		decEqual(t, row.txnDebit, orig.txnCredit)
+		decEqual(t, row.txnCredit, orig.txnDebit)
+		if row.quantity != orig.quantity || row.uom != orig.uom {
+			t.Fatalf("mirror quantity %v %v, want %v %v", row.quantity, row.uom, orig.quantity, orig.uom)
+		}
+		dimsEqual(t, row.dimensions, orig.dimensions)
+	}
+}
+
+func richPlan() posting.Plan {
+	plan := basePlan()
+	plan.Lines = []posting.Line{
+		{Company: "acme", Account: "receivable", DebitBase: dec("100.00"), SourceType: "party_item", SourceID: "item-1"},
+		{Company: "acme", Account: "revenue", CreditBase: dec("100.00"), Dimensions: map[string]string{"project": "apollo"}},
+		{Company: "acme", Account: "bank", DebitBase: dec("25.50"), TxnCurrency: "USD", TxnDebit: dec("25.50"), Quantity: qty("2"), QuantityUOM: "pcs"},
+		{Company: "acme", Account: "cost", CreditBase: dec("25.50"), TxnCurrency: "USD", TxnCredit: dec("25.50")},
+	}
+	return plan
+}
+
+func TestReverseHappyPath(t *testing.T) {
+	ctx := context.Background()
+	engine, masters, db := setup(t)
+	seedBasics(t, masters)
+	plan := richPlan()
+
+	posted, err := engine.Post(ctx, plan, opts())
+	if err != nil {
+		t.Fatalf("post: %v", err)
+	}
+	ropts := reverseOpts()
+	ropts.OperationID = uuid.NewString()
+	reversed, err := engine.Reverse(ctx, plan.VoucherType, plan.VoucherID, plan.Revision, plan.Book, ropts)
+	if err != nil {
+		t.Fatalf("reverse: %v", err)
+	}
+	if reversed.Replayed || reversed.OperationID != ropts.OperationID {
+		t.Fatalf("result: %+v", reversed)
+	}
+	original := groupRows(t, db, posted.PostingGroupID)
+	mirror := groupRows(t, db, reversed.PostingGroupID)
+	assertMirror(t, original, mirror)
+	for _, row := range mirror {
+		if row.event != posting.EventCancel {
+			t.Fatalf("mirror event = %q, want cancel", row.event)
+		}
+		if row.date != plan.PostingDate || row.period != "fy2026" {
+			t.Fatalf("mirror date %s period %s, want %s fy2026", row.date, row.period, plan.PostingDate)
+		}
+	}
+	for account, totals := range balanceSnapshot(t, db) {
+		if totals[0] != totals[1] {
+			t.Fatalf("account %s nets to debit %s credit %s", account, totals[0], totals[1])
+		}
+	}
+	if got := count(t, db, `SELECT COUNT(*) FROM athena_posting_groups`); got != "2" {
+		t.Fatalf("group rows = %s, want 2", got)
+	}
+	var changes string
+	if err := db.QueryRow(`SELECT changes FROM athena_audit_log WHERE action = 'reversed'`).Scan(&changes); err != nil {
+		t.Fatalf("audit row: %v", err)
+	}
+	var parsed []audit.Change
+	if err := json.Unmarshal([]byte(changes), &parsed); err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, change := range parsed {
+		if change.Field == "reversal_of" && change.New != nil && *change.New == posted.PostingGroupID {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("audit changes lack reversal_of: %s", changes)
+	}
+	var payload string
+	if err := db.QueryRow(`SELECT payload FROM athena_outbox WHERE event_type = 'posting.reversed'`).Scan(&payload); err != nil {
+		t.Fatalf("outbox row: %v", err)
+	}
+	var decoded map[string]any
+	if err := json.Unmarshal([]byte(payload), &decoded); err != nil {
+		t.Fatal(err)
+	}
+	if decoded["reversal_of_group_id"] != posted.PostingGroupID || decoded["event"] != posting.EventCancel {
+		t.Fatalf("outbox payload: %s", payload)
+	}
+	if got := count(t, db, `SELECT COUNT(*) FROM athena_posting_log WHERE outcome = 'posted' AND event = 'cancel'`); got != "1" {
+		t.Fatalf("cancel log rows = %s, want 1", got)
+	}
+}
+
+func TestReverseUnposted(t *testing.T) {
+	ctx := context.Background()
+	engine, masters, db := setup(t)
+	seedBasics(t, masters)
+	plan := basePlan()
+	if _, err := engine.Reverse(ctx, plan.VoucherType, plan.VoucherID, plan.Revision, plan.Book, reverseOpts()); !errors.Is(err, posting.ErrInvalid) {
+		t.Fatalf("reverse unposted: %v, want %v", err, posting.ErrInvalid)
+	}
+	if got := count(t, db, `SELECT COUNT(*) FROM l_gl`); got != "0" {
+		t.Fatalf("ledger rows = %s, want 0", got)
+	}
+}
+
+func TestReverseExplicitDate(t *testing.T) {
+	ctx := context.Background()
+	engine, masters, db := setup(t)
+	seedBasics(t, masters)
+	if _, err := masters.SavePeriod(ctx, ledger.Period{Company: "acme", Book: "main", Name: "fy2027", Label: "FY 2027", StartDate: "2027-01-01", EndDate: "2027-12-31"}, 0); err != nil {
+		t.Fatal(err)
+	}
+	plan := basePlan()
+	if _, err := engine.Post(ctx, plan, opts()); err != nil {
+		t.Fatalf("post: %v", err)
+	}
+	ropts := reverseOpts()
+	ropts.PostingDate = "2027-03-01"
+	reversed, err := engine.Reverse(ctx, plan.VoucherType, plan.VoucherID, plan.Revision, plan.Book, ropts)
+	if err != nil {
+		t.Fatalf("reverse: %v", err)
+	}
+	for _, row := range groupRows(t, db, reversed.PostingGroupID) {
+		if row.date != "2027-03-01" || row.period != "fy2027" {
+			t.Fatalf("mirror date %s period %s, want 2027-03-01 fy2027", row.date, row.period)
+		}
+	}
+}
+
+func TestReverseClosedPeriods(t *testing.T) {
+	ctx := context.Background()
+	t.Run("soft closed rejects", func(t *testing.T) {
+		engine, masters, _ := setup(t)
+		seedBasics(t, masters)
+		plan := basePlan()
+		if _, err := engine.Post(ctx, plan, opts()); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := masters.SetPeriodStatus(ctx, "acme", "main", "fy2026", ledger.PeriodSoftClosed, "tester", 1); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := engine.Reverse(ctx, plan.VoucherType, plan.VoucherID, plan.Revision, plan.Book, reverseOpts()); !errors.Is(err, posting.ErrInvalid) {
+			t.Fatalf("soft-closed reversal did not fail invalid")
+		}
+	})
+	t.Run("hard closed needs the correction window", func(t *testing.T) {
+		engine, masters, db := setup(t)
+		seedBasics(t, masters)
+		plan := basePlan()
+		if _, err := engine.Post(ctx, plan, opts()); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := masters.SetPeriodStatus(ctx, "acme", "main", "fy2026", ledger.PeriodSoftClosed, "tester", 1); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := masters.SetPeriodStatus(ctx, "acme", "main", "fy2026", ledger.PeriodHardClosed, "tester", 2); err != nil {
+			t.Fatal(err)
+		}
+		operationID := uuid.NewString()
+		ropts := reverseOpts()
+		ropts.OperationID = operationID
+		if _, err := engine.Reverse(ctx, plan.VoucherType, plan.VoucherID, plan.Revision, plan.Book, ropts); !errors.Is(err, posting.ErrCorrectionWindowOpen) {
+			t.Fatalf("hard-closed reversal did not name the correction window")
+		}
+		if got := logCount(t, db, operationID, posting.OutcomeRejected, posting.CodeCorrectionWindowOpen); got != "1" {
+			t.Fatalf("correction-window log rows = %s, want 1", got)
+		}
+	})
+	t.Run("missing period rejects", func(t *testing.T) {
+		engine, masters, _ := setup(t)
+		seedBasics(t, masters)
+		plan := basePlan()
+		if _, err := engine.Post(ctx, plan, opts()); err != nil {
+			t.Fatal(err)
+		}
+		ropts := reverseOpts()
+		ropts.PostingDate = "2027-01-01"
+		if _, err := engine.Reverse(ctx, plan.VoucherType, plan.VoucherID, plan.Revision, plan.Book, ropts); !errors.Is(err, posting.ErrInvalid) {
+			t.Fatalf("dateless reversal did not fail invalid")
+		}
+	})
+	t.Run("bad date rejects", func(t *testing.T) {
+		engine, masters, _ := setup(t)
+		seedBasics(t, masters)
+		plan := basePlan()
+		if _, err := engine.Post(ctx, plan, opts()); err != nil {
+			t.Fatal(err)
+		}
+		ropts := reverseOpts()
+		ropts.PostingDate = "next friday"
+		if _, err := engine.Reverse(ctx, plan.VoucherType, plan.VoucherID, plan.Revision, plan.Book, ropts); !errors.Is(err, posting.ErrInvalid) {
+			t.Fatalf("bad-date reversal did not fail invalid")
+		}
+	})
+	t.Run("retry replays after close", func(t *testing.T) {
+		engine, masters, _ := setup(t)
+		seedBasics(t, masters)
+		plan := basePlan()
+		if _, err := engine.Post(ctx, plan, opts()); err != nil {
+			t.Fatal(err)
+		}
+		ropts := reverseOpts()
+		ropts.OperationID = uuid.NewString()
+		first, err := engine.Reverse(ctx, plan.VoucherType, plan.VoucherID, plan.Revision, plan.Book, ropts)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := masters.SetPeriodStatus(ctx, "acme", "main", "fy2026", ledger.PeriodSoftClosed, "tester", 1); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := masters.SetPeriodStatus(ctx, "acme", "main", "fy2026", ledger.PeriodHardClosed, "tester", 2); err != nil {
+			t.Fatal(err)
+		}
+		// The period closed after the reversal committed; the retry still
+		// returns the first result instead of failing on the period.
+		second, err := engine.Reverse(ctx, plan.VoucherType, plan.VoucherID, plan.Revision, plan.Book, ropts)
+		if err != nil {
+			t.Fatalf("retry after close: %v", err)
+		}
+		want := first
+		want.Replayed = true
+		if !equalResults(second, want) {
+			t.Fatalf("retry = %+v, want %+v", second, want)
+		}
+	})
+}
+
+func TestReverseReplay(t *testing.T) {
+	ctx := context.Background()
+	engine, masters, db := setup(t)
+	seedBasics(t, masters)
+	plan := basePlan()
+	if _, err := engine.Post(ctx, plan, opts()); err != nil {
+		t.Fatalf("post: %v", err)
+	}
+	operationID := uuid.NewString()
+	ropts := reverseOpts()
+	ropts.OperationID = operationID
+	first, err := engine.Reverse(ctx, plan.VoucherType, plan.VoucherID, plan.Revision, plan.Book, ropts)
+	if err != nil {
+		t.Fatalf("reverse: %v", err)
+	}
+	second, err := engine.Reverse(ctx, plan.VoucherType, plan.VoucherID, plan.Revision, plan.Book, ropts)
+	if err != nil {
+		t.Fatalf("replay: %v", err)
+	}
+	want := first
+	want.Replayed = true
+	if !equalResults(second, want) {
+		t.Fatalf("replay = %+v, want %+v", second, want)
+	}
+	other := reverseOpts()
+	other.OperationID = uuid.NewString()
+	third, err := engine.Reverse(ctx, plan.VoucherType, plan.VoucherID, plan.Revision, plan.Book, other)
+	if err != nil {
+		t.Fatalf("second operation: %v", err)
+	}
+	if !equalResults(third, want) {
+		t.Fatalf("second operation = %+v, want %+v", third, want)
+	}
+	if got := count(t, db, `SELECT COUNT(*) FROM l_gl WHERE is_reversal = 1`); got != "2" {
+		t.Fatalf("mirror rows = %s, want 2", got)
+	}
+
+	otherPlan := basePlan()
+	if _, err := engine.Post(ctx, otherPlan, opts()); err != nil {
+		t.Fatalf("post other: %v", err)
+	}
+	if _, err := engine.Reverse(ctx, otherPlan.VoucherType, otherPlan.VoucherID, otherPlan.Revision, otherPlan.Book, ropts); !errors.Is(err, posting.ErrConflict) {
+		t.Fatalf("reused id on another voucher did not conflict")
+	}
+}
+
+func TestReverseInheritedTrust(t *testing.T) {
+	ctx := context.Background()
+	engine, masters, db := setup(t)
+	seedBasics(t, masters)
+	plan := richPlan()
+	if _, err := engine.Post(ctx, plan, opts()); err != nil {
+		t.Fatalf("post: %v", err)
+	}
+	// Masters change after the post: the account, dimension and company the
+	// submit used are all disabled. The unwind must still succeed.
+	account, err := masters.GetAccount(ctx, "receivable")
+	if err != nil {
+		t.Fatal(err)
+	}
+	account.Disabled = true
+	if _, err := masters.SaveAccount(ctx, account, account.Revision); err != nil {
+		t.Fatal(err)
+	}
+	dimension, err := masters.GetDimension(ctx, "project")
+	if err != nil {
+		t.Fatal(err)
+	}
+	dimension.Disabled = true
+	if _, err := masters.SaveDimension(ctx, dimension, dimension.Revision); err != nil {
+		t.Fatal(err)
+	}
+	company, err := masters.GetCompany(ctx, "acme")
+	if err != nil {
+		t.Fatal(err)
+	}
+	company.Disabled = true
+	if _, err := masters.SaveCompany(ctx, company, company.Revision); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := engine.Reverse(ctx, plan.VoucherType, plan.VoucherID, plan.Revision, plan.Book, reverseOpts()); err != nil {
+		t.Fatalf("reverse after master changes: %v", err)
+	}
+	if got := count(t, db, `SELECT COUNT(*) FROM l_gl WHERE is_reversal = 1`); got != "4" {
+		t.Fatalf("mirror rows = %s, want 4", got)
+	}
+}
+
+func TestReverseRevision(t *testing.T) {
+	ctx := context.Background()
+	engine, masters, db := setup(t)
+	seedBasics(t, masters)
+	plan := basePlan()
+	if _, err := engine.Post(ctx, plan, opOpts(uuid.NewString())); err != nil {
+		t.Fatal(err)
+	}
+	amended := plan
+	amended.Revision = 2
+	if _, err := engine.Post(ctx, amended, opOpts(uuid.NewString())); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := engine.Reverse(ctx, plan.VoucherType, plan.VoucherID, 2, plan.Book, reverseOpts()); err != nil {
+		t.Fatalf("reverse revision 2: %v", err)
+	}
+	var groups string
+	if err := db.QueryRow(`SELECT COUNT(*) FROM athena_posting_groups WHERE voucher_revision = 2`).Scan(&groups); err != nil {
+		t.Fatal(err)
+	}
+	if groups != "2" {
+		t.Fatalf("revision 2 groups = %s, want 2", groups)
+	}
+	// Revision 1 still stands on its own: its rows net to their own effect,
+	// untouched by the revision 2 unwind.
+	var debit, credit string
+	if err := db.QueryRow(`SELECT COALESCE(SUM(debit_base), 0), COALESCE(SUM(credit_base), 0) FROM l_gl WHERE voucher_revision = 1`).Scan(&debit, &credit); err != nil {
+		t.Fatal(err)
+	}
+	decEqual(t, debit, "100.00")
+	decEqual(t, credit, "100.00")
+}
+
+func TestReverseInTxJoinsCallerTransaction(t *testing.T) {
+	ctx := context.Background()
+	engine, masters, db := setup(t)
+	seedBasics(t, masters)
+	plan := basePlan()
+	if _, err := engine.Post(ctx, plan, opts()); err != nil {
+		t.Fatal(err)
+	}
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := engine.ReverseInTx(ctx, tx, plan.VoucherType, plan.VoucherID, plan.Revision, plan.Book, reverseOpts()); err != nil {
+		t.Fatal(err)
+	}
+	if err := tx.Rollback(); err != nil {
+		t.Fatal(err)
+	}
+	if got := count(t, db, `SELECT COUNT(*) FROM l_gl WHERE is_reversal = 1`); got != "0" {
+		t.Fatalf("mirror rows after rollback = %s, want 0", got)
+	}
+	tx, err = db.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := engine.ReverseInTx(ctx, tx, plan.VoucherType, plan.VoucherID, plan.Revision, plan.Book, reverseOpts()); err != nil {
+		t.Fatal(err)
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatal(err)
+	}
+	if got := count(t, db, `SELECT COUNT(*) FROM l_gl WHERE is_reversal = 1`); got != "2" {
+		t.Fatalf("mirror rows after commit = %s, want 2", got)
+	}
+}
+
+// TestReversalMirrorsProperty checks Property 10 over drawn vouchers: for
+// any submitted voucher, submit followed by cancel nets every ledger to
+// zero apart from the flagged mirror rows, and the mirrors equal the stored
+// amounts, rates and quantities of the originals.
+//
+// Feature: athena-batch-2, Property 10: Reversal mirrors.
+//
+// One shared database serves all iterations; each iteration posts, reverses,
+// replays the reversal, and verifies the pair nets to zero with exact
+// mirrors.
+func TestReversalMirrorsProperty(t *testing.T) {
+	ctx := context.Background()
+	db := testdb.New(t)
+	if _, err := store.Up(ctx, db, store.MariaDB{}, server.SystemMigrations(), store.UpOptions{}); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	engine := &posting.Engine{DB: db, Dialect: store.MariaDB{}}
+	masters := &ledger.Service{DB: db, Dialect: store.MariaDB{}}
+	seedBasics(t, masters)
+	accounts := []string{"cash", "bank", "cost"}
+	rapid.Check(t, func(t *rapid.T) {
+		lines := drawBalancedLines(t, accounts)
+		plan := posting.Plan{
+			VoucherType: "journal", VoucherID: uuid.NewString(), Revision: 1,
+			Event: posting.EventSubmit, Book: "main", PostingDate: "2026-06-15", Lines: lines,
+		}
+		popts := opts()
+		popts.OperationID = uuid.NewString()
+		posted, err := engine.Post(ctx, plan, popts)
+		if err != nil {
+			t.Fatalf("post: %v", err)
+		}
+		ropts := posting.ReverseOptions{Actor: "tester", Source: "api", RequestID: "req-1", OperationID: uuid.NewString()}
+		reversed, err := engine.Reverse(ctx, plan.VoucherType, plan.VoucherID, plan.Revision, plan.Book, ropts)
+		if err != nil {
+			t.Fatalf("reverse: %v", err)
+		}
+		if reversed.Replayed {
+			t.Fatalf("fresh reversal replayed: %+v", reversed)
+		}
+		original := groupRows(t, db, posted.PostingGroupID)
+		mirror := groupRows(t, db, reversed.PostingGroupID)
+		assertMirror(t, original, mirror)
+
+		nets := map[string]types.Decimal{}
+		for _, row := range append(append([]ledgerRow(nil), original...), mirror...) {
+			debit, err := types.ParseDecimal(row.debit)
+			if err != nil {
+				t.Fatalf("parse: %v", err)
+			}
+			credit, err := types.ParseDecimal(row.credit)
+			if err != nil {
+				t.Fatalf("parse: %v", err)
+			}
+			nets[row.account] = nets[row.account].Add(debit).Sub(credit)
+		}
+		for account, net := range nets {
+			if net.Sign() != 0 {
+				t.Fatalf("account %s nets to %s", account, net.String())
+			}
+		}
+
+		again, err := engine.Reverse(ctx, plan.VoucherType, plan.VoucherID, plan.Revision, plan.Book, ropts)
+		if err != nil {
+			t.Fatalf("replay: %v", err)
+		}
+		want := reversed
+		want.Replayed = true
+		if !equalResults(again, want) {
+			t.Fatalf("replay = %+v, want %+v", again, want)
+		}
+		if rows := voucherRows(t, db, plan.VoucherID); rows != 2*len(lines) {
+			t.Fatalf("rows = %d, want %d", rows, 2*len(lines))
+		}
+	})
 }

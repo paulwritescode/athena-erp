@@ -38,9 +38,17 @@ const (
 // The event bus (G8) owns the envelope and may extend the payload.
 const OutboxEventType = events.TypePostingPosted
 
+// OutboxEventTypeReversed is the event type of the row Reverse writes. Its
+// payload carries reversal_of_group_id beside the standard fields.
+const OutboxEventTypeReversed = "posting.reversed"
+
 // AuditAction is the Audit Log action of the row Post writes. The lifecycle
 // transition writes its own submitted/cancelled row beside it.
 const AuditAction = "posted"
+
+// AuditActionReverse is the Audit Log action of the row Reverse writes,
+// with a reversal_of change naming the unwound submit group.
+const AuditActionReverse = "reversed"
 
 var (
 	// ErrInvalid reports a plan that fails mechanical validation: unbalanced
