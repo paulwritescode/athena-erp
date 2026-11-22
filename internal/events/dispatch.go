@@ -130,6 +130,8 @@ func (d *Dispatcher) claim(ctx context.Context) (outboxRow, bool, error) {
 	if lease == 0 {
 		lease = time.Minute
 	}
+	// Retried rows sort ahead of fresh pending rows; every due row is
+	// eventually claimed, so the order only favors finishing work.
 	result, err := d.DB.ExecContext(ctx, `UPDATE athena_outbox
 		SET status = 'leased', leased_by = ?, leased_until = ?
 		WHERE (status = 'pending' AND (available_at IS NULL OR available_at <= ?))
@@ -223,8 +225,10 @@ func (d *Dispatcher) deliver(ctx context.Context, sub Subscription, event Envelo
 }
 
 // fail counts one attempt: the row retries with backoff, or parks dead
-// once attempts run out. ExhaustSkip parks silently; anything else records
-// the error for the operator.
+// with the error once attempts run out. Exhaustion is row-level: a dead
+// row keeps its last error for the operator, and per-subscription
+// exhaust behavior is not honored yet (one row cannot express one
+// outcome per consumer).
 func (d *Dispatcher) fail(ctx context.Context, row outboxRow, cause error) error {
 	max := d.MaxAttempts
 	if max == 0 {

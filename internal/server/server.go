@@ -125,6 +125,7 @@ func Serve(ctx context.Context, config Config) error {
 		}
 		databaseStatus = "Connected"
 		log.Printf("%s connected; metadata tables are ready", driverName)
+		startWorkers(ctx, db, WorkerOptions{JobHandlers: defaultJobHandlers(db)})
 	}
 
 	mux := http.NewServeMux()

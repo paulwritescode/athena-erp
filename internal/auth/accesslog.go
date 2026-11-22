@@ -44,6 +44,10 @@ const (
 	// change. The detail names each key with its old and new value; these
 	// are policy numbers, not secrets.
 	EventSecuritySettingsChanged = "security_settings_changed"
+	// EventExpiredPurged records a scheduled purge of spent Challenges and
+	// dead sessions. The row is minimal by design; the deleted counts go
+	// to the purge job's result, not the log.
+	EventExpiredPurged = "expired_purged"
 )
 
 // Outcomes of a logged event.
