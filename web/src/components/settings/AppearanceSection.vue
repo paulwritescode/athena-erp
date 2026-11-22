@@ -166,6 +166,9 @@ function paneVars(dark: boolean): Record<string, string> | undefined {
 const initialDark = document.documentElement.classList.contains('dark')
 const pageDark = computed(() => theme?.isDark.value ?? initialDark)
 const phoneDark = pageDark
+// The theme class scoped dots carry: a data-accent scope without it reads
+// the light primaries even on a dark page (the Ink dot goes invisible).
+const dotTheme = computed(() => (pageDark.value ? 'dark' : undefined))
 
 const previewCaption = computed(() => `${accentLabel.value} with ${chartLabel.value.toLowerCase()} charts`)
 
@@ -261,6 +264,7 @@ function reset() {
             v-if="preset !== 'custom'"
             :data-accent="preset"
             class="size-6 shrink-0 rounded-full border border-black/10"
+            :class="dotTheme"
             :style="{ backgroundColor: 'var(--primary)' }"
             aria-hidden="true"
           />
@@ -281,6 +285,7 @@ function reset() {
                 v-if="item.value !== 'custom'"
                 :data-accent="item.value"
                 class="size-8 rounded-full border border-black/10"
+                :class="dotTheme"
                 :style="{ backgroundColor: 'var(--primary)' }"
                 aria-hidden="true"
               />
@@ -303,7 +308,7 @@ function reset() {
 
       <AppearanceChoiceRow label="Charts" :value="chartLabel" :disabled="!canEdit" drawer-title="Charts" popover-class="w-80 p-2">
         <template #indicator>
-          <span class="flex shrink-0 items-center gap-0.5" :data-accent="rampDots.accent" :data-charts="rampDots.charts" :style="rampDots.style" aria-hidden="true">
+          <span class="flex shrink-0 items-center gap-0.5" :class="dotTheme" :data-accent="rampDots.accent" :data-charts="rampDots.charts" :style="rampDots.style" aria-hidden="true">
             <i v-for="i in 5" :key="i" class="size-2 rounded-full" :style="{ background: `var(--chart-${i})` }" />
           </span>
         </template>
@@ -320,6 +325,7 @@ function reset() {
             >
               <span
                 class="flex shrink-0 items-center gap-0.5"
+                :class="dotTheme"
                 :data-accent="item.value === 'match' ? paneAccent() : undefined"
                 :data-charts="item.value === 'match' || item.value === 'custom' ? undefined : item.value"
                 :style="item.value === 'match' ? paneVars(pageDark) : undefined"
