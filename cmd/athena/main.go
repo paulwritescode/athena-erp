@@ -111,10 +111,11 @@ Usage:
   athena init [directory] [--host 127.0.0.1] [--port 3306] [--user name]
       Create a home and save its MariaDB server login. The password is
       read from ATHENA_SERVER_PASSWORD or prompted for.
-  athena new [--driver mariadb|postgres] [--logo file] [name]
+  athena new [name] [--driver mariadb|postgres] [--logo file]
       Create a workspace in the current home, with its own database.
-      --driver must match the home driver; postgres is untested.
-      --logo sets the light-theme logo (PNG or SVG, at most 512 KB).
+      The flags work before the name too. --driver must match the home
+      driver; postgres is untested. --logo sets the light-theme logo
+      (PNG or SVG, at most 512 KB).
   athena run [--workspace slug] [--addr %s]
       Run a workspace. Inside a workspace directory the workspace is found
       automatically; from the home pass --workspace.
@@ -257,7 +258,17 @@ func newCommand(args []string, out io.Writer) error {
 	flags := flag.NewFlagSet("new", flag.ContinueOnError)
 	driverFlag := flags.String("driver", "", "database driver the home must use (default: the home driver)")
 	logoFlag := flags.String("logo", "", "light-theme logo file (PNG or SVG, at most 512 KB)")
-	if ok, err := parse(flags, args); !ok {
+	// Accept flags after the name as well as before it: the name is every
+	// positional, wherever it sits.
+	nameArgs := args
+	flagArgs := []string{}
+	for i, arg := range args {
+		if strings.HasPrefix(arg, "-") {
+			nameArgs, flagArgs = args[:i], args[i:]
+			break
+		}
+	}
+	if ok, err := parse(flags, flagArgs); !ok {
 		return err
 	}
 	home, err := workspace.FindHome(".")
@@ -275,7 +286,18 @@ func newCommand(args []string, out io.Writer) error {
 	if driver == workspace.DriverPostgres {
 		fmt.Fprintln(out, "warning: the PostgreSQL adapter is implemented but untested; MariaDB is the only tested engine")
 	}
-	name := strings.Join(flags.Args(), " ")
+	// Read the logo before asking for a name so a bad path fails fast
+	// instead of after an interactive prompt.
+	var logo *v1.LogoUpload
+	if *logoFlag != "" {
+		var err error
+		if logo, err = readLogo(*logoFlag); err != nil {
+			return err
+		}
+	}
+	nameWords := append([]string{}, nameArgs...)
+	nameWords = append(nameWords, flags.Args()...)
+	name := strings.Join(nameWords, " ")
 	if name == "" {
 		if name, err = prompt(bufio.NewReader(os.Stdin), "Workspace name: "); err != nil {
 			return err
@@ -284,13 +306,6 @@ func newCommand(args []string, out io.Writer) error {
 	env, err := workspace.LoadEnv(filepath.Join(home, ".env.local"))
 	if err != nil {
 		return err
-	}
-	var logo *v1.LogoUpload
-	if *logoFlag != "" {
-		var err error
-		if logo, err = readLogo(*logoFlag); err != nil {
-			return err
-		}
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
@@ -319,6 +334,9 @@ func runCommand(args []string) error {
 	addr := flags.String("addr", defaultAddr, "HTTP listen address (loopback by default)")
 	if ok, err := parse(flags, args); !ok {
 		return err
+	}
+	if flags.NArg() > 0 {
+		return fmt.Errorf("unexpected argument %q", flags.Arg(0))
 	}
 	p, cfg, err := resolveWorkspace(*slug)
 	if err != nil {

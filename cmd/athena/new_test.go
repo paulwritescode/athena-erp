@@ -39,6 +39,42 @@ func TestNewDriverMismatchFailsBeforeTouchingTheDatabase(t *testing.T) {
 	}
 }
 
+func TestNewFlagsWorkAfterTheName(t *testing.T) {
+	newTestHome(t, workspace.DriverMariaDB, "athena:secret@tcp(127.0.0.1:1)/")
+	for _, args := range [][]string{
+		{"Acme", "--driver", "postgres"},
+		{"Acme", "Trading", "--driver", "postgres"},
+	} {
+		var out bytes.Buffer
+		err := newCommand(args, &out)
+		if err == nil || !strings.Contains(err.Error(), "does not match the home driver") {
+			t.Fatalf("new %v err = %v, want the driver mismatch", args, err)
+		}
+	}
+}
+
+func TestNewMissingLogoFailsBeforeTheNamePrompt(t *testing.T) {
+	newTestHome(t, workspace.DriverMariaDB, "athena:secret@tcp(127.0.0.1:1)/")
+	missing := filepath.Join(t.TempDir(), "missing.png")
+	for _, args := range [][]string{
+		{"Acme", "--logo", missing},
+		{"--logo", missing},
+		{"--logo", missing, "Acme"},
+	} {
+		var out bytes.Buffer
+		err := newCommand(args, &out)
+		if err == nil || !strings.Contains(err.Error(), "read "+missing) {
+			t.Fatalf("new %v err = %v, want the logo read error", args, err)
+		}
+	}
+}
+
+func TestRunRejectsPositionalArguments(t *testing.T) {
+	if err := runCommand([]string{"acme_trading"}); err == nil || !strings.Contains(err.Error(), `unexpected argument "acme_trading"`) {
+		t.Fatalf("run err = %v, want the unexpected argument", err)
+	}
+}
+
 func TestNewPostgresWarns(t *testing.T) {
 	newTestHome(t, workspace.DriverPostgres, "postgres://athena:secret@127.0.0.1:1/")
 	for _, args := range [][]string{{"--driver", "postgres", "Acme"}, {"Acme"}} {

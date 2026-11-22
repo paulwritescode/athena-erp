@@ -11,6 +11,7 @@ This directory describes the product and the system as it exists and as decision
 - [Naming registry](design/naming.md) — Proposed 2026-11-21: product names mapped to CLI, proto service, Go package and UI label; builder and everyday words; forbidden old terms.
 - [Athena beta task list](../.kiro/specs/athena-beta/tasks.md) — Draft 2026-11-21: the single ordered plan from design tokens to beta release; supersedes the open tasks of `athena-batch-2` as the working checklist.
 - [Bruno API checks](testing/bruno.md) — black-box ConnectRPC smoke tests, local execution and CLI usage.
+- [Getting started](guides/getting-started.md) — install, first home, first workspace, first sign-in, first owner; every command tested (B11 slice 1).
 - [Decision log](decisions/decision-log.md) — accepted decisions, proposals, unresolved choices, and rejected assumptions.
 - [ADR-0002: MariaDB first](decisions/adr-0002-mariadb-first.md) — initial database selection and current persistence limits.
 - [ADR-0003: Record table model](decisions/adr-0003-record-table-model.md) — Record Types (then called Record definitions) map to MariaDB tables; amended by ADR-0008 and ADR-0009.
