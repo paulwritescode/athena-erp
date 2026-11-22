@@ -125,6 +125,7 @@ Order follows dependencies. Desk parts of each group follow the design system an
 - [ ] **D2. Process maps** (master writes, user approves)
   - `docs/design/processes.md`: each flow from `docs/revamp/Athena-Process-and-Event-Catalogue.md` and `Records-and-movements.md` as steps in everyday words: who does it, which screen, what the system records, what the user sees next, what can go wrong. Starts with: buy, receive, sell, take payment, return, count stock, close the month, invite a person, recover access.
 - [ ] **D3. Public pages and SEO** (Codex then Muse; ADR required: adds server-rendered public routes)
+  - Slice 1 merged 2026-11-22 (e801e78): ADR-0030 (Proposed) + decision-log/README rows. Open: slices 2–5 (plumbing + Workspace home, commerce pages, catalogue pages + vitals, docs + checkpoint).
   - Public routes served by the Go server as server-rendered HTML from approved public projections (no admin RecordService from the public): storefront, category, product, course catalogue, transcript verification, Workspace home. Per page: unique title and description, canonical, Open Graph and Twitter tags with a 1200x630 image, JSON-LD (Organization, Product, BreadcrumbList, Course), `sitemap.xml` and `robots.txt` per Workspace. Carts, checkout, tracking, sign-in and the whole Desk send `noindex`. Core Web Vitals targets LCP ≤ 2.5 s, INP ≤ 200 ms, CLS ≤ 0.1.
   - Keep the Desk SPA for signed-in work; do not move it to SSR.
 - [ ] **D4. G16 PWA and offline stock count** (needs Z6).
