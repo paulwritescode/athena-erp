@@ -4,7 +4,7 @@
 // and moves on, and readiness shows the period missing.
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { ConnectError } from '@connectrpc/connect'
+import { Code, ConnectError } from '@connectrpc/connect'
 import { toast } from 'vue-sonner'
 import { ledgerClient } from '@/api'
 import { classify, describeFailure } from '@/apiErrors'
@@ -102,12 +102,25 @@ async function submit() {
   try {
     const yearName = fiscalYearName(start.value)
     const yearDates = yearBounds(start.value)
-    const existing = years.value.find((year) => year.name === yearName)
-    if (!existing) {
-      await ledgerClient.saveFiscalYear({
-        fiscalYear: { name: yearName, label: yearName, company: props.companyName, startDate: yearDates.start, endDate: yearDates.end },
-        expectedRevision: BigInt(0),
-      })
+    if (!years.value.some((year) => year.name === yearName)) {
+      try {
+        const savedYear = await ledgerClient.saveFiscalYear({
+          fiscalYear: { name: yearName, label: yearName, company: props.companyName, startDate: yearDates.start, endDate: yearDates.end },
+          expectedRevision: BigInt(0),
+        })
+        // Keep the list current so a retry reuses the year instead of
+        // re-saving it and wedging on "already exists" (B1).
+        if (savedYear.fiscalYear) years.value = [...years.value, savedYear.fiscalYear]
+      } catch (err) {
+        // Another tab (or our own earlier attempt) won the race: adopt
+        // the existing year and carry on to the period save.
+        if (err instanceof ConnectError && err.code === Code.AlreadyExists) {
+          const fiscal = await ledgerClient.listFiscalYears({ company: props.companyName })
+          years.value = fiscal.fiscalYears
+        } else {
+          throw err
+        }
+      }
     }
     const saved = await ledgerClient.savePeriod({
       period: {

@@ -103,6 +103,53 @@ describe('SetupPeriodStep', () => {
     expect(done).toEqual([{ label: 'Open Month', dates: expect.stringContaining('–') }])
   })
 
+  it('retries in place after a failed period save (B1)', async () => {
+    const bounds = currentMonthBounds()
+    const year = fiscalYearName(bounds.start)
+    vi.mocked(ledgerClient.listPeriods).mockResolvedValue({ periods: [] } as never)
+    vi.mocked(ledgerClient.listFiscalYears).mockResolvedValue({ fiscalYears: [] } as never)
+    vi.mocked(ledgerClient.saveFiscalYear).mockResolvedValue({
+      fiscalYear: { name: year, label: year, company: 'acme', startDate: `${year}-01-01`, endDate: `${year}-12-31` },
+    } as never)
+    vi.mocked(ledgerClient.savePeriod)
+      .mockRejectedValueOnce(new ConnectError('overlaps early', Code.InvalidArgument))
+      .mockResolvedValueOnce({ period: { label: 'Retried Period' } } as never)
+    const done: unknown[] = []
+    await mountStep(props, (value) => done.push(value))
+    button('Open first period & continue').click()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    await nextTick()
+    expect(document.body.textContent).toContain('overlaps early')
+    expect(done).toEqual([])
+    // Unchanged retry: the year is reused, not re-saved.
+    button('Open first period & continue').click()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    await nextTick()
+    expect(vi.mocked(ledgerClient.saveFiscalYear)).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(ledgerClient.savePeriod)).toHaveBeenCalledTimes(2)
+    expect(done).toEqual([{ label: 'Retried Period', dates: expect.stringContaining('–') }])
+  })
+
+  it('treats a duplicate year as existing and carries on', async () => {
+    const bounds = currentMonthBounds()
+    const year = fiscalYearName(bounds.start)
+    vi.mocked(ledgerClient.listPeriods).mockResolvedValue({ periods: [] } as never)
+    vi.mocked(ledgerClient.listFiscalYears)
+      .mockResolvedValueOnce({ fiscalYears: [] } as never)
+      .mockResolvedValueOnce({
+        fiscalYears: [{ name: year, label: year, company: 'acme', startDate: `${year}-01-01`, endDate: `${year}-12-31` }],
+      } as never)
+    vi.mocked(ledgerClient.saveFiscalYear).mockRejectedValueOnce(new ConnectError(`fiscal year "${year}" already exists`, Code.AlreadyExists))
+    vi.mocked(ledgerClient.savePeriod).mockResolvedValue({ period: { label: 'Adopted Period' } } as never)
+    const done: unknown[] = []
+    await mountStep(props, (value) => done.push(value))
+    button('Open first period & continue').click()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    await nextTick()
+    expect(vi.mocked(ledgerClient.savePeriod)).toHaveBeenCalledTimes(1)
+    expect(done).toEqual([{ label: 'Adopted Period', dates: expect.stringContaining('–') }])
+  })
+
   it('shows a server overlap inline', async () => {
     vi.mocked(ledgerClient.listPeriods).mockResolvedValue({ periods: [] } as never)
     vi.mocked(ledgerClient.listFiscalYears).mockResolvedValue({ fiscalYears: [] } as never)
