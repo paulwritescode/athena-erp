@@ -46,6 +46,9 @@ const accentHex = ref('')
 const chartPalette = ref('match')
 const charts = ref<string[]>(['', '', '', '', ''])
 const suggested = ref('')
+// True once a custom accent exists (saved, or picked this session), so the
+// Custom swatch never poses the ink default as a choice before then.
+const customPicked = ref(false)
 
 // Empty chart slots fall through to the accent ramp; the picker shows that
 // ramp for the draft accent, so black never poses as a choice and the ink
@@ -106,6 +109,7 @@ function fillFrom(appearance: Appearance) {
       return ''
     }
   })
+  customPicked.value = appearance.preset === 'custom'
   savedSignature.value = draftSignature()
 }
 
@@ -296,12 +300,13 @@ function reset() {
                 :style="{ backgroundColor: 'var(--primary)' }"
                 aria-hidden="true"
               />
-              <span v-else class="size-8 rounded-full border border-black/10" :style="{ backgroundColor: accentHex }" aria-hidden="true" />
+              <span v-else-if="customPicked" class="size-8 rounded-full border border-black/10" :style="{ backgroundColor: accentHex }" aria-hidden="true" />
+              <span v-else class="size-8 rounded-full border border-black/10" :style="{ background: 'conic-gradient(var(--chart-1), var(--chart-2), var(--chart-3), var(--chart-4), var(--chart-5), var(--chart-1))' }" aria-hidden="true" />
               <span class="text-xs">{{ item.label }}</span>
             </button>
           </div>
           <div v-if="preset === 'custom'" class="mt-3 flex items-center gap-3 border-t border-border pt-3">
-            <input id="appearance-accent" v-model="accentHex" type="color" aria-label="Custom accent color" class="h-10 w-14 shrink-0 cursor-pointer rounded-md border border-border bg-card p-1" />
+            <input id="appearance-accent" v-model="accentHex" type="color" aria-label="Custom accent color" class="h-10 w-14 shrink-0 cursor-pointer rounded-md border border-border bg-card p-1" @input="customPicked = true" />
             <div class="min-w-0">
               <p class="text-sm font-medium">Custom</p>
               <p class="muted-label truncate">{{ candidate?.accent ?? 'Pick a color.' }}</p>
