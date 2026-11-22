@@ -1,42 +1,73 @@
-# Resume after restart (written by the master, 2026-11-21 23:05)
+# Resume point (Stylus, 2026-11-22 07:50)
 
-The laptop is being restarted. Herdr does not restart agents after a reboot. This file gives every task, every worktree and the Muse session to resume, so work continues from the same point.
+The day is clocked out after the first Stylus night shift. This file is the single place to start from next time. It replaces the 2026-11-21 restart notes.
 
-## State at restart
+## The Stylus workflow
 
-- **main** (pushed to origin): `ec98c5f`. Everything listed under "Merged" in `.kiro/specs/athena-beta/tasks.md` is on main and was live on the user's server.
-- **Disk is 98 % full (5.2 GB free).** Herdr's core stopped writing its registry ("cannot save terminals: registry writer stopped"), which is why the master could no longer message workers. Free space before restarting work: each worktree has its own `web/node_modules` and `.cache` (about 350 MB to 2 GB each); `athena-erp/.cache` is 2.1 GB and safe to delete (it is rebuilt by `make web-deps`).
-- Uncommitted work sits on disk in each worktree and survives the reboot. Nothing below is lost by restarting.
+- **Stylus** is the kiro-cli agent in the main repo pane (`t6` last time). It does the reasoning and planning and answers the master's questions.
+- **Master** is a Muse YOLO agent (terminal name `master`). It follows `.agents/stylus/MASTER.md`: it briefs and starts workers (`w-<task>`) and reviewers (`r-<task>`) as split panes, merges after a review PASS and green checks, pushes `main`, closes finished panes, and keeps `.agents/stylus/night-log.md` and `night-report.md`.
+- Permission policy (in MASTER.md): work only inside `athena-erp` and `athena-erp-*`; nothing destructive; no dev database; no new dependencies; no section Z decisions.
 
-## Worktrees and tasks
+## The dashboard (saved in the repo)
 
-| Worktree | Branch | Task and brief | State | Muse session to resume |
-| --- | --- | --- | --- | --- |
-| `../athena-erp-b9-server` | `feat/b9-form-layout-server` | B9 slice 1, server: form layout and Image field. Brief `.agents/tasks/beta-b9/server-brief.md` | **Reviewed PASS and committed on its branch (`3be9e76`)**, not merged. The merge check is blocked by `cmd/athena` `TestFilesCommands` and `TestFilesPutImageCommands` failing with `database "test_athena_files_cli_002" already exists`: a fixed database name collides with a leftover from a parallel run. Next: give `cmd/athena` tests random Workspace names (or drop that leftover `test_athena_files_cli_002`), rerun `make test`, then merge. | none needed (master merges) |
-| `../athena-erp-b9b` | `feat/b9b-new-type` | B9b: name-first New Record Type flow. Brief `.agents/tasks/beta-b9/b9b-brief.md` | **Worker reported PASS**, not yet reviewed or merged (8 changed files) | worker t1b: `basalt-dorado` `01a1fd86-a5c6-7783-8c18-13151ba1dcb6` (it was started in the removed `athena-erp-b4b12-server`; resume it from `athena-erp-b9b`) |
-| `../athena-erp-b2a` | `feat/b2a-tables` | B2a: table system. Brief `.agents/tasks/beta-b2a/brief.md` | In progress, slice 1 (DataTable rewrite plus 5 new files, 15 changed files) | worker t1t: `scarlet-alnitak` `01a1ff9b-2140-7d51-b0d4-dd9ce99a5a27` |
-| `../athena-erp-b5` | `feat/b5-identity` | B5: Workspace identity and logo. Brief `.agents/tasks/beta-b5/brief.md` | In progress, slice 1 server (11 changed files) | worker t1q: `gravel-deneb` `01a1ff8f-5b36-7bd0-a384-ffb62fba723a` (started in the removed `athena-erp-b6-words`; resume it from `athena-erp-b5`) |
-| (none yet) | | B4b: Appearance page redesign (design-system §18 revised) | Not started; assigned to Muse t4 | worker t4: `bare-zodiacal` `01a1f8c5-d4f9-75e0-bba4-0bc0e3e033c7` |
+- Files: `.agents/dashboard_web.py` (server and data), `.agents/dashboard.html` (the n8n-style map page), `.agents/dashboard.py` (terminal fallback view).
+- Start it: `python3 .agents/dashboard_web.py` from the repo root, in its own pane, then open <http://127.0.0.1:8765>.
+- It reads `tasks.md`, `hc ls` / `hc read`, git worktrees and `.agents/stylus/` live; nothing else to configure. Task dependencies are the `EDGES` list in `dashboard_web.py`.
+- The 🌙 Night report button reads `.agents/stylus/shift.json` (shift start and `mainAtStart`), `night-log.md` and `night-report.md`. **For a new shift**, write a new `shift.json` with the current time and `git rev-parse --short main`, and start a fresh `night-log.md` (keep the old one as `night-log-2026-11-21.md` if you want it; it is in git history either way).
 
-Reviewers had finished their reviews and need no resume: `weathered-centaurus` (B9 server review) and `hollow-heliopause` (sessions review). The `iron-indus` session belongs to the user's `lighthouse-playground` project, not Athena.
+## State at clock-out
+
+- `main` = `722e183`, pushed. The master closed the shift at 07:58 with 18 merges pushed; the last night-log lines give the final state. The user server was left running on `722e183` (pane `server`).
+- Merged tonight (from `9260d04`): B9b, B4b, B2a (notifications full list skipped by decision), B5, B9 (slices 1 and 2 plus the 2.3 thumbnails follow-up), B10, B8, B11 slice 1, C1 slices 1 and 2, C2 slices 1 and 2. Full list and commits: the Night report button, or `.agents/stylus/night-report.md`.
+- Ticked in tasks.md: A group except B4a; B group except B4a, B7 and B11.
+
+### Open worktrees
+
+| Worktree | Branch | State | Next step |
+| --- | --- | --- | --- |
+| `../athena-erp-c1` | `feat/c1-posting` | C1 slice 3 (`981ee78`, reversal mirrors, 6.6 and 6.7) **review PASS**, but the merge-time `make test` was **red**. It ran at the same time as the B11 suite, near the 20-minute budget, so the likely cause is contention; the branch was green at `5bbc94e` for worker and reviewer | Run `make test` alone; if green, merge. If red again, triage (the master suspects the `insertOutbox` unification) |
+| `../athena-erp-b11` | `feat/b11-install` | B11 slice 2 (`be91324` wizard and readiness, `5fbf685` fix) **review PASS round 2**, merge-time `make test` **red**, same contention pattern | Run `make test` alone after C1; if green, merge and tick B11 |
+| `../athena-erp-c2` | `feat/c2-events-jobs` | C2 slice 3 job runner committed (`aec5366`, includes slice-2 F1 and F2 fixes, **not reviewed**); the worker was told to stop and had not acknowledged at clock-out. Slices 4 to 6 not done (4 per the worker's plan, 5: invite and reset delivery through the outbox, 6: events.proto, handlers, CLI, pages, docs) | Check `git status` for leftover work, review `aec5366`, then continue |
+| `../athena-erp-b9-server` | `feat/b9-form-layout-server` | Merged already | `git worktree remove` it (clean) |
+
+### Muse sessions (resume with `muse --yolo --model muse-spark-1.3-contributor --reasoning-effort max resume <id>` in the worktree)
+
+| Role | Session | Id | Worktree |
+| --- | --- | --- | --- |
+| master | hazel-gibbous | `01a1ffe6-cf48-7951-8caa-a24d1e0b9190` | `athena-erp` |
+| w-b11 | cherry-zosma | `01a200bd-ea6f-7881-bf71-e91bafb8c728` | `athena-erp-b11` |
+| w-c1 (likely; the earlier of the two) | timber-himalia | `01a200e7-f7b3-7d81-b4b3-27a1a6ce46f4` | `athena-erp-c1` |
+| r-c1 (likely) | seaglass-flare | `01a200fb-8ae0-76a0-93d3-fc90aadfa771` | `athena-erp-c1` |
+| w-c2 | ruby-circinus | `01a20106-0e4a-7aa1-936f-aaf8026ed14f` | `athena-erp-c2` |
+| r-c2 | misty-vela | `01a20136-e0e9-7de1-bae4-e9b20bd911a2` | `athena-erp-c2` |
+
+The master and the reviewers can also be started fresh: the master from `.agents/stylus/MASTER.md`, reviewers from the review briefs in `.agents/tasks/beta-<task>/`.
 
 ## How to resume
 
-1. Free disk space (see above), then open Herdr.
-2. Start the master again in the `athena-erp` space (kiro-cli in `/Users/iampaulking/projects/duchess/athena-erp`) and tell it: "Read `.agents/tasks/RESUME.md` and continue as master."
-3. The master starts each worker in its own pane, in its worktree:
-   `cd <worktree> && muse --yolo --model muse-spark-1.3-contributor --reasoning-effort max resume <session id>`.
-   If a session cannot resume, it starts a fresh Muse with "Read and follow <brief>; you are continuing: run git status and git diff first, keep what matches the brief, then finish."
-4. Restart the status tick (every 10 minutes) and the user's server (`make run` in `athena-erp`).
+1. `brew services start mariadb@11.8` if MariaDB is not running; check `df -h /` (keep 8 GB free).
+2. Open Herdr, start kiro-cli in `athena-erp`, and say: "Read `.agents/tasks/RESUME.md` and continue as Stylus."
+3. Stylus starts the dashboard pane (`python3 .agents/dashboard_web.py`), the user server pane (`make run`, with node on `PATH`), and the master (resume `hazel-gibbous`, or fresh: `muse --yolo ... 'You are master for the Stylus shift. Read and follow .agents/stylus/MASTER.md.'`). Update MASTER.md's "Queue" section first so it starts from this file's state.
+4. The master adopts or restarts the workers in the table above.
 
-## Order after resume
+## Queue after resume
 
-1. Merge B9 server once its test-name collision is fixed.
-2. Review B9b, then merge it (it rebases after B9 server only if files overlap; they should not).
-3. Continue B2a slice 1 and B5 slice 1; review and merge each slice as it passes.
-4. Start B4b (Appearance redesign) on t4.
-5. Then B9 slice 2 (form builder Desk), B10 (art), B8 (root and Build/View), B11 (install flow), and the C, D and E groups in `tasks.md` order.
+1. Rerun `make test` **one suite at a time** for C1 slice 3, then B11 slice 2; merge each that is green, triage any that is red. Tick B11 when done. Run full suites one at a time from now on (two in parallel timed out).
+2. C2 slice 3 review, then slices 4 to 6. Secrets and lifetimes stay deferred on Z4.
+3. C1 remaining sub-tasks (6.8 to 6.12) that do not need Z2.
+4. C4 (trees, effective dating, UoM), then C3 (Pack packaging, no licence text while Z5 is open).
+5. B4a steering sync (docs only).
+6. D1 and D2 as Proposed drafts for the user.
 
-## Rules that still apply
+## Questions waiting for the user
 
-`.kiro/specs/athena-beta/design.md` §5 (agent workflow; merge small and often), the design system in `docs/design/athena-design-system.md` (§1 to §21), `AGENTS.md`, and `.kiro/steering/athena-design.md`. Workers use throwaway Workspaces only, never the dev database in `.env.local`.
+- **B7:** "a Workspace switch clears caches" has no trigger because the Desk has no Workspace switch. Recommended: descope the bullet until a switch flow is designed and track it under B8 or B11. B7 stays unticked until decided (verify report: `.agents/tasks/beta-b7/verify-report.md`).
+- **B10:** custom Athena figures need the `hairline-create` skill, which is not installed. Recommended: install it and let a worker make the custom set, or accept the stock figures.
+- **B2a follow-up:** a Notifications full-list page needs a route, nav entry and permission designed before it is built.
+- **Section Z** (`tasks.md`): Z1 to Z7, Z10, Z11 still open. Z2 blocks parts of C1, Z3 blocks C7, Z4 blocks C2 secrets, Z5 blocks C3 licence text.
+
+## Loose ends
+
+- `athena-black-logo` and `athena-white-logo` at the repo root are untracked originals; B5 copied them into `web/src/assets/brand/`. Leave or delete them as you prefer.
+- `internal/webui/dist/.gitkeep` gets deleted by web builds; restore it with `git checkout internal/webui/dist/.gitkeep` before committing.
+- Stale `test_athena_*` databases from killed runs exist in MariaDB; they are harmless.

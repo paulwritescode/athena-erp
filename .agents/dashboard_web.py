@@ -1,0 +1,287 @@
+#!/usr/bin/env python3
+"""Live, n8n-style map of the Athena beta: tasks, workers, the master, progress and errors.
+
+Run: python3 .agents/dashboard_web.py   then open http://127.0.0.1:8765
+The page polls /state every 2 seconds and /detail?id=X when a node is clicked.
+Sources, read fresh on each poll: .kiro/specs/athena-beta/tasks.md (tasks, briefs,
+checked = merged), `hc ls` and `hc read` (master, workers, their screens),
+git (worktrees, branches merged or not into main, commits ahead, uncommitted files).
+Dependencies are not data in tasks.md; they live in EDGES below.
+The page itself is .agents/dashboard.html, re-read on every load.
+"""
+import glob, json, os, re, subprocess, sys, time
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import parse_qs, urlparse
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.dirname(HERE)
+TASKS = os.path.join(ROOT, ".kiro/specs/athena-beta/tasks.md")
+PAGE = os.path.join(HERE, "dashboard.html")
+PORT = 8765
+SECTIONS = {"A": "Foundation", "B": "Platform", "C": "Kernel", "D": "Product", "E": "Beta release"}
+EDGES = [  # design.md section 6, plus the B-group order in tasks.md
+    ("B1", "B2"), ("B2", "B3"), ("B3", "B3a"), ("B3", "B4"), ("B3", "B12"), ("B2", "B6"), ("B3", "B9a"),
+    ("B2", "B5"), ("B2", "B8"), ("B2", "B10"), ("B2", "B7"), ("B3", "B2a"),
+    ("B4", "B4a"), ("B4", "B4b"), ("B7", "B4b"), ("B9a", "B9b"), ("B9b", "B9"), ("B5", "B11"),
+    ("C1", "C5"), ("C5", "C6"), ("C6", "C9"), ("C2", "C6"), ("C2", "C10"), ("B9", "C10"),
+    ("C3", "D5"), ("D5", "D6"), ("D6", "D7"), ("C4", "C8"), ("C7", "C8"), ("C4", "D4"), ("C7", "D4"),
+    ("C3", "D3"), ("B5", "D3"), ("B11", "D5"), ("B2", "D1"), ("B2", "D2"),
+    ("C9", "E1"), ("C10", "E1"), ("D7", "E1"), ("D3", "E1"), ("E1", "E2"), ("E2", "E3"),
+]
+ERR = re.compile(r"(--- FAIL|^FAIL\b|\bBLOCKED\b|panic:|\bError:|\berror:|Traceback|cannot save terminals|ERR_|exit status [1-9])")
+
+
+def run(args, cwd=ROOT, timeout=6):
+    try:
+        return subprocess.run(args, cwd=cwd, capture_output=True, text=True, timeout=timeout).stdout
+    except Exception:
+        return ""
+
+
+def clean(s):
+    s = re.sub(r"\*\*|`", "", s)
+    s = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", s)
+    return re.sub(r"\s+", " ", s).strip()
+
+
+def read_tasks():
+    out, section, cur = [], "", None
+    try:
+        lines = open(TASKS, encoding="utf-8").read().splitlines()
+    except OSError:
+        return out
+    for ln in lines:
+        if ln.startswith("## "):
+            m = re.match(r"## ([A-E])\.", ln)
+            section, cur = (m.group(1) if m else ""), None
+            continue
+        m = re.match(r"- \[( |x)\] \*\*([A-Z]+\d+[a-z]?)\. ([^*]+?)\*\*\s*(.*)", ln)
+        if m and section:
+            rest = m.group(4)
+            owner = re.match(r"\(([^)]*)\)", rest)
+            cur = {"id": m.group(2), "title": m.group(3).rstrip(". "), "sec": section, "done": m.group(1) == "x",
+                   "owner": clean(owner.group(1)) if owner else "",
+                   "summary": clean(re.sub(r"^\([^)]*\)\s*[:—-]?\s*", "", rest)), "points": []}
+            out.append(cur)
+            continue
+        if cur and re.match(r"\s+- ", ln):
+            cur["points"].append(clean(ln.strip()[2:]))
+        elif cur and ln.strip() and not ln.startswith(" "):
+            cur = None
+    for t in out:
+        pts = [p for p in t["points"] if not p.lower().startswith(("accept", "carry-over"))]
+        about = t["summary"] if len(t["summary"]) > 25 and not t["summary"].startswith("R") else (pts[0] if pts else t["summary"])
+        about = re.sub(r"^(Server|Desk|Migration):\s*", "", about)
+        if len(about) < 12:
+            about = (t["owner"][:1].upper() + t["owner"][1:] + ". " if t["owner"].lower().startswith("needs") else "") + t["title"]
+        t["about"] = about if len(about) <= 150 else about[:147].rsplit(" ", 1)[0] + "…"
+        t["accept"] = [p[len("Accept: "):] if p.startswith("Accept: ") else p for p in t["points"] if p.lower().startswith("accept")]
+    return out
+
+
+def worktrees():
+    res, cur = [], {}
+    for ln in run(["git", "worktree", "list", "--porcelain"]).splitlines() + [""]:
+        if not ln:
+            if cur.get("worktree"):
+                res.append(cur)
+            cur = {}
+        elif " " in ln:
+            k, v = ln.split(" ", 1)
+            cur[k] = v
+    for w in res:
+        b = w.get("branch", "").replace("refs/heads/", "")
+        w["branch"] = b
+        n = run(["git", "rev-list", "--count", f"main..{b}"]).strip() if b and b != "main" else "0"
+        w["ahead"] = int(n) if n.isdigit() else 0
+        st = run(["git", "status", "--porcelain"], cwd=w["worktree"]).splitlines()
+        w["dirty"] = len([l for l in st if not l.startswith("??")])
+        w["untracked"] = len([l for l in st if l.startswith("??")])
+        w["last"] = run(["git", "log", "-1", "--format=%h %s (%cr)", b or "HEAD"]).strip()
+        w["key"] = task_key(w["worktree"])
+    return res
+
+
+def task_key(path):
+    m = re.match(r"athena-erp-([a-z0-9]+)", os.path.basename(path.rstrip("/")))
+    return m.group(1).lower() if m else None
+
+
+def match(key, tid):
+    return bool(key) and (key == tid.lower() or (tid.lower() == "b9" and key == "b9"))
+
+
+_screens = {}
+
+
+def screen(addr, max_age=5):
+    t, txt = _screens.get(addr, (0, ""))
+    if time.time() - t > max_age:
+        txt = run(["hc", "read", addr], timeout=4)
+        _screens[addr] = (time.time(), txt)
+    return txt
+
+
+def agents():
+    try:
+        d = json.loads(run(["hc", "ls", "--all"]) or "{}")
+    except ValueError:
+        d = {}
+    terms = d.get("terminals", [])
+    live = [t for t in terms if t.get("state") == "live"]
+    muse = [t for t in live if t.get("agent") == "muse"]
+    workers = [t for t in muse if (t.get("name") or "") != "master"]
+    masters = [dict(t, role="master") for t in muse if t.get("name") == "master"]
+    masters += [dict(t, role="stylus", name="Stylus") for t in live if t["address"] == "t6"]
+    recent = (time.time() - 3 * 3600) * 1000
+    dead = [t for t in terms if t.get("state") != "live" and t.get("exit_code") not in (None, 0) and (t.get("finished_ms") or 0) > recent]
+    return masters, workers, dead
+
+
+def state():
+    tasks, wts = read_tasks(), worktrees()
+    masters, workers, dead = agents()
+    ids = {t["id"] for t in tasks}
+    edges = [(a, b) for a, b in EDGES if a in ids and b in ids]
+    errors = []
+    wout = []
+    for w in workers:
+        key = task_key(w.get("cwd", ""))
+        task = next((t["id"] for t in tasks if match(key, t["id"])), None)
+        lines = [l.rstrip() for l in screen(w["address"]).splitlines() if l.strip()]
+        tail = [l for l in lines if not re.search(r"^[─━\s]+$|^\s*Skills:|Voice input|^❯|muse-spark|ctrl\+o", l)][-8:]
+        for l in lines[-200:]:
+            if ERR.search(l) and "0 errors" not in l:
+                errors.append({"who": w.get("name") or w["address"], "task": task, "text": l.strip()[:220]})
+        wout.append({"addr": w["address"], "name": w.get("name") or w["address"], "status": w.get("status") or "idle",
+                     "turn": w.get("turn", 0), "task": task,
+                     "role": "reviewer" if (w.get("name") or "").startswith("r-") else "worker", "cwd": w.get("cwd", ""), "tail": tail})
+    for t in dead[-5:]:
+        errors.append({"who": t.get("name") or t["address"], "task": None, "text": f"terminal exited with code {t.get('exit_code')}"})
+    busy = {}
+    for w in wout:
+        if w["task"]:
+            busy.setdefault(w["task"], []).append(w)
+    out = []
+    for t in tasks:
+        wt = next((w for w in wts if match(w["key"], t["id"])), None)
+        ws = busy.get(t["id"], [])
+        w = ws[0] if ws else None
+        if t["done"]:
+            s = "merged"
+        elif any(x["status"] == "working" and x["role"] == "worker" for x in ws):
+            s = "running"
+        elif wt and wt["ahead"]:
+            s = "review"
+        elif w:
+            s = "waiting"
+        elif wt:
+            s = "started"
+        else:
+            s = "todo"
+        blocked = [a for a, b in edges if b == t["id"] and not next(x for x in tasks if x["id"] == a)["done"]]
+        out.append({**{k: t[k] for k in ("id", "title", "sec", "owner", "about")}, "state": s,
+                    "branch": wt["branch"] if wt else "", "ahead": wt["ahead"] if wt else 0,
+                    "dirty": wt["dirty"] if wt else 0, "agents": [x["addr"] for x in ws],
+                    "blockedBy": blocked if s == "todo" else []})
+    main_tip = run(["git", "rev-parse", "main"]).strip()
+    busy_br = {w["branch"] for w in wts if w["dirty"]}
+    merged_br = [b for b in (x.strip(" *+") for x in run(["git", "branch", "--merged", "main"]).splitlines())
+                 if b != "main" and b not in busy_br and run(["git", "rev-parse", b]).strip() != main_tip]
+    unmerged_br = sorted({b.strip(" *+") for b in run(["git", "branch", "--no-merged", "main"]).splitlines()} | busy_br)
+    secs = []
+    for k, name in SECTIONS.items():
+        ts = [t for t in out if t["sec"] == k]
+        secs.append({"key": k, "name": name, "total": len(ts), "merged": sum(t["state"] == "merged" for t in ts),
+                     "active": sum(t["state"] in ("running", "waiting", "review", "started") for t in ts)})
+    ahead_main = run(["git", "rev-list", "--count", "origin/main..main"]).strip()
+    return {"time": time.strftime("%H:%M:%S"), "main": run(["git", "rev-parse", "--short", "main"]).strip(),
+            "unpushed": int(ahead_main) if ahead_main.isdigit() else 0,
+            "master": [{"addr": m["address"], "role": m["role"], "name": m.get("name") or m["address"], "status": m.get("status") or "",
+                        "cwd": m.get("cwd", ""), "tail": [l for l in screen(m["address"]).splitlines() if l.strip()][-10:]} for m in masters],
+            "workers": wout, "tasks": out, "edges": edges, "sections": secs, "errors": errors[-30:],
+            "branches": {"merged": merged_br, "unmerged": unmerged_br},
+            "worktrees": [{k: w[k] for k in ("worktree", "branch", "ahead", "dirty", "untracked", "last", "key")} for w in wts]}
+
+
+def detail(tid):
+    t = next((x for x in read_tasks() if x["id"].lower() == tid.lower()), None)
+    if not t:
+        return {}
+    briefs = sorted(glob.glob(os.path.join(HERE, "tasks", f"*{t['id'].lower()}*", "*.md")) +
+                    glob.glob(os.path.join(HERE, "tasks", f"HANDOVER*{t['id'].lower()}*.md")))
+    files = []
+    for p in briefs[:8]:
+        try:
+            files.append({"path": os.path.relpath(p, ROOT), "head": open(p, encoding="utf-8").read()[:1500]})
+        except OSError:
+            pass
+    wt = next((w for w in worktrees() if match(w["key"], t["id"])), None)
+    commits, changed = [], []
+    if wt and wt["branch"] != "main":
+        commits = run(["git", "log", "--format=%h %s (%cr)", f"main..{wt['branch']}"]).splitlines()[:15]
+        changed = run(["git", "status", "--short"], cwd=wt["worktree"]).splitlines()[:40]
+    return {**t, "worktree": wt, "commits": commits, "changed": changed, "files": files,
+            "needs": [a for a, b in EDGES if b == t["id"]], "unlocks": [b for a, b in EDGES if a == t["id"]]}
+
+
+STYLUS = os.path.join(HERE, "stylus")
+
+
+def report():
+    def rd(name):
+        try:
+            return open(os.path.join(STYLUS, name), encoding="utf-8").read()
+        except OSError:
+            return ""
+    try:
+        shift = json.loads(rd("shift.json") or "{}")
+    except ValueError:
+        shift = {}
+    base = shift.get("mainAtStart", "")
+    commits = run(["git", "log", "--first-parent", "--format=%h %ad %s", "--date=format:%H:%M", f"{base}..main"]).splitlines() if base else []
+    before = set()
+    if base:
+        for m in re.finditer(r"- \[x\] \*\*([A-Z]+\d+[a-z]?)\.", run(["git", "show", f"{base}:.kiro/specs/athena-beta/tasks.md"])):
+            before.add(m.group(1))
+    tasks = read_tasks()
+    done_now = [t["id"] + " " + t["title"] for t in tasks if t["done"] and t["id"] not in before]
+    log = rd("night-log.md")
+    words = {}
+    for m in re.finditer(r"^- \d\d:\d\d ([A-Z][A-Z_]+(?: [A-Z][A-Z_]+)?)", log, re.M):
+        words[m.group(1)] = words.get(m.group(1), 0) + 1
+    files = run(["git", "diff", "--shortstat", f"{base}..main"]).strip() if base else ""
+    return {"shift": shift, "report": rd("night-report.md"), "log": log, "commits": commits, "tasksDone": done_now,
+            "counts": words, "diffstat": files, "now": time.strftime("%Y-%m-%d %H:%M")}
+
+
+class H(BaseHTTPRequestHandler):
+    def do_GET(self):
+        u = urlparse(self.path)
+        try:
+            if u.path == "/state":
+                body, ctype = json.dumps(state()).encode(), "application/json"
+            elif u.path == "/report":
+                body, ctype = json.dumps(report()).encode(), "application/json"
+            elif u.path == "/detail":
+                body, ctype = json.dumps(detail(parse_qs(u.query).get("id", [""])[0])).encode(), "application/json"
+            else:
+                body, ctype = open(PAGE, "rb").read(), "text/html; charset=utf-8"
+        except Exception as e:  # keep the dashboard up; show the failure on the page
+            body, ctype = json.dumps({"fatal": repr(e)}).encode(), "application/json"
+        self.send_response(200)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, *a):
+        pass
+
+
+if __name__ == "__main__":
+    if "--dump" in sys.argv:
+        print(json.dumps(state(), indent=1)[:4000])
+        sys.exit()
+    print(f"Athena map on http://127.0.0.1:{PORT}  (ctrl+c quits)")
+    ThreadingHTTPServer(("127.0.0.1", PORT), H).serve_forever()
