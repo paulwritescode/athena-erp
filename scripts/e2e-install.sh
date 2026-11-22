@@ -12,16 +12,20 @@
 #
 # The database server login comes from ATHENA_TEST_DATABASE_URL, falling back
 # to ATHENA_DATABASE_URL from .env.local, exactly like `make test`. ADDR
-# overrides the loopback address (default 127.0.0.1:3211). KEEP=1 skips
-# cleanup for inspection; the script prints the scratch paths in that case.
+# overrides the loopback address (default 127.0.0.1:3211) and SLUG the
+# workspace slug (default test_athena_b11_slice1), so parallel runs can
+# take distinct addresses and databases. KEEP=1 skips cleanup for
+# inspection; the script prints the scratch paths in that case.
 set -eu
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 ATHENA="$ROOT/bin/athena"
 ADDR="${ADDR:-127.0.0.1:3211}"
 BASE="http://$ADDR"
-NAME="Test Athena B11 Slice1"
-SLUG="test_athena_b11_slice1"
+SLUG="${SLUG:-test_athena_b11_slice1}"
+# The workspace name is the slug in title case, so `athena new` derives
+# the slug back exactly for any SLUG override.
+NAME="$(printf '%s' "$SLUG" | tr '_' ' ' | awk '{for (i=1;i<=NF;i++) $i = toupper(substr($i,1,1)) substr($i,2)} 1')"
 
 pass=0
 fail=0
@@ -45,6 +49,10 @@ expect_fail() { # expect_fail <description> <needle> <command...>
 [ -x "$ATHENA" ] || { echo "bin/athena is missing; run 'make build' first." >&2; exit 1; }
 command -v python3 >/dev/null || { echo "python3 is required." >&2; exit 1; }
 case "$SLUG" in test_athena_*) ;; *) echo "refusing: slug must start with test_athena_" >&2; exit 1;; esac
+if ! printf '%s' "$SLUG" | grep -qE '^[a-z][a-z0-9_]{0,47}$'; then
+  echo "refusing: slug $SLUG is not a valid workspace slug" >&2; exit 1
+fi
+case "$SLUG" in *_) echo "refusing: slug must not end with an underscore" >&2; exit 1;; esac
 
 # Server login, sourced like `make test` does. Never printed.
 if [ -z "${ATHENA_TEST_DATABASE_URL:-}" ] && [ -f "$ROOT/.env.local" ]; then

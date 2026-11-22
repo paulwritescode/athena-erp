@@ -83,6 +83,10 @@ cd ~/athena
 cd acme_trading && athena run                       # or from the home: athena run --workspace acme_trading
 ```
 
+For the full first-run path — install, home, workspace, first sign-in,
+first owner, Setup wizard — see [Getting
+started](docs/guides/getting-started.md).
+
 - The MariaDB user given to `athena init` must be able to create databases. Its login is saved as `ATHENA_SERVER_URL` in the home `.env.local` (owner-only). A home that still has `athena-workspace.yaml` from an earlier build has the file renamed to `athena-home.yaml` the first time a command finds it. `athena new --driver` must match the home driver; `postgres` is implemented but untested ([ADR-0019](docs/decisions/adr-0019-postgresql-adapter.md), Proposed), claims no parity, and a postgres workspace does not boot yet.
 - The Workspace slug, folder and database name come from the name at creation and never change. Renaming the Workspace changes only `name` in `athena.yaml`.
 - A new Workspace contains `athena.yaml`, `AGENTS.md`, `README.md`, `.gitignore`, `.env.example`, `record_types/` and `storage/uploads/`, and is a Git repository on `main` with no commits.

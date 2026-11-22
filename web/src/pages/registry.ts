@@ -109,6 +109,7 @@ export const pageEntries: PageEntry[] = [
     key: 'setup', title: 'Setup', shortTitle: 'Setup', blurb: 'Get the workspace ready.', icon: icon('clipboard-list'),
     modes: ['build'], gate: { build: true }, nav: true, group: 'administer',
     load: () => import('@/pages/SetupPage.vue'),
+    props: (ctx) => ({ permissions: ctx.permissions }),
   },
   {
     key: 'queue', title: 'Work queue', shortTitle: 'My work', blurb: 'Your work across the workspace, in one list.', icon: icon('inbox'),

@@ -57,7 +57,9 @@ an owner-only `.env.local` holding `ATHENA_SERVER_URL`, and a
 `.gitignore` for it. Keep `.env.local` private; it is the keys to
 every workspace database in the home.
 
-If the server cannot be reached, `init` says so and writes nothing:
+If the server cannot be reached, `init` says so and writes nothing
+(the binary prefixes every error with the date and time; the guide
+shows the message after `athena: `):
 
 ```text
 athena: cannot connect to MariaDB at 127.0.0.1:3306 as <user>: dial tcp ...: connect: connection refused
@@ -198,14 +200,25 @@ only. From step 5 on, each side has its match:
 | Create the home | `athena init` | — (the desk needs a running workspace) |
 | Create a workspace | `athena new "Name" [--logo]` | — (workspaces are created from the command line) |
 | Run the workspace | `athena run` | — (this starts the desk) |
-| Workspace name and logos | `athena workspace identity show` / `set --name ... --logo-light ... --logo-dark ...` | Build mode → Settings → Workspace identity |
+| Workspace name and logos | `athena workspace identity show` / `set --name ... --logo-light ... --logo-dark ...` | Build mode → Settings → Workspace identity, or the Setup wizard |
+| Company, base money, first period | `athena ledger company save --name ... --label ...`, `currency save --code ... --label ...`, `period save --company ... --name ... --start ... --end ...` | Build mode → Setup (steps 1, 3, 4), or Ledger setup |
 | Sign in as root | `athena user list` only inspects; sign-in is interactive | The sign-in page |
 | Change the root password | — (administrators never set passwords, not even from the command line) | The user menu → Change password |
 | Invite the first owner | `athena user invite <name> --owner` | Build mode → Access (after the first owner exists) |
 
-A guided Setup wizard (company, logo, currency, period, first owner)
-and a readiness view are planned next; the desk's Setup page currently
-holds their place with an empty state.
+## 7. Finish setup in the desk
+
+Build mode → Setup walks the workspace to ready in six steps: company,
+logo, base money, first period, first owner, and a readiness checklist.
+Each step has a command-line equivalent: `athena ledger company save`,
+`athena workspace identity set --logo-light ...`,
+`athena ledger currency save`, `athena ledger period save ...`,
+`athena user invite <name> --owner`. The financial year the period step
+opens with it is the exception: it has no `ledger` command yet, so only
+the wizard and the Ledger setup page create it. The logo and the owner
+invite can be skipped and done later; the readiness list shows what is
+ready, missing or skipped, plus the books checks (account types, posting
+accounts, posting rules) that the Ledger setup page completes.
 
 ## Checking your own setup
 
