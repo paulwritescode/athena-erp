@@ -106,6 +106,8 @@ Order follows dependencies. Desk parts of each group follow the design system an
   - Slice 1 merged 2026-11-22 (9d87fbf+a9e1d49): plan validation + single-transaction writer + balanced-postings property (6.2+6.3); Z2 policy parts return failed_precondition sentinels. Open: slices 2–6 (operations, reversal, hooks, RPCs/CLI, voucher view).
   - Slice 2 merged 2026-11-22 (f94fe09+367a56c): Operation_ID contract + idempotent replay + concurrent-replay property (6.4+6.5); cross-actor winner disambiguated by group id (fix loop 1). Z2 unchanged (2 sentinels, still pinned). Open: slices 3–6 (reversal, hooks, RPCs/CLI, voucher view).
   - Slice 3 merged 2026-11-22 (4334fc3): reversal mirrors + correction-period rules (6.6+6.7); Property 10 submit+cancel netting; rebase adaptation onto the C2 event bus (insertOutbox via events.Emit) delta-reviewed. Z2 unchanged (ErrCorrectionWindowOpen sentinel, still pinned). Open: slices 4–6 (hooks, RPCs/CLI, voucher view).
+  - Slice 4 merged 2026-11-23 (8fd7bef): lifecycle hooks + Posting Rule type with activation gate (6.8); internal/lifecycle deviation accepted (registry suffices); records.proto +posting_preview_hash; fixture replay + plan diff + two-step named approval; Z2 sentinels byte-identical. Open: slices 5–6 (RPCs/CLI, voucher view + docs + checkpoint).
+  - Follow-up: Posting Rule activation — approver may be the author (four-eyes not enforced for beta, Stylus-accepted); approval record keeps author (v2 actor) and approver (v3 actor) so it can be audited (Z13).
 - [ ] **C2. G8 Jobs, outbox, events, workflows, secrets, lifetimes.** Invite delivery through the outbox. JobsPage and SettingsPage.
   - Slice 1 merged 2026-11-22 (5d1e55f): migration 17 (events/outbox/inbox + subscriptions + jobs/occurrences + workflows/tasks) + ADR-0028 (8.1 adjusted); Z4 secrets/lifetimes deferred. Open: slices 2+ (subscriptions, worker, jobs, workflows, secrets/lifetimes once Z4 is decided).
   - Slice 2 merged 2026-11-22 (6be771e): event bus (Emit/Claim/Declare/Match + dispatcher) + posting/lifecycle emit hooks + Property 13 inbox dedup. Z4/Z2 clean. Open: slices 3+ (jobs/worker, workflows, secrets/lifetimes once Z4 is decided).
@@ -188,6 +190,7 @@ Gates per name: pattern, 1 to 2 syllables, clean as `athena-<noun>`, the user ca
 - C1 slice 1: fitsLedger allows 28 significant digits vs DECIMAL(28,6) 22 integer digits (raw DB error on huge values); validDate accepts non-calendar dates; no multi-company balance test; hashPlan hashes Decimal text (100.00 vs 100 differ — normalize in slice 2); zero-value Engine Dialect panic risk on concurrent-insert race.
 - C1 slice 3: same-op-id submit+cancel conflict untested (one-line TestReverseReplay addition); no concurrent-reversal test (racing reversals in Property 10 would close the loop); assertMirror does not pin bijectivity; checkIdentity wording on the reversal path; consider TypePostingReversed in the events package instead of the posting-local literal.
 - C4 slice 1: backfill leftover-row error says "cycle or missing parent" but also fires for chains deeper than 100 passes (cosmetic; name the depth bound).
+- C1 6.8: rules.proto posting comment now stale; Desk Rules page lacks the posting type (posting Rules are API-only); parent_id filter error branches untested.
 
 ## Z. Decisions the user must make (OPEN)
 
@@ -206,3 +209,4 @@ Gates per name: pattern, 1 to 2 syllables, clean as `athena-<noun>`, the user ca
 | Z10 | Satori web embedding rights (bundle the font or keep local-only) | B3, D3 |
 | Z11 | Product names in section N | B6 |
 | Z12 | DECIDED 2026-11-21: committed on `feat/batch-2-g1-g6` (951ed0d, bf47716) with `.agents/` and `.kiro/` | everything |
+| Z13 | Segregation of duties for posting Rule activation: require a different approver? Recommended: a Workspace setting, on by default when two or more users hold the approve permission, so a one-person business is not blocked | nothing for beta (C1 follow-up) |
