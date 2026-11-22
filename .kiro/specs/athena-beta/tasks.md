@@ -89,6 +89,7 @@
   - Desk: drag-and-drop builder (keyboard alternative with move up/down) with live preview at mobile and desktop width, in the editor page's Form tab (B9a); optional image block and an optional hairline or ASCII header from the art registry (B10); the View form renders from the layout. Layout changes are non-destructive saves through the journaled publisher.
   - Accept: layout round trip tests; Image field upload, display, delete; keyboard-only reordering works.
 - [ ] **B10. Art registry, hairlines and ASCII** (Muse; needs approval to add `@lucasmarkes/hairline`)
+  - Slice 1 merged 2026-11-22 (82cf024): registry + sign-in/404/offline/CLI placements with stock figures. Slice 2 (empty-state figures) open.
   - `web/src/art/registry.ts` per design-system §9; figures on sign-in, first-run, empty states, 404 and offline; ASCII mark for the CLI banner (`cmd/athena`) and sign-in footer. Custom figures made with `hairline-create` go in `web/src/art/figures/`.
   - Accept: one figure per screen at most (test over the registry); reduced motion rests every figure.
 - [ ] **B11. Install and first-run flow** (Codex then Muse)
@@ -164,6 +165,7 @@ Gates per name: pattern, 1 to 2 syllables, clean as `athena-<noun>`, the user ca
 - B5 slice 2: "No logo" empty text unreadable in mismatched swatch/theme combos; logo errors lack the CircleAlert icon pattern; clearing the display name toasts success but snaps back; theme-color static in dark theme (pre-existing); fallback favicon is the black mark in both themes.
 - B2a slice 2: no bulk RPCs anywhere (tables correctly hide select); runs list hardcoded pageSize 50, next token ignored, no total; centered columns stay centered in stacked phone rows; mapping no-file rows focusable despite no-op click; Actions column shows when row-actions returns []; unexplained px-4 py-3 rewrite in DataTable.
 - Notifications full list page (route, nav entry, permission and DataTable) needs design before it is built; the bell inbox covers design-system section 17 meanwhile.
+- B10 slice 1: "Back to home" from a direct 404 leaves the bad address in the bar; async chunk carries all 33 figures (~120 KB, defeats tree-shaking); FigureName closed union needs extending for custom figures; custom Athena figure set still wanted (hairline-create skill unavailable).
 
 ## Z. Decisions the user must make (OPEN)
 
