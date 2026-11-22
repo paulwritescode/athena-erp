@@ -52,8 +52,8 @@
   --sidebar-accent: oklch(0.274 0.006 286.033); --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%); --sidebar-ring: oklch(0.552 0.016 285.938);
   --chart-1: var(--primary);
-  --chart-2: color-mix(in oklab, var(--primary) 80%, white); --chart-3: color-mix(in oklab, var(--primary) 64%, white);
-  --chart-4: color-mix(in oklab, var(--primary) 50%, white); --chart-5: color-mix(in oklab, var(--primary) 38%, white);
+  --chart-2: color-mix(in oklab, var(--primary) 80%, black); --chart-3: color-mix(in oklab, var(--primary) 64%, black);
+  --chart-4: color-mix(in oklab, var(--primary) 50%, black); --chart-5: color-mix(in oklab, var(--primary) 38%, black);
   --success: oklch(0.72 0.09 150); --success-foreground: oklch(0.21 0.006 285.885); --success-soft: color-mix(in oklab, var(--success) 12%, var(--background));
   --warning: oklch(0.78 0.12 75); --warning-foreground: oklch(0.21 0.006 285.885); --warning-soft: color-mix(in oklab, var(--warning) 12%, var(--background));
   --info: oklch(0.72 0.06 240); --info-foreground: oklch(0.21 0.006 285.885); --info-soft: color-mix(in oklab, var(--info) 12%, var(--background));
@@ -162,6 +162,15 @@
   --chart-1: var(--primary);
   --chart-2: color-mix(in oklab, var(--primary) 80%, white); --chart-3: color-mix(in oklab, var(--primary) 64%, white);
   --chart-4: color-mix(in oklab, var(--primary) 50%, white); --chart-5: color-mix(in oklab, var(--primary) 38%, white);
+}
+
+/* The dark twin of the scoped ramp: dark primaries sit near white, so the
+   ramp mixes toward black instead of washing out. It sits with the light
+   ramp, before the palettes, so the .dark palette blocks still win ties. */
+.dark[data-accent] {
+  --chart-1: var(--primary);
+  --chart-2: color-mix(in oklab, var(--primary) 80%, black); --chart-3: color-mix(in oklab, var(--primary) 64%, black);
+  --chart-4: color-mix(in oklab, var(--primary) 50%, black); --chart-5: color-mix(in oklab, var(--primary) 38%, black);
 }
 
 /* Named chart palettes, applied as data-charts on <html> beside data-accent.

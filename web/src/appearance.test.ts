@@ -7,6 +7,7 @@ import {
   ACCENT_PRESETS,
   CHART_PALETTES,
   MATCH_RAMP_VARS,
+  MATCH_RAMP_VARS_DARK,
   applyAppearance,
   chartsAreCustom,
   contrastOf,
@@ -194,6 +195,14 @@ describe('preset tokens in theme.css', () => {
       expect(prop(scoped, `--chart-${i}`), `chart-${i}`).toBe(MATCH_RAMP_VARS[`--chart-${i}`])
     }
     expect(css.indexOf('[data-accent] {')).toBeLessThan(css.indexOf('[data-charts='))
+    // The dark twin mixes toward black (dark primaries sit near white) and
+    // sits before the .dark palettes so they still win ties by order.
+    const scopedDark = block('\\.dark\\[data-accent\\]')
+    for (let i = 1; i <= 5; i++) {
+      expect(prop(scopedDark, `--chart-${i}`), `dark chart-${i}`).toBe(MATCH_RAMP_VARS_DARK[`--chart-${i}`])
+    }
+    expect(css.indexOf('.dark[data-accent] {')).toBeLessThan(css.indexOf('[data-charts='))
+    expect(prop(block('\\.dark'), '--chart-2')).toContain('black')
   })
 
   it('applies pre-B4b custom charts recorded without a palette', () => {

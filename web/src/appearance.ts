@@ -42,6 +42,17 @@ export const MATCH_RAMP_VARS: Record<string, string> = {
   '--chart-5': 'color-mix(in oklab, var(--primary) 38%, white)',
 }
 
+// The dark twin of the match ramp: dark primaries sit near white, so it
+// mixes toward black. Mirrors .dark[data-accent]; paneVars picks by pane
+// theme, and appearance.test.ts keeps the two in step.
+export const MATCH_RAMP_VARS_DARK: Record<string, string> = {
+  '--chart-1': 'var(--primary)',
+  '--chart-2': 'color-mix(in oklab, var(--primary) 80%, black)',
+  '--chart-3': 'color-mix(in oklab, var(--primary) 64%, black)',
+  '--chart-4': 'color-mix(in oklab, var(--primary) 50%, black)',
+  '--chart-5': 'color-mix(in oklab, var(--primary) 38%, black)',
+}
+
 // Whether stored chart colors apply: explicit custom, or the pre-B4b shape
 // (no palette recorded). Mirrors the server's read rule in Resolve.
 export function chartsAreCustom(chartPalette: string, chartColors: string[]): boolean {

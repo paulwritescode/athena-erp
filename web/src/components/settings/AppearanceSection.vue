@@ -16,6 +16,7 @@ import {
   ACCENT_PRESETS,
   CHART_PALETTES,
   MATCH_RAMP_VARS,
+  MATCH_RAMP_VARS_DARK,
   RAMP_FALLBACK_HEX,
   applyAppearance,
   hexToOklch,
@@ -149,7 +150,7 @@ function paneVars(dark: boolean): Record<string, string> | undefined {
     vars['--sidebar-primary-foreground'] = dark ? 'oklch(0.21 0.006 285.885)' : 'oklch(0.985 0 0)'
   }
   if (chartPalette.value === 'custom' && candidate.value) {
-    if (preset.value === 'custom') Object.assign(vars, MATCH_RAMP_VARS)
+    if (preset.value === 'custom') Object.assign(vars, dark ? MATCH_RAMP_VARS_DARK : MATCH_RAMP_VARS)
     candidate.value.charts.forEach((value, i) => {
       if (value) vars[`--chart-${i + 1}`] = value
     })
@@ -157,7 +158,7 @@ function paneVars(dark: boolean): Record<string, string> | undefined {
     // A custom accent scopes no data-accent, so the ramp would resolve
     // against the saved accent: declare it on the pane instead. Named
     // palettes arrive as data-charts and need nothing inline.
-    Object.assign(vars, MATCH_RAMP_VARS)
+    Object.assign(vars, dark ? MATCH_RAMP_VARS_DARK : MATCH_RAMP_VARS)
   }
   return Object.keys(vars).length > 0 ? vars : undefined
 }
