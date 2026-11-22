@@ -1,0 +1,78 @@
+#!/usr/bin/env python3
+"""Run only the tests a branch's change can affect (worker and reviewer runs).
+
+  affected [--print] [--base main]
+
+Compares the worktree (commits and uncommitted edits) with its merge-base on
+main and picks:
+- Go: every package with a changed .go file, plus every package that imports
+  one of them (directly or not). Tests use the same env as `make test`.
+- Web: `pnpm --dir web run test` when anything under web/ changed or a Go
+  change reaches the generated web/src/gen code (proto).
+- Full `make test` when proto/, go.mod, go.sum, the Makefile, testdata shared
+  by Go and Vitest or buf config changed, or when the scope covers
+  most packages anyway.
+
+Runs through .agents/bin/suite (same lock and records). --print only shows the
+plan. Master's merge-time gate is always the full `make test`, never this.
+"""
+import json, os, subprocess, sys
+
+FULL_PATHS = ("proto/", "go.mod", "go.sum", "Makefile", "internal/server/testdata/field_rules.json",
+              "buf.gen.yaml", "buf.yaml")
+args = sys.argv[1:]
+show = "--print" in args
+base = args[args.index("--base") + 1] if "--base" in args else "main"
+
+
+def git(*a):
+    return subprocess.run(["git", *a], capture_output=True, text=True).stdout
+
+
+mb = git("merge-base", "HEAD", base).strip()
+changed = sorted({l for l in (git("diff", "--name-only", mb) + git("ls-files", "--others", "--exclude-standard")).splitlines()
+                  if l and not l.startswith(".agents/")})
+mod = subprocess.run(["go", "list", "-m"], capture_output=True, text=True).stdout.strip()
+
+full = [c for c in changed if c.startswith(FULL_PATHS)]
+go_dirs = sorted({os.path.dirname(c) for c in changed if c.endswith(".go")})
+web = any(c.startswith("web/") for c in changed)
+
+pkgs = []
+if go_dirs and not full:
+    listing = subprocess.run(["go", "list", "-json=ImportPath,Dir,Deps", "./..."], capture_output=True, text=True).stdout
+    dec, info, i = json.JSONDecoder(), [], 0
+    while i < len(listing):
+        while i < len(listing) and listing[i].isspace():
+            i += 1
+        if i >= len(listing):
+            break
+        obj, i = dec.raw_decode(listing, i)
+        info.append(obj)
+    root = os.getcwd()
+    touched = {p["ImportPath"] for p in info if os.path.relpath(p["Dir"], root) in go_dirs}
+    pkgs = sorted(p["ImportPath"] for p in info if p["ImportPath"] in touched or touched & set(p.get("Deps", [])))
+    if len(pkgs) > 0.7 * len(info):
+        full = ["(change reaches most packages)"]
+
+if full:
+    plan, cmd = f"full make test: {', '.join(full[:5])}", ["make", "test"]
+elif not pkgs and not web:
+    plan, cmd = "no Go or web change: nothing to run (docs only)", None
+else:
+    rel = ["./" + p[len(mod) + 1:] if p.startswith(mod + "/") else "." for p in pkgs]
+    parts = []
+    if pkgs:
+        parts.append('set -a; [ -f .env.local ] && . ./.env.local; set +a; '
+                     'export ATHENA_TEST_DATABASE_URL="${ATHENA_TEST_DATABASE_URL:-$ATHENA_DATABASE_URL}"; '
+                     "go test -timeout 20m " + " ".join(rel))
+    if web:
+        parts.append("CI=true pnpm --dir web install --frozen-lockfile --store-dir .cache/pnpm && CI=true pnpm --dir web run test")
+    plan = f"Go: {' '.join(rel) or 'none'} | web tests: {'yes' if web else 'no'}"
+    cmd = ["sh", "-c", " && ".join(parts)]
+
+print("affected:", plan)
+if show or not cmd:
+    sys.exit(0)
+here = os.path.dirname(os.path.abspath(__file__))
+os.execv(os.path.join(here, "suite"), [os.path.join(here, "suite"), "--label", "affected: " + plan[:80], "--", *cmd])

@@ -49,6 +49,8 @@ The machine has 8 CPUs and 8 GB RAM. A full `make test`, a full `pnpm --dir web 
 
 It queues behind whoever holds the lock and logs the result. Package tests (`go test ./internal/posting/...`, one Vitest file) may run without the lock. Two full suites in parallel time out; never bypass the lock.
 
+Scoped runs for workers and reviewers: `/Users/iampaulking/projects/duchess/athena-erp/.agents/bin/affected` runs, through the same lock, only the Go packages your change touches plus every package that imports them, and the web tests when `web/` changed. It falls back to the full `make test` for proto, `go.mod`, `Makefile`, shared field-rule testdata or a change that reaches most packages. `affected --print` shows the plan. Use it for slice reports and reviews. Master's merge-time gate after the rebase is always the full `make test`, so nothing reaches `main` without the whole suite.
+
 One green run per commit: `suite` records the commit and whether the tree was clean. If the same command already passed on the same clean commit, it prints that run's log and exits 0 without rerunning. A reviewer whose worktree is at the worker's reported commit gets the worker's result this way; read that log instead of rerunning. Any change (a fix, a rebase) is a new commit and runs again. Master's merge-time run after the rebase always runs. `SUITE_FORCE=1` reruns when you suspect a flaky pass.
 
 ## Splitting a big task (workers)
