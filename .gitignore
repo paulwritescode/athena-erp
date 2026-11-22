@@ -10,3 +10,7 @@ bin/
 !.env.example
 .DS_Store
 .athena/
+
+# Stylus runtime state
+.agents/stylus/locks/
+.agents/stylus/suite-logs/

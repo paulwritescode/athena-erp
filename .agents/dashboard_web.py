@@ -9,7 +9,7 @@ git (worktrees, branches merged or not into main, commits ahead, uncommitted fil
 Dependencies are not data in tasks.md; they live in EDGES below.
 The page itself is .agents/dashboard.html, re-read on every load.
 """
-import glob, json, os, re, subprocess, sys, time
+import glob, json, os, re, shutil, subprocess, sys, time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
@@ -17,6 +17,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 TASKS = os.path.join(ROOT, ".kiro/specs/athena-beta/tasks.md")
 PAGE = os.path.join(HERE, "dashboard.html")
+STY = os.path.join(HERE, "stylus")
 ICONS = os.path.expanduser("~/.config/herdr-app/icons")  # Herdr's bundled agent logos (LobeHub, MIT)
 PORT = 8765
 SECTIONS = {"A": "Foundation", "B": "Platform", "C": "Kernel", "D": "Product", "E": "Beta release"}
@@ -123,6 +124,22 @@ def screen(addr, max_age=5):
     return txt
 
 
+ROLE_BY_PREFIX = [("sw-", "subworker"), ("sm-", "submaster"), ("th-", "thinker"), ("w-", "worker"), ("r-", "reviewer")]
+
+
+def jsonl(name, last=None):
+    try:
+        with open(os.path.join(STY, name)) as f:
+            rows = [json.loads(l) for l in f if l.strip()]
+    except (FileNotFoundError, ValueError):
+        return []
+    return rows[-last:] if last else rows
+
+
+def role_of(name):
+    return next((r for p, r in ROLE_BY_PREFIX if name.startswith(p)), None)
+
+
 def agents():
     try:
         d = json.loads(run(["hc", "ls", "--all"]) or "{}")
@@ -130,33 +147,93 @@ def agents():
         d = {}
     terms = d.get("terminals", [])
     live = [t for t in terms if t.get("state") == "live"]
-    muse = [t for t in live if t.get("agent") == "muse"]
-    workers = [t for t in muse if (t.get("name") or "") != "master"]
-    masters = [dict(t, role="master") for t in muse if t.get("name") == "master"]
-    masters += [dict(t, role="stylus", name="Stylus") for t in live if t["address"] == "t6"]
+    stylus = LIMITS().get("stylus", "t6")
+    masters = [dict(t, role="master") for t in live if t.get("name") == "master"]
+    masters += [dict(t, role="stylus", name="Stylus") for t in live if t["address"] == stylus]
+    workers = [dict(t, role=role_of(t.get("name") or "")) for t in live if role_of(t.get("name") or "")]
     recent = (time.time() - 3 * 3600) * 1000
     dead = [t for t in terms if t.get("state") != "live" and t.get("exit_code") not in (None, 0) and (t.get("finished_ms") or 0) > recent]
-    return masters, workers, dead
+    names = {t["address"]: ("stylus" if t["address"] == stylus else t.get("name") or t["address"]) for t in terms}
+    return masters, workers, dead, names
+
+
+def LIMITS():
+    try:
+        return json.load(open(os.path.join(STY, "limits.json")))
+    except (FileNotFoundError, ValueError):
+        return {}
+
+
+def lanes():
+    try:
+        return json.load(open(os.path.join(STY, "lanes.json")))
+    except (FileNotFoundError, ValueError):
+        return {"lanes": []}
+
+
+def mem_free():
+    out = run(["memory_pressure"])
+    m = re.search(r"free percentage:\s*(\d+)", out)
+    return int(m.group(1)) if m else None
+
+
+def ops(wout, tasks):
+    lane_cfg = lanes()
+    by_id = {t["id"]: t for t in tasks}
+    lane_out = []
+    for ln in lane_cfg.get("lanes", []):
+        ts = [{"id": i, "state": by_id[i]["state"] if i in by_id else "todo", "title": by_id.get(i, {}).get("title", i)}
+              for i in ln["tasks"]]
+        ags = [w["name"] for w in wout if w.get("lane") == ln["id"] or (w.get("task") and w["task"] in ln["tasks"])]
+        lane_out.append({**ln, "tasks": ts, "agents": ags,
+                         "current": next((t["id"] for t in ts if t["state"] != "merged"), None)})
+    try:
+        holder = json.load(open(os.path.join(STY, "locks", "suite", "owner.json")))
+    except (FileNotFoundError, ValueError):
+        holder = None
+    srows = jsonl("suite.jsonl", 200)
+    queue = []
+    for r in srows:
+        k = (r["who"], r.get("label"), r["cwd"])
+        if r["event"] == "queued":
+            queue = [q for q in queue if (q["who"], q.get("label"), q["cwd"]) != k] + [r]
+        elif r["event"] in ("start", "end"):
+            queue = [q for q in queue if (q["who"], q.get("label"), q["cwd"]) != k]
+    lim = LIMITS()
+    du = shutil.disk_usage("/")
+    return {"lanes": lane_out, "blocked": lane_cfg.get("blocked", {}),
+            "comms": jsonl("comms.jsonl", 150), "progress": jsonl("progress.jsonl", 30),
+            "suite": {"holder": holder, "queue": queue, "recent": [r for r in srows if r["event"] == "end"][-12:]},
+            "resources": {"memFreePct": mem_free(), "diskFreeGB": round(du.free / 1e9, 1),
+                          "agents": len(wout), "caps": {k: v for k, v in lim.items() if k.startswith(("max", "min"))}},
+            "spawned": jsonl("agents.jsonl", 60)}
 
 
 def state():
     tasks, wts = read_tasks(), worktrees()
-    masters, workers, dead = agents()
+    masters, workers, dead, names = agents()
+    spawned = {r["name"]: r for r in jsonl("agents.jsonl") if r.get("event") == "spawn"}
     ids = {t["id"] for t in tasks}
     edges = [(a, b) for a, b in EDGES if a in ids and b in ids]
     errors = []
     wout = []
     for w in workers:
-        key = task_key(w.get("cwd", ""))
-        task = next((t["id"] for t in tasks if match(key, t["id"])), None)
+        name = w.get("name") or w["address"]
+        rec = spawned.get(name, {})
+        m = re.match(r"^(?:w|r|sm|sw)-([a-z0-9]+)", name)
+        guess = m.group(1).upper() if m else ""
+        task = next((t["id"] for t in tasks if t["id"].upper() == (rec.get("task") or "").upper()), None) \
+            or next((t["id"] for t in tasks if t["id"].upper() == guess), None) \
+            or next((t["id"] for t in tasks if match(task_key(w.get("cwd", "")), t["id"])), None)
         lines = [l.rstrip() for l in screen(w["address"]).splitlines() if l.strip()]
         tail = [l for l in lines if not re.search(r"^[─━\s]+$|^\s*Skills:|Voice input|^❯|muse-spark|ctrl\+o", l)][-8:]
         for l in lines[-200:]:
             if ERR.search(l) and "0 errors" not in l:
-                errors.append({"who": w.get("name") or w["address"], "task": task, "text": l.strip()[:220]})
-        wout.append({"addr": w["address"], "name": w.get("name") or w["address"], "status": w.get("status") or "idle",
-                     "turn": w.get("turn", 0), "task": task, "cli": w.get("agent") or "agent",
-                     "role": "reviewer" if (w.get("name") or "").startswith("r-") else "worker", "cwd": w.get("cwd", ""), "tail": tail})
+                errors.append({"who": name, "task": task, "text": l.strip()[:220]})
+        wout.append({"addr": w["address"], "name": name, "status": w.get("status") or "idle",
+                     "turn": w.get("turn", 0), "task": task, "cli": rec.get("cli") or w.get("agent") or "agent",
+                     "lane": rec.get("lane", ""), "parent": names.get(w.get("parent"), rec.get("parent", "")),
+                     "role": w["role"], "cwd": w.get("cwd", ""), "tail": tail})
     for t in dead[-5:]:
         errors.append({"who": t.get("name") or t["address"], "task": None, "text": f"terminal exited with code {t.get('exit_code')}"})
     busy = {}
@@ -170,7 +247,7 @@ def state():
         w = ws[0] if ws else None
         if t["done"]:
             s = "merged"
-        elif any(x["status"] == "working" and x["role"] == "worker" for x in ws):
+        elif any(x["status"] == "working" and x["role"] in ("worker", "submaster", "subworker") for x in ws):
             s = "running"
         elif wt and wt["ahead"]:
             s = "review"
@@ -198,7 +275,9 @@ def state():
     ahead_main = run(["git", "rev-list", "--count", "origin/main..main"]).strip()
     return {"time": time.strftime("%H:%M:%S"), "main": run(["git", "rev-parse", "--short", "main"]).strip(),
             "unpushed": int(ahead_main) if ahead_main.isdigit() else 0,
-            "master": [{"addr": m["address"], "role": m["role"], "cli": "kiro" if m["role"] == "stylus" else (m.get("agent") or "muse"), "name": m.get("name") or m["address"], "status": m.get("status") or "",
+            "ops": ops(wout, out),
+            "master": [{"addr": m["address"], "role": m["role"], "cli": "kiro" if m["role"] == "stylus" else (m.get("agent") or "muse"),
+                        "parent": "" if m["role"] == "stylus" else "stylus", "name": m.get("name") or m["address"], "status": m.get("status") or "",
                         "cwd": m.get("cwd", ""), "tail": [l for l in screen(m["address"]).splitlines() if l.strip()][-10:]} for m in masters],
             "workers": wout, "tasks": out, "edges": edges, "sections": secs, "errors": errors[-30:],
             "branches": {"merged": merged_br, "unmerged": unmerged_br},

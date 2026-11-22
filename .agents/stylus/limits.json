@@ -1,0 +1,13 @@
+{
+  "stylus": "t6",
+  "maxAgents": 12,
+  "maxWorkers": 5,
+  "maxReviewers": 3,
+  "maxSubmasters": 2,
+  "maxSubworkersPerSubmaster": 2,
+  "minMemFreePct": 15,
+  "minDiskFreeGB": 8,
+  "updateEveryMinutes": 10,
+  "suiteTimeoutMinutes": 30,
+  "note": "8 CPUs / 8 GB RAM. Full suites and browser passes run one at a time through .agents/bin/suite. Raise caps only with Stylus agreeing."
+}

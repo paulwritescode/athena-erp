@@ -1,0 +1,23 @@
+{
+  "note": "Lanes group related tasks so one worker (and its submaster, if the task is big) owns a stream of work. Tasks in a lane run in order. Shared-file owners say which lane may edit a shared file first; the others rebase after it merges.",
+  "lanes": [
+    {"id": "L1", "name": "Books and posting", "tasks": ["C1", "C5", "C6", "C9"],
+     "about": "Posting engine, party ledger, balances and reports. Z2 parts of C1 stay out."},
+    {"id": "L2", "name": "Jobs, events and integration", "tasks": ["C2", "C10"],
+     "about": "Outbox, events, job runner, invite delivery, then the integration surface. Z4 secrets stay out."},
+    {"id": "L3", "name": "Masters and Packs", "tasks": ["C4", "C3", "C8"],
+     "about": "Trees, effective dating, UoM; then Pack packaging (no licence text, Z5). C8 after C7 (Z3)."},
+    {"id": "L4", "name": "Desk, first run and access", "tasks": ["B11", "B7", "B4a", "D3"],
+     "about": "Install and first-run flow, B7 leftovers, steering sync, then public pages (ADR)."},
+    {"id": "L5", "name": "Quality and follow-ups", "tasks": ["FU", "D1", "D2", "E2"],
+     "about": "The follow-ups list in tasks.md (one small fix per commit), D1 and D2 Proposed drafts, Bruno coverage."}
+  ],
+  "blocked": {"C7": "Z3", "D4": "Z6", "D5": "Z1, Z2", "D7": "Z7"},
+  "sharedFiles": {
+    "internal/server/sysmigrations.go": "master reserves the next migration number per task in migrations.md before a worker writes it",
+    "internal/server/gate.go": "append-only entries; rebase conflicts are resolved by master at merge",
+    "web/src/App.vue": "one lane at a time; ask master",
+    "web/src/api.ts": "append-only; rebase at merge",
+    "proto/athena/v1/*.proto": "one proto file per lane; a new service gets its own file"
+  }
+}

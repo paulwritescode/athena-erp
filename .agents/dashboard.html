@@ -13,12 +13,14 @@
 body{margin:0;height:100vh;display:flex;flex-direction:column;background:var(--bg);color:var(--text);font:13px/1.4 Inter,ui-sans-serif,system-ui,sans-serif;overflow:hidden}
 button{font:inherit;color:inherit}
 header{display:flex;align-items:center;gap:16px;padding:10px 16px;border-bottom:1px solid var(--line);background:var(--panel)}
-header h1{font-size:15px;margin:0;letter-spacing:.02em}
+header h1{font-size:15px;margin:0;letter-spacing:.02em;white-space:nowrap}
+header .pill,header .toggle{white-space:nowrap}
+header{gap:10px}
 .pill{padding:2px 8px;border-radius:999px;background:var(--card2);color:var(--muted);font-size:12px}
 .pill.warn{background:#3a2a12;color:var(--running)}
 .pill.live::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--merged);margin-right:6px;animation:pulse 1.6s infinite}
 header .sp{flex:1}
-input[type=search]{background:var(--card);border:1px solid var(--line);border-radius:8px;color:var(--text);padding:6px 10px;width:220px}
+input[type=search]{background:var(--card);border:1px solid var(--line);border-radius:8px;color:var(--text);padding:6px 10px;width:200px;min-width:120px}
 .toggle{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:6px 10px;cursor:pointer}
 .toggle.report{border-color:var(--master);color:var(--master)}
 .md h1,.md h2{font-size:14px;margin:18px 0 6px}.md p{margin:6px 0}.md code{font:11px "JetBrains Mono",monospace;background:var(--bg);padding:0 4px;border-radius:4px}
@@ -109,6 +111,56 @@ details summary{cursor:pointer;color:var(--review);margin:6px 0}
 .err{border-left:3px solid var(--error);background:#2a1719;padding:6px 8px;border-radius:6px;margin:6px 0;font:11px/1.45 "JetBrains Mono",ui-monospace,monospace}
 .err b{font-family:Inter,sans-serif;color:var(--error)}
 #fatal{display:none;position:absolute;top:12px;left:50%;transform:translateX(-50%);background:#2a1719;border:1px solid var(--error);color:var(--error);padding:8px 12px;border-radius:8px;z-index:6}
+
+/* ---------- operations panel ---------- */
+.split{flex:1;display:flex;min-height:0}
+.split main{flex:1}
+#ops{width:420px;flex:none;border-left:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;min-height:0;transition:width .24s ease-out}
+#ops.closed{width:0;border:0;overflow:hidden}
+#ops nav{display:flex;gap:2px;padding:8px 8px 0;border-bottom:1px solid var(--line)}
+#ops nav button{flex:1;background:none;border:0;border-bottom:2px solid transparent;padding:7px 4px 8px;color:var(--muted);cursor:pointer;font-size:12px;white-space:nowrap}
+#ops nav button:hover{color:var(--text)}
+#ops nav button.on{color:var(--text);border-color:var(--master)}
+#ops nav .n{display:inline-block;min-width:16px;padding:0 4px;margin-left:4px;border-radius:8px;background:var(--card2);font-size:10px;color:var(--muted)}
+#ops nav .n.hot{background:var(--running);color:#000}
+#opsBody{flex:1;overflow:auto;padding:10px 12px 16px}
+.tree{list-style:none;margin:0;padding:0}
+.tree .tree{padding-left:18px;border-left:1px dashed var(--line);margin-left:15px}
+.tn{display:flex;gap:9px;align-items:center;padding:6px 8px;border-radius:9px;cursor:pointer;margin:2px 0}
+.tn:hover{background:var(--card)}
+.tn .lg{width:28px;height:28px;flex:none;border-radius:8px;background:var(--card2);border:1px solid var(--line)}
+.tn .who{flex:1;min-width:0}
+.tn .who b{font-weight:600}.tn .who small{color:var(--muted);margin-left:6px}
+.tn .who div{color:var(--muted);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sdot{width:8px;height:8px;border-radius:50%;flex:none;background:var(--faint)}
+.sdot.working{background:var(--running);animation:pulse 1.2s infinite}.sdot.idle,.sdot.done{background:var(--merged)}.sdot.blocked{background:var(--error)}
+.lane{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:10px}
+.lane h4{margin:0 0 2px;font-size:13px;display:flex;gap:8px;align-items:center}
+.lane h4 .id{font:11px "JetBrains Mono",monospace;background:var(--card2);padding:0 5px;border-radius:5px;color:var(--muted)}
+.lane p{margin:0 0 8px;color:var(--muted);font-size:11px}
+.chain{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+.chain .tk{border:1px solid var(--c);color:var(--text);border-radius:7px;padding:1px 7px;font-size:11px;cursor:pointer;background:color-mix(in srgb,var(--c) 14%,transparent)}
+.chain .tk.cur{box-shadow:0 0 0 2px var(--c)}
+.chain .ar{color:var(--faint);font-size:10px}
+.lane .ags{margin-top:8px;display:flex;gap:6px;flex-wrap:wrap}
+.msg{border-left:3px solid var(--k);padding:6px 9px;margin:6px 0;background:var(--card);border-radius:0 8px 8px 0}
+.msg .mh{display:flex;gap:6px;align-items:center;font-size:11px;color:var(--muted)}
+.msg .mh b{color:var(--text);font-weight:600}.msg .mh .kd{color:var(--k);font-weight:600;margin-left:auto}
+.msg .mt{margin-top:3px;white-space:pre-wrap;word-break:break-word;font-size:12px;max-height:7.5em;overflow:hidden}
+.msg.open .mt{max-height:none}
+.msg.undelivered{opacity:.6}
+.filt{display:flex;gap:6px;margin-bottom:8px}
+.filt select{flex:1;background:var(--card);color:var(--text);border:1px solid var(--line);border-radius:7px;padding:5px}
+.upd{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:9px 11px;margin-bottom:8px}
+.upd .mh{font-size:11px;color:var(--muted);display:flex;gap:8px}.upd .mt{margin-top:4px;white-space:pre-wrap;font-size:12px}
+.res{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px}
+.res div{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px}
+.res b{display:block;font-size:18px;font-variant-numeric:tabular-nums}.res small{color:var(--muted);font-size:11px}
+.sr{display:flex;gap:8px;align-items:center;font-size:12px;padding:5px 0;border-bottom:1px solid var(--line)}
+.sr .ok{color:var(--merged)}.sr .bad{color:var(--error)}.sr .t{margin-left:auto;color:var(--muted);font-variant-numeric:tabular-nums}
+.empty{color:var(--faint);padding:20px 4px;text-align:center}
+#opsToggle.on{border-color:var(--master);color:var(--master)}
+.pill.bad{background:#2a1719;color:var(--error)}
 @keyframes pulse{50%{opacity:.35}}
 @keyframes flow{to{stroke-dashoffset:-13}}
 @keyframes flash{0%{box-shadow:0 0 0 4px var(--c),0 0 40px var(--c)}100%{box-shadow:none}}
@@ -116,18 +168,21 @@ details summary{cursor:pointer;color:var(--review);margin:6px 0}
 </style>
 
 <header>
-  <h1>Athena beta · live map</h1>
+  <h1>Athena beta · Stylus</h1>
   <span class="pill live" id="clock">connecting…</span>
   <span class="pill" id="main"></span>
   <span class="pill warn" id="unpushed" hidden></span>
   <span class="sp"></span>
   <input type="search" id="q" placeholder="Find a task, agent or branch">
   <button class="toggle on" id="tDeps" title="Show dependency arrows">Dependencies</button>
+  <span class="pill" id="res" title="Free memory, free disk and live agents against the caps"></span>
+  <button class="toggle on" id="opsToggle" title="Team, lanes, messages, updates and the suite queue">Operations</button>
   <button class="toggle report" id="tReport" title="What happened during the night shift">🌙 Night report</button>
-  <button class="toggle" id="tDone" title="Show arrows between merged tasks too">Arrows between merged</button>
+  <button class="toggle" id="tDone" title="Show arrows between merged tasks too">Merged arrows</button>
 </header>
 <section id="stats"></section>
 <section id="secs"></section>
+<div class="split">
 <main>
   <div id="stage"><div id="world"><svg id="edges"><defs>
     <marker id="a-n" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="#4a4a58"/></marker>
@@ -142,6 +197,8 @@ details summary{cursor:pointer;color:var(--review);margin:6px 0}
   <div id="fatal"></div>
   <aside id="drawer"><div class="ah"><h2 id="dTitle"></h2><button class="x" id="dClose" title="Close">✕</button></div><div class="ab" id="dBody"></div></aside>
 </main>
+<section id="ops"><nav id="opsNav"></nav><div id="opsBody"></div></section>
+</div>
 
 <script>
 const STATES = {
@@ -157,11 +214,16 @@ const SVGP = {
   stylus: '<path d="M12 19l7-7 3 3-7 7z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18z"/><path d="M2 2l7.6 7.6"/><circle cx="11" cy="11" r="2"/>',
   master: '<circle cx="12" cy="12" r="10"/><path d="M16.2 7.8l-2 6.3-6.4 2.1 2-6.3z"/>',
   worker: '<rect x="4" y="8" width="16" height="12" rx="3"/><path d="M12 8V4"/><circle cx="12" cy="3.2" r="1"/><circle cx="9" cy="14" r="1.2"/><circle cx="15" cy="14" r="1.2"/><path d="M2 14h2M20 14h2"/>',
-  reviewer: '<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/><path d="M8.5 11l2 2 3.5-4"/>'};
-const TINT = {stylus: "var(--review)", master: "var(--master)", worker: "var(--running)", reviewer: "var(--started)"};
-const MONO = new Set(["muse", "agent", "zsh", "sh"]);
-const CLINAME = {muse: "Muse Spark", kiro: "Kiro CLI", codex: "Codex", claude: "Claude Code"};
-const LOGO = a => `<span class="logo" style="--t:${TINT[a.role] || "var(--muted)"}"><img class="${MONO.has(a.cli || "agent") ? "mono" : ""}" src="/icon/${encodeURIComponent(a.cli || "agent")}.svg" alt="${esc(CLINAME[a.cli] || a.cli || "agent")}"><span class="badge">${ICON[a.role]}</span></span>`;
+  reviewer: '<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/><path d="M8.5 11l2 2 3.5-4"/>',
+  submaster: '<path d="M6 3v12"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/>',
+  subworker: '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.8-3.8a6 6 0 0 1-7.9 7.9l-6.9 6.9a2.1 2.1 0 0 1-3-3l6.9-6.9a6 6 0 0 1 7.9-7.9z"/>',
+  thinker: '<path d="M9 18h6M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z"/>'};
+const TINT = {stylus: "var(--review)", master: "var(--master)", worker: "var(--running)", reviewer: "var(--started)", submaster: "#e889c4", subworker: "#f0a35e", thinker: "#8fd3a8"};
+const ROLEWORD = {stylus: "Stylus", master: "Master", worker: "Worker", reviewer: "Reviewer", submaster: "Submaster", subworker: "Subworker", thinker: "Thinker"};
+const JOB = {stylus: "plans and reasons, delegates to master", master: "runs the lanes, reviews, merges, closes panes", worker: "builds one task", reviewer: "reviews a task branch, read-only", submaster: "splits a big task and integrates the parts", subworker: "builds one part of a split task", thinker: "read-only analysis for Stylus"};
+const MONO = new Set(["muse", "agent", "zsh", "sh", "bash", "cat"]);
+const CLINAME = {muse: "Muse Spark", kiro: "Kiro CLI", "kiro-cli": "Kiro CLI", codex: "Codex", claude: "Claude Code"};
+const LOGO = a => `<span class="logo" style="--t:${TINT[a.role] || "var(--muted)"}"><img class="${MONO.has(a.cli || "agent") ? "mono" : ""}" src="/icon/${encodeURIComponent((a.cli || "agent").replace("-cli", ""))}.svg" alt="${esc(CLINAME[a.cli] || a.cli || "agent")}"><span class="badge">${ICON[a.role]}</span></span>`;
 const ICON = new Proxy({}, {get: (_, r) => `<svg class="ai" viewBox="0 0 24 24" fill="none" stroke="${TINT[r] || "currentColor"}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${SVGP[r] || SVGP.worker}</svg>`});
 const NW = 260, NH = 118, AH = 96, GAP = 18, COLGAP = 110, PAD = 22, HEAD = 56;
 let S = null, sel = null, nodes = {}, prev = {}, pos = {}, firstFit = true;
@@ -176,7 +238,7 @@ function layout(st) {
   const done = tasks.filter(t => t.state === "merged");
   const active = tasks.filter(t => ["running", "waiting", "review", "started"].includes(t.state))
     .sort((a, b) => ["running", "review", "waiting", "started"].indexOf(a.state) - ["running", "review", "waiting", "started"].indexOf(b.state));
-  const agents = [...st.master.map(m => ({kind: "master", ...m})), ...st.workers.map(w => ({kind: w.role, ...w}))];
+  const agents = treeOrder(st);
   groups.push({key: "done", label: "Done · merged", color: "var(--merged)", items: done, bySec: true});
   groups.push({key: "agents", label: "Agents", color: "var(--master)", items: agents, agents: true});
   groups.push({key: "active", label: "In progress", color: "var(--running)", items: active});
@@ -235,7 +297,7 @@ function renderStats(st) {
     <div class="sub">branches not in main: ${st.branches.unmerged.length ? esc(st.branches.unmerged.join(", ")) : "none"}</div></div>
   <div class="stat"><div class="k">Agents</div><div class="v">${st.workers.length + st.master.length} <small>${working} working</small></div>
     ${bar([[pct(working, st.workers.length), "var(--running)"], [pct(st.workers.length - working, st.workers.length), "var(--merged)"]])}
-    <div class="sub">${ICON.master} ${st.master.length} leads · ${ICON.worker} ${st.workers.filter(w => w.role === "worker").length} workers · ${ICON.reviewer} ${st.workers.filter(w => w.role === "reviewer").length} reviewers</div></div>
+    <div class="sub">${["worker", "reviewer", "submaster", "subworker"].map(r => `${ICON[r]} ${st.workers.filter(w => w.role === r).length}`).join(" · ")} <span style="color:var(--faint)">workers · reviewers · sub</span></div></div>
   <div class="stat click" id="errStat" title="Show errors"><div class="k">Errors seen</div><div class="v" style="color:${st.errors.length ? "var(--error)" : "var(--merged)"}">${st.errors.length} <small>${st.errors.length ? "click to see" : "none"}</small></div>
     ${bar([[st.errors.length ? 100 : 0, "var(--error)"]])}<div class="sub">${st.errors.length ? esc(st.errors[st.errors.length - 1].who + ": " + st.errors[st.errors.length - 1].text) : "test failures, BLOCKED, panics, crashed terminals"}</div></div>`;
   $("errStat").onclick = showErrors;
@@ -246,7 +308,7 @@ function renderStats(st) {
   $("unpushed").hidden = !st.unpushed;
   $("unpushed").textContent = st.unpushed + " commit" + (st.unpushed === 1 ? "" : "s") + " on main not pushed";
   $("legend").innerHTML = Object.entries(STATES).map(([k, v]) => `<span><i style="background:${v.color}"></i>${v.icon} ${v.label}</span>`).join("") +
-    `<span>${ICON.stylus} Stylus</span><span>${ICON.master} master</span><span>${ICON.worker} worker</span><span>${ICON.reviewer} reviewer</span><span><img class="ai" src="/icon/kiro.svg" alt=""> Kiro</span><span><img class="ai mono" src="/icon/muse.svg" alt=""> Muse</span><span><svg width="26" height="8"><path d="M0,4H20" stroke="#7b8cff" stroke-width="2"/><path d="M18,0L26,4L18,8z" fill="#7b8cff"/></svg> needs</span><span><svg width="26" height="8"><path d="M0,4H20" stroke="#f5b83d" stroke-width="2"/><path d="M18,0L26,4L18,8z" fill="#f5b83d"/></svg> unlocks</span>`;
+    `<span>${ICON.stylus} Stylus</span><span>${ICON.master} master</span><span>${ICON.worker} worker</span><span>${ICON.reviewer} reviewer</span><span>${ICON.submaster} submaster</span><span>${ICON.subworker} subworker</span><span><img class="ai" src="/icon/kiro.svg" alt=""> Kiro</span><span><img class="ai mono" src="/icon/muse.svg" alt=""> Muse</span><span><svg width="26" height="8"><path d="M0,4H20" stroke="#7b8cff" stroke-width="2"/><path d="M18,0L26,4L18,8z" fill="#7b8cff"/></svg> needs</span><span><svg width="26" height="8"><path d="M0,4H20" stroke="#f5b83d" stroke-width="2"/><path d="M18,0L26,4L18,8z" fill="#f5b83d"/></svg> unlocks</span>`;
 }
 
 function agentById(st, addr) { return [...st.master, ...st.workers].find(a => a.addr === addr); }
@@ -270,8 +332,8 @@ function taskHTML(t, st) {
 function agentHTML(a) {
   const role = a.role;
   const status = a.role === "stylus" ? "reasoning" : a.role === "master" ? (a.status || "orchestrating") : a.status;
-  const task = a.task ? "→ " + a.task : (a.role === "stylus" ? "plans and reasons, delegates to master" : a.role === "master" ? "briefs workers, reviews, merges, closes panes" : "no task");
-  return `<div class="big">${LOGO(a)}</div><div class="top"><span class="id">${esc(a.addr)}</span><span>${role}</span><span class="st"><span class="dot"></span>${esc(status)}</span></div>
+  const task = (a.task ? "→ " + a.task + (a.parent && !["stylus", "master"].includes(a.role) ? " · from " + a.parent : "") : JOB[a.role] || "no task");
+  return `<div class="big">${LOGO(a)}</div><div class="top"><span class="id">${esc(a.addr)}</span><span>${ROLEWORD[role] || role}</span><span class="st"><span class="dot"></span>${esc(status)}</span></div>
     <div class="title">${esc(a.role === "stylus" ? "Stylus" : a.role === "master" ? "Master" : a.name)} <span class="cli">${esc(CLINAME[a.cli] || a.cli || "")}</span></div><div class="about" style="height:auto">${esc(task)}</div>
     <span class="port in"></span><span class="port out"></span>`;
 }
@@ -315,9 +377,9 @@ function draw(st) {
     if (el._html !== html) { el.innerHTML = html; el._html = html; }
     requestAnimationFrame(() => el.style.transform = `translate(${p.x}px,${p.y}px)`);
   };
-  for (const a of [...st.master.map(m => ({kind: "master", ...m})), ...st.workers.map(w => ({kind: w.role, ...w}))]) {
+  for (const a of treeOrder(st)) {
     const id = "ag:" + a.addr;
-    const color = a.role === "stylus" ? "var(--review)" : a.role === "master" ? "var(--master)" : a.status === "working" ? "var(--running)" : "var(--merged)";
+    const color = a.status === "working" && !["stylus", "master"].includes(a.role) ? "var(--running)" : TINT[a.role] || "var(--merged)";
     place(id, "agent " + (a.status || ""), agentHTML(a), color, L.pos[id]);
   }
   for (const t of st.tasks) {
@@ -357,16 +419,17 @@ function drawEdges(st, L) {
     if (bothDone && !opts.doneEdges && sel !== a && sel !== b) continue;
     add(curve(L.pos[a], L.pos[b]), bothDone ? "done" : "", bothDone ? "a-d" : "a-n", {from: a, to: b});
   }
-  const sty = st.master.find(m => m.role === "stylus"), mus = st.master.find(m => m.role === "master");
-  if (sty && mus) { const A = L.pos["ag:" + sty.addr], B = L.pos["ag:" + mus.addr];
-    if (A && B) add(`M${A.x + NW / 2},${A.y + A.h} C${A.x + NW / 2},${A.y + A.h + 10} ${B.x - 30},${B.y + B.h / 2} ${B.x - 2},${B.y + B.h / 2}`, "agent", "a-g", {from: "ag:" + sty.addr, to: "ag:" + mus.addr}); }
-  const boss = mus || sty;
-  for (const m of boss ? [boss] : []) for (const w of st.workers) {
-    const A = L.pos["ag:" + m.addr], B = L.pos["ag:" + w.addr];
-    if (A && B) add(`M${A.x + NW / 2},${A.y + A.h} C${A.x + NW / 2},${A.y + A.h + 20} ${B.x - 30},${B.y + B.h / 2} ${B.x - 2},${B.y + B.h / 2}`,
-      "agent" + (w.status === "working" ? " live" : ""), "a-g", {from: "ag:" + m.addr, to: "ag:" + w.addr});
+  const all = [...st.master, ...st.workers], byName = Object.fromEntries(all.map(a => [a.role === "stylus" ? "stylus" : a.name, a]));
+  const mus = st.master.find(m => m.role === "master");
+  for (const c of all) {
+    if (c.role === "stylus") continue;
+    const p = byName[c.parent] || (c.role === "master" ? byName.stylus : mus || byName.stylus);
+    if (!p || p === c) continue;
+    const A = L.pos["ag:" + p.addr], B = L.pos["ag:" + c.addr];
+    if (A && B) add(`M${A.x + 20},${A.y + A.h} C${A.x + 20},${B.y + B.h / 2} ${A.x + 20},${B.y + B.h / 2} ${B.x - 2},${B.y + B.h / 2}`,
+      "agent" + (c.status === "working" ? " live" : ""), "a-g", {from: "ag:" + p.addr, to: "ag:" + c.addr});
   }
-  for (const w of st.workers) if (w.task && L.pos[w.task]) {
+  for (const w of st.workers) if (w.task && L.pos[w.task] && L.pos["ag:" + w.addr]) {
     add(curve(L.pos["ag:" + w.addr], L.pos[w.task]), "agent" + (w.status === "working" ? " live" : ""), "a-g", {from: "ag:" + w.addr, to: w.task});
   }
   highlight();
@@ -448,10 +511,12 @@ function showAgent(addr, refresh) {
     <div>Workers</div><div>${S.workers.length} (${S.workers.filter(w => w.status === "working").length} working)</div></div>
     <h3>Agents</h3><div class="chips">${S.workers.map(w => `<span class="chip" data-agent="${esc(w.addr)}"><span class="mini">${LOGO(w)}</span> ${esc(w.name)} · ${esc(w.status)}${w.task ? " → " + esc(w.task) : ""}</span>`).join("")}</div>
     <h3>Job</h3><p>${role === "stylus" ? "Stylus does the reasoning and planning, and hands the actioning to the master." : "Briefs and starts workers and reviewers in split panes, merges passing branches into main, closes finished panes, keeps the night log and report."}</p>
-    <h3>Screen (last lines)</h3><pre>${esc((a.tail || []).join("\n") || "(empty)")}</pre>` : `
-    <div class="kv"><div>Terminal</div><div>${esc(a.addr)}</div><div>Role</div><div>${role}</div><div>Status</div><div>${esc(a.status)}</div>
+    <h3>Screen (last lines)</h3><pre>${esc((a.tail || []).join("\n") || "(empty)")}</pre>${thread(role === "stylus" ? "stylus" : a.name)}` : `
+    <div class="kv"><div>Terminal</div><div>${esc(a.addr)}</div><div>Role</div><div>${ROLEWORD[role] || role} · ${esc(CLINAME[a.cli] || a.cli || "")}</div><div>Status</div><div>${esc(a.status)}</div>
+    <div>Reports to</div><div>${esc(a.parent || "master")}</div><div>Lane</div><div>${esc(a.lane || "")}</div>
     <div>Turn</div><div>${a.turn}</div><div>Task</div><div>${a.task ? `<span class="chip" data-go="${esc(a.task)}">${esc(a.task)}</span>` : "none"}</div><div>Folder</div><div>${esc(a.cwd.split("/").pop())}</div></div>
     <h3>Screen (last lines, refreshes live)</h3><pre>${esc((a.tail || []).join("\n") || "(empty)")}</pre>
+    ${thread(a.role === "stylus" ? "stylus" : a.name)}
     ${S.errors.filter(e => e.who === a.name).length ? `<h3>Errors on its screen</h3>` + S.errors.filter(e => e.who === a.name).map(e => `<div class="err">${esc(e.text)}</div>`).join("") : ""}`;
   if (refresh) { $("dBody").innerHTML = html; } else openDrawer(`<span class="mini lg">${LOGO(a)}</span> ${esc(role === "stylus" ? "Stylus" : role === "master" ? "Master" : a.name)} · ${esc(a.addr)}`, html);
   $("dBody").querySelectorAll("[data-agent]").forEach(c => c.onclick = () => select("ag:" + c.dataset.agent, true));
@@ -526,12 +591,121 @@ $("tDone").onclick = e => { opts.doneEdges = !opts.doneEdges; e.target.classList
 addEventListener("keydown", e => { if (e.key === "Escape") $("dClose").click(); });
 
 /* ---------- polling ---------- */
+
+function thread(who) {
+  const ms = ((S.ops || {}).comms || []).filter(m => m.from === who || m.to === who).slice(-12).reverse();
+  return ms.length ? `<h3>Messages</h3>` + ms.map(m => `<div class="msg open" style="--k:${KIND[m.kind] || "var(--muted)"}"><div class="mh"><b>${esc(m.from)}</b>→<b>${esc(m.to)}</b><span>${hhmm(m.ts)}</span><span class="kd">${esc(m.kind)}</span></div><div class="mt">${esc(m.text.replace(/^[A-Z_]+:\s*/, ""))}</div></div>`).join("") : "";
+}
+/* ---------- agent tree ---------- */
+function treeOrder(st) {
+  const all = [...st.master, ...st.workers];
+  const key = a => a.role === "stylus" ? "stylus" : a.name;
+  const names = new Set(all.map(key));
+  const mus = st.master.find(m => m.role === "master");
+  const parentOf = a => a.role === "stylus" ? null : names.has(a.parent) ? a.parent : a.role === "master" ? "stylus" : mus ? "master" : "stylus";
+  const kids = {};
+  for (const a of all) { const p = parentOf(a); (kids[p] = kids[p] || []).push(a); }
+  const rank = {master: 0, worker: 1, submaster: 2, subworker: 3, reviewer: 4, thinker: 5};
+  const out = [], walk = (p, d) => (kids[p] || []).sort((x, y) => (rank[x.role] ?? 9) - (rank[y.role] ?? 9) || x.name.localeCompare(y.name))
+    .forEach(a => { if (out.includes(a)) return; out.push({...a, depth: d}); walk(key(a), d + 1); });
+  walk(null, 0);
+  for (const a of all) if (!out.find(o => o.addr === a.addr)) out.push({...a, depth: 1});
+  return out;
+}
+
+/* ---------- operations panel ---------- */
+const KIND = {UPDATE: "var(--review)", PASS: "var(--merged)", DONE: "var(--merged)", BLOCKED: "var(--error)", ERROR: "var(--error)",
+  QUESTION: "var(--running)", ANSWER: "var(--master)", ORDER: "var(--started)", BRIEF: "var(--started)", INFO: "var(--muted)"};
+const OPS = {tab: new URLSearchParams(location.search).get("ops") || localStorage.getItem("ops-tab") || "team", seen: +localStorage.getItem("ops-seen") || 0, who: "", open: localStorage.getItem("ops-open") !== "0"};
+function ago(ts) {
+  const d = (Date.now() - new Date(ts.replace(/([+-]\d\d)(\d\d)$/, "$1:$2"))) / 1000;
+  return d < 60 ? Math.max(0, d | 0) + "s" : d < 3600 ? (d / 60 | 0) + "m" : (d / 3600 | 0) + "h " + ((d % 3600) / 60 | 0) + "m";
+}
+function hhmm(ts) { return (ts || "").slice(11, 16); }
+function renderOps(st) {
+  const o = st.ops || {}, comms = o.comms || [], r = o.resources || {}, caps = r.caps || {};
+  const memBad = r.memFreePct != null && r.memFreePct < (caps.minMemFreePct || 15), diskBad = r.diskFreeGB < (caps.minDiskFreeGB || 8);
+  $("res").className = "pill" + (memBad || diskBad ? " bad" : "");
+  $("res").textContent = `mem ${r.memFreePct ?? "?"}% · disk ${r.diskFreeGB ?? "?"} GB · ${r.agents ?? 0}/${caps.maxAgents ?? "?"} agents`;
+  $("ops").classList.toggle("closed", !OPS.open); $("opsToggle").classList.toggle("on", OPS.open);
+  if (!OPS.open) return;
+  const lastTs = comms.length ? Date.parse(comms[comms.length - 1].ts.replace(/([+-]\d\d)(\d\d)$/, "$1:$2")) : 0;
+  if (OPS.tab === "msgs") { OPS.seen = lastTs; localStorage.setItem("ops-seen", lastTs); }
+  const unread = comms.filter(m => Date.parse(m.ts.replace(/([+-]\d\d)(\d\d)$/, "$1:$2")) > OPS.seen).length;
+  const su = o.suite || {};
+  const tabs = [["team", "Team", treeOrder(st).length], ["lanes", "Lanes", (o.lanes || []).length], ["msgs", "Messages", unread, unread > 0],
+    ["upd", "Updates", (o.progress || []).length], ["suite", "Suite", (su.holder ? 1 : 0) + (su.queue || []).length, !!su.holder]];
+  $("opsNav").innerHTML = tabs.map(([k, l, n, hot]) => `<button data-t="${k}" class="${OPS.tab === k ? "on" : ""}">${l}<span class="n${hot ? " hot" : ""}">${n}</span></button>`).join("");
+  $("opsNav").querySelectorAll("button").forEach(b => b.onclick = () => { OPS.tab = b.dataset.t; localStorage.setItem("ops-tab", OPS.tab); renderOps(S); });
+  const body = $("opsBody"), keep = body.scrollTop, fn = {team: opsTeam, lanes: opsLanes, msgs: opsMsgs, upd: opsUpd, suite: opsSuite}[OPS.tab] || opsTeam;
+  const html = fn(st, o);
+  if (body._html !== html) { body.innerHTML = html; body._html = html; body.scrollTop = keep; }
+  body.querySelectorAll("[data-agent]").forEach(c => c.onclick = () => select("ag:" + c.dataset.agent, true));
+  body.querySelectorAll("[data-go]").forEach(c => c.onclick = () => select(c.dataset.go, true));
+  body.querySelectorAll(".msg").forEach(m => m.onclick = () => m.classList.toggle("open"));
+  const sel_ = body.querySelector("#whoF"); if (sel_) sel_.onchange = () => { OPS.who = sel_.value; body._html = ""; renderOps(S); };
+}
+function opsTeam(st, o) {
+  const list = treeOrder(st);
+  if (!list.length) return '<div class="empty">No agents running.</div>';
+  const last = {};
+  for (const m of o.comms || []) { last[m.from] = m; }
+  const node = a => { const k = a.role === "stylus" ? "stylus" : a.name, m = last[k];
+    const st_ = /blocked/i.test(m?.kind || "") ? "blocked" : a.status || (a.role === "stylus" ? "reasoning" : "idle");
+    return `<div class="tn" data-agent="${esc(a.addr)}" style="margin-left:${a.depth * 18}px">
+      <span class="lg">${LOGO(a)}</span>
+      <div class="who"><b>${esc(a.role === "stylus" ? "Stylus" : a.name)}</b><small>${ROLEWORD[a.role] || a.role} · ${esc(CLINAME[a.cli] || a.cli || "")}${a.task ? " · " + esc(a.task) : ""}</small>
+      <div>${m ? `${esc(m.kind)} ${ago(m.ts)} ago: ${esc(m.text.slice(0, 90))}` : esc(JOB[a.role] || "")}</div></div>
+      <span class="sdot ${st_}" title="${esc(st_)}"></span></div>`; };
+  return list.map(node).join("");
+}
+function opsLanes(st, o) {
+  const lanes = o.lanes || [];
+  if (!lanes.length) return '<div class="empty">No lanes in lanes.json.</div>';
+  const agent = n => [...st.master, ...st.workers].find(a => a.name === n);
+  return lanes.map(l => `<div class="lane"><h4><span class="id">${esc(l.id)}</span>${esc(l.name)}
+      <span style="margin-left:auto;font-size:11px;color:var(--muted);font-weight:400">${l.tasks.filter(t => t.state === "merged").length}/${l.tasks.length}</span></h4>
+    <p>${esc(l.about || "")}</p>
+    <div class="chain">${l.tasks.map((t, i) => `${i ? '<span class="ar">→</span>' : ""}<span class="tk${t.id === l.current ? " cur" : ""}" data-go="${esc(t.id)}"
+      style="--c:${(STATES[t.state] || STATES.todo).color}" title="${esc(t.title)} · ${esc((STATES[t.state] || STATES.todo).label)}${o.blocked?.[t.id] ? " · waits on " + esc(o.blocked[t.id]) : ""}">${esc(t.id === "FU" ? "Follow-ups" : t.id)}${o.blocked?.[t.id] ? " ⏸" : ""}</span>`).join("")}</div>
+    <div class="ags">${l.agents.length ? l.agents.map(n => agent(n)).filter(Boolean).map(a => `<span class="chip" data-agent="${esc(a.addr)}"><span class="mini">${LOGO(a)}</span> ${esc(a.name)} · ${esc(a.status)}</span>`).join("") : '<span style="color:var(--faint);font-size:11px">no agent on this lane</span>'}</div></div>`).join("");
+}
+function opsMsgs(st, o) {
+  const comms = o.comms || [], people = [...new Set(comms.flatMap(m => [m.from, m.to]))].sort();
+  const rows = comms.filter(m => !OPS.who || m.from === OPS.who || m.to === OPS.who).slice().reverse();
+  return `<div class="filt"><select id="whoF"><option value="">Everyone</option>${people.map(p => `<option ${p === OPS.who ? "selected" : ""}>${esc(p)}</option>`).join("")}</select></div>` +
+    (rows.length ? rows.map(m => `<div class="msg${m.delivered === false ? " undelivered" : ""}" style="--k:${KIND[m.kind] || "var(--muted)"}">
+      <div class="mh"><b>${esc(m.from)}</b>→<b>${esc(m.to)}</b><span>${hhmm(m.ts)} · ${ago(m.ts)} ago</span><span class="kd">${esc(m.kind)}${m.delivered === false ? " · not delivered" : ""}</span></div>
+      <div class="mt">${esc(m.text.replace(/^[A-Z_]+:\s*/, ""))}</div></div>`).join("") : '<div class="empty">No messages yet. Agents talk through .agents/bin/say.</div>');
+}
+function opsUpd(st, o) {
+  const p = (o.progress || []).slice().reverse();
+  return p.length ? p.map(u => `<div class="upd"><div class="mh"><b>${esc(u.by)}</b><span>${hhmm(u.ts)} · ${ago(u.ts)} ago</span><span>main ${esc(u.main || "")}</span>
+      <span style="margin-left:auto">${(u.agents || []).length} agents · mem ${u.memFreePct}%</span></div><div class="mt">${esc(u.text)}</div></div>`).join("")
+    : '<div class="empty">No progress updates yet. The ticker asks master every 10 minutes.</div>';
+}
+function opsSuite(st, o) {
+  const su = o.suite || {}, r = o.resources || {}, c = r.caps || {};
+  const h = su.holder;
+  return `<div class="res"><div><b>${r.memFreePct ?? "?"}%</b><small>memory free (min ${c.minMemFreePct ?? "?"}%)</small></div>
+      <div><b>${r.diskFreeGB ?? "?"} GB</b><small>disk free (min ${c.minDiskFreeGB ?? "?"})</small></div>
+      <div><b>${r.agents ?? 0}/${c.maxAgents ?? "?"}</b><small>agents (workers ≤ ${c.maxWorkers ?? "?"})</small></div></div>
+    <h3 style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)">Running now</h3>
+    ${h ? `<div class="sr"><span class="sdot working"></span><b>${esc(h.who)}</b> ${esc(h.label || h.cmd)}<span class="t">${ago(h.since)}</span></div>` : '<div class="sr" style="color:var(--faint)">Nothing holds the suite lock.</div>'}
+    <h3 style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)">Waiting</h3>
+    ${(su.queue || []).length ? su.queue.map(q => `<div class="sr"><span class="sdot"></span><b>${esc(q.who)}</b> ${esc(q.label || q.cmd)}<span class="t">${ago(q.ts)}</span></div>`).join("") : '<div class="sr" style="color:var(--faint)">Nobody waiting.</div>'}
+    <h3 style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)">Recent runs</h3>
+    ${(su.recent || []).slice().reverse().map(x => `<div class="sr"><span class="${x.exit ? "bad" : "ok"}">${x.exit ? "✕ exit " + x.exit : "✓ green"}</span><b>${esc(x.who)}</b> ${esc(x.label || x.cmd)}<span class="t">${Math.round(x.secs / 60)}m · ${hhmm(x.ts)}</span></div>`).join("") || '<div class="sr" style="color:var(--faint)">No runs yet.</div>'}`;
+}
+$("opsToggle").onclick = () => { OPS.open = !OPS.open; localStorage.setItem("ops-open", OPS.open ? "1" : "0"); renderOps(S); };
+
 async function tick() {
   try {
     const st = await (await fetch("/state", {cache: "no-store"})).json();
     if (st.fatal) throw new Error(st.fatal);
     $("fatal").style.display = "none";
     draw(st);
+    renderOps(st);
   } catch (e) {
     $("fatal").style.display = "block"; $("fatal").textContent = "Dashboard cannot read state: " + e.message;
     $("clock").textContent = "offline";

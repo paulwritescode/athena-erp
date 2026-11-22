@@ -2,7 +2,17 @@
 
 The day is clocked out after the first Stylus night shift. This file is the single place to start from next time. It replaces the 2026-11-21 restart notes.
 
-## The Stylus workflow
+## Stylus v2 (2026-11-22 evening): lanes, submasters, tools
+
+Read `.agents/stylus/AGENT_RULES.md` (rules for every agent) and `.agents/stylus/MASTER.md` (master's brief) first; they supersede the workflow notes below.
+
+- Hierarchy: Stylus (kiro-cli, `t6`) → master (Muse YOLO) → up to 5 workers `w-*` (one per lane in `lanes.json`) and up to 3 reviewers `r-*`. A worker with a big task starts a submaster `sm-*` (kiro-cli `--trust-all-tools` or Codex bypass) that runs at most 2 subworkers `sw-*`. Stylus may start read-only Codex thinkers `th-*`. Caps live in `limits.json` (12 agents in all; 15 % free memory and 8 GB free disk minimum).
+- Tools in `.agents/bin/`: `spawn` (start an agent as a split pane beside the caller, with guards, recorded in `agents.jsonl`), `say` (every message, recorded in `comms.jsonl`), `suite` (full suites and browser passes one at a time machine-wide, `suite.jsonl` and `suite-logs/`), `progress` (master's update to Stylus, `progress.jsonl`), `ticker` (asks master for an update every 10 minutes; runs in the dashboard tab).
+- Migration numbers are reserved in `.agents/stylus/migrations.md`.
+- Dashboard: `python3 .agents/dashboard_web.py` in the `dashboard` tab, <http://127.0.0.1:8765>. The Operations panel has Team (agent tree with Kiro, Muse and Codex logos), Lanes, Messages, Updates and Suite tabs; `?ops=lanes` opens a tab directly.
+- Restart order: MariaDB, dashboard pane, ticker pane (`hc run --bg --outlive-parent --name ticker -- python3 .agents/bin/ticker`, then give it a pane in the dashboard tab), master (`hc run --bg --outlive-parent --name master -- muse --yolo --model muse-spark-1.3-contributor --reasoning-effort max 'You are master ... follow .agents/stylus/MASTER.md'`).
+
+## The Stylus workflow (shift 1)
 
 - **Stylus** is the kiro-cli agent in the main repo pane (`t6` last time). It does the reasoning and planning and answers the master's questions.
 - **Master** is a Muse YOLO agent (terminal name `master`). It follows `.agents/stylus/MASTER.md`: it briefs and starts workers (`w-<task>`) and reviewers (`r-<task>`) as split panes, merges after a review PASS and green checks, pushes `main`, closes finished panes, and keeps `.agents/stylus/night-log.md` and `night-report.md`.
