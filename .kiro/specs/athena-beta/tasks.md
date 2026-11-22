@@ -94,6 +94,7 @@
   - `web/src/art/registry.ts` per design-system §9; figures on sign-in, first-run, empty states, 404 and offline; ASCII mark for the CLI banner (`cmd/athena`) and sign-in footer. Custom figures made with `hairline-create` go in `web/src/art/figures/`.
   - Accept: one figure per screen at most (test over the registry); reduced motion rests every figure.
 - [ ] **B11. Install and first-run flow** (Codex then Muse)
+  - Slice 1 merged 2026-11-22 (b27b6c3): CLI flag hardening + e2e-install.sh 28/28 + getting-started guide. Slice 2 (Desk Setup wizard) open, held for B8.
   - Document and test the path: install binary → `athena init` → `athena new "Name" [--logo]` → `athena run` → sign in as root → Setup wizard (company, logo, currency, period, invite first owner) → readiness view. Every step has a CLI and Desk equivalent and a plain-language error.
   - Write `docs/guides/getting-started.md` from the tested path.
 
@@ -170,6 +171,7 @@ Gates per name: pattern, 1 to 2 syllables, clean as `athena-<noun>`, the user ca
 - B9 form 2: History time/author stale until reload (pre-existing shared code); focus falls to body when its control unmounts; drop-indicator divs inside ul; picker listbox roles without arrow-key nav; picker alt duplicates visible path; icon-only buttons 28 px wide (needs design-system decision); section cards keyed by index.
 - B2a slice 3: current-company marker lost in the companies table (restore when DataTable supports marker rows); workspace CLI DSN lacks ParseTime so CLI period/date reads fail (Desk unaffected); no ledger bulk/delete RPCs.
 - B8 slice 1: EnsureRoot taken-name skip branch untested; serve-boot seeding duplicates kernel-open call with only one seam covered; Desk isRootSelected exact-matches lowercase (server normalizes).
+- B11 slice 1: README Homes and Workspaces lacks a direct guide link; guide CLI errors omit the log timestamp prefix; e2e script slug/port fixed (no SLUG override for parallel runs).
 
 ## Z. Decisions the user must make (OPEN)
 
