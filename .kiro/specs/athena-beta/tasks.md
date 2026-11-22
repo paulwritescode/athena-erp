@@ -71,6 +71,7 @@
   - Tabs: one session across tabs of the same browser; `BroadcastChannel("athena-session")` so sign-out, expiry, Workspace switch and role change in one tab update all tabs; a warning dialog 2 min before idle expiry with "Stay signed in"; activity in any tab counts; a Workspace switch clears caches (playbook §8). Session list shows device and last seen; revoke from the list.
   - Accept: tests for each limit and timeout; Bruno checks for 429 and expiry; Desk test for cross-tab sign-out.
 - [ ] **B8. Root administrator and Build/View presentation** (Codex then Muse)
+  - Slice 1 merged 2026-11-22 (4d03467): root guards shared across API/CLI/Desk + tests per path, audit attribution, password rotation. Slice 2 (Desk presentation) open.
   - Confirm ADR-0018 behavior end to end: created at `athena new` / first boot with the database password, bypasses all gates, cannot be suspended, edited, have Roles changed, or be deleted, through API, CLI or Desk (tests per path). Every root action is audit-logged as root. Change-password rotates only root's own password.
   - Desk: root sees a quiet "Root administrator" caption and a `lock` badge on its own user row with the reason; its row actions are disabled with the reason.
   - Fix: a fresh load of `?mode=build` lands in View because the `canBuildDesk` watch fires during startup (found in B2, present before B2).
@@ -168,6 +169,7 @@ Gates per name: pattern, 1 to 2 syllables, clean as `athena-<noun>`, the user ca
 - B10 slice 1: "Back to home" from a direct 404 leaves the bad address in the bar; async chunk carries all 33 figures (~120 KB, defeats tree-shaking); FigureName closed union needs extending for custom figures; custom Athena figure set still wanted (hairline-create skill unavailable).
 - B9 form 2: History time/author stale until reload (pre-existing shared code); focus falls to body when its control unmounts; drop-indicator divs inside ul; picker listbox roles without arrow-key nav; picker alt duplicates visible path; icon-only buttons 28 px wide (needs design-system decision); section cards keyed by index.
 - B2a slice 3: current-company marker lost in the companies table (restore when DataTable supports marker rows); workspace CLI DSN lacks ParseTime so CLI period/date reads fail (Desk unaffected); no ledger bulk/delete RPCs.
+- B8 slice 1: EnsureRoot taken-name skip branch untested; serve-boot seeding duplicates kernel-open call with only one seam covered; Desk isRootSelected exact-matches lowercase (server normalizes).
 
 ## Z. Decisions the user must make (OPEN)
 
