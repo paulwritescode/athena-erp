@@ -1,11 +1,14 @@
 // Record columns for the Records table: one TanStack definition per field,
 // a Status badge for submittable Record Types, and the primary column (the
 // label field, else the first field) as a PrimaryCell with the update time
-// below. Link cells show the linked Record's label, never its ID. Pure
+// below. Link cells show the linked Record's label, never its ID; Image
+// cells show the server thumbnail with the alt text as its tooltip. Pure
 // except for the cell renderers, so the suite pins the text and shape.
 import { h } from 'vue'
 import PrimaryCell from '@/components/PrimaryCell.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
+import WorkspaceImage from '@/components/WorkspaceImage.vue'
+import type { ImageFieldValue } from '@/fieldRules'
 import type { DataTableColumn } from '@/components/dataTableFeatures'
 import type { DataTableColumnMeta } from '@/components/DataTable.vue'
 import { gloss } from '@/copy/glossary'
@@ -18,17 +21,24 @@ export const stateLabels = stateKeys.map((key) => gloss(key).label)
 // Starting widths in pixels by field type; people can drag any column wider.
 const defaultWidths: Record<string, number> = {
   'Long text': 320, Email: 240, Text: 200, Select: 160, Link: 200, Phone: 160,
-  Date: 140, Number: 130, Currency: 130, Money: 150, Quantity: 150, Enum: 160, Checkbox: 110,
+  Date: 140, Number: 130, Currency: 130, Money: 150, Quantity: 150, Enum: 160, Checkbox: 110, Image: 120,
 }
 const alignRight = new Set(['Number', 'Currency', 'Money', 'Quantity'])
 
 export function recordFieldText(field: Field, record: RecordMessage, linkLabels: Record<string, string>): string {
   const kind = record.values[field.name]?.kind
   if (kind?.case === 'boolValue') return kind.value ? 'Yes' : 'No'
+  if (kind?.case === 'imageValue') return kind.value.altText
   if (kind?.case !== 'stringValue') return ''
   if (field.type === 'Enum') return field.values?.find((choice) => choice.value === kind.value)?.label ?? kind.value
   if (field.type === 'Link') return linkLabels[kind.value] ?? ''
   return kind.value
+}
+
+/** The image value behind a cell, or null when the field holds none. */
+export function recordImageValue(field: Field, record: RecordMessage): ImageFieldValue | null {
+  const kind = record.values[field.name]?.kind
+  return kind?.case === 'imageValue' ? { path: kind.value.path, hash: kind.value.hash, altText: kind.value.altText } : null
 }
 
 export function recordFieldHeader(field: Field): string {
@@ -89,10 +99,30 @@ export function buildRecordColumns(input: RecordColumnsInput): DataTableColumn<R
         id: field.name,
         header,
         accessorFn: (record) => recordFieldText(field, record, input.linkLabels),
-        cell: ({ row }) => h(PrimaryCell, {
-          title: recordFieldText(field, row.original, input.linkLabels) || 'Untitled',
-          subtitle: input.updatedLine(row.original),
-        }),
+        cell: ({ row }) => {
+          const image = field.type === 'Image' ? recordImageValue(field, row.original) : null
+          return h(PrimaryCell, {
+            title: recordFieldText(field, row.original, input.linkLabels) || 'Untitled',
+            subtitle: input.updatedLine(row.original),
+            ...(image ? { image: image.path, imageAlt: image.altText } : {}),
+          })
+        },
+        meta,
+        size: defaultWidths[field.type] ?? 180,
+        minSize: 80,
+        maxSize: 900,
+        enableSorting: false,
+      })
+    } else if (field.type === 'Image') {
+      columns.push({
+        id: field.name,
+        header,
+        accessorFn: (record) => recordFieldText(field, record, input.linkLabels),
+        cell: ({ row }) => {
+          const image = recordImageValue(field, row.original)
+          if (!image) return h('span')
+          return h(WorkspaceImage, { path: image.path, thumbnail: true, alt: image.altText, title: image.altText, class: 'table-thumbnail' })
+        },
         meta,
         size: defaultWidths[field.type] ?? 180,
         minSize: 80,

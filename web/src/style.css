@@ -498,3 +498,6 @@ table.datatable-stacked{display:block;width:100%;max-width:100%}
 .image-picker-choice.is-current{border-color:var(--ring)}
 .image-picker-choice .workspace-image{aspect-ratio:1}
 .image-picker-path{font-size:var(--type-caption-size);color:var(--muted-foreground);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* List thumbnails (B9 follow-up 2.3): a quiet box in table and stacked rows. */
+.table-thumbnail{width:var(--space-12);height:var(--space-12)}
+.table-thumbnail .workspace-image-missing{padding:0;font-size:0}

@@ -1,6 +1,8 @@
+// @vitest-environment jsdom
 import { describe, expect, it } from 'vitest'
 import PrimaryCell from '@/components/PrimaryCell.vue'
-import { combineRecordFilter, recordFieldHeader, recordFieldText, buildRecordColumns } from './recordColumns'
+import WorkspaceImage from '@/components/WorkspaceImage.vue'
+import { combineRecordFilter, recordFieldHeader, recordFieldText, buildRecordColumns, recordImageValue } from './recordColumns'
 import type { Record as RecordMessage } from '@/gen/athena/v1/records_pb'
 import type { Field } from '@/types'
 
@@ -17,6 +19,12 @@ function record(values: Record<string, string | boolean>): RecordMessage {
         : { kind: { case: 'stringValue', value } },
     ])),
   } as unknown as RecordMessage
+}
+
+const photoValue = { path: 'images/item-photo.png', hash: 'a'.repeat(64), altText: 'A wooden stool' }
+
+function imageRecord(): RecordMessage {
+  return { values: { photo: { kind: { case: 'imageValue', value: photoValue } } } } as unknown as RecordMessage
 }
 
 describe('recordFieldText', () => {
@@ -37,6 +45,24 @@ describe('recordFieldText', () => {
 
   it('stays empty without a value', () => {
     expect(recordFieldText(field({ name: 'title' }), record({}), {})).toBe('')
+  })
+
+  it('reads the alt text of an image value', () => {
+    const photo = field({ name: 'photo', type: 'Image' })
+    expect(recordFieldText(photo, imageRecord(), {})).toBe('A wooden stool')
+    expect(recordFieldText(photo, record({}), {})).toBe('')
+  })
+})
+
+describe('recordImageValue', () => {
+  const photo = field({ name: 'photo', type: 'Image' })
+
+  it('reads the reference behind a cell', () => {
+    expect(recordImageValue(photo, imageRecord())).toEqual(photoValue)
+  })
+
+  it('stays null without a value', () => {
+    expect(recordImageValue(photo, record({}))).toBeNull()
   })
 })
 
@@ -101,5 +127,28 @@ describe('buildRecordColumns', () => {
     for (const column of buildRecordColumns({ ...base, submittable: true })) {
       expect(column.enableSorting).toBe(false)
     }
+  })
+
+  it('renders image cells as thumbnails with the alt text behind them', () => {
+    const columns = buildRecordColumns({ fields: [field({ name: 'title' }), field({ name: 'photo', type: 'Image' })], submittable: false, linkLabels: {}, updatedLine: () => 'Today' })
+    const photo = columns.find((column) => column.id === 'photo')
+    expect(photo?.size).toBe(120)
+    const cell = photo?.cell as unknown as (ctx: { row: { original: RecordMessage } }) => { type: unknown; props: Record<string, unknown> }
+    const filled = cell({ row: { original: imageRecord() } })
+    expect(filled.type).toBe(WorkspaceImage)
+    expect(filled.props).toMatchObject({ path: 'images/item-photo.png', thumbnail: true, alt: 'A wooden stool', title: 'A wooden stool' })
+    const empty = cell({ row: { original: record({}) } })
+    expect(empty.type).toBe('span')
+  })
+
+  it('tiles a primary image column with its thumbnail', () => {
+    const columns = buildRecordColumns({ fields: [field({ name: 'photo', type: 'Image' })], submittable: false, linkLabels: {}, updatedLine: () => 'Today' })
+    const cell = columns[0]?.cell as unknown as (ctx: { row: { original: RecordMessage } }) => { type: unknown; props: Record<string, unknown> }
+    const filled = cell({ row: { original: imageRecord() } })
+    expect(filled.type).toBe(PrimaryCell)
+    expect(filled.props).toMatchObject({ title: 'A wooden stool', image: 'images/item-photo.png', imageAlt: 'A wooden stool' })
+    const empty = cell({ row: { original: record({}) } })
+    expect(empty.props).toMatchObject({ title: 'Untitled' })
+    expect(empty.props).not.toHaveProperty('image')
   })
 })
