@@ -19,10 +19,28 @@ if args[:1] == ["--label"]:
 if args[:1] == ["--"]:
     args = args[1:]
 cmd = args or ["make", "test"]
+def tree_state(where):
+    head = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=where, capture_output=True, text=True).stdout.strip()
+    dirty = subprocess.run(["git", "status", "--porcelain", "--untracked-files=no"], cwd=where,
+                           capture_output=True, text=True).stdout.strip()
+    return head, not dirty
+
+
 lock = s.path("locks/suite")
 os.makedirs(os.path.dirname(lock), exist_ok=True)
 os.makedirs(s.path("suite-logs"), exist_ok=True)
 who, cwd = s.me(), os.getcwd()
+head, clean = tree_state(cwd)
+if clean and os.environ.get("SUITE_FORCE") != "1":
+    prior = [r for r in s.read_jsonl("suite.jsonl") if r.get("event") == "end" and r.get("head") == head
+             and r.get("clean") and r.get("cmd") == " ".join(cmd) and r.get("exit") == 0]
+    if prior:
+        r = prior[-1]
+        print(f"suite: {' '.join(cmd)} already green on {head} (clean tree) by {r['who']} at {r['ts']}, "
+              f"log {r['log']}; not rerun. SUITE_FORCE=1 reruns.")
+        s.append("suite.jsonl", {"event": "reused", "who": who, "cwd": cwd, "cmd": " ".join(cmd), "label": label,
+                                 "head": head, "from": r["log"]})
+        sys.exit(0)
 
 
 def alive(pid):
@@ -88,5 +106,6 @@ finally:
     except OSError:
         pass
     s.append("suite.jsonl", {"event": "end", "who": who, "cwd": cwd, "cmd": " ".join(cmd), "label": label,
-                             "exit": code, "secs": int(time.time() - start), "log": os.path.basename(logf)})
+                             "exit": code, "secs": int(time.time() - start), "log": os.path.basename(logf),
+                             "head": head, "clean": clean and tree_state(cwd) == (head, True)})
 sys.exit(code)

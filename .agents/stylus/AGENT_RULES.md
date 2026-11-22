@@ -49,6 +49,8 @@ The machine has 8 CPUs and 8 GB RAM. A full `make test`, a full `pnpm --dir web 
 
 It queues behind whoever holds the lock and logs the result. Package tests (`go test ./internal/posting/...`, one Vitest file) may run without the lock. Two full suites in parallel time out; never bypass the lock.
 
+One green run per commit: `suite` records the commit and whether the tree was clean. If the same command already passed on the same clean commit, it prints that run's log and exits 0 without rerunning. A reviewer whose worktree is at the worker's reported commit gets the worker's result this way; read that log instead of rerunning. Any change (a fix, a rebase) is a new commit and runs again. Master's merge-time run after the rebase always runs. `SUITE_FORCE=1` reruns when you suspect a flaky pass.
+
 ## Splitting a big task (workers)
 
 If your task has more than about three independent slices, or one slice will take more than about 90 minutes, ask master: `say master "QUESTION: split <task>? <slices>"`. When master says yes:
