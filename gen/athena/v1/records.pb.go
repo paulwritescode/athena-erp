@@ -1228,8 +1228,13 @@ type SubmitRecordRequest struct {
 	RecordTypeKey    string                 `protobuf:"bytes,1,opt,name=record_type_key,json=recordTypeKey,proto3" json:"record_type_key,omitempty"`
 	Id               string                 `protobuf:"bytes,2,opt,name=id,proto3" json:"id,omitempty"`
 	ExpectedRevision int64                  `protobuf:"varint,3,opt,name=expected_revision,json=expectedRevision,proto3" json:"expected_revision,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// The combined plan hash the approval was based on (R6.15). Empty claims
+	// no approval: the submit posts whatever the posting Rules return now.
+	// Set, the submit recalculates the plans and refuses when they differ,
+	// so an approval never lands on a plan nobody reviewed.
+	PostingPreviewHash string `protobuf:"bytes,4,opt,name=posting_preview_hash,json=postingPreviewHash,proto3" json:"posting_preview_hash,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *SubmitRecordRequest) Reset() {
@@ -1281,6 +1286,13 @@ func (x *SubmitRecordRequest) GetExpectedRevision() int64 {
 		return x.ExpectedRevision
 	}
 	return 0
+}
+
+func (x *SubmitRecordRequest) GetPostingPreviewHash() string {
+	if x != nil {
+		return x.PostingPreviewHash
+	}
+	return ""
 }
 
 type SubmitRecordResponse struct {
@@ -2607,11 +2619,12 @@ const file_athena_v1_records_proto_rawDesc = "" +
 	"\x04hash\x18\n" +
 	" \x01(\tR\x04hash\"K\n" +
 	"\x19ListRecordHistoryResponse\x12.\n" +
-	"\x06events\x18\x01 \x03(\v2\x16.athena.v1.RecordEventR\x06events\"z\n" +
+	"\x06events\x18\x01 \x03(\v2\x16.athena.v1.RecordEventR\x06events\"\xac\x01\n" +
 	"\x13SubmitRecordRequest\x12&\n" +
 	"\x0frecord_type_key\x18\x01 \x01(\tR\rrecordTypeKey\x12\x0e\n" +
 	"\x02id\x18\x02 \x01(\tR\x02id\x12+\n" +
-	"\x11expected_revision\x18\x03 \x01(\x03R\x10expectedRevision\"A\n" +
+	"\x11expected_revision\x18\x03 \x01(\x03R\x10expectedRevision\x120\n" +
+	"\x14posting_preview_hash\x18\x04 \x01(\tR\x12postingPreviewHash\"A\n" +
 	"\x14SubmitRecordResponse\x12)\n" +
 	"\x06record\x18\x01 \x01(\v2\x11.athena.v1.RecordR\x06record\"z\n" +
 	"\x13CancelRecordRequest\x12&\n" +

@@ -15,6 +15,7 @@ import (
 	"athena-erp/internal/audit"
 	"athena-erp/internal/auth"
 	"athena-erp/internal/lifecycle"
+	"athena-erp/internal/posting"
 	"athena-erp/internal/store"
 
 	"connectrpc.com/connect/v2"
@@ -181,7 +182,7 @@ func (s recordService) submittable(ctx context.Context, key string) (recordTypeD
 func (s recordService) SubmitRecord(ctx context.Context, req *athenav1.SubmitRecordRequest) (res *athenav1.SubmitRecordResponse, err error) {
 	ctx, requestID, end := startKernelSpan(ctx, "submit_record", req.GetRecordTypeKey())
 	defer func() { end(err) }()
-	record, err := s.transition(ctx, requestID, lifecycle.Submit, req.GetRecordTypeKey(), req.GetId(), req.GetExpectedRevision())
+	record, err := s.transition(ctx, requestID, lifecycle.Submit, req.GetRecordTypeKey(), req.GetId(), req.GetExpectedRevision(), req.GetPostingPreviewHash())
 	if err != nil {
 		return nil, err
 	}
@@ -191,7 +192,7 @@ func (s recordService) SubmitRecord(ctx context.Context, req *athenav1.SubmitRec
 func (s recordService) CancelRecord(ctx context.Context, req *athenav1.CancelRecordRequest) (res *athenav1.CancelRecordResponse, err error) {
 	ctx, requestID, end := startKernelSpan(ctx, "cancel_record", req.GetRecordTypeKey())
 	defer func() { end(err) }()
-	record, err := s.transition(ctx, requestID, lifecycle.Cancel, req.GetRecordTypeKey(), req.GetId(), req.GetExpectedRevision())
+	record, err := s.transition(ctx, requestID, lifecycle.Cancel, req.GetRecordTypeKey(), req.GetId(), req.GetExpectedRevision(), "")
 	if err != nil {
 		return nil, err
 	}
@@ -200,8 +201,9 @@ func (s recordService) CancelRecord(ctx context.Context, req *athenav1.CancelRec
 
 // transition runs a submit or a cancel. The first in-transaction event fires
 // before the state changes, the others after it, and the events after the
-// commit last (lifecycle.Sequence).
-func (s recordService) transition(ctx context.Context, requestID string, action lifecycle.Action, key, id string, expected int64) (*athenav1.Record, error) {
+// commit last (lifecycle.Sequence). previewHash carries the approved preview
+// of a submit (R6.15); cancel passes "".
+func (s recordService) transition(ctx context.Context, requestID string, action lifecycle.Action, key, id string, expected int64, previewHash string) (*athenav1.Record, error) {
 	recordType, err := s.submittable(ctx, key)
 	if err != nil {
 		return nil, err
@@ -290,6 +292,20 @@ func (s recordService) transition(ctx context.Context, requestID string, action 
 	if err := s.fireSteps(ctx, steps, event, 1, len(steps)); err != nil {
 		return nil, err
 	}
+	// Posting runs last inside the transaction, after the hooks accepted the
+	// business action: the voucher revision, ledger rows, balance deltas,
+	// audit event, operation result and outbox row commit together (R6.5), and
+	// a refused plan rolls the transition back with it.
+	if action == lifecycle.Submit {
+		if err := s.postVoucher(ctx, tx, recordType, id, expected+1, event.Doc, requestID, previewHash); err != nil {
+			return nil, err
+		}
+	}
+	if action == lifecycle.Cancel {
+		if err := s.reverseVoucher(ctx, tx, key, id, requestID); err != nil {
+			return nil, err
+		}
+	}
 	if err := tx.Commit(); err != nil {
 		return nil, internalError(string(action)+" record", err)
 	}
@@ -300,6 +316,118 @@ func (s recordService) transition(ctx context.Context, requestID string, action 
 	}
 	maskRecord(hiddenFields(p, recordType), record)
 	return record, nil
+}
+
+// postVoucher posts a submitted voucher through its posting Rules (batch-2 G6,
+// R6.4). Documents without posting Rules post nothing. previewHash is the
+// approved preview the submit claims (R6.15): empty claims no approval, and a
+// set hash that no longer matches refuses the submit for review. Every plan
+// posts in the transition's transaction through its Rule's stable operation
+// id, so retrying a submit replays instead of posting again.
+func (s recordService) postVoucher(ctx context.Context, tx *sql.Tx, d recordTypeDefinition, id string, revision int64, doc *lifecycle.Document, requestID, previewHash string) error {
+	plans, err := ruleEngine{db: s.db}.postingPlans(ctx, tx, d, id, revision, doc)
+	if err != nil {
+		return err
+	}
+	if len(plans) == 0 {
+		return nil
+	}
+	bare := make([]posting.Plan, len(plans))
+	for i := range plans {
+		bare[i] = plans[i].plan
+	}
+	if previewHash != "" {
+		hash, err := posting.HashPlans(bare)
+		if err != nil {
+			return internalError("hash posting plans", err)
+		}
+		if hash != previewHash {
+			return connect.NewError(connect.CodeFailedPrecondition, "the posting plan changed since it was previewed; review the voucher and submit again")
+		}
+	}
+	_, source := requestFrom(ctx)
+	engine := &posting.Engine{DB: s.db, Dialect: dialect, Workspace: s.workspace}
+	for _, named := range plans {
+		opts := posting.PostOptions{Actor: actorName(ctx), Source: source, RequestID: requestID,
+			OperationID: operationID("submit", d.Name, id, revision, named.plan.Book)}
+		if _, err := engine.PostInTx(ctx, tx, named.plan, opts); err != nil {
+			return postingError(named.rule, err)
+		}
+	}
+	return nil
+}
+
+// submitGroup is one posted submit group of a voucher.
+type submitGroup struct {
+	revision int64
+	book     string
+}
+
+// reverseVoucher mirrors every posted, unreversed submit group of a cancelled
+// voucher (R6.11). Groups are found by voucher rather than by revision, so a
+// submit that an allow-on-submit edit re-revisioned still unwinds fully.
+// Vouchers that never posted reverse nothing.
+func (s recordService) reverseVoucher(ctx context.Context, tx *sql.Tx, recordType, id, requestID string) error {
+	rows, err := tx.QueryContext(ctx, `SELECT voucher_revision, book FROM athena_posting_groups WHERE voucher_type = ? AND voucher_id = ? AND event = ? ORDER BY voucher_revision, book`,
+		recordType, id, posting.EventSubmit)
+	if err != nil {
+		return internalError("read posted vouchers", err)
+	}
+	var groups []submitGroup
+	for rows.Next() {
+		var group submitGroup
+		if err := rows.Scan(&group.revision, &group.book); err != nil {
+			rows.Close()
+			return internalError("read posted vouchers", err)
+		}
+		groups = append(groups, group)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return internalError("read posted vouchers", err)
+	}
+	rows.Close()
+	if len(groups) == 0 {
+		return nil
+	}
+	_, source := requestFrom(ctx)
+	engine := &posting.Engine{DB: s.db, Dialect: dialect, Workspace: s.workspace}
+	for _, group := range groups {
+		var reversed bool
+		if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM athena_posting_groups WHERE voucher_type = ? AND voucher_id = ? AND voucher_revision = ? AND event = ? AND book = ?)`,
+			recordType, id, group.revision, posting.EventCancel, group.book).Scan(&reversed); err != nil {
+			return internalError("read posted vouchers", err)
+		}
+		if reversed {
+			continue
+		}
+		opts := posting.ReverseOptions{Actor: actorName(ctx), Source: source, RequestID: requestID,
+			OperationID: operationID("cancel", recordType, id, group.revision, group.book)}
+		if _, err := engine.ReverseInTx(ctx, tx, recordType, id, group.revision, group.book, opts); err != nil {
+			return postingError("", err)
+		}
+	}
+	return nil
+}
+
+// postingError maps a posting failure to the transition error the user sees.
+// A refused plan names the Rule and the reason so the author can fix it; an
+// undecided policy (Z2) keeps its sentinel text; a conflict asks for a
+// reload; anything the database refused stays a generic internal error.
+func postingError(rule string, err error) error {
+	prefix := ""
+	if rule != "" {
+		prefix = "The Rule " + rule + " cannot post: "
+	}
+	switch {
+	case errors.Is(err, posting.ErrBookPolicyOpen), errors.Is(err, posting.ErrCorrectionWindowOpen):
+		return connect.NewError(connect.CodeFailedPrecondition, prefix+err.Error())
+	case errors.Is(err, posting.ErrInvalid):
+		return connect.NewError(connect.CodeFailedPrecondition, prefix+err.Error())
+	case errors.Is(err, posting.ErrConflict):
+		return connect.NewError(connect.CodeAborted, "someone else posted this voucher just now; reload it and try again")
+	}
+	return internalError("post voucher", err)
 }
 
 func (s recordService) AmendRecord(ctx context.Context, req *athenav1.AmendRecordRequest) (res *athenav1.AmendRecordResponse, err error) {

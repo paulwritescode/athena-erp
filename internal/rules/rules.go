@@ -17,6 +17,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -29,8 +30,8 @@ import (
 	"go.starlark.net/syntax"
 )
 
-// Type is the kind of a Rule (spec 13.1). Posting arrives with the posting
-// engine, Reaction and Scheduled with jobs.
+// Type is the kind of a Rule (spec 13.1). Reaction and Scheduled arrive with
+// jobs.
 type Type string
 
 const (
@@ -38,11 +39,17 @@ const (
 	Derivation Type = "derivation"
 	Guard      Type = "guard"
 	Transform  Type = "transform"
+	// Posting builds the Posting_Plan a submit writes to the ledgers (batch-2
+	// G6, R6.16). A posting Rule defines def post(doc, ctx) returning the plan
+	// dict, and def fixtures() returning its replay fixtures. The posting path
+	// runs it; the generic engine never does.
+	Posting Type = "posting"
 )
 
 // Types lists the Rule types in the order they run within one event:
 // derivations first, so validations see the derived values, then guards.
-var Types = []Type{Derivation, Validation, Guard, Transform}
+// Posting runs on its own path, not in this order, and sits last.
+var Types = []Type{Derivation, Validation, Guard, Transform, Posting}
 
 // Valid reports whether t is a known type.
 func (t Type) Valid() bool { return t.Order() >= 0 }
@@ -66,6 +73,8 @@ func (t Type) Entry() string {
 		return "derive"
 	case Guard:
 		return "guard"
+	case Posting:
+		return "post"
 	}
 	return "transform"
 }
@@ -80,6 +89,8 @@ func (t Type) Events() []string {
 		return []string{"validate"}
 	case Guard:
 		return []string{"before_submit", "before_cancel", "on_trash"}
+	case Posting:
+		return []string{"on_submit"}
 	}
 	return nil
 }
@@ -273,6 +284,20 @@ func checkProgram(t Type, file *syntax.File, refs Refs) error {
 			param = id.Name
 		}
 	}
+	if t == Posting {
+		var fixtures *syntax.DefStmt
+		for _, stmt := range file.Stmts {
+			if def, ok := stmt.(*syntax.DefStmt); ok && def.Name.Name == "fixtures" {
+				fixtures = def
+			}
+		}
+		if fixtures == nil {
+			return &SourceError{Line: 1, Msg: "a posting Rule must define def fixtures() returning its replay fixtures"}
+		}
+		if len(fixtures.Params) != 0 {
+			return &SourceError{Line: int(fixtures.Def.Line), Col: int(fixtures.Def.Col), Msg: "fixtures must take no parameters"}
+		}
+	}
 	syntax.Walk(file, func(n syntax.Node) bool {
 		switch n := n.(type) {
 		case *syntax.LoadStmt:
@@ -416,12 +441,43 @@ type Outcome struct {
 	// Writes are the fields set, in call order.
 	Writes []Write
 	// Result is the rows a transform returned, in key order.
-	Result    []Write
+	Result []Write
+	// Plan is what a posting Rule returned. It is nil for every other type
+	// and for a run that rejected or errored before collection.
+	Plan      *Plan
 	Steps     uint64
 	Reads     int
 	Values    int
 	Duration  time.Duration
 	InputHash string
+}
+
+// Plan is the Posting_Plan a posting Rule's post() returned: one book, one
+// posting date and the legs. The kernel names the voucher, event and revision
+// around it and validates it through the posting engine, which judges every
+// value; this package judges only the shape.
+type Plan struct {
+	Book        string
+	PostingDate string
+	Lines       []PlanLine
+}
+
+// PlanLine is one leg of a Plan. Exactly one of DebitBase and CreditBase is
+// above zero; TxnCurrency with its amounts is the original currency when it
+// differs from base; empty means base only.
+type PlanLine struct {
+	Company     string
+	Account     string
+	DebitBase   types.Decimal
+	CreditBase  types.Decimal
+	TxnCurrency string
+	TxnDebit    types.Decimal
+	TxnCredit   types.Decimal
+	Quantity    *types.Decimal
+	QuantityUOM string
+	Dimensions  map[string]string
+	SourceType  string
+	SourceID    string
 }
 
 // state is one run in progress.
@@ -509,6 +565,9 @@ func (p *Program) Run(ctx context.Context, in Input, host Host, limits Limits) (
 	if err == nil && p.Type == Transform {
 		err = s.collectResult(result)
 	}
+	if err == nil && p.Type == Posting {
+		err = s.collectPlan(result)
+	}
 	if err != nil {
 		s.classify(err, thread)
 	}
@@ -588,6 +647,415 @@ func (s *state) collectResult(result starlark.Value) error {
 	}
 	sort.Slice(s.outcome.Result, func(i, j int) bool { return s.outcome.Result[i].Field < s.outcome.Result[j].Field })
 	return nil
+}
+
+// planKeys are the only keys a plan dict may hold; anything else is a typo
+// the author must fix rather than a leg the engine silently drops.
+var planKeys = map[string]bool{"book": true, "posting_date": true, "lines": true}
+
+// planLineKeys are the only keys a plan line dict may hold.
+var planLineKeys = map[string]bool{
+	"company": true, "account": true, "debit": true, "credit": true,
+	"txn_currency": true, "txn_debit": true, "txn_credit": true,
+	"quantity": true, "quantity_uom": true, "dimensions": true,
+	"source_type": true, "source_id": true,
+}
+
+// collectPlan turns the dict a posting Rule returned into the Plan the
+// posting engine validates. It checks the shape only: presence and scalar
+// kinds. Values (balance, open periods, known accounts) are the engine's job,
+// so a fixture can replay a plan the current masters would refuse and the
+// failure names the value, not the Rule.
+func (s *state) collectPlan(result starlark.Value) error {
+	if result == nil || result == starlark.None {
+		return fmt.Errorf("post must return the plan dict, not nothing")
+	}
+	dict, ok := result.(*starlark.Dict)
+	if !ok {
+		return fmt.Errorf("post must return a dict with book, posting_date and lines, not %s", result.Type())
+	}
+	seen := map[string]starlark.Value{}
+	for _, item := range dict.Items() {
+		key, ok := starlark.AsString(item[0])
+		if !ok {
+			return fmt.Errorf("plan keys must be text")
+		}
+		if !planKeys[key] {
+			return fmt.Errorf("the plan has no key %q; it holds book, posting_date and lines", key)
+		}
+		seen[key] = item[1]
+	}
+	for _, key := range []string{"book", "posting_date", "lines"} {
+		if _, ok := seen[key]; !ok {
+			return fmt.Errorf("the plan needs %q", key)
+		}
+	}
+	book, ok := starlark.AsString(seen["book"])
+	if !ok {
+		return fmt.Errorf("the plan's book must be text")
+	}
+	date, ok := starlark.AsString(seen["posting_date"])
+	if !ok {
+		return fmt.Errorf("the plan's posting_date must be text")
+	}
+	lines, ok := seen["lines"].(*starlark.List)
+	if !ok {
+		return fmt.Errorf("the plan's lines must be a list")
+	}
+	if err := s.checkLen("the plan lines", lines.Len()); err != nil {
+		return err
+	}
+	plan := &Plan{Book: book, PostingDate: date, Lines: make([]PlanLine, 0, lines.Len())}
+	for i := range lines.Len() {
+		line, err := s.collectPlanLine(i, lines.Index(i))
+		if err != nil {
+			return err
+		}
+		plan.Lines = append(plan.Lines, line)
+	}
+	if err := s.countValues(len(plan.Lines) * 4); err != nil {
+		return err
+	}
+	s.outcome.Plan = plan
+	return nil
+}
+
+func (s *state) collectPlanLine(index int, value starlark.Value) (PlanLine, error) {
+	var line PlanLine
+	where := fmt.Sprintf("line %d", index+1)
+	dict, ok := value.(*starlark.Dict)
+	if !ok {
+		return line, fmt.Errorf("%s must be a dict, not %s", where, value.Type())
+	}
+	seen := map[string]starlark.Value{}
+	for _, item := range dict.Items() {
+		key, ok := starlark.AsString(item[0])
+		if !ok {
+			return line, fmt.Errorf("%s keys must be text", where)
+		}
+		if !planLineKeys[key] {
+			return line, fmt.Errorf("%s has no key %q", where, key)
+		}
+		seen[key] = item[1]
+	}
+	text := func(key string) (string, error) {
+		raw, ok := seen[key]
+		if !ok || raw == starlark.None {
+			return "", nil
+		}
+		text, ok := starlark.AsString(raw)
+		if !ok {
+			return "", fmt.Errorf("%s %q must be text", where, key)
+		}
+		return text, nil
+	}
+	amount := func(key string) (types.Decimal, error) {
+		raw, ok := seen[key]
+		if !ok || raw == starlark.None {
+			return types.Decimal{}, nil
+		}
+		return s.planAmount(where, key, raw)
+	}
+	var err error
+	if line.Company, err = text("company"); err != nil {
+		return line, err
+	}
+	if line.Account, err = text("account"); err != nil {
+		return line, err
+	}
+	if line.DebitBase, err = amount("debit"); err != nil {
+		return line, err
+	}
+	if line.CreditBase, err = amount("credit"); err != nil {
+		return line, err
+	}
+	if line.TxnCurrency, err = text("txn_currency"); err != nil {
+		return line, err
+	}
+	if line.TxnDebit, err = amount("txn_debit"); err != nil {
+		return line, err
+	}
+	if line.TxnCredit, err = amount("txn_credit"); err != nil {
+		return line, err
+	}
+	if raw, ok := seen["quantity"]; ok && raw != starlark.None {
+		quantity, err := s.planAmount(where, "quantity", raw)
+		if err != nil {
+			return line, err
+		}
+		line.Quantity = &quantity
+	}
+	if line.QuantityUOM, err = text("quantity_uom"); err != nil {
+		return line, err
+	}
+	if raw, ok := seen["dimensions"]; ok && raw != starlark.None {
+		dimensions, ok := raw.(*starlark.Dict)
+		if !ok {
+			return line, fmt.Errorf("%s dimensions must be a dict", where)
+		}
+		if err := s.checkLen(where+" dimensions", dimensions.Len()); err != nil {
+			return line, err
+		}
+		line.Dimensions = map[string]string{}
+		for _, item := range dimensions.Items() {
+			name, ok := starlark.AsString(item[0])
+			if !ok {
+				return line, fmt.Errorf("%s dimension names must be text", where)
+			}
+			member, ok := starlark.AsString(item[1])
+			if !ok {
+				return line, fmt.Errorf("%s dimension %q must be text", where, name)
+			}
+			line.Dimensions[name] = member
+		}
+		if err := s.countValues(len(line.Dimensions)); err != nil {
+			return line, err
+		}
+	}
+	if line.SourceType, err = text("source_type"); err != nil {
+		return line, err
+	}
+	if line.SourceID, err = text("source_id"); err != nil {
+		return line, err
+	}
+	return line, nil
+}
+
+// planAmount reads one decimal of a plan line: a decimal(), an integer, or
+// decimal text. Money is refused on purpose: an amount carries no currency,
+// so money(doc.total) would silently drop the code; the author names
+// txn_currency beside a decimal instead.
+func (s *state) planAmount(where, key string, value starlark.Value) (types.Decimal, error) {
+	switch v := value.(type) {
+	case decimalValue:
+		return v.d, nil
+	case starlark.Int:
+		if intTooLarge(v) {
+			return types.Decimal{}, &HostError{Code: CodeMemoryLimit, Err: fmt.Errorf("%s %q is too large to use as a decimal", where, key)}
+		}
+		d, err := types.ParseDecimal(v.String())
+		if err != nil {
+			return types.Decimal{}, fmt.Errorf("%s %q is not a decimal number", where, key)
+		}
+		return d, nil
+	case starlark.String:
+		if err := s.checkLen(where+" "+key, len(v)); err != nil {
+			return types.Decimal{}, err
+		}
+		d, err := types.ParseDecimal(string(v))
+		if err != nil {
+			return types.Decimal{}, fmt.Errorf("%s %q is not a decimal number", where, key)
+		}
+		return d, nil
+	case moneyValue:
+		return types.Decimal{}, fmt.Errorf("%s %q needs a decimal, not money: name txn_currency beside it", where, key)
+	case starlark.Float:
+		return types.Decimal{}, ErrFloat
+	}
+	return types.Decimal{}, fmt.Errorf("%s %q needs a decimal, an integer or decimal text, not %s", where, key, value.Type())
+}
+
+// Fixture is one replay case a posting Rule ships in def fixtures(): a name,
+// the header values post() sees as the document, and the child lines staged
+// beside it by child Record Type key.
+type Fixture struct {
+	Name     string
+	Values   map[string]any
+	Children map[string][]map[string]any
+}
+
+// fixtureHost runs fixtures(): the pure builtins work, money resolves through
+// the Record Type's currencies, and reads and writes fail because a fixture
+// is self-contained synthetic data, never a database read.
+type fixtureHost struct {
+	currencies func(code string) (types.Currency, bool)
+}
+
+func (h fixtureHost) Get(_, _ string) (Row, bool, error) {
+	return Row{}, false, &HostError{Code: CodeError, Err: errors.New("fixtures cannot read Records")}
+}
+
+func (h fixtureHost) Find(_ string, _ map[string]any, _ int) ([]Row, error) {
+	return nil, &HostError{Code: CodeError, Err: errors.New("fixtures cannot read Records")}
+}
+
+func (h fixtureHost) Set(_ string, _ any) error {
+	return &HostError{Code: CodeError, Err: errors.New("fixtures cannot change fields")}
+}
+
+func (h fixtureHost) Currency(code string) (types.Currency, bool) {
+	if h.currencies == nil {
+		return types.Currency{}, false
+	}
+	return h.currencies(code)
+}
+
+// RunFixtures executes the fixtures() the program defines and returns each
+// case. currencies resolves the money codes the fixtures may use. The run
+// shares the caller's limits but counts its own steps and values, so fixture
+// evaluation cannot silently spend the budget of the replay it feeds.
+func (p *Program) RunFixtures(ctx context.Context, limits Limits, currencies func(code string) (types.Currency, bool)) ([]Fixture, error) {
+	if p.Type != Posting {
+		return nil, fmt.Errorf("only a posting Rule has fixtures")
+	}
+	s := &state{host: fixtureHost{currencies: currencies}, limits: limits, outcome: &Outcome{}}
+	thread := &starlark.Thread{Name: "fixtures"}
+	thread.SetMaxExecutionSteps(limits.MaxSteps)
+	timer := time.AfterFunc(limits.Timeout, func() {
+		s.timedOut.Store(true)
+		thread.Cancel("time limit reached")
+	})
+	defer timer.Stop()
+	stop := context.AfterFunc(ctx, func() { thread.Cancel("the request was cancelled") })
+	defer stop()
+	globals, err := p.prog.Init(thread, s.predeclared(Posting))
+	if err != nil {
+		return nil, err
+	}
+	fn, ok := globals["fixtures"].(starlark.Callable)
+	if !ok {
+		return nil, fmt.Errorf("fixtures is not a function")
+	}
+	result, err := starlark.Call(thread, fn, nil, nil)
+	if err != nil {
+		var rejection *Rejection
+		if errors.As(err, &rejection) {
+			return nil, rejection
+		}
+		return nil, purgeFixtureError(err)
+	}
+	return s.collectFixtures(result)
+}
+
+// purgeFixtureError strips the trace from a fixture failure, leaving the
+// author's message.
+func purgeFixtureError(err error) error {
+	var eval *starlark.EvalError
+	if errors.As(err, &eval) {
+		return errors.New(eval.Msg)
+	}
+	return err
+}
+
+func (s *state) collectFixtures(result starlark.Value) ([]Fixture, error) {
+	cases, ok := result.(*starlark.List)
+	if !ok {
+		return nil, fmt.Errorf("fixtures must return a list, not %s", soul(result))
+	}
+	if cases.Len() == 0 {
+		return nil, fmt.Errorf("fixtures must return at least one case")
+	}
+	if err := s.checkLen("the fixtures", cases.Len()); err != nil {
+		return nil, err
+	}
+	seen := map[string]bool{}
+	out := make([]Fixture, 0, cases.Len())
+	for i := range cases.Len() {
+		where := fmt.Sprintf("fixture %d", i+1)
+		dict, ok := cases.Index(i).(*starlark.Dict)
+		if !ok {
+			return nil, fmt.Errorf("%s must be a dict, not %s", where, soul(cases.Index(i)))
+		}
+		fields := map[string]starlark.Value{}
+		for _, item := range dict.Items() {
+			key, ok := starlark.AsString(item[0])
+			if !ok {
+				return nil, fmt.Errorf("%s keys must be text", where)
+			}
+			fields[key] = item[1]
+		}
+		name, ok := fields["name"]
+		if !ok {
+			return nil, fmt.Errorf("%s needs a name", where)
+		}
+		text, ok := starlark.AsString(name)
+		if !ok || text == "" {
+			return nil, fmt.Errorf("%s needs a text name", where)
+		}
+		if seen[text] {
+			return nil, fmt.Errorf("two fixtures are named %q", text)
+		}
+		seen[text] = true
+		fixture := Fixture{Name: text, Values: map[string]any{}, Children: map[string][]map[string]any{}}
+		rawValues, ok := fields["values"]
+		if !ok {
+			return nil, fmt.Errorf("fixture %q needs values", text)
+		}
+		values, ok := rawValues.(*starlark.Dict)
+		if !ok {
+			return nil, fmt.Errorf("fixture %q values must be a dict", text)
+		}
+		converted, err := s.fixtureValues("fixture "+strconv.Quote(text), values)
+		if err != nil {
+			return nil, err
+		}
+		fixture.Values = converted
+		if rawChildren, ok := fields["children"]; ok && rawChildren != starlark.None {
+			children, ok := rawChildren.(*starlark.Dict)
+			if !ok {
+				return nil, fmt.Errorf("fixture %q children must be a dict of child Record Type to a list of rows", text)
+			}
+			for _, item := range children.Items() {
+				key, ok := starlark.AsString(item[0])
+				if !ok {
+					return nil, fmt.Errorf("fixture %q children keys must be child Record Type keys", text)
+				}
+				rows, ok := item[1].(*starlark.List)
+				if !ok {
+					return nil, fmt.Errorf("fixture %q children %q must be a list of rows", text, key)
+				}
+				for j := range rows.Len() {
+					row, ok := rows.Index(j).(*starlark.Dict)
+					if !ok {
+						return nil, fmt.Errorf("fixture %q children %q row %d must be a dict", text, key, j+1)
+					}
+					converted, err := s.fixtureValues(fmt.Sprintf("fixture %q children %q row %d", text, key, j+1), row)
+					if err != nil {
+						return nil, err
+					}
+					fixture.Children[key] = append(fixture.Children[key], converted)
+				}
+			}
+		}
+		for key := range fields {
+			if key != "name" && key != "values" && key != "children" {
+				return nil, fmt.Errorf("fixture %q has no key %q; it holds name, values and children", text, key)
+			}
+		}
+		out = append(out, fixture)
+	}
+	return out, nil
+}
+
+// fixtureValues converts one flat dict of field values to Go scalars.
+func (s *state) fixtureValues(where string, dict *starlark.Dict) (map[string]any, error) {
+	if err := s.checkLen(where, dict.Len()); err != nil {
+		return nil, err
+	}
+	if err := s.countValues(dict.Len()); err != nil {
+		return nil, err
+	}
+	out := map[string]any{}
+	for _, item := range dict.Items() {
+		key, ok := starlark.AsString(item[0])
+		if !ok {
+			return nil, fmt.Errorf("%s keys must be field names", where)
+		}
+		value, err := s.toGo(item[1])
+		if err != nil {
+			return nil, fmt.Errorf("%s field %q: %w", where, key, err)
+		}
+		out[key] = value
+	}
+	return out, nil
+}
+
+// soul names a value's kind for an error without quoting its content.
+func soul(value starlark.Value) string {
+	if value == nil {
+		return "nothing"
+	}
+	return value.Type()
 }
 
 // contextValue is ctx, the read-only facts of the run.

@@ -203,6 +203,11 @@ message SubmitRecordRequest {
   string record_type_key = 1;
   string id = 2;
   int64 expected_revision = 3;
+  // The combined plan hash the approval was based on (R6.15). Empty claims
+  // no approval: the submit posts whatever the posting Rules return now.
+  // Set, the submit recalculates the plans and refuses when they differ,
+  // so an approval never lands on a plan nobody reviewed.
+  string posting_preview_hash = 4;
 }
 message SubmitRecordResponse {
   Record record = 1;

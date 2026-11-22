@@ -2,7 +2,9 @@ package server
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,6 +16,7 @@ import (
 	"athena-erp/internal/auth"
 	"athena-erp/internal/lifecycle"
 	"athena-erp/internal/notifications"
+	"athena-erp/internal/posting"
 	"athena-erp/internal/rules"
 	"athena-erp/internal/types"
 
@@ -85,8 +88,20 @@ func (e ruleEngine) hook(ctx context.Context, ev *lifecycle.Event) error {
 	// early, and a save that has no Rule must not pay for that (it broke the
 	// numbering counter insert, MariaDB error 1020).
 	list, err := loadRulesFor(ctx, e.db, ev.RecordType, string(ev.Name))
-	if err != nil || len(list) == 0 {
+	if err != nil {
 		return err
+	}
+	// Posting Rules run through the posting path, which collects their plans
+	// into the submit transaction; the generic engine would discard them, so
+	// it skips them here.
+	runnable := list[:0]
+	for _, rule := range list {
+		if rule.Type != rules.Posting {
+			runnable = append(runnable, rule)
+		}
+	}
+	if list = runnable; len(list) == 0 {
+		return nil
 	}
 	def, err := loadRecordTypeFrom(ctx, ev.Tx, ev.RecordType)
 	if err != nil {
@@ -286,6 +301,84 @@ func clipText(s string, limit int) string {
 	return s
 }
 
+// ---- posting --------------------------------------------------------------
+
+// namedPlan is one posting Rule's plan with the Rule that built it, for
+// errors that name the author.
+type namedPlan struct {
+	rule string
+	plan posting.Plan
+}
+
+// postingPlans runs the enabled posting Rules of one Record Type and returns
+// their plans in rule order. A Rule that rejects or fails refuses the submit
+// with its outcome; a Rule that returns no plan is refused as authoring that
+// cannot post. Documents without posting Rules post nothing. Two Rules may
+// not name one book: one voucher revision, event and book owns one posting
+// group, so a second plan for it could never post.
+func (e ruleEngine) postingPlans(ctx context.Context, tx *sql.Tx, def recordTypeDefinition, recordID string, revision int64, doc *lifecycle.Document) ([]namedPlan, error) {
+	list, err := loadRulesFor(ctx, tx, def.Name, string(lifecycle.OnSubmit))
+	if err != nil {
+		return nil, err
+	}
+	var plans []namedPlan
+	books := map[string]string{}
+	for _, rule := range list {
+		if rule.Type != rules.Posting {
+			continue
+		}
+		run := ruleRun{
+			engine: e, rule: rule, def: &def, tx: tx, doc: doc, recordID: recordID, event: string(lifecycle.OnSubmit),
+		}
+		out, err := run.execute(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if err := outcomeError(rule.Key, out); err != nil {
+			return nil, err
+		}
+		if out.Plan == nil {
+			return nil, connect.NewError(connect.CodeFailedPrecondition, fmt.Sprintf("The Rule %s returned no plan", rule.Key))
+		}
+		if first, dup := books[out.Plan.Book]; dup {
+			return nil, connect.NewError(connect.CodeFailedPrecondition, fmt.Sprintf("The Rules %s and %s both post to book %q; merge them into one Rule", first, rule.Key, out.Plan.Book))
+		}
+		books[out.Plan.Book] = rule.Key
+		plans = append(plans, namedPlan{rule: rule.Key, plan: voucherPlan(def.Name, recordID, revision, out.Plan)})
+	}
+	return plans, nil
+}
+
+// voucherPlan names the voucher, event and revision around a Rule's plan.
+func voucherPlan(recordType, recordID string, revision int64, plan *rules.Plan) posting.Plan {
+	out := posting.Plan{
+		VoucherType: recordType, VoucherID: recordID, Revision: revision,
+		Event: posting.EventSubmit, Book: plan.Book, PostingDate: plan.PostingDate,
+		Lines: make([]posting.Line, len(plan.Lines)),
+	}
+	for i := range plan.Lines {
+		line := &plan.Lines[i]
+		out.Lines[i] = posting.Line{
+			Company: line.Company, Account: line.Account,
+			DebitBase: line.DebitBase, CreditBase: line.CreditBase,
+			TxnCurrency: line.TxnCurrency, TxnDebit: line.TxnDebit, TxnCredit: line.TxnCredit,
+			Quantity: line.Quantity, QuantityUOM: line.QuantityUOM,
+			Dimensions: line.Dimensions, SourceType: line.SourceType, SourceID: line.SourceID,
+		}
+	}
+	return out
+}
+
+// operationID derives the stable idempotency key of one post or reversal
+// from its group identity. Retrying a submit or a cancel replays the first
+// attempt instead of posting again; the hash keeps the key short whatever
+// the voucher names.
+func operationID(prefix, recordType, recordID string, revision int64, book string) string {
+	joined := strings.Join([]string{recordType, recordID, fmt.Sprint(revision), book}, "\x00")
+	sum := sha256.Sum256([]byte(joined))
+	return prefix + ":" + hex.EncodeToString(sum[:])[:48]
+}
+
 // ---- host -----------------------------------------------------------------
 
 // ruleHost is the Go side of a Rule's host functions. Every read is made as
@@ -445,6 +538,12 @@ func (h *ruleHost) readable(recordType string) (recordTypeDefinition, error) {
 // field levels.
 func (h *ruleHost) recordRow(def recordTypeDefinition, record *athenav1.Record) (rules.Row, error) {
 	row := rules.Row{Values: map[string]any{"id": record.GetId(), "revision": record.GetRevision()}, Hidden: hiddenFields(h.principal, def)}
+	if def.kind() == kindChild {
+		// A posting Rule reads its voucher's lines through find() filtered
+		// on parent_id, so child rows carry their linkage as values.
+		row.Values["parent_id"] = record.GetParentId()
+		row.Values["idx"] = int64(record.GetIdx())
+	}
 	for _, field := range def.Fields {
 		arg, err := storedArg(field, record.GetValues()[field.Name])
 		if err != nil {
@@ -518,6 +617,21 @@ func (h *ruleHost) Find(recordType string, filters map[string]any, limit int) ([
 	sort.Strings(keys)
 	byKey := fieldsByKey(def)
 	for _, key := range keys {
+		if key == "parent_id" {
+			// Child rows filter on their linkage: find("bill_line",
+			// {"parent_id": doc.id}) reads one voucher's lines. It is
+			// structural, not a permission-leveled field.
+			if def.kind() != kindChild {
+				return nil, hostError("invalid_field", fmt.Errorf("%s has no parent to filter on", def.Label))
+			}
+			id, ok := filters[key].(string)
+			if !ok {
+				return nil, hostError("invalid", errors.New("parent_id filters on the document id text"))
+			}
+			where = append(where, "`parent_id` = ?")
+			args = append(args, id)
+			continue
+		}
 		field, ok := byKey[key]
 		if !ok || hidden[key] {
 			return nil, hostError("invalid_field", fmt.Errorf("%s has no field %q to filter on", def.Label, key))

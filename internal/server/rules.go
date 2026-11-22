@@ -7,16 +7,20 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"sort"
+	"strings"
 	"time"
 
 	athenav1 "athena-erp/gen/athena/v1"
 	"athena-erp/internal/audit"
 	"athena-erp/internal/auth"
 	"athena-erp/internal/lifecycle"
+	"athena-erp/internal/posting"
 	"athena-erp/internal/rules"
 	"athena-erp/internal/types"
 
 	"connectrpc.com/connect/v2"
+	"github.com/google/uuid"
 )
 
 // ruleKeyPattern limits a Rule key to the width of athena_rules.name.
@@ -136,7 +140,7 @@ func checkDefinition(ctx context.Context, q interface {
 	}
 	kind := rules.Type(def.GetRuleType())
 	if !kind.Valid() {
-		return checkedRule{}, invalid(fmt.Sprintf("the Rule type must be one of %v; posting, reaction and scheduled Rules arrive with later phases", rules.Types))
+		return checkedRule{}, invalid(fmt.Sprintf("the Rule type must be one of %v; reaction and scheduled Rules arrive with later phases", rules.Types))
 	}
 	if def.GetPriority() < 0 || def.GetPriority() > maxRulePriority {
 		return checkedRule{}, invalid("the priority is between 0 and 1000")
@@ -195,7 +199,8 @@ func (s ruleService) SaveRule(ctx context.Context, req *athenav1.SaveRuleRequest
 		return nil, internalError("save rule", err)
 	}
 	defer func() { _ = tx.Rollback() }()
-	if _, err := checkDefinition(ctx, tx, def); err != nil {
+	checked, err := checkDefinition(ctx, tx, def)
+	if err != nil {
 		return nil, err
 	}
 	current, err := scanRule(tx.QueryRowContext(ctx, "SELECT "+ruleColumns+" FROM athena_rules WHERE name = ? FOR UPDATE", def.GetKey()))
@@ -210,7 +215,16 @@ func (s ruleService) SaveRule(ctx context.Context, req *athenav1.SaveRuleRequest
 		return nil, connect.NewError(connect.CodeAborted, "this Rule no longer exists; reload and try again")
 	}
 	hash := rules.SourceHash(def.GetSource())
-	next := storedRuleRow{key: def.GetKey(), label: def.GetLabel(), ruleType: def.GetRuleType(), recordType: def.GetRecordTypeKey(), event: def.GetEvent(), priority: int(def.GetPriority()), enabled: def.GetEnabled(), version: 1, source: def.GetSource(), hash: hash, actor: actorName(ctx)}
+	enabled, diff := def.GetEnabled(), ""
+	if rules.Type(def.GetRuleType()) == rules.Posting {
+		// Activating a changed posting Rule replays its fixtures; a
+		// changed plan lands disabled until a named user approves it by
+		// saving again with enabled (R6.16).
+		if enabled, diff, err = s.gatePostingSave(ctx, tx, requestID, def, checked.rt, current, exists, hash); err != nil {
+			return nil, err
+		}
+	}
+	next := storedRuleRow{key: def.GetKey(), label: def.GetLabel(), ruleType: def.GetRuleType(), recordType: def.GetRecordTypeKey(), event: def.GetEvent(), priority: int(def.GetPriority()), enabled: enabled, version: 1, source: def.GetSource(), hash: hash, actor: actorName(ctx)}
 	if exists {
 		// A save that changes nothing is not a new version.
 		same := current.label == next.label && current.ruleType == next.ruleType && current.recordType == next.recordType && current.event == next.event && current.priority == next.priority && current.enabled == next.enabled && current.hash == hash
@@ -243,11 +257,318 @@ func (s ruleService) SaveRule(ctx context.Context, req *athenav1.SaveRuleRequest
 	if err := tx.Commit(); err != nil {
 		return nil, internalError("save rule", err)
 	}
+	if diff != "" {
+		// The new source is stored disabled: the approver reads the diff,
+		// then saves the same source with enabled, and that save records
+		// their name as the approval.
+		return nil, connect.NewError(connect.CodeFailedPrecondition,
+			fmt.Sprintf("saved as disabled version %d: the plan changed since version %d, so review it and save again with enabled to approve:\n%s", next.version, current.version, diff))
+	}
 	saved, err := s.GetRule(ctx, &athenav1.GetRuleRequest{Key: next.key})
 	if err != nil {
 		return nil, err
 	}
 	return &athenav1.SaveRuleResponse{Rule: saved.GetRule()}, nil
+}
+
+// gatePostingSave enforces the activation rule of a posting Rule (R6.16). It
+// returns the enabled value to store: activating (creating enabled,
+// enabling, or changing the source of an enabled Rule) replays the Rule's
+// fixtures against the current masters, and when the new source plans
+// differently than the previous version the save lands disabled with the
+// plan diff to review. Saving the same source with enabled afterwards is the
+// named approval: the versions and the audit row record who approved it.
+// Deactivating is always safe and replays nothing; a Rule that stays
+// disabled can be drafted freely and replays when it is enabled.
+func (s ruleService) gatePostingSave(ctx context.Context, tx *sql.Tx, requestID string, def *athenav1.RuleDefinition, rt *recordTypeDefinition, current storedRuleRow, exists bool, hash string) (bool, string, error) {
+	if !def.GetEnabled() {
+		return false, "", nil
+	}
+	sourceChanged := !exists || current.hash != hash
+	if activating := !exists || !current.enabled || sourceChanged; !activating {
+		return true, "", nil
+	}
+	replayed, err := s.replayPostingFixtures(ctx, tx, requestID, def, rt, def.GetSource(), current.version)
+	if err != nil {
+		return false, "", err
+	}
+	if !sourceChanged || !exists {
+		return true, "", nil
+	}
+	previous, err := s.replayPostingFixtures(ctx, tx, requestID, def, rt, current.source, current.version)
+	if err != nil {
+		return false, fmt.Sprintf("the previous version no longer replays, so its plan cannot be compared: %s", connectMessage(err)), nil
+	}
+	if diff := diffFixturePlans(previous, replayed); diff != "" {
+		return false, diff, nil
+	}
+	return true, "", nil
+}
+
+// fixturePlan is one fixture's plan after validation.
+type fixturePlan struct {
+	name string
+	plan posting.Plan
+}
+
+// replayPostingFixtures runs source's fixtures through post() and validates
+// every plan against the masters in tx, so an activated Rule proves it posts
+// before any voucher depends on it. Fixture children are staged in tx under
+// a synthetic document id and removed before returning; a refused save rolls
+// back whatever is still staged. Reads run as the saving user, like the
+// submit-time runs they stand in for.
+func (s ruleService) replayPostingFixtures(ctx context.Context, tx *sql.Tx, requestID string, def *athenav1.RuleDefinition, rt *recordTypeDefinition, source string, version int64) ([]fixturePlan, error) {
+	program, err := rules.Compile(rules.Posting, source, ruleRefs(*rt))
+	if err != nil {
+		return nil, invalid(err.Error())
+	}
+	fixtures, err := program.RunFixtures(ctx, rules.DefaultLimits, (&ruleHost{def: rt}).Currency)
+	if err != nil {
+		return nil, invalid("fixtures: " + err.Error())
+	}
+	children, err := childRecordTypes(ctx, tx, rt.Name)
+	if err != nil {
+		return nil, err
+	}
+	byChild := make(map[string]recordTypeDefinition, len(children))
+	for _, child := range children {
+		byChild[child.Name] = child
+	}
+	var plans []fixturePlan
+	for i, fixture := range fixtures {
+		docID := "fixture:" + def.GetKey() + ":" + fmt.Sprint(i)
+		fieldValues, err := fixtureFieldValues(*rt, fixture.Name, fixture.Values)
+		if err != nil {
+			return nil, err
+		}
+		// An empty fixture is a blank document, not an empty update.
+		var columns []string
+		var args []any
+		if len(fieldValues) > 0 {
+			if columns, args, err = bindValues(*rt, fieldValues, false); err != nil {
+				return nil, invalid(fmt.Sprintf("fixture %q: %s", fixture.Name, connectMessage(err)))
+			}
+		}
+		doc, err := pendingDocument(ctx, *rt, docID, nil, columns, args)
+		if err != nil {
+			return nil, err
+		}
+		if len(fixture.Children) > 0 {
+			// Child rows reference their parent, so the fixture's header is
+			// staged with its values beside them; post() reads the header
+			// from memory and the lines through find().
+			system := map[string]any{"created_by": actorName(ctx), "modified_by": actorName(ctx), "def_version": rt.Revision, "request_id": requestID, "owner": actorName(ctx), "docstate": int32(lifecycle.Draft), "name": docID}
+			if err := insertRow(ctx, tx, *rt, docID, system, columns, args); err != nil {
+				return nil, err
+			}
+		}
+		staged, err := stageFixtureChildren(ctx, tx, requestID, byChild, docID, fixture)
+		if err != nil {
+			return nil, err
+		}
+		run := ruleRun{
+			engine: s.engine, rule: storedRule{Key: def.GetKey(), Version: version, Type: rules.Posting, Event: def.GetEvent()},
+			def: rt, tx: tx, doc: doc, recordID: docID, event: def.GetEvent(), dryRun: true, source: source,
+		}
+		out, err := run.execute(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if outcome := outcomeError(def.GetKey(), out); outcome != nil {
+			return nil, invalid(fmt.Sprintf("fixture %q: %s", fixture.Name, connectMessage(outcome)))
+		}
+		if out.Plan == nil {
+			return nil, invalid(fmt.Sprintf("fixture %q: the Rule returned no plan", fixture.Name))
+		}
+		plan := voucherPlan(rt.Name, docID, 1, out.Plan)
+		if err := posting.ValidatePlan(ctx, tx, plan); err != nil {
+			return nil, fixturePlanError(fixture.Name, err)
+		}
+		for _, child := range staged {
+			if _, err := tx.ExecContext(ctx, "DELETE FROM "+dialect.QuoteIdent(recordTypeTableName(child.Name))+" WHERE `parent_id` = ?", docID); err != nil {
+				return nil, internalError("clear staged fixture children", err)
+			}
+		}
+		if len(fixture.Children) > 0 {
+			if _, err := tx.ExecContext(ctx, "DELETE FROM "+dialect.QuoteIdent(recordTypeTableName(rt.Name))+" WHERE `id` = ?", docID); err != nil {
+				return nil, internalError("clear staged fixture header", err)
+			}
+		}
+		plans = append(plans, fixturePlan{name: fixture.Name, plan: plan})
+	}
+	return plans, nil
+}
+
+// fixtureFieldValues converts one fixture's Go values to the FieldValues its
+// Record Type binds, naming the fixture and the field on any failure.
+func fixtureFieldValues(d recordTypeDefinition, fixture string, values map[string]any) (map[string]*athenav1.FieldValue, error) {
+	byKey := fieldsByKey(d)
+	out := make(map[string]*athenav1.FieldValue, len(values))
+	for key, value := range values {
+		field, ok := byKey[key]
+		if !ok {
+			return nil, invalid(fmt.Sprintf("fixture %q names no field %q of %s", fixture, key, d.Label))
+		}
+		fv, err := fieldFromRule(field, value)
+		if err != nil {
+			return nil, invalid(fmt.Sprintf("fixture %q field %q: %s", fixture, key, err.Error()))
+		}
+		out[key] = fv
+	}
+	return out, nil
+}
+
+// stageFixtureChildren inserts one fixture's child rows under the fixture's
+// document id so post() reads them through find(). It returns the child
+// definitions it staged into for the caller to clear.
+func stageFixtureChildren(ctx context.Context, tx *sql.Tx, requestID string, byChild map[string]recordTypeDefinition, docID string, fixture rules.Fixture) ([]recordTypeDefinition, error) {
+	keys := make([]string, 0, len(fixture.Children))
+	for key := range fixture.Children {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	var staged []recordTypeDefinition
+	for _, key := range keys {
+		child, ok := byChild[key]
+		if !ok {
+			return nil, invalid(fmt.Sprintf("fixture %q names no child Record Type %q", fixture.Name, key))
+		}
+		for j, row := range fixture.Children[key] {
+			where := fmt.Sprintf("%s children %s row %d", fixture.Name, key, j+1)
+			fieldValues, err := fixtureFieldValues(child, where, row)
+			if err != nil {
+				return nil, err
+			}
+			var columns []string
+			var args []any
+			if len(fieldValues) > 0 {
+				if columns, args, err = bindValues(child, fieldValues, false); err != nil {
+					return nil, invalid(fmt.Sprintf("fixture %q: %s", where, connectMessage(err)))
+				}
+			}
+			id, err := uuid.NewV7()
+			if err != nil {
+				return nil, internalError("stage fixture children", err)
+			}
+			system := map[string]any{"created_by": actorName(ctx), "modified_by": actorName(ctx), "def_version": child.Revision, "request_id": requestID, "parent_id": docID, "idx": j}
+			if err := insertRow(ctx, tx, child, id.String(), system, columns, args); err != nil {
+				return nil, err
+			}
+		}
+		staged = append(staged, child)
+	}
+	return staged, nil
+}
+
+// fixturePlanError maps a fixture plan's validation failure to the save
+// error: an undecided policy (Z2) keeps its sentinel, anything else is an
+// authoring mistake to fix.
+func fixturePlanError(fixture string, err error) error {
+	if errors.Is(err, posting.ErrBookPolicyOpen) || errors.Is(err, posting.ErrCorrectionWindowOpen) {
+		return connect.NewError(connect.CodeFailedPrecondition, fmt.Sprintf("fixture %q: %s", fixture, err.Error()))
+	}
+	return invalid(fmt.Sprintf("fixture %q: %s", fixture, err.Error()))
+}
+
+// diffFixturePlans compares the previous and replayed plans fixture by
+// fixture and describes every change in the author's own terms. Empty means
+// the change plans identically and needs no approval. Fixtures are synthetic
+// author data, so the diff may quote them.
+func diffFixturePlans(previous, replayed []fixturePlan) string {
+	byName := make(map[string]posting.Plan, len(previous))
+	for _, p := range previous {
+		byName[p.name] = p.plan
+	}
+	seen := map[string]bool{}
+	var lines []string
+	for _, p := range replayed {
+		seen[p.name] = true
+		before, ok := byName[p.name]
+		if !ok {
+			lines = append(lines, fmt.Sprintf("fixture %q is new", p.name))
+			continue
+		}
+		lines = append(lines, diffPlans(fmt.Sprintf("fixture %q", p.name), before, p.plan)...)
+	}
+	for _, p := range previous {
+		if !seen[p.name] {
+			lines = append(lines, fmt.Sprintf("fixture %q was removed", p.name))
+		}
+	}
+	const maxLines = 12
+	if len(lines) > maxLines {
+		lines = append(lines[:maxLines], fmt.Sprintf("and %d more changes", len(lines)-maxLines))
+	}
+	return strings.Join(lines, "\n")
+}
+
+func diffPlans(where string, before, after posting.Plan) []string {
+	var lines []string
+	if before.Book != after.Book {
+		lines = append(lines, fmt.Sprintf("%s: book %q became %q", where, before.Book, after.Book))
+	}
+	if before.PostingDate != after.PostingDate {
+		lines = append(lines, fmt.Sprintf("%s: posting date %s became %s", where, before.PostingDate, after.PostingDate))
+	}
+	for i := 0; i < len(before.Lines) || i < len(after.Lines); i++ {
+		leg := fmt.Sprintf("%s line %d", where, i+1)
+		switch {
+		case i >= len(before.Lines):
+			lines = append(lines, leg+" was added")
+		case i >= len(after.Lines):
+			lines = append(lines, leg+" was removed")
+		default:
+			lines = append(lines, diffPlanLines(leg, before.Lines[i], after.Lines[i])...)
+		}
+	}
+	return lines
+}
+
+func diffPlanLines(where string, before, after posting.Line) []string {
+	var lines []string
+	text := func(name, o, n string) {
+		if o != n {
+			lines = append(lines, fmt.Sprintf("%s: %s %q became %q", where, name, o, n))
+		}
+	}
+	text("company", before.Company, after.Company)
+	text("account", before.Account, after.Account)
+	decimal := func(name string, o, n types.Decimal) {
+		if o.Sub(n).Sign() != 0 {
+			lines = append(lines, fmt.Sprintf("%s: %s %s became %s", where, name, o.String(), n.String()))
+		}
+	}
+	decimal("debit", before.DebitBase, after.DebitBase)
+	decimal("credit", before.CreditBase, after.CreditBase)
+	text("transaction currency", before.TxnCurrency, after.TxnCurrency)
+	decimal("transaction debit", before.TxnDebit, after.TxnDebit)
+	decimal("transaction credit", before.TxnCredit, after.TxnCredit)
+	var from, to types.Decimal
+	if before.Quantity != nil {
+		from = *before.Quantity
+	}
+	if after.Quantity != nil {
+		to = *after.Quantity
+	}
+	decimal("quantity", from, to)
+	text("unit", before.QuantityUOM, after.QuantityUOM)
+	dimensions := map[string]bool{}
+	for name, o := range before.Dimensions {
+		dimensions[name] = true
+		if n, ok := after.Dimensions[name]; !ok {
+			lines = append(lines, fmt.Sprintf("%s: dimension %q %q was removed", where, name, o))
+		} else if o != n {
+			lines = append(lines, fmt.Sprintf("%s: dimension %q %q became %q", where, name, o, n))
+		}
+	}
+	for name, n := range after.Dimensions {
+		if !dimensions[name] {
+			lines = append(lines, fmt.Sprintf("%s: dimension %q %q was added", where, name, n))
+		}
+	}
+	text("source type", before.SourceType, after.SourceType)
+	text("source id", before.SourceID, after.SourceID)
+	return lines
 }
 
 func (s ruleService) DeleteRule(ctx context.Context, req *athenav1.DeleteRuleRequest) (res *athenav1.DeleteRuleResponse, err error) {
@@ -356,6 +677,11 @@ func (s ruleService) SimulateRule(ctx context.Context, req *athenav1.SimulateRul
 		return nil, err
 	}
 	res = outcomeMessage(out)
+	if rules.Type(def.GetRuleType()) == rules.Posting && out.Status == rules.OK && out.Plan != nil {
+		// A simulation names the plan it would post; the full preview with
+		// resolved accounts and policy versions arrives with PreviewPosting.
+		res.Message = fmt.Sprintf("the plan posts %d lines to book %q for %s", len(out.Plan.Lines), out.Plan.Book, out.Plan.PostingDate)
+	}
 	for _, key := range doc.Written() {
 		field := fieldsByKey(*checked.rt)[key]
 		res.Changes = append(res.Changes, &athenav1.RuleChange{Field: key, OldValue: argText(field, before[key]), NewValue: argText(field, doc.Writes[key])})

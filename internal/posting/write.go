@@ -531,6 +531,23 @@ func hashPlan(plan Plan) (string, error) {
 	return hex.EncodeToString(sum[:]), nil
 }
 
+// HashPlans is the combined SHA-256 of plans in order: each plan's canonical
+// hash joined and hashed again. Submit and preview build the same list in
+// rule order, so equal submissions share one hash and any changed leg, book
+// or date changes it (R6.15).
+func HashPlans(plans []Plan) (string, error) {
+	hashes := make([]string, len(plans))
+	for i := range plans {
+		hash, err := hashPlan(plans[i])
+		if err != nil {
+			return "", err
+		}
+		hashes[i] = hash
+	}
+	sum := sha256.Sum256([]byte(strings.Join(hashes, "\n")))
+	return hex.EncodeToString(sum[:]), nil
+}
+
 // canonicalDecimalText normalizes a Decimal's text so equal values hash
 // alike whatever scale they carry: trailing fraction zeros go, and a bare
 // point with them, so 100.00 and 100 both read 100.
