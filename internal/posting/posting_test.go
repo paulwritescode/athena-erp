@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"slices"
 	"testing"
 	"time"
 
@@ -354,6 +355,64 @@ func TestControlAccountWithSourcePosts(t *testing.T) {
 	}
 }
 
+// drawBalancedLines draws free lines over accounts, then a plug line (or a
+// pair when the free lines already net to zero), so the result always
+// balances in base currency. Properties 8 and 9 share it.
+func drawBalancedLines(t *rapid.T, accounts []string) []posting.Line {
+	n := rapid.IntRange(1, 5).Draw(t, "freeLines")
+	useTxn := rapid.Bool().Draw(t, "txn")
+	lines := make([]posting.Line, 0, n+2)
+	net := types.MustDecimal("0")
+	for i := 0; i < n; i++ {
+		minor := rapid.IntRange(1, 100000).Draw(t, "minor")
+		amount, err := types.NewDecimal(int64(minor), 2)
+		if err != nil {
+			t.Fatalf("decimal: %v", err)
+		}
+		account := accounts[rapid.IntRange(0, len(accounts)-1).Draw(t, "account")]
+		line := posting.Line{Company: "acme", Account: account}
+		if rapid.Bool().Draw(t, "debit") {
+			line.DebitBase = amount
+			net = net.Add(amount)
+		} else {
+			line.CreditBase = amount
+			net = net.Sub(amount)
+		}
+		if useTxn {
+			line.TxnCurrency = "USD"
+			line.TxnDebit, line.TxnCredit = line.DebitBase, line.CreditBase
+		}
+		lines = append(lines, line)
+	}
+	plugAccount := accounts[rapid.IntRange(0, len(accounts)-1).Draw(t, "plugAccount")]
+	switch net.Sign() {
+	case 0:
+		extra, err := types.NewDecimal(int64(rapid.IntRange(1, 100000).Draw(t, "extraMinor")), 2)
+		if err != nil {
+			t.Fatalf("decimal: %v", err)
+		}
+		debit, credit := posting.Line{Company: "acme", Account: plugAccount, DebitBase: extra}, posting.Line{Company: "acme", Account: plugAccount, CreditBase: extra}
+		if useTxn {
+			debit.TxnCurrency, debit.TxnDebit = "USD", extra
+			credit.TxnCurrency, credit.TxnCredit = "USD", extra
+		}
+		lines = append(lines, debit, credit)
+	case 1:
+		plug := posting.Line{Company: "acme", Account: plugAccount, CreditBase: net}
+		if useTxn {
+			plug.TxnCurrency, plug.TxnCredit = "USD", net
+		}
+		lines = append(lines, plug)
+	default:
+		plug := posting.Line{Company: "acme", Account: plugAccount, DebitBase: net.Neg()}
+		if useTxn {
+			plug.TxnCurrency, plug.TxnDebit = "USD", net.Neg()
+		}
+		lines = append(lines, plug)
+	}
+	return lines
+}
+
 // TestBalancedPostingsProperty checks Property 8 over drawn plans: for any
 // valid Posting_Plan the ledger rows written balance per company and book in
 // base currency, and any unbalanced plan writes nothing.
@@ -383,57 +442,7 @@ func TestBalancedPostingsProperty(t *testing.T) {
 		return rows, debit, credit
 	}
 	rapid.Check(t, func(t *rapid.T) {
-		n := rapid.IntRange(1, 5).Draw(t, "freeLines")
-		useTxn := rapid.Bool().Draw(t, "txn")
-		lines := make([]posting.Line, 0, n+2)
-		net := types.MustDecimal("0")
-		for i := 0; i < n; i++ {
-			minor := rapid.IntRange(1, 100000).Draw(t, "minor")
-			amount, err := types.NewDecimal(int64(minor), 2)
-			if err != nil {
-				t.Fatalf("decimal: %v", err)
-			}
-			account := accounts[rapid.IntRange(0, len(accounts)-1).Draw(t, "account")]
-			line := posting.Line{Company: "acme", Account: account}
-			if rapid.Bool().Draw(t, "debit") {
-				line.DebitBase = amount
-				net = net.Add(amount)
-			} else {
-				line.CreditBase = amount
-				net = net.Sub(amount)
-			}
-			if useTxn {
-				line.TxnCurrency = "USD"
-				line.TxnDebit, line.TxnCredit = line.DebitBase, line.CreditBase
-			}
-			lines = append(lines, line)
-		}
-		plugAccount := accounts[rapid.IntRange(0, len(accounts)-1).Draw(t, "plugAccount")]
-		switch net.Sign() {
-		case 0:
-			extra, err := types.NewDecimal(int64(rapid.IntRange(1, 100000).Draw(t, "extraMinor")), 2)
-			if err != nil {
-				t.Fatalf("decimal: %v", err)
-			}
-			debit, credit := posting.Line{Company: "acme", Account: plugAccount, DebitBase: extra}, posting.Line{Company: "acme", Account: plugAccount, CreditBase: extra}
-			if useTxn {
-				debit.TxnCurrency, debit.TxnDebit = "USD", extra
-				credit.TxnCurrency, credit.TxnCredit = "USD", extra
-			}
-			lines = append(lines, debit, credit)
-		case 1:
-			plug := posting.Line{Company: "acme", Account: plugAccount, CreditBase: net}
-			if useTxn {
-				plug.TxnCurrency, plug.TxnCredit = "USD", net
-			}
-			lines = append(lines, plug)
-		default:
-			plug := posting.Line{Company: "acme", Account: plugAccount, DebitBase: net.Neg()}
-			if useTxn {
-				plug.TxnCurrency, plug.TxnDebit = "USD", net.Neg()
-			}
-			lines = append(lines, plug)
-		}
+		lines := drawBalancedLines(t, accounts)
 		plan := posting.Plan{
 			VoucherType: "journal", VoucherID: uuid.NewString(), Revision: 1,
 			Event: posting.EventSubmit, Book: "main", PostingDate: "2026-06-15", Lines: lines,
@@ -484,6 +493,294 @@ func TestBalancedPostingsProperty(t *testing.T) {
 	})
 }
 
+func opOpts(operationID string) posting.PostOptions {
+	options := opts()
+	options.OperationID = operationID
+	return options
+}
+
+func equalResults(a, b posting.Result) bool {
+	return a.PostingGroupID == b.PostingGroupID && slices.Equal(a.RowIDs, b.RowIDs) &&
+		a.PlanHash == b.PlanHash && a.OperationID == b.OperationID && a.Replayed == b.Replayed
+}
+
+func logCount(t *testing.T, db *sql.DB, operationID, outcome, code string) string {
+	t.Helper()
+	return count(t, db, `SELECT COUNT(*) FROM athena_posting_log WHERE operation_id = ? AND outcome = ? AND code = ?`, operationID, outcome, code)
+}
+
+func TestOperationReplay(t *testing.T) {
+	ctx := context.Background()
+	engine, masters, db := setup(t)
+	seedBasics(t, masters)
+	plan := basePlan()
+	operationID := uuid.NewString()
+
+	first, err := engine.Post(ctx, plan, opOpts(operationID))
+	if err != nil {
+		t.Fatalf("post: %v", err)
+	}
+	if first.Replayed || first.OperationID != operationID || first.PlanHash == "" {
+		t.Fatalf("first result: %+v", first)
+	}
+	second, err := engine.Post(ctx, plan, opOpts(operationID))
+	if err != nil {
+		t.Fatalf("replay: %v", err)
+	}
+	want := first
+	want.Replayed = true
+	if !equalResults(second, want) {
+		t.Fatalf("replay = %+v, want %+v", second, want)
+	}
+	if got := count(t, db, `SELECT COUNT(*) FROM l_gl`); got != "2" {
+		t.Fatalf("ledger rows = %s, want 2", got)
+	}
+	if got := count(t, db, `SELECT COUNT(*) FROM athena_operations`); got != "1" {
+		t.Fatalf("operation rows = %s, want 1", got)
+	}
+	if got := count(t, db, `SELECT COUNT(*) FROM athena_posting_groups`); got != "1" {
+		t.Fatalf("group rows = %s, want 1", got)
+	}
+	if got := logCount(t, db, operationID, posting.OutcomePosted, posting.CodeOK); got != "1" {
+		t.Fatalf("posted log rows = %s, want 1", got)
+	}
+	if got := logCount(t, db, operationID, posting.OutcomeReplayed, posting.CodeOK); got != "1" {
+		t.Fatalf("replayed log rows = %s, want 1", got)
+	}
+}
+
+func TestOperationConflict(t *testing.T) {
+	ctx := context.Background()
+	engine, masters, db := setup(t)
+	seedBasics(t, masters)
+	plan := basePlan()
+	operationID := uuid.NewString()
+	if _, err := engine.Post(ctx, plan, opOpts(operationID)); err != nil {
+		t.Fatalf("post: %v", err)
+	}
+	changed := plan
+	changed.Lines = append([]posting.Line(nil), plan.Lines...)
+	changed.Lines[0].DebitBase = dec("101.00")
+	changed.Lines[1].CreditBase = dec("101.00")
+	if _, err := engine.Post(ctx, changed, opOpts(operationID)); !errors.Is(err, posting.ErrConflict) {
+		t.Fatalf("same voucher changed payload: %v, want %v", err, posting.ErrConflict)
+	}
+	other := basePlan()
+	if _, err := engine.Post(ctx, other, opOpts(operationID)); !errors.Is(err, posting.ErrConflict) {
+		t.Fatalf("other voucher same id: %v, want %v", err, posting.ErrConflict)
+	}
+	if got := count(t, db, `SELECT COUNT(*) FROM l_gl`); got != "2" {
+		t.Fatalf("ledger rows = %s, want 2", got)
+	}
+	if got := logCount(t, db, operationID, posting.OutcomeConflict, posting.CodeConflict); got != "2" {
+		t.Fatalf("conflict log rows = %s, want 2", got)
+	}
+}
+
+func TestDifferentOperationSameVoucher(t *testing.T) {
+	ctx := context.Background()
+	engine, masters, db := setup(t)
+	seedBasics(t, masters)
+	plan := basePlan()
+
+	first, err := engine.Post(ctx, plan, opOpts(uuid.NewString()))
+	if err != nil {
+		t.Fatalf("post: %v", err)
+	}
+	otherID := uuid.NewString()
+	second, err := engine.Post(ctx, plan, opOpts(otherID))
+	if err != nil {
+		t.Fatalf("second operation: %v", err)
+	}
+	// Post-once returns the first result verbatim, including its operation
+	// id, with only the replay flag set.
+	want := first
+	want.Replayed = true
+	if !equalResults(second, want) {
+		t.Fatalf("second = %+v, want %+v", second, want)
+	}
+	if got := count(t, db, `SELECT COUNT(*) FROM l_gl`); got != "2" {
+		t.Fatalf("ledger rows = %s, want 2", got)
+	}
+	if got := count(t, db, `SELECT COUNT(*) FROM athena_posting_groups`); got != "1" {
+		t.Fatalf("group rows = %s, want 1", got)
+	}
+	if got := logCount(t, db, otherID, posting.OutcomeReplayed, posting.CodeDuplicateGroup); got != "1" {
+		t.Fatalf("duplicate-group log rows = %s, want 1", got)
+	}
+}
+
+func TestOperationScaleInsensitive(t *testing.T) {
+	ctx := context.Background()
+	engine, masters, db := setup(t)
+	seedBasics(t, masters)
+	plan := basePlan()
+	plan.Lines[0].DebitBase = dec("100.00")
+	plan.Lines[1].CreditBase = dec("100.00")
+	operationID := uuid.NewString()
+	first, err := engine.Post(ctx, plan, opOpts(operationID))
+	if err != nil {
+		t.Fatalf("post: %v", err)
+	}
+	rescaled := plan
+	rescaled.Lines = append([]posting.Line(nil), plan.Lines...)
+	rescaled.Lines[0].DebitBase = dec("100.0")
+	rescaled.Lines[1].CreditBase = dec("100.0000")
+	second, err := engine.Post(ctx, rescaled, opOpts(operationID))
+	if err != nil {
+		t.Fatalf("rescaled replay: %v", err)
+	}
+	if !second.Replayed || second.PlanHash != first.PlanHash {
+		t.Fatalf("rescaled = %+v, want a replay of %+v", second, first)
+	}
+	if got := count(t, db, `SELECT COUNT(*) FROM l_gl`); got != "2" {
+		t.Fatalf("ledger rows = %s, want 2", got)
+	}
+}
+
+func TestGeneratedOperationID(t *testing.T) {
+	ctx := context.Background()
+	engine, masters, _ := setup(t)
+	seedBasics(t, masters)
+	result, err := engine.Post(ctx, basePlan(), opts())
+	if err != nil {
+		t.Fatalf("post: %v", err)
+	}
+	if result.OperationID == "" || result.Replayed {
+		t.Fatalf("result: %+v", result)
+	}
+}
+
+func TestPostingLogOutcomes(t *testing.T) {
+	ctx := context.Background()
+	engine, masters, db := setup(t)
+	seedBasics(t, masters)
+
+	posted := uuid.NewString()
+	if _, err := engine.Post(ctx, basePlan(), opOpts(posted)); err != nil {
+		t.Fatal(err)
+	}
+	replayed := uuid.NewString()
+	replayPlan := basePlan()
+	if _, err := engine.Post(ctx, replayPlan, opOpts(replayed)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := engine.Post(ctx, replayPlan, opOpts(replayed)); err != nil {
+		t.Fatal(err)
+	}
+	conflicted := uuid.NewString()
+	if _, err := engine.Post(ctx, basePlan(), opOpts(conflicted)); err != nil {
+		t.Fatal(err)
+	}
+	changed := basePlan()
+	changed.Lines[1].CreditBase = dec("50.00")
+	if _, err := engine.Post(ctx, changed, opOpts(conflicted)); !errors.Is(err, posting.ErrConflict) {
+		t.Fatal("changed payload did not conflict")
+	}
+	duplicate := uuid.NewString()
+	duplicatePlan := basePlan()
+	if _, err := engine.Post(ctx, duplicatePlan, opOpts(uuid.NewString())); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := engine.Post(ctx, duplicatePlan, opOpts(duplicate)); err != nil {
+		t.Fatal(err)
+	}
+	invalid := uuid.NewString()
+	unbalanced := basePlan()
+	unbalanced.Lines[1].CreditBase = dec("50.00")
+	if _, err := engine.Post(ctx, unbalanced, opOpts(invalid)); !errors.Is(err, posting.ErrInvalid) {
+		t.Fatal("unbalanced plan posted")
+	}
+	policy := uuid.NewString()
+	bookless := basePlan()
+	bookless.Book = ""
+	if _, err := engine.Post(ctx, bookless, opOpts(policy)); !errors.Is(err, posting.ErrBookPolicyOpen) {
+		t.Fatal("bookless plan posted")
+	}
+	for operationID, want := range map[string][2]string{
+		posted:     {posting.OutcomePosted, posting.CodeOK},
+		replayed:   {posting.OutcomeReplayed, posting.CodeOK},
+		conflicted: {posting.OutcomeConflict, posting.CodeConflict},
+		duplicate:  {posting.OutcomeReplayed, posting.CodeDuplicateGroup},
+		invalid:    {posting.OutcomeRejected, posting.CodeInvalid},
+		policy:     {posting.OutcomeRejected, posting.CodeBookPolicyOpen},
+	} {
+		if got := logCount(t, db, operationID, want[0], want[1]); got != "1" {
+			t.Fatalf("operation %s: (%s, %s) rows = %s, want 1", operationID, want[0], want[1], got)
+		}
+	}
+	if got := count(t, db, `SELECT COUNT(*) FROM athena_posting_log WHERE plan_hash = ''`); got != "0" {
+		t.Fatalf("log rows without a plan hash = %s, want 0", got)
+	}
+}
+
+func TestHardClosedPeriodLogsCorrectionWindow(t *testing.T) {
+	ctx := context.Background()
+	engine, masters, db := setup(t)
+	seedBasics(t, masters)
+	if _, err := masters.SetPeriodStatus(ctx, "acme", "main", "fy2026", ledger.PeriodSoftClosed, "tester", 1); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := masters.SetPeriodStatus(ctx, "acme", "main", "fy2026", ledger.PeriodHardClosed, "tester", 2); err != nil {
+		t.Fatal(err)
+	}
+	operationID := uuid.NewString()
+	if _, err := engine.Post(ctx, basePlan(), opOpts(operationID)); !errors.Is(err, posting.ErrCorrectionWindowOpen) {
+		t.Fatal("hard-closed period posted")
+	}
+	if got := logCount(t, db, operationID, posting.OutcomeRejected, posting.CodeCorrectionWindowOpen); got != "1" {
+		t.Fatalf("correction-window log rows = %s, want 1", got)
+	}
+}
+
+func TestRevisionPostsAgain(t *testing.T) {
+	ctx := context.Background()
+	engine, masters, db := setup(t)
+	seedBasics(t, masters)
+	plan := basePlan()
+	operationID := uuid.NewString()
+	if _, err := engine.Post(ctx, plan, opOpts(operationID)); err != nil {
+		t.Fatalf("revision 1: %v", err)
+	}
+	amended := plan
+	amended.Revision = 2
+	if _, err := engine.Post(ctx, amended, opOpts(uuid.NewString())); err != nil {
+		t.Fatalf("revision 2: %v", err)
+	}
+	// The same operation id cannot follow the voucher to its new revision:
+	// the payload changed, so it conflicts.
+	if _, err := engine.Post(ctx, amended, opOpts(operationID)); !errors.Is(err, posting.ErrConflict) {
+		t.Fatalf("reused id on revision 2 did not conflict")
+	}
+	if got := count(t, db, `SELECT COUNT(*) FROM l_gl`); got != "4" {
+		t.Fatalf("ledger rows = %s, want 4", got)
+	}
+	if got := count(t, db, `SELECT COUNT(*) FROM athena_posting_groups`); got != "2" {
+		t.Fatalf("group rows = %s, want 2", got)
+	}
+}
+
+func TestNilDialectDegradesGracefully(t *testing.T) {
+	ctx := context.Background()
+	_, masters, db := setup(t)
+	seedBasics(t, masters)
+	engine := &posting.Engine{DB: db}
+	plan := basePlan()
+	if _, err := db.Exec(`INSERT INTO athena_posting_groups (id, voucher_type, voucher_id, voucher_revision, event, book, operation_id) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		uuid.NewString(), plan.VoucherType, plan.VoucherID, plan.Revision, plan.Event, plan.Book, uuid.NewString()); err != nil {
+		t.Fatal(err)
+	}
+	// No Dialect means no classification: the collision comes back as a raw
+	// database error instead of panicking or replaying.
+	_, err := engine.Post(ctx, plan, opts())
+	if err == nil || errors.Is(err, posting.ErrConflict) {
+		t.Fatalf("post: %v, want a raw collision error", err)
+	}
+	if got := count(t, db, `SELECT COUNT(*) FROM athena_posting_log WHERE outcome = 'error'`); got != "1" {
+		t.Fatalf("error log rows = %s, want 1", got)
+	}
+}
+
 func TestPostInTxJoinsCallerTransaction(t *testing.T) {
 	ctx := context.Background()
 	engine, masters, db := setup(t)
@@ -516,4 +813,185 @@ func TestPostInTxJoinsCallerTransaction(t *testing.T) {
 	if got := count(t, db, `SELECT COUNT(*) FROM l_gl`); got != "2" {
 		t.Fatalf("ledger rows after commit = %s, want 2", got)
 	}
+}
+
+// fatalf is what the shared database helpers need: both *testing.T and
+// *rapid.T supply it.
+type fatalf interface {
+	Fatalf(format string, args ...any)
+}
+
+func voucherRows(t fatalf, db *sql.DB, voucherID string) int {
+	var rows int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM l_gl WHERE voucher_type = 'journal' AND voucher_id = ?`, voucherID).Scan(&rows); err != nil {
+		t.Fatalf("read rows: %v", err)
+	}
+	return rows
+}
+
+func balanceSnapshot(t fatalf, db *sql.DB) map[string][2]string {
+	rows, err := db.Query(`SELECT account_name, debit_total, credit_total FROM athena_balance_account`)
+	if err != nil {
+		t.Fatalf("read balances: %v", err)
+	}
+	defer rows.Close()
+	out := map[string][2]string{}
+	for rows.Next() {
+		var name, debit, credit string
+		if err := rows.Scan(&name, &debit, &credit); err != nil {
+			t.Fatalf("read balances: %v", err)
+		}
+		out[name] = [2]string{debit, credit}
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("read balances: %v", err)
+	}
+	return out
+}
+
+type replayOutcome struct {
+	result posting.Result
+	err    error
+}
+
+// TestIdempotentReplayProperty checks Property 9 over drawn plans with
+// concurrent replays: for any command and any number of replays with one
+// operation id and payload, the ledgers equal the state after the first
+// replay and every replay returns the same result; any other payload under
+// the id conflicts; and another operation id for the same voucher revision
+// returns the first result without posting again.
+//
+// Feature: athena-batch-2, Property 9: Idempotent replay.
+//
+// One shared database serves all iterations. Each iteration also races fresh
+// posts of one plan, so the losers must take the collision paths and still
+// return the single winner's result.
+func TestIdempotentReplayProperty(t *testing.T) {
+	ctx := context.Background()
+	db := testdb.New(t)
+	if _, err := store.Up(ctx, db, store.MariaDB{}, server.SystemMigrations(), store.UpOptions{}); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	engine := &posting.Engine{DB: db, Dialect: store.MariaDB{}}
+	masters := &ledger.Service{DB: db, Dialect: store.MariaDB{}}
+	seedBasics(t, masters)
+	accounts := []string{"cash", "bank", "cost"}
+	rapid.Check(t, func(t *rapid.T) {
+		lines := drawBalancedLines(t, accounts)
+		plan := posting.Plan{
+			VoucherType: "journal", VoucherID: uuid.NewString(), Revision: 1,
+			Event: posting.EventSubmit, Book: "main", PostingDate: "2026-06-15", Lines: lines,
+		}
+		operationID := uuid.NewString()
+		first, err := engine.Post(ctx, plan, opOpts(operationID))
+		if err != nil {
+			t.Fatalf("post: %v", err)
+		}
+		want := first
+		want.Replayed = true
+
+		n := rapid.IntRange(2, 6).Draw(t, "replays")
+		before := balanceSnapshot(t, db)
+		start := make(chan struct{})
+		outcomes := make(chan replayOutcome, n)
+		for i := 0; i < n; i++ {
+			go func() {
+				<-start
+				result, err := engine.Post(ctx, plan, opOpts(operationID))
+				outcomes <- replayOutcome{result, err}
+			}()
+		}
+		close(start)
+		for i := 0; i < n; i++ {
+			outcome := <-outcomes
+			if outcome.err != nil {
+				t.Fatalf("replay: %v", outcome.err)
+			}
+			if !equalResults(outcome.result, want) {
+				t.Fatalf("replay = %+v, want %+v", outcome.result, want)
+			}
+		}
+		if after := balanceSnapshot(t, db); fmt.Sprint(after) != fmt.Sprint(before) {
+			t.Fatalf("balances moved under replay: %v vs %v", before, after)
+		}
+		if rows := voucherRows(t, db, plan.VoucherID); rows != len(lines) {
+			t.Fatalf("rows = %d, want %d", rows, len(lines))
+		}
+
+		bad := plan
+		bad.Lines = append([]posting.Line(nil), lines...)
+		bumped := false
+		for i := range bad.Lines {
+			if bad.Lines[i].DebitBase.Sign() > 0 {
+				bad.Lines[i].DebitBase = bad.Lines[i].DebitBase.Add(types.MustDecimal("0.01"))
+				bumped = true
+				break
+			}
+		}
+		if !bumped {
+			t.Fatal("drawn plan has no debit line")
+		}
+		if _, err := engine.Post(ctx, bad, opOpts(operationID)); !errors.Is(err, posting.ErrConflict) {
+			t.Fatalf("changed payload: %v, want %v", err, posting.ErrConflict)
+		}
+		if rows := voucherRows(t, db, plan.VoucherID); rows != len(lines) {
+			t.Fatalf("rows after conflict = %d, want %d", rows, len(lines))
+		}
+
+		second, err := engine.Post(ctx, plan, opOpts(uuid.NewString()))
+		if err != nil {
+			t.Fatalf("second operation: %v", err)
+		}
+		if !equalResults(second, want) {
+			t.Fatalf("second operation = %+v, want %+v", second, want)
+		}
+		if rows := voucherRows(t, db, plan.VoucherID); rows != len(lines) {
+			t.Fatalf("rows after second operation = %d, want %d", rows, len(lines))
+		}
+
+		// Fresh posts racing each other: exactly one wins the group, and
+		// every loser returns the winner's result.
+		m := rapid.IntRange(2, 4).Draw(t, "racers")
+		race := plan
+		race.VoucherID = uuid.NewString()
+		raceOp := uuid.NewString()
+		raceStart := make(chan struct{})
+		raceOutcomes := make(chan replayOutcome, m)
+		for i := 0; i < m; i++ {
+			go func() {
+				<-raceStart
+				result, err := engine.Post(ctx, race, opOpts(raceOp))
+				raceOutcomes <- replayOutcome{result, err}
+			}()
+		}
+		close(raceStart)
+		raced := make([]replayOutcome, m)
+		for i := 0; i < m; i++ {
+			raced[i] = <-raceOutcomes
+			if raced[i].err != nil {
+				t.Fatalf("race: %v", raced[i].err)
+			}
+		}
+		var winner posting.Result
+		winners := 0
+		for _, outcome := range raced {
+			if !outcome.result.Replayed {
+				winners++
+				winner = outcome.result
+			}
+		}
+		if winners != 1 {
+			t.Fatalf("racers produced %d winners, want 1", winners)
+		}
+		wantRace := winner
+		wantRace.Replayed = true
+		for _, outcome := range raced {
+			if outcome.result.Replayed && !equalResults(outcome.result, wantRace) {
+				t.Fatalf("loser = %+v, want %+v", outcome.result, wantRace)
+			}
+		}
+		if rows := voucherRows(t, db, race.VoucherID); rows != len(lines) {
+			t.Fatalf("race rows = %d, want %d", rows, len(lines))
+		}
+	})
 }

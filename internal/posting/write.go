@@ -7,12 +7,13 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"athena-erp/internal/audit"
 	"athena-erp/internal/ledger"
-	"athena-erp/internal/store"
 	"athena-erp/internal/types"
 
 	"github.com/google/uuid"
@@ -38,51 +39,115 @@ func (e *Engine) Post(ctx context.Context, plan Plan, opts PostOptions) (Result,
 	return result, nil
 }
 
-// PostInTx is Post inside the caller's transaction.
+// PostInTx is Post inside the caller's transaction. It replays a known
+// operation id before validating, so a retry returns the first result even
+// when the plan would no longer validate; writes one posting group per
+// voucher revision, event and book; and records the attempt in the posting
+// log, through a separate connection when the attempt fails.
 func (e *Engine) PostInTx(ctx context.Context, tx *sql.Tx, plan Plan, opts PostOptions) (Result, error) {
+	operationID := opts.OperationID
+	if operationID == "" {
+		generated, err := uuid.NewV7()
+		if err != nil {
+			return Result{}, err
+		}
+		operationID = generated.String()
+	}
 	if err := checkOptions(opts); err != nil {
-		return Result{}, err
-	}
-	if err := ValidatePlan(ctx, tx, plan); err != nil {
-		return Result{}, err
-	}
-	groupID, err := uuid.NewV7()
-	if err != nil {
+		e.logFailure(ctx, plan, operationID, opts, OutcomeRejected, CodeInvalid, "", err)
 		return Result{}, err
 	}
 	hash, err := hashPlan(plan)
 	if err != nil {
+		e.logFailure(ctx, plan, operationID, opts, OutcomeError, CodeInternal, "", err)
+		return Result{}, err
+	}
+	if opts.OperationID != "" {
+		found, stored, err := lookupOperation(ctx, tx, opts.Actor, CommandPost, operationID)
+		if err != nil {
+			e.logFailure(ctx, plan, operationID, opts, OutcomeError, CodeInternal, hash, err)
+			return Result{}, err
+		}
+		if found {
+			if stored.PayloadHash != hash {
+				e.logFailure(ctx, plan, operationID, opts, OutcomeConflict, CodeConflict, hash, ErrConflict)
+				return Result{}, fmt.Errorf("%w: operation %q already posted another payload", ErrConflict, operationID)
+			}
+			stored.Result.Replayed = true
+			if err := insertLogRow(ctx, tx, plan, operationID, opts, OutcomeReplayed, CodeOK, "", hash); err != nil {
+				return Result{}, err
+			}
+			return stored.Result, nil
+		}
+	}
+	if err := ValidatePlan(ctx, tx, plan); err != nil {
+		outcome, code := codeFor(err)
+		e.logFailure(ctx, plan, operationID, opts, outcome, code, hash, err)
+		return Result{}, err
+	}
+	groupID, err := uuid.NewV7()
+	if err != nil {
+		e.logFailure(ctx, plan, operationID, opts, OutcomeError, CodeInternal, hash, err)
+		return Result{}, err
+	}
+	if err := insertGroup(ctx, tx, groupID.String(), plan, operationID); err != nil {
+		if e.isDuplicate(err) {
+			return e.replayGroupResult(ctx, tx, plan, operationID, opts, hash)
+		}
+		e.logFailure(ctx, plan, operationID, opts, OutcomeError, CodeInternal, hash, err)
 		return Result{}, err
 	}
 	rowIDs := make([]string, len(plan.Lines))
 	for i := range plan.Lines {
 		id, err := uuid.NewV7()
 		if err != nil {
+			e.logFailure(ctx, plan, operationID, opts, OutcomeError, CodeInternal, hash, err)
 			return Result{}, err
 		}
 		rowIDs[i] = id.String()
 	}
-	if err := insertRows(ctx, tx, groupID.String(), rowIDs, plan); err != nil {
+	result := Result{PostingGroupID: groupID.String(), RowIDs: rowIDs, PlanHash: hash, OperationID: operationID}
+	if err := insertOperation(ctx, tx, opts.Actor, operationID, hash, result); err != nil {
+		if e.isDuplicate(err) {
+			return e.replayOperationResult(ctx, tx, plan, operationID, opts, hash)
+		}
+		e.logFailure(ctx, plan, operationID, opts, OutcomeError, CodeInternal, hash, err)
 		return Result{}, err
 	}
-	if err := applyBalances(ctx, tx, e.Dialect, plan); err != nil {
+	if err := e.writePosting(ctx, tx, plan, opts, result); err != nil {
+		e.logFailure(ctx, plan, operationID, opts, OutcomeError, CodeInternal, hash, err)
 		return Result{}, err
+	}
+	if err := insertLogRow(ctx, tx, plan, operationID, opts, OutcomePosted, CodeOK, "", hash); err != nil {
+		return Result{}, err
+	}
+	return result, nil
+}
+
+// writePosting writes the ledger rows, balance deltas, audit event and
+// outbox row of one validated post.
+func (e *Engine) writePosting(ctx context.Context, tx *sql.Tx, plan Plan, opts PostOptions, result Result) error {
+	if err := insertRows(ctx, tx, result.PostingGroupID, result.RowIDs, plan); err != nil {
+		return err
+	}
+	if err := e.applyBalances(ctx, tx, plan); err != nil {
+		return err
 	}
 	if _, err := audit.Append(ctx, tx, e.Dialect, audit.Entry{
 		RecordType: plan.VoucherType, RecordID: plan.VoucherID, Revision: plan.Revision,
 		Action: AuditAction,
 		Changes: []audit.Change{
 			{Field: "ledger_rows", New: ptr(strconv.Itoa(len(plan.Lines)))},
-			{Field: "posting_group", New: ptr(groupID.String())},
+			{Field: "posting_group", New: ptr(result.PostingGroupID)},
 		},
 		Actor: opts.Actor, Source: opts.Source, RequestID: opts.RequestID,
 	}); err != nil {
-		return Result{}, fmt.Errorf("append audit event: %w", err)
+		return fmt.Errorf("append audit event: %w", err)
 	}
-	if err := insertOutbox(ctx, tx, groupID.String(), hash, plan); err != nil {
-		return Result{}, err
+	if err := insertOutbox(ctx, tx, result.PostingGroupID, result.PlanHash, plan); err != nil {
+		return err
 	}
-	return Result{PostingGroupID: groupID.String(), RowIDs: rowIDs, PlanHash: hash}, nil
+	return nil
 }
 
 func ptr(value string) *string { return &value }
@@ -93,6 +158,9 @@ func checkOptions(opts PostOptions) error {
 	}
 	if opts.Source == "" {
 		return fmt.Errorf("%w: a post needs its source", ErrInvalid)
+	}
+	if utf8.RuneCountInString(opts.OperationID) > 140 {
+		return fmt.Errorf("%w: the operation id is longer than 140 characters", ErrInvalid)
 	}
 	return nil
 }
@@ -181,7 +249,7 @@ type balanceDelta struct {
 // first so the common case holds the row lock; a missing row inserts, and a
 // lost insert race falls back to the update. The statements use portable SQL
 // with one placeholder style, like the ledger package.
-func applyBalances(ctx context.Context, tx *sql.Tx, dialect dialectClassifier, plan Plan) error {
+func (e *Engine) applyBalances(ctx context.Context, tx *sql.Tx, plan Plan) error {
 	deltas := map[balanceKey]*balanceDelta{}
 	order := []balanceKey{}
 	for i := range plan.Lines {
@@ -206,6 +274,17 @@ func applyBalances(ctx context.Context, tx *sql.Tx, dialect dialectClassifier, p
 	}
 	masters := &ledger.Service{DB: tx}
 	companies := map[string]ledger.Company{}
+	// One global lock order for every post: concurrent posts take the same
+	// balance rows in the same order and never deadlock each other.
+	sort.Slice(order, func(i, j int) bool {
+		if order[i].company != order[j].company {
+			return order[i].company < order[j].company
+		}
+		if order[i].book != order[j].book {
+			return order[i].book < order[j].book
+		}
+		return order[i].account < order[j].account
+	})
 	for _, key := range order {
 		delta := deltas[key]
 		result, err := tx.ExecContext(ctx, `UPDATE athena_balance_account SET debit_total = debit_total + ?, credit_total = credit_total + ? WHERE company_name = ? AND book = ? AND account_name = ?`,
@@ -229,7 +308,7 @@ func applyBalances(ctx context.Context, tx *sql.Tx, dialect dialectClassifier, p
 		if err == nil {
 			continue
 		}
-		if dialect.Classify(err) != store.ErrDuplicateKey {
+		if !e.isDuplicate(err) {
 			return err
 		}
 		if _, err := tx.ExecContext(ctx, `UPDATE athena_balance_account SET debit_total = debit_total + ?, credit_total = credit_total + ? WHERE company_name = ? AND book = ? AND account_name = ?`,
@@ -244,12 +323,6 @@ type balanceKey struct {
 	company string
 	book    string
 	account string
-}
-
-// dialectClassifier is the error-classification half of store.Dialect, the
-// only half the writer needs.
-type dialectClassifier interface {
-	Classify(error) store.ErrorKind
 }
 
 // addDecimalText adds two exact decimal texts, for balance deltas summed
@@ -303,7 +376,8 @@ func insertOutbox(ctx context.Context, tx *sql.Tx, groupID, hash string, plan Pl
 }
 
 // hashPlan is the SHA-256 of the plan's canonical JSON: lines in order with
-// dimensions sorted by encoding/json, amounts in their exact decimal text.
+// dimensions sorted by encoding/json, amounts in normalized decimal text so
+// that 100.00 and 100 hash alike and never conflict with each other.
 func hashPlan(plan Plan) (string, error) {
 	type line struct {
 		Company     string            `json:"company"`
@@ -337,14 +411,16 @@ func hashPlan(plan Plan) (string, error) {
 		source := &plan.Lines[i]
 		quantity := ""
 		if source.Quantity != nil {
-			quantity = source.Quantity.String()
+			quantity = canonicalDecimalText(source.Quantity.String())
 		}
 		out.Lines[i] = line{
 			Company: source.Company, Account: source.Account,
-			DebitBase: source.DebitBase.String(), CreditBase: source.CreditBase.String(),
+			DebitBase:   canonicalDecimalText(source.DebitBase.String()),
+			CreditBase:  canonicalDecimalText(source.CreditBase.String()),
 			TxnCurrency: source.TxnCurrency,
-			TxnDebit:    source.TxnDebit.String(), TxnCredit: source.TxnCredit.String(),
-			Quantity: quantity, QuantityUOM: source.QuantityUOM,
+			TxnDebit:    canonicalDecimalText(source.TxnDebit.String()),
+			TxnCredit:   canonicalDecimalText(source.TxnCredit.String()),
+			Quantity:    quantity, QuantityUOM: source.QuantityUOM,
 			Dimensions: nonNilMap(source.Dimensions),
 			SourceType: source.SourceType, SourceID: source.SourceID,
 		}
@@ -355,4 +431,19 @@ func hashPlan(plan Plan) (string, error) {
 	}
 	sum := sha256.Sum256(raw)
 	return hex.EncodeToString(sum[:]), nil
+}
+
+// canonicalDecimalText normalizes a Decimal's text so equal values hash
+// alike whatever scale they carry: trailing fraction zeros go, and a bare
+// point with them, so 100.00 and 100 both read 100.
+func canonicalDecimalText(text string) string {
+	whole, frac, hasDot := strings.Cut(text, ".")
+	if !hasDot {
+		return text
+	}
+	frac = strings.TrimRight(frac, "0")
+	if frac == "" {
+		return whole
+	}
+	return whole + "." + frac
 }

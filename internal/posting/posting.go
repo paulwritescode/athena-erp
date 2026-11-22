@@ -2,14 +2,15 @@
 // ADR-0023, Proposed): it validates a Posting_Plan and writes it as balanced
 // ledger rows exactly once. A Plan names one voucher revision, one event and
 // one book; Post writes the ledger rows, balance deltas, audit event and
-// outbox row in a single transaction.
+// outbox row in a single transaction, with one posting-group row per voucher
+// revision, event and book and one operation row per attempt, so a voucher
+// posts once and an operation id replays its first result.
 //
 // Two policies stay open for the sponsor (Z2): the backdating/correction
 // window (O-011) and the book policy (O-012). Anywhere posting needs them,
 // the engine returns ErrBookPolicyOpen or ErrCorrectionWindowOpen, which the
 // server maps to failed_precondition; it never invents a window or a default
-// book. The posting-group and operation rows arrive with the Operation_ID
-// contract (6.4); until then rows carry a group id with no group row.
+// book.
 package posting
 
 import (
@@ -52,6 +53,9 @@ var (
 	// the correction window (Z2, O-011) that would name an allowed period is
 	// undecided, so the engine refuses rather than guessing one.
 	ErrCorrectionWindowOpen = errors.New("posting: correction window is not decided yet")
+	// ErrConflict reports an operation id reused with another payload. The
+	// ledgers keep the first payload; the caller must send a fresh id.
+	ErrConflict = errors.New("posting: operation id was reused with a different payload")
 )
 
 // Line is one leg of a plan. Exactly one of DebitBase and CreditBase is
@@ -89,22 +93,30 @@ type Plan struct {
 	Lines       []Line
 }
 
-// PostOptions carries the audit identity of a post.
+// PostOptions carries the audit identity of a post. OperationID is the
+// caller's idempotency key: repeating a post with the same id and payload
+// replays the first result, while another payload under the id conflicts.
+// Empty lets the engine generate one, which posts without replay cover.
 type PostOptions struct {
-	Actor     string
-	Source    string // api, cli, rule, import or job
-	RequestID string
+	Actor       string
+	Source      string // api, cli, rule, import or job
+	RequestID   string
+	OperationID string
 }
 
-// Result describes a committed post.
+// Result describes a committed post. Replayed is true when the result came
+// from an earlier post instead of the ledgers being written again.
 type Result struct {
-	PostingGroupID string
-	RowIDs         []string
-	PlanHash       string
+	PostingGroupID string   `json:"posting_group_id"`
+	RowIDs         []string `json:"row_ids"`
+	PlanHash       string   `json:"plan_hash"`
+	OperationID    string   `json:"operation_id"`
+	Replayed       bool     `json:"replayed"`
 }
 
 // Engine posts plans. DB is the workspace database; Dialect classifies its
-// errors.
+// errors and is required wherever a duplicate key decides the replay path,
+// so always set it: a nil Dialect degrades collisions to raw errors.
 type Engine struct {
 	DB      *sql.DB
 	Dialect store.Dialect
