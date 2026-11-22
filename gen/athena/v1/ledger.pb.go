@@ -4743,6 +4743,1118 @@ func (x *GetReadinessResponse) GetChecks() []*ReadinessCheck {
 	return nil
 }
 
+// PostingPlanLine is one leg of a previewed plan with its resolved account.
+type PostingPlanLine struct {
+	state        protoimpl.MessageState `protogen:"open.v1"`
+	Company      string                 `protobuf:"bytes,1,opt,name=company,proto3" json:"company,omitempty"`
+	Account      string                 `protobuf:"bytes,2,opt,name=account,proto3" json:"account,omitempty"`
+	AccountLabel string                 `protobuf:"bytes,3,opt,name=account_label,json=accountLabel,proto3" json:"account_label,omitempty"`
+	DebitBase    string                 `protobuf:"bytes,4,opt,name=debit_base,json=debitBase,proto3" json:"debit_base,omitempty"`
+	CreditBase   string                 `protobuf:"bytes,5,opt,name=credit_base,json=creditBase,proto3" json:"credit_base,omitempty"`
+	TxnCurrency  string                 `protobuf:"bytes,6,opt,name=txn_currency,json=txnCurrency,proto3" json:"txn_currency,omitempty"`
+	TxnDebit     string                 `protobuf:"bytes,7,opt,name=txn_debit,json=txnDebit,proto3" json:"txn_debit,omitempty"`
+	TxnCredit    string                 `protobuf:"bytes,8,opt,name=txn_credit,json=txnCredit,proto3" json:"txn_credit,omitempty"`
+	// Empty when the leg has no quantity.
+	Quantity      string            `protobuf:"bytes,9,opt,name=quantity,proto3" json:"quantity,omitempty"`
+	QuantityUom   string            `protobuf:"bytes,10,opt,name=quantity_uom,json=quantityUom,proto3" json:"quantity_uom,omitempty"`
+	Dimensions    map[string]string `protobuf:"bytes,11,rep,name=dimensions,proto3" json:"dimensions,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	SourceType    string            `protobuf:"bytes,12,opt,name=source_type,json=sourceType,proto3" json:"source_type,omitempty"`
+	SourceId      string            `protobuf:"bytes,13,opt,name=source_id,json=sourceId,proto3" json:"source_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PostingPlanLine) Reset() {
+	*x = PostingPlanLine{}
+	mi := &file_athena_v1_ledger_proto_msgTypes[86]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PostingPlanLine) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PostingPlanLine) ProtoMessage() {}
+
+func (x *PostingPlanLine) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_ledger_proto_msgTypes[86]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PostingPlanLine.ProtoReflect.Descriptor instead.
+func (*PostingPlanLine) Descriptor() ([]byte, []int) {
+	return file_athena_v1_ledger_proto_rawDescGZIP(), []int{86}
+}
+
+func (x *PostingPlanLine) GetCompany() string {
+	if x != nil {
+		return x.Company
+	}
+	return ""
+}
+
+func (x *PostingPlanLine) GetAccount() string {
+	if x != nil {
+		return x.Account
+	}
+	return ""
+}
+
+func (x *PostingPlanLine) GetAccountLabel() string {
+	if x != nil {
+		return x.AccountLabel
+	}
+	return ""
+}
+
+func (x *PostingPlanLine) GetDebitBase() string {
+	if x != nil {
+		return x.DebitBase
+	}
+	return ""
+}
+
+func (x *PostingPlanLine) GetCreditBase() string {
+	if x != nil {
+		return x.CreditBase
+	}
+	return ""
+}
+
+func (x *PostingPlanLine) GetTxnCurrency() string {
+	if x != nil {
+		return x.TxnCurrency
+	}
+	return ""
+}
+
+func (x *PostingPlanLine) GetTxnDebit() string {
+	if x != nil {
+		return x.TxnDebit
+	}
+	return ""
+}
+
+func (x *PostingPlanLine) GetTxnCredit() string {
+	if x != nil {
+		return x.TxnCredit
+	}
+	return ""
+}
+
+func (x *PostingPlanLine) GetQuantity() string {
+	if x != nil {
+		return x.Quantity
+	}
+	return ""
+}
+
+func (x *PostingPlanLine) GetQuantityUom() string {
+	if x != nil {
+		return x.QuantityUom
+	}
+	return ""
+}
+
+func (x *PostingPlanLine) GetDimensions() map[string]string {
+	if x != nil {
+		return x.Dimensions
+	}
+	return nil
+}
+
+func (x *PostingPlanLine) GetSourceType() string {
+	if x != nil {
+		return x.SourceType
+	}
+	return ""
+}
+
+func (x *PostingPlanLine) GetSourceId() string {
+	if x != nil {
+		return x.SourceId
+	}
+	return ""
+}
+
+// PostingPlan is what one posting Rule returns for a submit: the book, the
+// date and the legs, with the Rule version that built it.
+type PostingPlan struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RuleKey       string                 `protobuf:"bytes,1,opt,name=rule_key,json=ruleKey,proto3" json:"rule_key,omitempty"`
+	RuleVersion   int64                  `protobuf:"varint,2,opt,name=rule_version,json=ruleVersion,proto3" json:"rule_version,omitempty"`
+	Book          string                 `protobuf:"bytes,3,opt,name=book,proto3" json:"book,omitempty"`
+	PostingDate   string                 `protobuf:"bytes,4,opt,name=posting_date,json=postingDate,proto3" json:"posting_date,omitempty"`
+	Lines         []*PostingPlanLine     `protobuf:"bytes,5,rep,name=lines,proto3" json:"lines,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PostingPlan) Reset() {
+	*x = PostingPlan{}
+	mi := &file_athena_v1_ledger_proto_msgTypes[87]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PostingPlan) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PostingPlan) ProtoMessage() {}
+
+func (x *PostingPlan) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_ledger_proto_msgTypes[87]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PostingPlan.ProtoReflect.Descriptor instead.
+func (*PostingPlan) Descriptor() ([]byte, []int) {
+	return file_athena_v1_ledger_proto_rawDescGZIP(), []int{87}
+}
+
+func (x *PostingPlan) GetRuleKey() string {
+	if x != nil {
+		return x.RuleKey
+	}
+	return ""
+}
+
+func (x *PostingPlan) GetRuleVersion() int64 {
+	if x != nil {
+		return x.RuleVersion
+	}
+	return 0
+}
+
+func (x *PostingPlan) GetBook() string {
+	if x != nil {
+		return x.Book
+	}
+	return ""
+}
+
+func (x *PostingPlan) GetPostingDate() string {
+	if x != nil {
+		return x.PostingDate
+	}
+	return ""
+}
+
+func (x *PostingPlan) GetLines() []*PostingPlanLine {
+	if x != nil {
+		return x.Lines
+	}
+	return nil
+}
+
+type PreviewPostingRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RecordTypeKey string                 `protobuf:"bytes,1,opt,name=record_type_key,json=recordTypeKey,proto3" json:"record_type_key,omitempty"`
+	Id            string                 `protobuf:"bytes,2,opt,name=id,proto3" json:"id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PreviewPostingRequest) Reset() {
+	*x = PreviewPostingRequest{}
+	mi := &file_athena_v1_ledger_proto_msgTypes[88]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PreviewPostingRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PreviewPostingRequest) ProtoMessage() {}
+
+func (x *PreviewPostingRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_ledger_proto_msgTypes[88]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PreviewPostingRequest.ProtoReflect.Descriptor instead.
+func (*PreviewPostingRequest) Descriptor() ([]byte, []int) {
+	return file_athena_v1_ledger_proto_rawDescGZIP(), []int{88}
+}
+
+func (x *PreviewPostingRequest) GetRecordTypeKey() string {
+	if x != nil {
+		return x.RecordTypeKey
+	}
+	return ""
+}
+
+func (x *PreviewPostingRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+type PreviewPostingResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The voucher revision previewed. The plans assume revision + 1, the
+	// revision a submit now would assign, so plan_hash matches submit.
+	Revision int64          `protobuf:"varint,1,opt,name=revision,proto3" json:"revision,omitempty"`
+	Plans    []*PostingPlan `protobuf:"bytes,2,rep,name=plans,proto3" json:"plans,omitempty"`
+	// Combined hash of the plans; submit with it as posting_preview_hash to
+	// prove the approval saw this exact plan (R6.15).
+	PlanHash      string `protobuf:"bytes,3,opt,name=plan_hash,json=planHash,proto3" json:"plan_hash,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PreviewPostingResponse) Reset() {
+	*x = PreviewPostingResponse{}
+	mi := &file_athena_v1_ledger_proto_msgTypes[89]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PreviewPostingResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PreviewPostingResponse) ProtoMessage() {}
+
+func (x *PreviewPostingResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_ledger_proto_msgTypes[89]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PreviewPostingResponse.ProtoReflect.Descriptor instead.
+func (*PreviewPostingResponse) Descriptor() ([]byte, []int) {
+	return file_athena_v1_ledger_proto_rawDescGZIP(), []int{89}
+}
+
+func (x *PreviewPostingResponse) GetRevision() int64 {
+	if x != nil {
+		return x.Revision
+	}
+	return 0
+}
+
+func (x *PreviewPostingResponse) GetPlans() []*PostingPlan {
+	if x != nil {
+		return x.Plans
+	}
+	return nil
+}
+
+func (x *PreviewPostingResponse) GetPlanHash() string {
+	if x != nil {
+		return x.PlanHash
+	}
+	return ""
+}
+
+type GetPostingStatusRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RecordTypeKey string                 `protobuf:"bytes,1,opt,name=record_type_key,json=recordTypeKey,proto3" json:"record_type_key,omitempty"`
+	Id            string                 `protobuf:"bytes,2,opt,name=id,proto3" json:"id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetPostingStatusRequest) Reset() {
+	*x = GetPostingStatusRequest{}
+	mi := &file_athena_v1_ledger_proto_msgTypes[90]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetPostingStatusRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetPostingStatusRequest) ProtoMessage() {}
+
+func (x *GetPostingStatusRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_ledger_proto_msgTypes[90]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetPostingStatusRequest.ProtoReflect.Descriptor instead.
+func (*GetPostingStatusRequest) Descriptor() ([]byte, []int) {
+	return file_athena_v1_ledger_proto_rawDescGZIP(), []int{90}
+}
+
+func (x *GetPostingStatusRequest) GetRecordTypeKey() string {
+	if x != nil {
+		return x.RecordTypeKey
+	}
+	return ""
+}
+
+func (x *GetPostingStatusRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+// PostingGroupStatus is one posted group: one voucher revision, event and
+// book, with whether a reversal unwound it.
+type PostingGroupStatus struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Revision       int64                  `protobuf:"varint,1,opt,name=revision,proto3" json:"revision,omitempty"`
+	Event          string                 `protobuf:"bytes,2,opt,name=event,proto3" json:"event,omitempty"`
+	Book           string                 `protobuf:"bytes,3,opt,name=book,proto3" json:"book,omitempty"`
+	PostingGroupId string                 `protobuf:"bytes,4,opt,name=posting_group_id,json=postingGroupId,proto3" json:"posting_group_id,omitempty"`
+	RowCount       int64                  `protobuf:"varint,5,opt,name=row_count,json=rowCount,proto3" json:"row_count,omitempty"`
+	// RFC 3339 time of the post.
+	PostedAt string `protobuf:"bytes,6,opt,name=posted_at,json=postedAt,proto3" json:"posted_at,omitempty"`
+	Reversed bool   `protobuf:"varint,7,opt,name=reversed,proto3" json:"reversed,omitempty"`
+	// The cancel group unwinding it, when reversed.
+	ReversedBy    string `protobuf:"bytes,8,opt,name=reversed_by,json=reversedBy,proto3" json:"reversed_by,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PostingGroupStatus) Reset() {
+	*x = PostingGroupStatus{}
+	mi := &file_athena_v1_ledger_proto_msgTypes[91]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PostingGroupStatus) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PostingGroupStatus) ProtoMessage() {}
+
+func (x *PostingGroupStatus) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_ledger_proto_msgTypes[91]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PostingGroupStatus.ProtoReflect.Descriptor instead.
+func (*PostingGroupStatus) Descriptor() ([]byte, []int) {
+	return file_athena_v1_ledger_proto_rawDescGZIP(), []int{91}
+}
+
+func (x *PostingGroupStatus) GetRevision() int64 {
+	if x != nil {
+		return x.Revision
+	}
+	return 0
+}
+
+func (x *PostingGroupStatus) GetEvent() string {
+	if x != nil {
+		return x.Event
+	}
+	return ""
+}
+
+func (x *PostingGroupStatus) GetBook() string {
+	if x != nil {
+		return x.Book
+	}
+	return ""
+}
+
+func (x *PostingGroupStatus) GetPostingGroupId() string {
+	if x != nil {
+		return x.PostingGroupId
+	}
+	return ""
+}
+
+func (x *PostingGroupStatus) GetRowCount() int64 {
+	if x != nil {
+		return x.RowCount
+	}
+	return 0
+}
+
+func (x *PostingGroupStatus) GetPostedAt() string {
+	if x != nil {
+		return x.PostedAt
+	}
+	return ""
+}
+
+func (x *PostingGroupStatus) GetReversed() bool {
+	if x != nil {
+		return x.Reversed
+	}
+	return false
+}
+
+func (x *PostingGroupStatus) GetReversedBy() string {
+	if x != nil {
+		return x.ReversedBy
+	}
+	return ""
+}
+
+type GetPostingStatusResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Groups        []*PostingGroupStatus  `protobuf:"bytes,1,rep,name=groups,proto3" json:"groups,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetPostingStatusResponse) Reset() {
+	*x = GetPostingStatusResponse{}
+	mi := &file_athena_v1_ledger_proto_msgTypes[92]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetPostingStatusResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetPostingStatusResponse) ProtoMessage() {}
+
+func (x *GetPostingStatusResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_ledger_proto_msgTypes[92]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetPostingStatusResponse.ProtoReflect.Descriptor instead.
+func (*GetPostingStatusResponse) Descriptor() ([]byte, []int) {
+	return file_athena_v1_ledger_proto_rawDescGZIP(), []int{92}
+}
+
+func (x *GetPostingStatusResponse) GetGroups() []*PostingGroupStatus {
+	if x != nil {
+		return x.Groups
+	}
+	return nil
+}
+
+type ListPostingLogRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RecordTypeKey string                 `protobuf:"bytes,1,opt,name=record_type_key,json=recordTypeKey,proto3" json:"record_type_key,omitempty"`
+	Id            string                 `protobuf:"bytes,2,opt,name=id,proto3" json:"id,omitempty"`
+	// Filter by outcome: posted, replayed, conflict, rejected or error. Empty
+	// means any.
+	Outcome  string `protobuf:"bytes,3,opt,name=outcome,proto3" json:"outcome,omitempty"`
+	PageSize int32  `protobuf:"varint,4,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	// Opaque token from the previous page.
+	PageToken     string `protobuf:"bytes,5,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListPostingLogRequest) Reset() {
+	*x = ListPostingLogRequest{}
+	mi := &file_athena_v1_ledger_proto_msgTypes[93]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListPostingLogRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListPostingLogRequest) ProtoMessage() {}
+
+func (x *ListPostingLogRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_ledger_proto_msgTypes[93]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListPostingLogRequest.ProtoReflect.Descriptor instead.
+func (*ListPostingLogRequest) Descriptor() ([]byte, []int) {
+	return file_athena_v1_ledger_proto_rawDescGZIP(), []int{93}
+}
+
+func (x *ListPostingLogRequest) GetRecordTypeKey() string {
+	if x != nil {
+		return x.RecordTypeKey
+	}
+	return ""
+}
+
+func (x *ListPostingLogRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *ListPostingLogRequest) GetOutcome() string {
+	if x != nil {
+		return x.Outcome
+	}
+	return ""
+}
+
+func (x *ListPostingLogRequest) GetPageSize() int32 {
+	if x != nil {
+		return x.PageSize
+	}
+	return 0
+}
+
+func (x *ListPostingLogRequest) GetPageToken() string {
+	if x != nil {
+		return x.PageToken
+	}
+	return ""
+}
+
+// PostingLogEntry is one posting attempt and its outcome.
+type PostingLogEntry struct {
+	state       protoimpl.MessageState `protogen:"open.v1"`
+	Id          string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Revision    int64                  `protobuf:"varint,2,opt,name=revision,proto3" json:"revision,omitempty"`
+	Event       string                 `protobuf:"bytes,3,opt,name=event,proto3" json:"event,omitempty"`
+	Book        string                 `protobuf:"bytes,4,opt,name=book,proto3" json:"book,omitempty"`
+	OperationId string                 `protobuf:"bytes,5,opt,name=operation_id,json=operationId,proto3" json:"operation_id,omitempty"`
+	Outcome     string                 `protobuf:"bytes,6,opt,name=outcome,proto3" json:"outcome,omitempty"`
+	Code        string                 `protobuf:"bytes,7,opt,name=code,proto3" json:"code,omitempty"`
+	Message     string                 `protobuf:"bytes,8,opt,name=message,proto3" json:"message,omitempty"`
+	PlanHash    string                 `protobuf:"bytes,9,opt,name=plan_hash,json=planHash,proto3" json:"plan_hash,omitempty"`
+	Actor       string                 `protobuf:"bytes,10,opt,name=actor,proto3" json:"actor,omitempty"`
+	RequestId   string                 `protobuf:"bytes,11,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
+	// RFC 3339 time of the attempt.
+	CreatedAt     string `protobuf:"bytes,12,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PostingLogEntry) Reset() {
+	*x = PostingLogEntry{}
+	mi := &file_athena_v1_ledger_proto_msgTypes[94]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PostingLogEntry) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PostingLogEntry) ProtoMessage() {}
+
+func (x *PostingLogEntry) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_ledger_proto_msgTypes[94]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PostingLogEntry.ProtoReflect.Descriptor instead.
+func (*PostingLogEntry) Descriptor() ([]byte, []int) {
+	return file_athena_v1_ledger_proto_rawDescGZIP(), []int{94}
+}
+
+func (x *PostingLogEntry) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *PostingLogEntry) GetRevision() int64 {
+	if x != nil {
+		return x.Revision
+	}
+	return 0
+}
+
+func (x *PostingLogEntry) GetEvent() string {
+	if x != nil {
+		return x.Event
+	}
+	return ""
+}
+
+func (x *PostingLogEntry) GetBook() string {
+	if x != nil {
+		return x.Book
+	}
+	return ""
+}
+
+func (x *PostingLogEntry) GetOperationId() string {
+	if x != nil {
+		return x.OperationId
+	}
+	return ""
+}
+
+func (x *PostingLogEntry) GetOutcome() string {
+	if x != nil {
+		return x.Outcome
+	}
+	return ""
+}
+
+func (x *PostingLogEntry) GetCode() string {
+	if x != nil {
+		return x.Code
+	}
+	return ""
+}
+
+func (x *PostingLogEntry) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+func (x *PostingLogEntry) GetPlanHash() string {
+	if x != nil {
+		return x.PlanHash
+	}
+	return ""
+}
+
+func (x *PostingLogEntry) GetActor() string {
+	if x != nil {
+		return x.Actor
+	}
+	return ""
+}
+
+func (x *PostingLogEntry) GetRequestId() string {
+	if x != nil {
+		return x.RequestId
+	}
+	return ""
+}
+
+func (x *PostingLogEntry) GetCreatedAt() string {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return ""
+}
+
+type ListPostingLogResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Entries       []*PostingLogEntry     `protobuf:"bytes,1,rep,name=entries,proto3" json:"entries,omitempty"`
+	NextPageToken string                 `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListPostingLogResponse) Reset() {
+	*x = ListPostingLogResponse{}
+	mi := &file_athena_v1_ledger_proto_msgTypes[95]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListPostingLogResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListPostingLogResponse) ProtoMessage() {}
+
+func (x *ListPostingLogResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_ledger_proto_msgTypes[95]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListPostingLogResponse.ProtoReflect.Descriptor instead.
+func (*ListPostingLogResponse) Descriptor() ([]byte, []int) {
+	return file_athena_v1_ledger_proto_rawDescGZIP(), []int{95}
+}
+
+func (x *ListPostingLogResponse) GetEntries() []*PostingLogEntry {
+	if x != nil {
+		return x.Entries
+	}
+	return nil
+}
+
+func (x *ListPostingLogResponse) GetNextPageToken() string {
+	if x != nil {
+		return x.NextPageToken
+	}
+	return ""
+}
+
+type ListLedgerRowsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RecordTypeKey string                 `protobuf:"bytes,1,opt,name=record_type_key,json=recordTypeKey,proto3" json:"record_type_key,omitempty"`
+	Id            string                 `protobuf:"bytes,2,opt,name=id,proto3" json:"id,omitempty"`
+	PageSize      int32                  `protobuf:"varint,3,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	// Opaque token from the previous page.
+	PageToken     string `protobuf:"bytes,4,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListLedgerRowsRequest) Reset() {
+	*x = ListLedgerRowsRequest{}
+	mi := &file_athena_v1_ledger_proto_msgTypes[96]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListLedgerRowsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListLedgerRowsRequest) ProtoMessage() {}
+
+func (x *ListLedgerRowsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_ledger_proto_msgTypes[96]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListLedgerRowsRequest.ProtoReflect.Descriptor instead.
+func (*ListLedgerRowsRequest) Descriptor() ([]byte, []int) {
+	return file_athena_v1_ledger_proto_rawDescGZIP(), []int{96}
+}
+
+func (x *ListLedgerRowsRequest) GetRecordTypeKey() string {
+	if x != nil {
+		return x.RecordTypeKey
+	}
+	return ""
+}
+
+func (x *ListLedgerRowsRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *ListLedgerRowsRequest) GetPageSize() int32 {
+	if x != nil {
+		return x.PageSize
+	}
+	return 0
+}
+
+func (x *ListLedgerRowsRequest) GetPageToken() string {
+	if x != nil {
+		return x.PageToken
+	}
+	return ""
+}
+
+// LedgerRow is one posted leg of a voucher.
+type LedgerRow struct {
+	state       protoimpl.MessageState `protogen:"open.v1"`
+	Id          string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Company     string                 `protobuf:"bytes,2,opt,name=company,proto3" json:"company,omitempty"`
+	Book        string                 `protobuf:"bytes,3,opt,name=book,proto3" json:"book,omitempty"`
+	Account     string                 `protobuf:"bytes,4,opt,name=account,proto3" json:"account,omitempty"`
+	Period      string                 `protobuf:"bytes,5,opt,name=period,proto3" json:"period,omitempty"`
+	PostingDate string                 `protobuf:"bytes,6,opt,name=posting_date,json=postingDate,proto3" json:"posting_date,omitempty"`
+	DebitBase   string                 `protobuf:"bytes,7,opt,name=debit_base,json=debitBase,proto3" json:"debit_base,omitempty"`
+	CreditBase  string                 `protobuf:"bytes,8,opt,name=credit_base,json=creditBase,proto3" json:"credit_base,omitempty"`
+	TxnCurrency string                 `protobuf:"bytes,9,opt,name=txn_currency,json=txnCurrency,proto3" json:"txn_currency,omitempty"`
+	TxnDebit    string                 `protobuf:"bytes,10,opt,name=txn_debit,json=txnDebit,proto3" json:"txn_debit,omitempty"`
+	TxnCredit   string                 `protobuf:"bytes,11,opt,name=txn_credit,json=txnCredit,proto3" json:"txn_credit,omitempty"`
+	// Empty when the leg has no quantity.
+	Quantity       string            `protobuf:"bytes,12,opt,name=quantity,proto3" json:"quantity,omitempty"`
+	QuantityUom    string            `protobuf:"bytes,13,opt,name=quantity_uom,json=quantityUom,proto3" json:"quantity_uom,omitempty"`
+	Dimensions     map[string]string `protobuf:"bytes,14,rep,name=dimensions,proto3" json:"dimensions,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Revision       int64             `protobuf:"varint,15,opt,name=revision,proto3" json:"revision,omitempty"`
+	Event          string            `protobuf:"bytes,16,opt,name=event,proto3" json:"event,omitempty"`
+	PostingGroupId string            `protobuf:"bytes,17,opt,name=posting_group_id,json=postingGroupId,proto3" json:"posting_group_id,omitempty"`
+	IsReversal     bool              `protobuf:"varint,18,opt,name=is_reversal,json=isReversal,proto3" json:"is_reversal,omitempty"`
+	ReversedRowId  string            `protobuf:"bytes,19,opt,name=reversed_row_id,json=reversedRowId,proto3" json:"reversed_row_id,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *LedgerRow) Reset() {
+	*x = LedgerRow{}
+	mi := &file_athena_v1_ledger_proto_msgTypes[97]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *LedgerRow) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*LedgerRow) ProtoMessage() {}
+
+func (x *LedgerRow) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_ledger_proto_msgTypes[97]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use LedgerRow.ProtoReflect.Descriptor instead.
+func (*LedgerRow) Descriptor() ([]byte, []int) {
+	return file_athena_v1_ledger_proto_rawDescGZIP(), []int{97}
+}
+
+func (x *LedgerRow) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *LedgerRow) GetCompany() string {
+	if x != nil {
+		return x.Company
+	}
+	return ""
+}
+
+func (x *LedgerRow) GetBook() string {
+	if x != nil {
+		return x.Book
+	}
+	return ""
+}
+
+func (x *LedgerRow) GetAccount() string {
+	if x != nil {
+		return x.Account
+	}
+	return ""
+}
+
+func (x *LedgerRow) GetPeriod() string {
+	if x != nil {
+		return x.Period
+	}
+	return ""
+}
+
+func (x *LedgerRow) GetPostingDate() string {
+	if x != nil {
+		return x.PostingDate
+	}
+	return ""
+}
+
+func (x *LedgerRow) GetDebitBase() string {
+	if x != nil {
+		return x.DebitBase
+	}
+	return ""
+}
+
+func (x *LedgerRow) GetCreditBase() string {
+	if x != nil {
+		return x.CreditBase
+	}
+	return ""
+}
+
+func (x *LedgerRow) GetTxnCurrency() string {
+	if x != nil {
+		return x.TxnCurrency
+	}
+	return ""
+}
+
+func (x *LedgerRow) GetTxnDebit() string {
+	if x != nil {
+		return x.TxnDebit
+	}
+	return ""
+}
+
+func (x *LedgerRow) GetTxnCredit() string {
+	if x != nil {
+		return x.TxnCredit
+	}
+	return ""
+}
+
+func (x *LedgerRow) GetQuantity() string {
+	if x != nil {
+		return x.Quantity
+	}
+	return ""
+}
+
+func (x *LedgerRow) GetQuantityUom() string {
+	if x != nil {
+		return x.QuantityUom
+	}
+	return ""
+}
+
+func (x *LedgerRow) GetDimensions() map[string]string {
+	if x != nil {
+		return x.Dimensions
+	}
+	return nil
+}
+
+func (x *LedgerRow) GetRevision() int64 {
+	if x != nil {
+		return x.Revision
+	}
+	return 0
+}
+
+func (x *LedgerRow) GetEvent() string {
+	if x != nil {
+		return x.Event
+	}
+	return ""
+}
+
+func (x *LedgerRow) GetPostingGroupId() string {
+	if x != nil {
+		return x.PostingGroupId
+	}
+	return ""
+}
+
+func (x *LedgerRow) GetIsReversal() bool {
+	if x != nil {
+		return x.IsReversal
+	}
+	return false
+}
+
+func (x *LedgerRow) GetReversedRowId() string {
+	if x != nil {
+		return x.ReversedRowId
+	}
+	return ""
+}
+
+type ListLedgerRowsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Rows          []*LedgerRow           `protobuf:"bytes,1,rep,name=rows,proto3" json:"rows,omitempty"`
+	NextPageToken string                 `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListLedgerRowsResponse) Reset() {
+	*x = ListLedgerRowsResponse{}
+	mi := &file_athena_v1_ledger_proto_msgTypes[98]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListLedgerRowsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListLedgerRowsResponse) ProtoMessage() {}
+
+func (x *ListLedgerRowsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_ledger_proto_msgTypes[98]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListLedgerRowsResponse.ProtoReflect.Descriptor instead.
+func (*ListLedgerRowsResponse) Descriptor() ([]byte, []int) {
+	return file_athena_v1_ledger_proto_rawDescGZIP(), []int{98}
+}
+
+func (x *ListLedgerRowsResponse) GetRows() []*LedgerRow {
+	if x != nil {
+		return x.Rows
+	}
+	return nil
+}
+
+func (x *ListLedgerRowsResponse) GetNextPageToken() string {
+	if x != nil {
+		return x.NextPageToken
+	}
+	return ""
+}
+
 var File_athena_v1_ledger_proto protoreflect.FileDescriptor
 
 const file_athena_v1_ledger_proto_rawDesc = "" +
@@ -5082,7 +6194,124 @@ const file_athena_v1_ledger_proto_rawDesc = "" +
 	"\x13GetReadinessRequest\x12\x18\n" +
 	"\acompany\x18\x01 \x01(\tR\acompany\"I\n" +
 	"\x14GetReadinessResponse\x121\n" +
-	"\x06checks\x18\x01 \x03(\v2\x19.athena.v1.ReadinessCheckR\x06checks2\xd6\x17\n" +
+	"\x06checks\x18\x01 \x03(\v2\x19.athena.v1.ReadinessCheckR\x06checks\"\x91\x04\n" +
+	"\x0fPostingPlanLine\x12\x18\n" +
+	"\acompany\x18\x01 \x01(\tR\acompany\x12\x18\n" +
+	"\aaccount\x18\x02 \x01(\tR\aaccount\x12#\n" +
+	"\raccount_label\x18\x03 \x01(\tR\faccountLabel\x12\x1d\n" +
+	"\n" +
+	"debit_base\x18\x04 \x01(\tR\tdebitBase\x12\x1f\n" +
+	"\vcredit_base\x18\x05 \x01(\tR\n" +
+	"creditBase\x12!\n" +
+	"\ftxn_currency\x18\x06 \x01(\tR\vtxnCurrency\x12\x1b\n" +
+	"\ttxn_debit\x18\a \x01(\tR\btxnDebit\x12\x1d\n" +
+	"\n" +
+	"txn_credit\x18\b \x01(\tR\ttxnCredit\x12\x1a\n" +
+	"\bquantity\x18\t \x01(\tR\bquantity\x12!\n" +
+	"\fquantity_uom\x18\n" +
+	" \x01(\tR\vquantityUom\x12J\n" +
+	"\n" +
+	"dimensions\x18\v \x03(\v2*.athena.v1.PostingPlanLine.DimensionsEntryR\n" +
+	"dimensions\x12\x1f\n" +
+	"\vsource_type\x18\f \x01(\tR\n" +
+	"sourceType\x12\x1b\n" +
+	"\tsource_id\x18\r \x01(\tR\bsourceId\x1a=\n" +
+	"\x0fDimensionsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xb4\x01\n" +
+	"\vPostingPlan\x12\x19\n" +
+	"\brule_key\x18\x01 \x01(\tR\aruleKey\x12!\n" +
+	"\frule_version\x18\x02 \x01(\x03R\vruleVersion\x12\x12\n" +
+	"\x04book\x18\x03 \x01(\tR\x04book\x12!\n" +
+	"\fposting_date\x18\x04 \x01(\tR\vpostingDate\x120\n" +
+	"\x05lines\x18\x05 \x03(\v2\x1a.athena.v1.PostingPlanLineR\x05lines\"O\n" +
+	"\x15PreviewPostingRequest\x12&\n" +
+	"\x0frecord_type_key\x18\x01 \x01(\tR\rrecordTypeKey\x12\x0e\n" +
+	"\x02id\x18\x02 \x01(\tR\x02id\"\x7f\n" +
+	"\x16PreviewPostingResponse\x12\x1a\n" +
+	"\brevision\x18\x01 \x01(\x03R\brevision\x12,\n" +
+	"\x05plans\x18\x02 \x03(\v2\x16.athena.v1.PostingPlanR\x05plans\x12\x1b\n" +
+	"\tplan_hash\x18\x03 \x01(\tR\bplanHash\"Q\n" +
+	"\x17GetPostingStatusRequest\x12&\n" +
+	"\x0frecord_type_key\x18\x01 \x01(\tR\rrecordTypeKey\x12\x0e\n" +
+	"\x02id\x18\x02 \x01(\tR\x02id\"\xfb\x01\n" +
+	"\x12PostingGroupStatus\x12\x1a\n" +
+	"\brevision\x18\x01 \x01(\x03R\brevision\x12\x14\n" +
+	"\x05event\x18\x02 \x01(\tR\x05event\x12\x12\n" +
+	"\x04book\x18\x03 \x01(\tR\x04book\x12(\n" +
+	"\x10posting_group_id\x18\x04 \x01(\tR\x0epostingGroupId\x12\x1b\n" +
+	"\trow_count\x18\x05 \x01(\x03R\browCount\x12\x1b\n" +
+	"\tposted_at\x18\x06 \x01(\tR\bpostedAt\x12\x1a\n" +
+	"\breversed\x18\a \x01(\bR\breversed\x12\x1f\n" +
+	"\vreversed_by\x18\b \x01(\tR\n" +
+	"reversedBy\"Q\n" +
+	"\x18GetPostingStatusResponse\x125\n" +
+	"\x06groups\x18\x01 \x03(\v2\x1d.athena.v1.PostingGroupStatusR\x06groups\"\xa5\x01\n" +
+	"\x15ListPostingLogRequest\x12&\n" +
+	"\x0frecord_type_key\x18\x01 \x01(\tR\rrecordTypeKey\x12\x0e\n" +
+	"\x02id\x18\x02 \x01(\tR\x02id\x12\x18\n" +
+	"\aoutcome\x18\x03 \x01(\tR\aoutcome\x12\x1b\n" +
+	"\tpage_size\x18\x04 \x01(\x05R\bpageSize\x12\x1d\n" +
+	"\n" +
+	"page_token\x18\x05 \x01(\tR\tpageToken\"\xc3\x02\n" +
+	"\x0fPostingLogEntry\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1a\n" +
+	"\brevision\x18\x02 \x01(\x03R\brevision\x12\x14\n" +
+	"\x05event\x18\x03 \x01(\tR\x05event\x12\x12\n" +
+	"\x04book\x18\x04 \x01(\tR\x04book\x12!\n" +
+	"\foperation_id\x18\x05 \x01(\tR\voperationId\x12\x18\n" +
+	"\aoutcome\x18\x06 \x01(\tR\aoutcome\x12\x12\n" +
+	"\x04code\x18\a \x01(\tR\x04code\x12\x18\n" +
+	"\amessage\x18\b \x01(\tR\amessage\x12\x1b\n" +
+	"\tplan_hash\x18\t \x01(\tR\bplanHash\x12\x14\n" +
+	"\x05actor\x18\n" +
+	" \x01(\tR\x05actor\x12\x1d\n" +
+	"\n" +
+	"request_id\x18\v \x01(\tR\trequestId\x12\x1d\n" +
+	"\n" +
+	"created_at\x18\f \x01(\tR\tcreatedAt\"v\n" +
+	"\x16ListPostingLogResponse\x124\n" +
+	"\aentries\x18\x01 \x03(\v2\x1a.athena.v1.PostingLogEntryR\aentries\x12&\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\x8b\x01\n" +
+	"\x15ListLedgerRowsRequest\x12&\n" +
+	"\x0frecord_type_key\x18\x01 \x01(\tR\rrecordTypeKey\x12\x0e\n" +
+	"\x02id\x18\x02 \x01(\tR\x02id\x12\x1b\n" +
+	"\tpage_size\x18\x03 \x01(\x05R\bpageSize\x12\x1d\n" +
+	"\n" +
+	"page_token\x18\x04 \x01(\tR\tpageToken\"\xa6\x05\n" +
+	"\tLedgerRow\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
+	"\acompany\x18\x02 \x01(\tR\acompany\x12\x12\n" +
+	"\x04book\x18\x03 \x01(\tR\x04book\x12\x18\n" +
+	"\aaccount\x18\x04 \x01(\tR\aaccount\x12\x16\n" +
+	"\x06period\x18\x05 \x01(\tR\x06period\x12!\n" +
+	"\fposting_date\x18\x06 \x01(\tR\vpostingDate\x12\x1d\n" +
+	"\n" +
+	"debit_base\x18\a \x01(\tR\tdebitBase\x12\x1f\n" +
+	"\vcredit_base\x18\b \x01(\tR\n" +
+	"creditBase\x12!\n" +
+	"\ftxn_currency\x18\t \x01(\tR\vtxnCurrency\x12\x1b\n" +
+	"\ttxn_debit\x18\n" +
+	" \x01(\tR\btxnDebit\x12\x1d\n" +
+	"\n" +
+	"txn_credit\x18\v \x01(\tR\ttxnCredit\x12\x1a\n" +
+	"\bquantity\x18\f \x01(\tR\bquantity\x12!\n" +
+	"\fquantity_uom\x18\r \x01(\tR\vquantityUom\x12D\n" +
+	"\n" +
+	"dimensions\x18\x0e \x03(\v2$.athena.v1.LedgerRow.DimensionsEntryR\n" +
+	"dimensions\x12\x1a\n" +
+	"\brevision\x18\x0f \x01(\x03R\brevision\x12\x14\n" +
+	"\x05event\x18\x10 \x01(\tR\x05event\x12(\n" +
+	"\x10posting_group_id\x18\x11 \x01(\tR\x0epostingGroupId\x12\x1f\n" +
+	"\vis_reversal\x18\x12 \x01(\bR\n" +
+	"isReversal\x12&\n" +
+	"\x0freversed_row_id\x18\x13 \x01(\tR\rreversedRowId\x1a=\n" +
+	"\x0fDimensionsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"j\n" +
+	"\x16ListLedgerRowsResponse\x12(\n" +
+	"\x04rows\x18\x01 \x03(\v2\x14.athena.v1.LedgerRowR\x04rows\x12&\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken2\xb8\x1a\n" +
 	"\rLedgerService\x12L\n" +
 	"\vSaveCompany\x12\x1d.athena.v1.SaveCompanyRequest\x1a\x1e.athena.v1.SaveCompanyResponse\x12R\n" +
 	"\rListCompanies\x12\x1f.athena.v1.ListCompaniesRequest\x1a .athena.v1.ListCompaniesResponse\x12I\n" +
@@ -5120,7 +6349,11 @@ const file_athena_v1_ledger_proto_rawDesc = "" +
 	"\x11ListSettingValues\x12#.athena.v1.ListSettingValuesRequest\x1a$.athena.v1.ListSettingValuesResponse\x12U\n" +
 	"\x0eResolveSetting\x12 .athena.v1.ResolveSettingRequest\x1a!.athena.v1.ResolveSettingResponse\x12g\n" +
 	"\x14PreviewSettingChange\x12&.athena.v1.PreviewSettingChangeRequest\x1a'.athena.v1.PreviewSettingChangeResponse\x12O\n" +
-	"\fGetReadiness\x12\x1e.athena.v1.GetReadinessRequest\x1a\x1f.athena.v1.GetReadinessResponseB#Z!athena-erp/gen/athena/v1;athenav1b\x06proto3"
+	"\fGetReadiness\x12\x1e.athena.v1.GetReadinessRequest\x1a\x1f.athena.v1.GetReadinessResponse\x12U\n" +
+	"\x0ePreviewPosting\x12 .athena.v1.PreviewPostingRequest\x1a!.athena.v1.PreviewPostingResponse\x12[\n" +
+	"\x10GetPostingStatus\x12\".athena.v1.GetPostingStatusRequest\x1a#.athena.v1.GetPostingStatusResponse\x12U\n" +
+	"\x0eListPostingLog\x12 .athena.v1.ListPostingLogRequest\x1a!.athena.v1.ListPostingLogResponse\x12U\n" +
+	"\x0eListLedgerRows\x12 .athena.v1.ListLedgerRowsRequest\x1a!.athena.v1.ListLedgerRowsResponseB#Z!athena-erp/gen/athena/v1;athenav1b\x06proto3"
 
 var (
 	file_athena_v1_ledger_proto_rawDescOnce sync.Once
@@ -5134,7 +6367,7 @@ func file_athena_v1_ledger_proto_rawDescGZIP() []byte {
 	return file_athena_v1_ledger_proto_rawDescData
 }
 
-var file_athena_v1_ledger_proto_msgTypes = make([]protoimpl.MessageInfo, 90)
+var file_athena_v1_ledger_proto_msgTypes = make([]protoimpl.MessageInfo, 105)
 var file_athena_v1_ledger_proto_goTypes = []any{
 	(*Company)(nil),                      // 0: athena.v1.Company
 	(*SaveCompanyRequest)(nil),           // 1: athena.v1.SaveCompanyRequest
@@ -5222,139 +6455,169 @@ var file_athena_v1_ledger_proto_goTypes = []any{
 	(*ReadinessCheck)(nil),               // 83: athena.v1.ReadinessCheck
 	(*GetReadinessRequest)(nil),          // 84: athena.v1.GetReadinessRequest
 	(*GetReadinessResponse)(nil),         // 85: athena.v1.GetReadinessResponse
-	nil,                                  // 86: athena.v1.Determination.MatchEntry
-	nil,                                  // 87: athena.v1.ResolveAccountRequest.ContextEntry
-	nil,                                  // 88: athena.v1.ResolveSettingRequest.ScopeEntry
-	nil,                                  // 89: athena.v1.PreviewSettingChangeRequest.ScopeEntry
+	(*PostingPlanLine)(nil),              // 86: athena.v1.PostingPlanLine
+	(*PostingPlan)(nil),                  // 87: athena.v1.PostingPlan
+	(*PreviewPostingRequest)(nil),        // 88: athena.v1.PreviewPostingRequest
+	(*PreviewPostingResponse)(nil),       // 89: athena.v1.PreviewPostingResponse
+	(*GetPostingStatusRequest)(nil),      // 90: athena.v1.GetPostingStatusRequest
+	(*PostingGroupStatus)(nil),           // 91: athena.v1.PostingGroupStatus
+	(*GetPostingStatusResponse)(nil),     // 92: athena.v1.GetPostingStatusResponse
+	(*ListPostingLogRequest)(nil),        // 93: athena.v1.ListPostingLogRequest
+	(*PostingLogEntry)(nil),              // 94: athena.v1.PostingLogEntry
+	(*ListPostingLogResponse)(nil),       // 95: athena.v1.ListPostingLogResponse
+	(*ListLedgerRowsRequest)(nil),        // 96: athena.v1.ListLedgerRowsRequest
+	(*LedgerRow)(nil),                    // 97: athena.v1.LedgerRow
+	(*ListLedgerRowsResponse)(nil),       // 98: athena.v1.ListLedgerRowsResponse
+	nil,                                  // 99: athena.v1.Determination.MatchEntry
+	nil,                                  // 100: athena.v1.ResolveAccountRequest.ContextEntry
+	nil,                                  // 101: athena.v1.ResolveSettingRequest.ScopeEntry
+	nil,                                  // 102: athena.v1.PreviewSettingChangeRequest.ScopeEntry
+	nil,                                  // 103: athena.v1.PostingPlanLine.DimensionsEntry
+	nil,                                  // 104: athena.v1.LedgerRow.DimensionsEntry
 }
 var file_athena_v1_ledger_proto_depIdxs = []int32{
-	0,  // 0: athena.v1.SaveCompanyRequest.company:type_name -> athena.v1.Company
-	0,  // 1: athena.v1.SaveCompanyResponse.company:type_name -> athena.v1.Company
-	0,  // 2: athena.v1.ListCompaniesResponse.companies:type_name -> athena.v1.Company
-	5,  // 3: athena.v1.SaveBranchRequest.branch:type_name -> athena.v1.Branch
-	5,  // 4: athena.v1.SaveBranchResponse.branch:type_name -> athena.v1.Branch
-	5,  // 5: athena.v1.ListBranchesResponse.branches:type_name -> athena.v1.Branch
-	10, // 6: athena.v1.SaveDepartmentRequest.department:type_name -> athena.v1.Department
-	10, // 7: athena.v1.SaveDepartmentResponse.department:type_name -> athena.v1.Department
-	10, // 8: athena.v1.ListDepartmentsResponse.departments:type_name -> athena.v1.Department
-	15, // 9: athena.v1.SaveCostCentreRequest.cost_centre:type_name -> athena.v1.CostCentre
-	15, // 10: athena.v1.SaveCostCentreResponse.cost_centre:type_name -> athena.v1.CostCentre
-	15, // 11: athena.v1.ListCostCentresResponse.cost_centres:type_name -> athena.v1.CostCentre
-	20, // 12: athena.v1.SaveDimensionRequest.dimension:type_name -> athena.v1.DimensionDefinition
-	20, // 13: athena.v1.SaveDimensionResponse.dimension:type_name -> athena.v1.DimensionDefinition
-	20, // 14: athena.v1.ListDimensionsResponse.dimensions:type_name -> athena.v1.DimensionDefinition
-	25, // 15: athena.v1.SaveFiscalYearRequest.fiscal_year:type_name -> athena.v1.FiscalYear
-	25, // 16: athena.v1.SaveFiscalYearResponse.fiscal_year:type_name -> athena.v1.FiscalYear
-	25, // 17: athena.v1.ListFiscalYearsResponse.fiscal_years:type_name -> athena.v1.FiscalYear
-	30, // 18: athena.v1.SavePeriodRequest.period:type_name -> athena.v1.Period
-	30, // 19: athena.v1.SavePeriodResponse.period:type_name -> athena.v1.Period
-	30, // 20: athena.v1.SetPeriodStatusResponse.period:type_name -> athena.v1.Period
-	30, // 21: athena.v1.ListPeriodsResponse.periods:type_name -> athena.v1.Period
-	37, // 22: athena.v1.SaveCurrencyRequest.currency:type_name -> athena.v1.Currency
-	37, // 23: athena.v1.SaveCurrencyResponse.currency:type_name -> athena.v1.Currency
-	37, // 24: athena.v1.ListCurrenciesResponse.currencies:type_name -> athena.v1.Currency
-	42, // 25: athena.v1.SaveRateRequest.rate:type_name -> athena.v1.ExchangeRate
-	42, // 26: athena.v1.SaveRateResponse.rate:type_name -> athena.v1.ExchangeRate
-	47, // 27: athena.v1.SaveAccountTypeRequest.account_type:type_name -> athena.v1.AccountType
-	47, // 28: athena.v1.SaveAccountTypeResponse.account_type:type_name -> athena.v1.AccountType
-	47, // 29: athena.v1.ListAccountTypesResponse.account_types:type_name -> athena.v1.AccountType
-	52, // 30: athena.v1.SaveAccountRequest.account:type_name -> athena.v1.Account
-	52, // 31: athena.v1.SaveAccountResponse.account:type_name -> athena.v1.Account
-	52, // 32: athena.v1.ListAccountsResponse.accounts:type_name -> athena.v1.Account
-	86, // 33: athena.v1.Determination.match:type_name -> athena.v1.Determination.MatchEntry
-	57, // 34: athena.v1.SaveDeterminationRequest.determination:type_name -> athena.v1.Determination
-	57, // 35: athena.v1.SaveDeterminationResponse.determination:type_name -> athena.v1.Determination
-	57, // 36: athena.v1.ListDeterminationsResponse.determinations:type_name -> athena.v1.Determination
-	87, // 37: athena.v1.ResolveAccountRequest.context:type_name -> athena.v1.ResolveAccountRequest.ContextEntry
-	57, // 38: athena.v1.ResolveAccountResponse.determination:type_name -> athena.v1.Determination
-	64, // 39: athena.v1.SaveSettingRequest.setting:type_name -> athena.v1.Setting
-	64, // 40: athena.v1.SaveSettingResponse.setting:type_name -> athena.v1.Setting
-	64, // 41: athena.v1.ListSettingsResponse.settings:type_name -> athena.v1.Setting
-	69, // 42: athena.v1.SaveSettingValueRequest.value:type_name -> athena.v1.SettingValue
-	69, // 43: athena.v1.SaveSettingValueResponse.value:type_name -> athena.v1.SettingValue
-	69, // 44: athena.v1.PublishSettingValueResponse.value:type_name -> athena.v1.SettingValue
-	69, // 45: athena.v1.ListSettingValuesResponse.values:type_name -> athena.v1.SettingValue
-	88, // 46: athena.v1.ResolveSettingRequest.scope:type_name -> athena.v1.ResolveSettingRequest.ScopeEntry
-	69, // 47: athena.v1.ResolveSettingResponse.winners:type_name -> athena.v1.SettingValue
-	89, // 48: athena.v1.PreviewSettingChangeRequest.scope:type_name -> athena.v1.PreviewSettingChangeRequest.ScopeEntry
-	69, // 49: athena.v1.PreviewSettingChangeRequest.draft:type_name -> athena.v1.SettingValue
-	81, // 50: athena.v1.PreviewSettingChangeResponse.changes:type_name -> athena.v1.SettingChange
-	83, // 51: athena.v1.GetReadinessResponse.checks:type_name -> athena.v1.ReadinessCheck
-	1,  // 52: athena.v1.LedgerService.SaveCompany:input_type -> athena.v1.SaveCompanyRequest
-	3,  // 53: athena.v1.LedgerService.ListCompanies:input_type -> athena.v1.ListCompaniesRequest
-	6,  // 54: athena.v1.LedgerService.SaveBranch:input_type -> athena.v1.SaveBranchRequest
-	8,  // 55: athena.v1.LedgerService.ListBranches:input_type -> athena.v1.ListBranchesRequest
-	11, // 56: athena.v1.LedgerService.SaveDepartment:input_type -> athena.v1.SaveDepartmentRequest
-	13, // 57: athena.v1.LedgerService.ListDepartments:input_type -> athena.v1.ListDepartmentsRequest
-	16, // 58: athena.v1.LedgerService.SaveCostCentre:input_type -> athena.v1.SaveCostCentreRequest
-	18, // 59: athena.v1.LedgerService.ListCostCentres:input_type -> athena.v1.ListCostCentresRequest
-	21, // 60: athena.v1.LedgerService.SaveDimension:input_type -> athena.v1.SaveDimensionRequest
-	23, // 61: athena.v1.LedgerService.ListDimensions:input_type -> athena.v1.ListDimensionsRequest
-	26, // 62: athena.v1.LedgerService.SaveFiscalYear:input_type -> athena.v1.SaveFiscalYearRequest
-	28, // 63: athena.v1.LedgerService.ListFiscalYears:input_type -> athena.v1.ListFiscalYearsRequest
-	31, // 64: athena.v1.LedgerService.SavePeriod:input_type -> athena.v1.SavePeriodRequest
-	33, // 65: athena.v1.LedgerService.SetPeriodStatus:input_type -> athena.v1.SetPeriodStatusRequest
-	35, // 66: athena.v1.LedgerService.ListPeriods:input_type -> athena.v1.ListPeriodsRequest
-	38, // 67: athena.v1.LedgerService.SaveCurrency:input_type -> athena.v1.SaveCurrencyRequest
-	40, // 68: athena.v1.LedgerService.ListCurrencies:input_type -> athena.v1.ListCurrenciesRequest
-	43, // 69: athena.v1.LedgerService.SaveRate:input_type -> athena.v1.SaveRateRequest
-	45, // 70: athena.v1.LedgerService.GetRate:input_type -> athena.v1.GetRateRequest
-	48, // 71: athena.v1.LedgerService.SaveAccountType:input_type -> athena.v1.SaveAccountTypeRequest
-	50, // 72: athena.v1.LedgerService.ListAccountTypes:input_type -> athena.v1.ListAccountTypesRequest
-	53, // 73: athena.v1.LedgerService.SaveAccount:input_type -> athena.v1.SaveAccountRequest
-	55, // 74: athena.v1.LedgerService.ListAccounts:input_type -> athena.v1.ListAccountsRequest
-	58, // 75: athena.v1.LedgerService.SaveDetermination:input_type -> athena.v1.SaveDeterminationRequest
-	60, // 76: athena.v1.LedgerService.ListDeterminations:input_type -> athena.v1.ListDeterminationsRequest
-	62, // 77: athena.v1.LedgerService.ResolveAccount:input_type -> athena.v1.ResolveAccountRequest
-	65, // 78: athena.v1.LedgerService.SaveSetting:input_type -> athena.v1.SaveSettingRequest
-	67, // 79: athena.v1.LedgerService.ListSettings:input_type -> athena.v1.ListSettingsRequest
-	70, // 80: athena.v1.LedgerService.SaveSettingValue:input_type -> athena.v1.SaveSettingValueRequest
-	72, // 81: athena.v1.LedgerService.PublishSettingValue:input_type -> athena.v1.PublishSettingValueRequest
-	74, // 82: athena.v1.LedgerService.DiscardSettingValue:input_type -> athena.v1.DiscardSettingValueRequest
-	76, // 83: athena.v1.LedgerService.ListSettingValues:input_type -> athena.v1.ListSettingValuesRequest
-	78, // 84: athena.v1.LedgerService.ResolveSetting:input_type -> athena.v1.ResolveSettingRequest
-	80, // 85: athena.v1.LedgerService.PreviewSettingChange:input_type -> athena.v1.PreviewSettingChangeRequest
-	84, // 86: athena.v1.LedgerService.GetReadiness:input_type -> athena.v1.GetReadinessRequest
-	2,  // 87: athena.v1.LedgerService.SaveCompany:output_type -> athena.v1.SaveCompanyResponse
-	4,  // 88: athena.v1.LedgerService.ListCompanies:output_type -> athena.v1.ListCompaniesResponse
-	7,  // 89: athena.v1.LedgerService.SaveBranch:output_type -> athena.v1.SaveBranchResponse
-	9,  // 90: athena.v1.LedgerService.ListBranches:output_type -> athena.v1.ListBranchesResponse
-	12, // 91: athena.v1.LedgerService.SaveDepartment:output_type -> athena.v1.SaveDepartmentResponse
-	14, // 92: athena.v1.LedgerService.ListDepartments:output_type -> athena.v1.ListDepartmentsResponse
-	17, // 93: athena.v1.LedgerService.SaveCostCentre:output_type -> athena.v1.SaveCostCentreResponse
-	19, // 94: athena.v1.LedgerService.ListCostCentres:output_type -> athena.v1.ListCostCentresResponse
-	22, // 95: athena.v1.LedgerService.SaveDimension:output_type -> athena.v1.SaveDimensionResponse
-	24, // 96: athena.v1.LedgerService.ListDimensions:output_type -> athena.v1.ListDimensionsResponse
-	27, // 97: athena.v1.LedgerService.SaveFiscalYear:output_type -> athena.v1.SaveFiscalYearResponse
-	29, // 98: athena.v1.LedgerService.ListFiscalYears:output_type -> athena.v1.ListFiscalYearsResponse
-	32, // 99: athena.v1.LedgerService.SavePeriod:output_type -> athena.v1.SavePeriodResponse
-	34, // 100: athena.v1.LedgerService.SetPeriodStatus:output_type -> athena.v1.SetPeriodStatusResponse
-	36, // 101: athena.v1.LedgerService.ListPeriods:output_type -> athena.v1.ListPeriodsResponse
-	39, // 102: athena.v1.LedgerService.SaveCurrency:output_type -> athena.v1.SaveCurrencyResponse
-	41, // 103: athena.v1.LedgerService.ListCurrencies:output_type -> athena.v1.ListCurrenciesResponse
-	44, // 104: athena.v1.LedgerService.SaveRate:output_type -> athena.v1.SaveRateResponse
-	46, // 105: athena.v1.LedgerService.GetRate:output_type -> athena.v1.GetRateResponse
-	49, // 106: athena.v1.LedgerService.SaveAccountType:output_type -> athena.v1.SaveAccountTypeResponse
-	51, // 107: athena.v1.LedgerService.ListAccountTypes:output_type -> athena.v1.ListAccountTypesResponse
-	54, // 108: athena.v1.LedgerService.SaveAccount:output_type -> athena.v1.SaveAccountResponse
-	56, // 109: athena.v1.LedgerService.ListAccounts:output_type -> athena.v1.ListAccountsResponse
-	59, // 110: athena.v1.LedgerService.SaveDetermination:output_type -> athena.v1.SaveDeterminationResponse
-	61, // 111: athena.v1.LedgerService.ListDeterminations:output_type -> athena.v1.ListDeterminationsResponse
-	63, // 112: athena.v1.LedgerService.ResolveAccount:output_type -> athena.v1.ResolveAccountResponse
-	66, // 113: athena.v1.LedgerService.SaveSetting:output_type -> athena.v1.SaveSettingResponse
-	68, // 114: athena.v1.LedgerService.ListSettings:output_type -> athena.v1.ListSettingsResponse
-	71, // 115: athena.v1.LedgerService.SaveSettingValue:output_type -> athena.v1.SaveSettingValueResponse
-	73, // 116: athena.v1.LedgerService.PublishSettingValue:output_type -> athena.v1.PublishSettingValueResponse
-	75, // 117: athena.v1.LedgerService.DiscardSettingValue:output_type -> athena.v1.DiscardSettingValueResponse
-	77, // 118: athena.v1.LedgerService.ListSettingValues:output_type -> athena.v1.ListSettingValuesResponse
-	79, // 119: athena.v1.LedgerService.ResolveSetting:output_type -> athena.v1.ResolveSettingResponse
-	82, // 120: athena.v1.LedgerService.PreviewSettingChange:output_type -> athena.v1.PreviewSettingChangeResponse
-	85, // 121: athena.v1.LedgerService.GetReadiness:output_type -> athena.v1.GetReadinessResponse
-	87, // [87:122] is the sub-list for method output_type
-	52, // [52:87] is the sub-list for method input_type
-	52, // [52:52] is the sub-list for extension type_name
-	52, // [52:52] is the sub-list for extension extendee
-	0,  // [0:52] is the sub-list for field type_name
+	0,   // 0: athena.v1.SaveCompanyRequest.company:type_name -> athena.v1.Company
+	0,   // 1: athena.v1.SaveCompanyResponse.company:type_name -> athena.v1.Company
+	0,   // 2: athena.v1.ListCompaniesResponse.companies:type_name -> athena.v1.Company
+	5,   // 3: athena.v1.SaveBranchRequest.branch:type_name -> athena.v1.Branch
+	5,   // 4: athena.v1.SaveBranchResponse.branch:type_name -> athena.v1.Branch
+	5,   // 5: athena.v1.ListBranchesResponse.branches:type_name -> athena.v1.Branch
+	10,  // 6: athena.v1.SaveDepartmentRequest.department:type_name -> athena.v1.Department
+	10,  // 7: athena.v1.SaveDepartmentResponse.department:type_name -> athena.v1.Department
+	10,  // 8: athena.v1.ListDepartmentsResponse.departments:type_name -> athena.v1.Department
+	15,  // 9: athena.v1.SaveCostCentreRequest.cost_centre:type_name -> athena.v1.CostCentre
+	15,  // 10: athena.v1.SaveCostCentreResponse.cost_centre:type_name -> athena.v1.CostCentre
+	15,  // 11: athena.v1.ListCostCentresResponse.cost_centres:type_name -> athena.v1.CostCentre
+	20,  // 12: athena.v1.SaveDimensionRequest.dimension:type_name -> athena.v1.DimensionDefinition
+	20,  // 13: athena.v1.SaveDimensionResponse.dimension:type_name -> athena.v1.DimensionDefinition
+	20,  // 14: athena.v1.ListDimensionsResponse.dimensions:type_name -> athena.v1.DimensionDefinition
+	25,  // 15: athena.v1.SaveFiscalYearRequest.fiscal_year:type_name -> athena.v1.FiscalYear
+	25,  // 16: athena.v1.SaveFiscalYearResponse.fiscal_year:type_name -> athena.v1.FiscalYear
+	25,  // 17: athena.v1.ListFiscalYearsResponse.fiscal_years:type_name -> athena.v1.FiscalYear
+	30,  // 18: athena.v1.SavePeriodRequest.period:type_name -> athena.v1.Period
+	30,  // 19: athena.v1.SavePeriodResponse.period:type_name -> athena.v1.Period
+	30,  // 20: athena.v1.SetPeriodStatusResponse.period:type_name -> athena.v1.Period
+	30,  // 21: athena.v1.ListPeriodsResponse.periods:type_name -> athena.v1.Period
+	37,  // 22: athena.v1.SaveCurrencyRequest.currency:type_name -> athena.v1.Currency
+	37,  // 23: athena.v1.SaveCurrencyResponse.currency:type_name -> athena.v1.Currency
+	37,  // 24: athena.v1.ListCurrenciesResponse.currencies:type_name -> athena.v1.Currency
+	42,  // 25: athena.v1.SaveRateRequest.rate:type_name -> athena.v1.ExchangeRate
+	42,  // 26: athena.v1.SaveRateResponse.rate:type_name -> athena.v1.ExchangeRate
+	47,  // 27: athena.v1.SaveAccountTypeRequest.account_type:type_name -> athena.v1.AccountType
+	47,  // 28: athena.v1.SaveAccountTypeResponse.account_type:type_name -> athena.v1.AccountType
+	47,  // 29: athena.v1.ListAccountTypesResponse.account_types:type_name -> athena.v1.AccountType
+	52,  // 30: athena.v1.SaveAccountRequest.account:type_name -> athena.v1.Account
+	52,  // 31: athena.v1.SaveAccountResponse.account:type_name -> athena.v1.Account
+	52,  // 32: athena.v1.ListAccountsResponse.accounts:type_name -> athena.v1.Account
+	99,  // 33: athena.v1.Determination.match:type_name -> athena.v1.Determination.MatchEntry
+	57,  // 34: athena.v1.SaveDeterminationRequest.determination:type_name -> athena.v1.Determination
+	57,  // 35: athena.v1.SaveDeterminationResponse.determination:type_name -> athena.v1.Determination
+	57,  // 36: athena.v1.ListDeterminationsResponse.determinations:type_name -> athena.v1.Determination
+	100, // 37: athena.v1.ResolveAccountRequest.context:type_name -> athena.v1.ResolveAccountRequest.ContextEntry
+	57,  // 38: athena.v1.ResolveAccountResponse.determination:type_name -> athena.v1.Determination
+	64,  // 39: athena.v1.SaveSettingRequest.setting:type_name -> athena.v1.Setting
+	64,  // 40: athena.v1.SaveSettingResponse.setting:type_name -> athena.v1.Setting
+	64,  // 41: athena.v1.ListSettingsResponse.settings:type_name -> athena.v1.Setting
+	69,  // 42: athena.v1.SaveSettingValueRequest.value:type_name -> athena.v1.SettingValue
+	69,  // 43: athena.v1.SaveSettingValueResponse.value:type_name -> athena.v1.SettingValue
+	69,  // 44: athena.v1.PublishSettingValueResponse.value:type_name -> athena.v1.SettingValue
+	69,  // 45: athena.v1.ListSettingValuesResponse.values:type_name -> athena.v1.SettingValue
+	101, // 46: athena.v1.ResolveSettingRequest.scope:type_name -> athena.v1.ResolveSettingRequest.ScopeEntry
+	69,  // 47: athena.v1.ResolveSettingResponse.winners:type_name -> athena.v1.SettingValue
+	102, // 48: athena.v1.PreviewSettingChangeRequest.scope:type_name -> athena.v1.PreviewSettingChangeRequest.ScopeEntry
+	69,  // 49: athena.v1.PreviewSettingChangeRequest.draft:type_name -> athena.v1.SettingValue
+	81,  // 50: athena.v1.PreviewSettingChangeResponse.changes:type_name -> athena.v1.SettingChange
+	83,  // 51: athena.v1.GetReadinessResponse.checks:type_name -> athena.v1.ReadinessCheck
+	103, // 52: athena.v1.PostingPlanLine.dimensions:type_name -> athena.v1.PostingPlanLine.DimensionsEntry
+	86,  // 53: athena.v1.PostingPlan.lines:type_name -> athena.v1.PostingPlanLine
+	87,  // 54: athena.v1.PreviewPostingResponse.plans:type_name -> athena.v1.PostingPlan
+	91,  // 55: athena.v1.GetPostingStatusResponse.groups:type_name -> athena.v1.PostingGroupStatus
+	94,  // 56: athena.v1.ListPostingLogResponse.entries:type_name -> athena.v1.PostingLogEntry
+	104, // 57: athena.v1.LedgerRow.dimensions:type_name -> athena.v1.LedgerRow.DimensionsEntry
+	97,  // 58: athena.v1.ListLedgerRowsResponse.rows:type_name -> athena.v1.LedgerRow
+	1,   // 59: athena.v1.LedgerService.SaveCompany:input_type -> athena.v1.SaveCompanyRequest
+	3,   // 60: athena.v1.LedgerService.ListCompanies:input_type -> athena.v1.ListCompaniesRequest
+	6,   // 61: athena.v1.LedgerService.SaveBranch:input_type -> athena.v1.SaveBranchRequest
+	8,   // 62: athena.v1.LedgerService.ListBranches:input_type -> athena.v1.ListBranchesRequest
+	11,  // 63: athena.v1.LedgerService.SaveDepartment:input_type -> athena.v1.SaveDepartmentRequest
+	13,  // 64: athena.v1.LedgerService.ListDepartments:input_type -> athena.v1.ListDepartmentsRequest
+	16,  // 65: athena.v1.LedgerService.SaveCostCentre:input_type -> athena.v1.SaveCostCentreRequest
+	18,  // 66: athena.v1.LedgerService.ListCostCentres:input_type -> athena.v1.ListCostCentresRequest
+	21,  // 67: athena.v1.LedgerService.SaveDimension:input_type -> athena.v1.SaveDimensionRequest
+	23,  // 68: athena.v1.LedgerService.ListDimensions:input_type -> athena.v1.ListDimensionsRequest
+	26,  // 69: athena.v1.LedgerService.SaveFiscalYear:input_type -> athena.v1.SaveFiscalYearRequest
+	28,  // 70: athena.v1.LedgerService.ListFiscalYears:input_type -> athena.v1.ListFiscalYearsRequest
+	31,  // 71: athena.v1.LedgerService.SavePeriod:input_type -> athena.v1.SavePeriodRequest
+	33,  // 72: athena.v1.LedgerService.SetPeriodStatus:input_type -> athena.v1.SetPeriodStatusRequest
+	35,  // 73: athena.v1.LedgerService.ListPeriods:input_type -> athena.v1.ListPeriodsRequest
+	38,  // 74: athena.v1.LedgerService.SaveCurrency:input_type -> athena.v1.SaveCurrencyRequest
+	40,  // 75: athena.v1.LedgerService.ListCurrencies:input_type -> athena.v1.ListCurrenciesRequest
+	43,  // 76: athena.v1.LedgerService.SaveRate:input_type -> athena.v1.SaveRateRequest
+	45,  // 77: athena.v1.LedgerService.GetRate:input_type -> athena.v1.GetRateRequest
+	48,  // 78: athena.v1.LedgerService.SaveAccountType:input_type -> athena.v1.SaveAccountTypeRequest
+	50,  // 79: athena.v1.LedgerService.ListAccountTypes:input_type -> athena.v1.ListAccountTypesRequest
+	53,  // 80: athena.v1.LedgerService.SaveAccount:input_type -> athena.v1.SaveAccountRequest
+	55,  // 81: athena.v1.LedgerService.ListAccounts:input_type -> athena.v1.ListAccountsRequest
+	58,  // 82: athena.v1.LedgerService.SaveDetermination:input_type -> athena.v1.SaveDeterminationRequest
+	60,  // 83: athena.v1.LedgerService.ListDeterminations:input_type -> athena.v1.ListDeterminationsRequest
+	62,  // 84: athena.v1.LedgerService.ResolveAccount:input_type -> athena.v1.ResolveAccountRequest
+	65,  // 85: athena.v1.LedgerService.SaveSetting:input_type -> athena.v1.SaveSettingRequest
+	67,  // 86: athena.v1.LedgerService.ListSettings:input_type -> athena.v1.ListSettingsRequest
+	70,  // 87: athena.v1.LedgerService.SaveSettingValue:input_type -> athena.v1.SaveSettingValueRequest
+	72,  // 88: athena.v1.LedgerService.PublishSettingValue:input_type -> athena.v1.PublishSettingValueRequest
+	74,  // 89: athena.v1.LedgerService.DiscardSettingValue:input_type -> athena.v1.DiscardSettingValueRequest
+	76,  // 90: athena.v1.LedgerService.ListSettingValues:input_type -> athena.v1.ListSettingValuesRequest
+	78,  // 91: athena.v1.LedgerService.ResolveSetting:input_type -> athena.v1.ResolveSettingRequest
+	80,  // 92: athena.v1.LedgerService.PreviewSettingChange:input_type -> athena.v1.PreviewSettingChangeRequest
+	84,  // 93: athena.v1.LedgerService.GetReadiness:input_type -> athena.v1.GetReadinessRequest
+	88,  // 94: athena.v1.LedgerService.PreviewPosting:input_type -> athena.v1.PreviewPostingRequest
+	90,  // 95: athena.v1.LedgerService.GetPostingStatus:input_type -> athena.v1.GetPostingStatusRequest
+	93,  // 96: athena.v1.LedgerService.ListPostingLog:input_type -> athena.v1.ListPostingLogRequest
+	96,  // 97: athena.v1.LedgerService.ListLedgerRows:input_type -> athena.v1.ListLedgerRowsRequest
+	2,   // 98: athena.v1.LedgerService.SaveCompany:output_type -> athena.v1.SaveCompanyResponse
+	4,   // 99: athena.v1.LedgerService.ListCompanies:output_type -> athena.v1.ListCompaniesResponse
+	7,   // 100: athena.v1.LedgerService.SaveBranch:output_type -> athena.v1.SaveBranchResponse
+	9,   // 101: athena.v1.LedgerService.ListBranches:output_type -> athena.v1.ListBranchesResponse
+	12,  // 102: athena.v1.LedgerService.SaveDepartment:output_type -> athena.v1.SaveDepartmentResponse
+	14,  // 103: athena.v1.LedgerService.ListDepartments:output_type -> athena.v1.ListDepartmentsResponse
+	17,  // 104: athena.v1.LedgerService.SaveCostCentre:output_type -> athena.v1.SaveCostCentreResponse
+	19,  // 105: athena.v1.LedgerService.ListCostCentres:output_type -> athena.v1.ListCostCentresResponse
+	22,  // 106: athena.v1.LedgerService.SaveDimension:output_type -> athena.v1.SaveDimensionResponse
+	24,  // 107: athena.v1.LedgerService.ListDimensions:output_type -> athena.v1.ListDimensionsResponse
+	27,  // 108: athena.v1.LedgerService.SaveFiscalYear:output_type -> athena.v1.SaveFiscalYearResponse
+	29,  // 109: athena.v1.LedgerService.ListFiscalYears:output_type -> athena.v1.ListFiscalYearsResponse
+	32,  // 110: athena.v1.LedgerService.SavePeriod:output_type -> athena.v1.SavePeriodResponse
+	34,  // 111: athena.v1.LedgerService.SetPeriodStatus:output_type -> athena.v1.SetPeriodStatusResponse
+	36,  // 112: athena.v1.LedgerService.ListPeriods:output_type -> athena.v1.ListPeriodsResponse
+	39,  // 113: athena.v1.LedgerService.SaveCurrency:output_type -> athena.v1.SaveCurrencyResponse
+	41,  // 114: athena.v1.LedgerService.ListCurrencies:output_type -> athena.v1.ListCurrenciesResponse
+	44,  // 115: athena.v1.LedgerService.SaveRate:output_type -> athena.v1.SaveRateResponse
+	46,  // 116: athena.v1.LedgerService.GetRate:output_type -> athena.v1.GetRateResponse
+	49,  // 117: athena.v1.LedgerService.SaveAccountType:output_type -> athena.v1.SaveAccountTypeResponse
+	51,  // 118: athena.v1.LedgerService.ListAccountTypes:output_type -> athena.v1.ListAccountTypesResponse
+	54,  // 119: athena.v1.LedgerService.SaveAccount:output_type -> athena.v1.SaveAccountResponse
+	56,  // 120: athena.v1.LedgerService.ListAccounts:output_type -> athena.v1.ListAccountsResponse
+	59,  // 121: athena.v1.LedgerService.SaveDetermination:output_type -> athena.v1.SaveDeterminationResponse
+	61,  // 122: athena.v1.LedgerService.ListDeterminations:output_type -> athena.v1.ListDeterminationsResponse
+	63,  // 123: athena.v1.LedgerService.ResolveAccount:output_type -> athena.v1.ResolveAccountResponse
+	66,  // 124: athena.v1.LedgerService.SaveSetting:output_type -> athena.v1.SaveSettingResponse
+	68,  // 125: athena.v1.LedgerService.ListSettings:output_type -> athena.v1.ListSettingsResponse
+	71,  // 126: athena.v1.LedgerService.SaveSettingValue:output_type -> athena.v1.SaveSettingValueResponse
+	73,  // 127: athena.v1.LedgerService.PublishSettingValue:output_type -> athena.v1.PublishSettingValueResponse
+	75,  // 128: athena.v1.LedgerService.DiscardSettingValue:output_type -> athena.v1.DiscardSettingValueResponse
+	77,  // 129: athena.v1.LedgerService.ListSettingValues:output_type -> athena.v1.ListSettingValuesResponse
+	79,  // 130: athena.v1.LedgerService.ResolveSetting:output_type -> athena.v1.ResolveSettingResponse
+	82,  // 131: athena.v1.LedgerService.PreviewSettingChange:output_type -> athena.v1.PreviewSettingChangeResponse
+	85,  // 132: athena.v1.LedgerService.GetReadiness:output_type -> athena.v1.GetReadinessResponse
+	89,  // 133: athena.v1.LedgerService.PreviewPosting:output_type -> athena.v1.PreviewPostingResponse
+	92,  // 134: athena.v1.LedgerService.GetPostingStatus:output_type -> athena.v1.GetPostingStatusResponse
+	95,  // 135: athena.v1.LedgerService.ListPostingLog:output_type -> athena.v1.ListPostingLogResponse
+	98,  // 136: athena.v1.LedgerService.ListLedgerRows:output_type -> athena.v1.ListLedgerRowsResponse
+	98,  // [98:137] is the sub-list for method output_type
+	59,  // [59:98] is the sub-list for method input_type
+	59,  // [59:59] is the sub-list for extension type_name
+	59,  // [59:59] is the sub-list for extension extendee
+	0,   // [0:59] is the sub-list for field type_name
 }
 
 func init() { file_athena_v1_ledger_proto_init() }
@@ -5368,7 +6631,7 @@ func file_athena_v1_ledger_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_athena_v1_ledger_proto_rawDesc), len(file_athena_v1_ledger_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   90,
+			NumMessages:   105,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

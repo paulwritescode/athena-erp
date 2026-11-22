@@ -77,6 +77,8 @@ func run(args []string) error {
 		return notificationsCommand(args[1:], os.Stdout)
 	case "ledger":
 		return ledgerCommand(args[1:], os.Stdout)
+	case "post":
+		return postCommand(args[1:], os.Stdout)
 	case "rules":
 		return rulesCommand(args[1:], os.Stdout)
 	case "version", "--version", "-v":
@@ -178,8 +180,12 @@ Usage:
       type-save|type-list|save|list, determination save|list|resolve, setting
       save|list|save-value|publish|discard|list-values|resolve|preview. Run
       "athena ledger" with no nouns for every flag.
+  athena post preview|submit|cancel|status|log <record-type> <id> [--workspace slug] [--json]
+      Preview the plans a submit would write, submit or cancel a voucher,
+      and show its posting groups and attempts. submit takes --revision N
+      and refuses when the plan changed since --preview-hash H.
   athena rules list|show|save|rm|versions|simulate|runs [key] [--workspace slug] [--json]
-      Manage Starlark Rules (validation, derivation, guard, transform). Rules run
+      Manage Starlark Rules (validation, derivation, guard, transform, posting). Rules run
       at document events inside the save, through Go host functions only, under
       step and time limits, with no files, network, clock or floats. "save --file
       rule.star" creates a version; "simulate" is a rolled-back dry run with a diff;

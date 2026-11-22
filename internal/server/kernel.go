@@ -32,6 +32,9 @@ type Kernel struct {
 	Files athenav1connect.FileServiceHandler
 	// Rules is the RuleService handler (Starlark Rules, ADR-0016).
 	Rules athenav1connect.RuleServiceHandler
+	// Ledger is the LedgerService handler: masters, posting preview, status,
+	// log and rows.
+	Ledger athenav1connect.LedgerServiceHandler
 	// Hooks takes Go hooks for the lifecycle events (spec 5.2).
 	Hooks *lifecycle.Registry
 	db    *sql.DB
@@ -74,7 +77,7 @@ func OpenKernel(ctx context.Context, endpoint *workspace.DBEndpoint, svc *Worksp
 	if svc != nil {
 		slug = svc.Slug
 	}
-	return &Kernel{Workspace: newWorkspaceService(svc, db), RecordTypes: recordTypeService{db: db}, Records: recordService{db: db, hooks: hooks, workspace: slug}, System: systemService{db: db}, Auth: authService{auth: users}, Users: users, Files: files, Rules: newRuleService(db), Hooks: hooks, db: db}, nil
+	return &Kernel{Workspace: newWorkspaceService(svc, db), RecordTypes: recordTypeService{db: db}, Records: recordService{db: db, hooks: hooks, workspace: slug}, System: systemService{db: db}, Auth: authService{auth: users}, Users: users, Files: files, Rules: newRuleService(db), Ledger: newLedgerService(db), Hooks: hooks, db: db}, nil
 }
 
 // Close releases the database connection.

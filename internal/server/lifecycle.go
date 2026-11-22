@@ -325,17 +325,17 @@ func (s recordService) transition(ctx context.Context, requestID string, action 
 // posts in the transition's transaction through its Rule's stable operation
 // id, so retrying a submit replays instead of posting again.
 func (s recordService) postVoucher(ctx context.Context, tx *sql.Tx, d recordTypeDefinition, id string, revision int64, doc *lifecycle.Document, requestID, previewHash string) error {
-	plans, err := ruleEngine{db: s.db}.postingPlans(ctx, tx, d, id, revision, doc)
+	plans, err := ruleEngine{db: s.db}.postingPlans(ctx, tx, d, id, revision, doc, false)
 	if err != nil {
 		return err
-	}
-	if len(plans) == 0 {
-		return nil
 	}
 	bare := make([]posting.Plan, len(plans))
 	for i := range plans {
 		bare[i] = plans[i].plan
 	}
+	// The hash is compared before the empty check, so an approval of a plan
+	// refuses when the Rules vanished after the preview instead of silently
+	// posting nothing.
 	if previewHash != "" {
 		hash, err := posting.HashPlans(bare)
 		if err != nil {
@@ -344,6 +344,9 @@ func (s recordService) postVoucher(ctx context.Context, tx *sql.Tx, d recordType
 		if hash != previewHash {
 			return connect.NewError(connect.CodeFailedPrecondition, "the posting plan changed since it was previewed; review the voucher and submit again")
 		}
+	}
+	if len(plans) == 0 {
+		return nil
 	}
 	_, source := requestFrom(ctx)
 	engine := &posting.Engine{DB: s.db, Dialect: dialect, Workspace: s.workspace}

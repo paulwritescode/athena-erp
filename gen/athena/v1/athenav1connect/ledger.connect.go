@@ -116,6 +116,18 @@ const (
 	LedgerServicePreviewSettingChangeProcedure = "/athena.v1.LedgerService/PreviewSettingChange"
 	// LedgerServiceGetReadinessProcedure is the procedure name of the LedgerService's GetReadiness RPC.
 	LedgerServiceGetReadinessProcedure = "/athena.v1.LedgerService/GetReadiness"
+	// LedgerServicePreviewPostingProcedure is the procedure name of the LedgerService's PreviewPosting
+	// RPC.
+	LedgerServicePreviewPostingProcedure = "/athena.v1.LedgerService/PreviewPosting"
+	// LedgerServiceGetPostingStatusProcedure is the procedure name of the LedgerService's
+	// GetPostingStatus RPC.
+	LedgerServiceGetPostingStatusProcedure = "/athena.v1.LedgerService/GetPostingStatus"
+	// LedgerServiceListPostingLogProcedure is the procedure name of the LedgerService's ListPostingLog
+	// RPC.
+	LedgerServiceListPostingLogProcedure = "/athena.v1.LedgerService/ListPostingLog"
+	// LedgerServiceListLedgerRowsProcedure is the procedure name of the LedgerService's ListLedgerRows
+	// RPC.
+	LedgerServiceListLedgerRowsProcedure = "/athena.v1.LedgerService/ListLedgerRows"
 )
 
 var (
@@ -364,6 +376,34 @@ var (
 			Procedure:  LedgerServiceGetReadinessProcedure,
 		}
 	})
+	ledgerServicePreviewPostingSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_athena_v1_ledger_proto.Services().ByName("LedgerService").Methods().ByName("PreviewPosting"),
+			Procedure:  LedgerServicePreviewPostingProcedure,
+		}
+	})
+	ledgerServiceGetPostingStatusSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_athena_v1_ledger_proto.Services().ByName("LedgerService").Methods().ByName("GetPostingStatus"),
+			Procedure:  LedgerServiceGetPostingStatusProcedure,
+		}
+	})
+	ledgerServiceListPostingLogSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_athena_v1_ledger_proto.Services().ByName("LedgerService").Methods().ByName("ListPostingLog"),
+			Procedure:  LedgerServiceListPostingLogProcedure,
+		}
+	})
+	ledgerServiceListLedgerRowsSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_athena_v1_ledger_proto.Services().ByName("LedgerService").Methods().ByName("ListLedgerRows"),
+			Procedure:  LedgerServiceListLedgerRowsProcedure,
+		}
+	})
 )
 
 // LedgerServiceClient is a client for the athena.v1.LedgerService service.
@@ -403,6 +443,18 @@ type LedgerServiceClient interface {
 	ResolveSetting(context.Context, *v1.ResolveSettingRequest) (*v1.ResolveSettingResponse, error)
 	PreviewSettingChange(context.Context, *v1.PreviewSettingChangeRequest) (*v1.PreviewSettingChangeResponse, error)
 	GetReadiness(context.Context, *v1.GetReadinessRequest) (*v1.GetReadinessResponse, error)
+	// PreviewPosting runs a voucher's posting Rules and returns the plans a
+	// submit would write now, with the combined hash to approve (R6.14). It
+	// writes nothing; the submit recalculates and refuses when the plan
+	// changed (R6.15).
+	PreviewPosting(context.Context, *v1.PreviewPostingRequest) (*v1.PreviewPostingResponse, error)
+	// GetPostingStatus returns one voucher's posting groups with whether a
+	// reversal unwound each.
+	GetPostingStatus(context.Context, *v1.GetPostingStatusRequest) (*v1.GetPostingStatusResponse, error)
+	// ListPostingLog returns one voucher's posting attempts, newest first.
+	ListPostingLog(context.Context, *v1.ListPostingLogRequest) (*v1.ListPostingLogResponse, error)
+	// ListLedgerRows returns one voucher's ledger rows in posting order.
+	ListLedgerRows(context.Context, *v1.ListLedgerRowsRequest) (*v1.ListLedgerRowsResponse, error)
 }
 
 // NewLedgerServiceClient constructs a client for the athena.v1.LedgerService service. Multiple
@@ -448,6 +500,18 @@ type LedgerServiceHandler interface {
 	ResolveSetting(context.Context, *v1.ResolveSettingRequest) (*v1.ResolveSettingResponse, error)
 	PreviewSettingChange(context.Context, *v1.PreviewSettingChangeRequest) (*v1.PreviewSettingChangeResponse, error)
 	GetReadiness(context.Context, *v1.GetReadinessRequest) (*v1.GetReadinessResponse, error)
+	// PreviewPosting runs a voucher's posting Rules and returns the plans a
+	// submit would write now, with the combined hash to approve (R6.14). It
+	// writes nothing; the submit recalculates and refuses when the plan
+	// changed (R6.15).
+	PreviewPosting(context.Context, *v1.PreviewPostingRequest) (*v1.PreviewPostingResponse, error)
+	// GetPostingStatus returns one voucher's posting groups with whether a
+	// reversal unwound each.
+	GetPostingStatus(context.Context, *v1.GetPostingStatusRequest) (*v1.GetPostingStatusResponse, error)
+	// ListPostingLog returns one voucher's posting attempts, newest first.
+	ListPostingLog(context.Context, *v1.ListPostingLogRequest) (*v1.ListPostingLogResponse, error)
+	// ListLedgerRows returns one voucher's ledger rows in posting order.
+	ListLedgerRows(context.Context, *v1.ListLedgerRowsRequest) (*v1.ListLedgerRowsResponse, error)
 }
 
 // RegisterLedgerServiceHandler registers svc as the athena.v1.LedgerService implementation on
@@ -490,6 +554,10 @@ func RegisterLedgerServiceHandler(server *connect.Server, svc LedgerServiceHandl
 		connect.Method{Spec: ledgerServiceResolveSettingSpec(), Handler: adapter.resolveSetting},
 		connect.Method{Spec: ledgerServicePreviewSettingChangeSpec(), Handler: adapter.previewSettingChange},
 		connect.Method{Spec: ledgerServiceGetReadinessSpec(), Handler: adapter.getReadiness},
+		connect.Method{Spec: ledgerServicePreviewPostingSpec(), Handler: adapter.previewPosting},
+		connect.Method{Spec: ledgerServiceGetPostingStatusSpec(), Handler: adapter.getPostingStatus},
+		connect.Method{Spec: ledgerServiceListPostingLogSpec(), Handler: adapter.listPostingLog},
+		connect.Method{Spec: ledgerServiceListLedgerRowsSpec(), Handler: adapter.listLedgerRows},
 	)
 }
 
@@ -634,6 +702,22 @@ func (UnimplementedLedgerServiceHandler) PreviewSettingChange(context.Context, *
 
 func (UnimplementedLedgerServiceHandler) GetReadiness(context.Context, *v1.GetReadinessRequest) (*v1.GetReadinessResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, "athena.v1.LedgerService.GetReadiness is not implemented")
+}
+
+func (UnimplementedLedgerServiceHandler) PreviewPosting(context.Context, *v1.PreviewPostingRequest) (*v1.PreviewPostingResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "athena.v1.LedgerService.PreviewPosting is not implemented")
+}
+
+func (UnimplementedLedgerServiceHandler) GetPostingStatus(context.Context, *v1.GetPostingStatusRequest) (*v1.GetPostingStatusResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "athena.v1.LedgerService.GetPostingStatus is not implemented")
+}
+
+func (UnimplementedLedgerServiceHandler) ListPostingLog(context.Context, *v1.ListPostingLogRequest) (*v1.ListPostingLogResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "athena.v1.LedgerService.ListPostingLog is not implemented")
+}
+
+func (UnimplementedLedgerServiceHandler) ListLedgerRows(context.Context, *v1.ListLedgerRowsRequest) (*v1.ListLedgerRowsResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "athena.v1.LedgerService.ListLedgerRows is not implemented")
 }
 
 type ledgerServiceClient struct {
@@ -915,6 +999,38 @@ func (c *ledgerServiceClient) PreviewSettingChange(ctx context.Context, req *v1.
 func (c *ledgerServiceClient) GetReadiness(ctx context.Context, req *v1.GetReadinessRequest) (*v1.GetReadinessResponse, error) {
 	var res v1.GetReadinessResponse
 	if err := c.client.CallUnary(ctx, ledgerServiceGetReadinessSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *ledgerServiceClient) PreviewPosting(ctx context.Context, req *v1.PreviewPostingRequest) (*v1.PreviewPostingResponse, error) {
+	var res v1.PreviewPostingResponse
+	if err := c.client.CallUnary(ctx, ledgerServicePreviewPostingSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *ledgerServiceClient) GetPostingStatus(ctx context.Context, req *v1.GetPostingStatusRequest) (*v1.GetPostingStatusResponse, error) {
+	var res v1.GetPostingStatusResponse
+	if err := c.client.CallUnary(ctx, ledgerServiceGetPostingStatusSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *ledgerServiceClient) ListPostingLog(ctx context.Context, req *v1.ListPostingLogRequest) (*v1.ListPostingLogResponse, error) {
+	var res v1.ListPostingLogResponse
+	if err := c.client.CallUnary(ctx, ledgerServiceListPostingLogSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *ledgerServiceClient) ListLedgerRows(ctx context.Context, req *v1.ListLedgerRowsRequest) (*v1.ListLedgerRowsResponse, error) {
+	var res v1.ListLedgerRowsResponse
+	if err := c.client.CallUnary(ctx, ledgerServiceListLedgerRowsSpec(), req, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -1336,6 +1452,54 @@ func (h ledgerServiceHandler) getReadiness(ctx context.Context, _ connect.Spec, 
 		return err
 	}
 	res, err := h.svc.GetReadiness(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h ledgerServiceHandler) previewPosting(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.PreviewPostingRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.PreviewPosting(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h ledgerServiceHandler) getPostingStatus(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.GetPostingStatusRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.GetPostingStatus(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h ledgerServiceHandler) listPostingLog(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.ListPostingLogRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.ListPostingLog(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h ledgerServiceHandler) listLedgerRows(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.ListLedgerRowsRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.ListLedgerRows(ctx, &req)
 	if err != nil {
 		return err
 	}

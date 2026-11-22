@@ -46,6 +46,18 @@ service LedgerService {
   rpc ResolveSetting(ResolveSettingRequest) returns (ResolveSettingResponse);
   rpc PreviewSettingChange(PreviewSettingChangeRequest) returns (PreviewSettingChangeResponse);
   rpc GetReadiness(GetReadinessRequest) returns (GetReadinessResponse);
+  // PreviewPosting runs a voucher's posting Rules and returns the plans a
+  // submit would write now, with the combined hash to approve (R6.14). It
+  // writes nothing; the submit recalculates and refuses when the plan
+  // changed (R6.15).
+  rpc PreviewPosting(PreviewPostingRequest) returns (PreviewPostingResponse);
+  // GetPostingStatus returns one voucher's posting groups with whether a
+  // reversal unwound each.
+  rpc GetPostingStatus(GetPostingStatusRequest) returns (GetPostingStatusResponse);
+  // ListPostingLog returns one voucher's posting attempts, newest first.
+  rpc ListPostingLog(ListPostingLogRequest) returns (ListPostingLogResponse);
+  // ListLedgerRows returns one voucher's ledger rows in posting order.
+  rpc ListLedgerRows(ListLedgerRowsRequest) returns (ListLedgerRowsResponse);
 }
 
 // Company tops one organisation tree.
@@ -523,4 +535,141 @@ message GetReadinessRequest {
 
 message GetReadinessResponse {
   repeated ReadinessCheck checks = 1;
+}
+
+// PostingPlanLine is one leg of a previewed plan with its resolved account.
+message PostingPlanLine {
+  string company = 1;
+  string account = 2;
+  string account_label = 3;
+  string debit_base = 4;
+  string credit_base = 5;
+  string txn_currency = 6;
+  string txn_debit = 7;
+  string txn_credit = 8;
+  // Empty when the leg has no quantity.
+  string quantity = 9;
+  string quantity_uom = 10;
+  map<string, string> dimensions = 11;
+  string source_type = 12;
+  string source_id = 13;
+}
+
+// PostingPlan is what one posting Rule returns for a submit: the book, the
+// date and the legs, with the Rule version that built it.
+message PostingPlan {
+  string rule_key = 1;
+  int64 rule_version = 2;
+  string book = 3;
+  string posting_date = 4;
+  repeated PostingPlanLine lines = 5;
+}
+
+message PreviewPostingRequest {
+  string record_type_key = 1;
+  string id = 2;
+}
+
+message PreviewPostingResponse {
+  // The voucher revision previewed. The plans assume revision + 1, the
+  // revision a submit now would assign, so plan_hash matches submit.
+  int64 revision = 1;
+  repeated PostingPlan plans = 2;
+  // Combined hash of the plans; submit with it as posting_preview_hash to
+  // prove the approval saw this exact plan (R6.15).
+  string plan_hash = 3;
+}
+
+message GetPostingStatusRequest {
+  string record_type_key = 1;
+  string id = 2;
+}
+
+// PostingGroupStatus is one posted group: one voucher revision, event and
+// book, with whether a reversal unwound it.
+message PostingGroupStatus {
+  int64 revision = 1;
+  string event = 2;
+  string book = 3;
+  string posting_group_id = 4;
+  int64 row_count = 5;
+  // RFC 3339 time of the post.
+  string posted_at = 6;
+  bool reversed = 7;
+  // The cancel group unwinding it, when reversed.
+  string reversed_by = 8;
+}
+
+message GetPostingStatusResponse {
+  repeated PostingGroupStatus groups = 1;
+}
+
+message ListPostingLogRequest {
+  string record_type_key = 1;
+  string id = 2;
+  // Filter by outcome: posted, replayed, conflict, rejected or error. Empty
+  // means any.
+  string outcome = 3;
+  int32 page_size = 4;
+  // Opaque token from the previous page.
+  string page_token = 5;
+}
+
+// PostingLogEntry is one posting attempt and its outcome.
+message PostingLogEntry {
+  string id = 1;
+  int64 revision = 2;
+  string event = 3;
+  string book = 4;
+  string operation_id = 5;
+  string outcome = 6;
+  string code = 7;
+  string message = 8;
+  string plan_hash = 9;
+  string actor = 10;
+  string request_id = 11;
+  // RFC 3339 time of the attempt.
+  string created_at = 12;
+}
+
+message ListPostingLogResponse {
+  repeated PostingLogEntry entries = 1;
+  string next_page_token = 2;
+}
+
+message ListLedgerRowsRequest {
+  string record_type_key = 1;
+  string id = 2;
+  int32 page_size = 3;
+  // Opaque token from the previous page.
+  string page_token = 4;
+}
+
+// LedgerRow is one posted leg of a voucher.
+message LedgerRow {
+  string id = 1;
+  string company = 2;
+  string book = 3;
+  string account = 4;
+  string period = 5;
+  string posting_date = 6;
+  string debit_base = 7;
+  string credit_base = 8;
+  string txn_currency = 9;
+  string txn_debit = 10;
+  string txn_credit = 11;
+  // Empty when the leg has no quantity.
+  string quantity = 12;
+  string quantity_uom = 13;
+  map<string, string> dimensions = 14;
+  int64 revision = 15;
+  string event = 16;
+  string posting_group_id = 17;
+  bool is_reversal = 18;
+  string reversed_row_id = 19;
+}
+
+message ListLedgerRowsResponse {
+  repeated LedgerRow rows = 1;
+  string next_page_token = 2;
 }

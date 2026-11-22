@@ -159,6 +159,10 @@ var procedurePolicies = map[string]policy{
 	athenav1connect.LedgerServiceResolveSettingProcedure:       {kind: policySystem, permission: auth.PermissionLedgerRead},
 	athenav1connect.LedgerServicePreviewSettingChangeProcedure: {kind: policySystem, permission: auth.PermissionLedgerRead},
 	athenav1connect.LedgerServiceGetReadinessProcedure:         {kind: policySystem, permission: auth.PermissionLedgerRead},
+	athenav1connect.LedgerServicePreviewPostingProcedure:       {kind: policySystem, permission: auth.PermissionLedgerRead},
+	athenav1connect.LedgerServiceGetPostingStatusProcedure:     {kind: policySystem, permission: auth.PermissionLedgerRead},
+	athenav1connect.LedgerServiceListPostingLogProcedure:       {kind: policySystem, permission: auth.PermissionLedgerRead},
+	athenav1connect.LedgerServiceListLedgerRowsProcedure:       {kind: policySystem, permission: auth.PermissionLedgerRead},
 }
 
 // destructiveProcedures covers deletes, reversals, replacement of executable

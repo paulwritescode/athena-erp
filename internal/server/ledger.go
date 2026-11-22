@@ -5,12 +5,14 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strconv"
 	"time"
 
 	athenav1 "athena-erp/gen/athena/v1"
 	"athena-erp/internal/auth"
 	"athena-erp/internal/ledger"
+	"athena-erp/internal/posting"
 	"athena-erp/internal/types"
 
 	"connectrpc.com/connect/v2"
@@ -833,4 +835,261 @@ func orAction(ok bool, action string) string {
 
 func revision(revision int64) string {
 	return strconv.FormatInt(revision, 10)
+}
+
+// ---- posting reads ----------------------------------------------------------
+
+const (
+	defaultPostingPage = 50
+	maxPostingPage     = 200
+)
+
+// previewable loads a submittable voucher the posting reads below report on.
+// Books stay behind ledger:read and the voucher behind its read Grant;
+// neither alone opens the other.
+func (s ledgerService) previewable(ctx context.Context, recordType, id string) (recordTypeDefinition, error) {
+	if err := s.ready(); err != nil {
+		return recordTypeDefinition{}, err
+	}
+	p, err := requireSystem(ctx, auth.PermissionLedgerRead)
+	if err != nil {
+		return recordTypeDefinition{}, err
+	}
+	def, err := loadRecordTypeFrom(ctx, s.db, recordType)
+	if err != nil {
+		return recordTypeDefinition{}, err
+	}
+	if !def.Submittable {
+		return recordTypeDefinition{}, connect.NewError(connect.CodeFailedPrecondition, fmt.Sprintf("%s is not a submittable document", def.Label))
+	}
+	if err := authorizeRecord(ctx, s.db, p, def, id, auth.ActionRead); err != nil {
+		return recordTypeDefinition{}, err
+	}
+	return def, nil
+}
+
+// PreviewPosting runs a voucher's posting Rules and returns the plans a
+// submit would write now (R6.14). It reads inside a transaction that is
+// always rolled back; the only rows it leaves are dry-run Rule Run rows,
+// which never read as posts. The plans assume revision + 1, the revision a
+// submit now would assign, so plan_hash is the hash to approve (R6.15).
+func (s ledgerService) PreviewPosting(ctx context.Context, req *athenav1.PreviewPostingRequest) (*athenav1.PreviewPostingResponse, error) {
+	def, err := s.previewable(ctx, req.GetRecordTypeKey(), req.GetId())
+	if err != nil {
+		return nil, err
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, internalError("preview posting", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	record, err := loadRecord(ctx, tx, def, req.GetId(), "")
+	if err != nil {
+		return nil, err
+	}
+	doc, err := pendingDocument(ctx, def, req.GetId(), record, nil, nil)
+	if err != nil {
+		return nil, err
+	}
+	plans, err := ruleEngine{db: s.db}.postingPlans(ctx, tx, def, req.GetId(), record.GetRevision()+1, doc, true)
+	if err != nil {
+		return nil, err
+	}
+	masters := &ledger.Service{DB: tx, Dialect: dialect}
+	res := &athenav1.PreviewPostingResponse{Revision: record.GetRevision()}
+	bare := make([]posting.Plan, len(plans))
+	for i, named := range plans {
+		if err := posting.ValidatePlan(ctx, tx, named.plan); err != nil {
+			return nil, postingError(named.rule, err)
+		}
+		bare[i] = named.plan
+		plan := &athenav1.PostingPlan{RuleKey: named.rule, RuleVersion: named.version, Book: named.plan.Book, PostingDate: named.plan.PostingDate}
+		for _, line := range named.plan.Lines {
+			account, err := masters.GetAccount(ctx, line.Account)
+			if err != nil {
+				return nil, ledgerError(err)
+			}
+			leg := &athenav1.PostingPlanLine{
+				Company: line.Company, Account: line.Account, AccountLabel: account.Label,
+				DebitBase: line.DebitBase.String(), CreditBase: line.CreditBase.String(),
+				TxnCurrency: line.TxnCurrency, TxnDebit: line.TxnDebit.String(), TxnCredit: line.TxnCredit.String(),
+				QuantityUom: line.QuantityUOM, Dimensions: line.Dimensions,
+				SourceType: line.SourceType, SourceId: line.SourceID,
+			}
+			if line.Quantity != nil {
+				leg.Quantity = line.Quantity.String()
+			}
+			plan.Lines = append(plan.Lines, leg)
+		}
+		res.Plans = append(res.Plans, plan)
+	}
+	hash, err := posting.HashPlans(bare)
+	if err != nil {
+		return nil, internalError("hash posting plans", err)
+	}
+	res.PlanHash = hash
+	return res, nil
+}
+
+// GetPostingStatus returns one voucher's posting groups in revision, event
+// (each submit before its cancel) and book order, with whether a reversal
+// unwound each submit group.
+func (s ledgerService) GetPostingStatus(ctx context.Context, req *athenav1.GetPostingStatusRequest) (*athenav1.GetPostingStatusResponse, error) {
+	if _, err := s.previewable(ctx, req.GetRecordTypeKey(), req.GetId()); err != nil {
+		return nil, err
+	}
+	// Event sorts descending so each submit precedes its cancel ("submit"
+	// outranks "cancel"); the engine writes only those two events.
+	rows, err := s.db.QueryContext(ctx, `SELECT id, voucher_revision, event, book, created_at, (SELECT COUNT(*) FROM l_gl WHERE posting_group_id = g.id) FROM athena_posting_groups g WHERE voucher_type = ? AND voucher_id = ? ORDER BY voucher_revision, event DESC, book`,
+		req.GetRecordTypeKey(), req.GetId())
+	if err != nil {
+		return nil, internalError("read posting status", err)
+	}
+	defer rows.Close()
+	res := &athenav1.GetPostingStatusResponse{}
+	for rows.Next() {
+		var group athenav1.PostingGroupStatus
+		var at time.Time
+		if err := rows.Scan(&group.PostingGroupId, &group.Revision, &group.Event, &group.Book, &at, &group.RowCount); err != nil {
+			return nil, internalError("read posting status", err)
+		}
+		group.PostedAt = at.UTC().Format(time.RFC3339)
+		res.Groups = append(res.Groups, &group)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, internalError("read posting status", err)
+	}
+	reversedBy := map[string]string{}
+	reversals, err := s.db.QueryContext(ctx, `SELECT id, voucher_revision, book FROM athena_posting_groups WHERE voucher_type = ? AND voucher_id = ? AND event = ?`,
+		req.GetRecordTypeKey(), req.GetId(), posting.EventCancel)
+	if err != nil {
+		return nil, internalError("read posting status", err)
+	}
+	defer reversals.Close()
+	for reversals.Next() {
+		var id, book string
+		var revision int64
+		if err := reversals.Scan(&id, &revision, &book); err != nil {
+			return nil, internalError("read posting status", err)
+		}
+		reversedBy[fmt.Sprintf("%d\x00%s", revision, book)] = id
+	}
+	if err := reversals.Err(); err != nil {
+		return nil, internalError("read posting status", err)
+	}
+	for _, group := range res.GetGroups() {
+		if group.GetEvent() != posting.EventSubmit {
+			continue
+		}
+		if id, ok := reversedBy[fmt.Sprintf("%d\x00%s", group.GetRevision(), group.GetBook())]; ok {
+			group.Reversed, group.ReversedBy = true, id
+		}
+	}
+	return res, nil
+}
+
+// ListPostingLog returns one voucher's posting attempts, newest first, with
+// keyset paging over the attempt id.
+func (s ledgerService) ListPostingLog(ctx context.Context, req *athenav1.ListPostingLogRequest) (*athenav1.ListPostingLogResponse, error) {
+	if _, err := s.previewable(ctx, req.GetRecordTypeKey(), req.GetId()); err != nil {
+		return nil, err
+	}
+	switch outcome := req.GetOutcome(); outcome {
+	case "", posting.OutcomePosted, posting.OutcomeReplayed, posting.OutcomeConflict, posting.OutcomeRejected, posting.OutcomeError:
+	default:
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Sprintf("outcome is one of posted, replayed, conflict, rejected or error, not %q", outcome))
+	}
+	size := int(req.GetPageSize())
+	if size <= 0 {
+		size = defaultPostingPage
+	}
+	size = min(size, maxPostingPage)
+	where, args := "voucher_type = ? AND voucher_id = ?", []any{req.GetRecordTypeKey(), req.GetId()}
+	if req.GetOutcome() != "" {
+		where += " AND outcome = ?"
+		args = append(args, req.GetOutcome())
+	}
+	if req.GetPageToken() != "" {
+		after, err := decodeCursor(req.GetPageToken(), "posting_log")
+		if err != nil {
+			return nil, err
+		}
+		where += " AND id < ?"
+		args = append(args, after)
+	}
+	rows, err := s.db.QueryContext(ctx, `SELECT id, voucher_revision, event, book, operation_id, outcome, code, message, plan_hash, actor, COALESCE(request_id, ''), created_at FROM athena_posting_log WHERE `+where+` ORDER BY id DESC LIMIT ?`, append(args, size+1)...)
+	if err != nil {
+		return nil, internalError("read posting log", err)
+	}
+	defer rows.Close()
+	res := &athenav1.ListPostingLogResponse{}
+	for rows.Next() {
+		var entry athenav1.PostingLogEntry
+		var at time.Time
+		if err := rows.Scan(&entry.Id, &entry.Revision, &entry.Event, &entry.Book, &entry.OperationId, &entry.Outcome, &entry.Code, &entry.Message, &entry.PlanHash, &entry.Actor, &entry.RequestId, &at); err != nil {
+			return nil, internalError("read posting log", err)
+		}
+		entry.CreatedAt = at.UTC().Format(time.RFC3339)
+		res.Entries = append(res.Entries, &entry)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, internalError("read posting log", err)
+	}
+	if len(res.GetEntries()) > size {
+		res.NextPageToken = encodeCursor("posting_log", res.GetEntries()[size-1].GetId())
+		res.Entries = res.GetEntries()[:size]
+	}
+	return res, nil
+}
+
+// ListLedgerRows returns one voucher's ledger rows in posting order, with
+// keyset paging over the row id.
+func (s ledgerService) ListLedgerRows(ctx context.Context, req *athenav1.ListLedgerRowsRequest) (*athenav1.ListLedgerRowsResponse, error) {
+	if _, err := s.previewable(ctx, req.GetRecordTypeKey(), req.GetId()); err != nil {
+		return nil, err
+	}
+	size := int(req.GetPageSize())
+	if size <= 0 {
+		size = defaultPostingPage
+	}
+	size = min(size, maxPostingPage)
+	where, args := "voucher_type = ? AND voucher_id = ?", []any{req.GetRecordTypeKey(), req.GetId()}
+	if req.GetPageToken() != "" {
+		after, err := decodeCursor(req.GetPageToken(), "ledger_rows")
+		if err != nil {
+			return nil, err
+		}
+		where += " AND id > ?"
+		args = append(args, after)
+	}
+	rows, err := s.db.QueryContext(ctx, `SELECT id, company_name, book, account_name, period_name, posting_date, debit_base, credit_base, txn_currency, txn_debit, txn_credit, quantity, quantity_uom, dimensions, voucher_revision, event, posting_group_id, is_reversal, reversed_row_id FROM l_gl WHERE `+where+` ORDER BY id ASC LIMIT ?`, append(args, size+1)...)
+	if err != nil {
+		return nil, internalError("read ledger rows", err)
+	}
+	defer rows.Close()
+	res := &athenav1.ListLedgerRowsResponse{}
+	for rows.Next() {
+		var row athenav1.LedgerRow
+		var date time.Time
+		var currency, quantity, uom, reversed sql.NullString
+		var dimensions []byte
+		if err := rows.Scan(&row.Id, &row.Company, &row.Book, &row.Account, &row.Period, &date, &row.DebitBase, &row.CreditBase, &currency, &row.TxnDebit, &row.TxnCredit, &quantity, &uom, &dimensions, &row.Revision, &row.Event, &row.PostingGroupId, &row.IsReversal, &reversed); err != nil {
+			return nil, internalError("read ledger rows", err)
+		}
+		row.PostingDate = date.Format("2006-01-02")
+		row.TxnCurrency, row.Quantity, row.QuantityUom, row.ReversedRowId = currency.String, quantity.String, uom.String, reversed.String
+		row.Dimensions = map[string]string{}
+		if err := json.Unmarshal(dimensions, &row.Dimensions); err != nil {
+			return nil, internalError("read ledger rows", err)
+		}
+		res.Rows = append(res.Rows, &row)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, internalError("read ledger rows", err)
+	}
+	if len(res.GetRows()) > size {
+		res.NextPageToken = encodeCursor("ledger_rows", res.GetRows()[size-1].GetId())
+		res.Rows = res.GetRows()[:size]
+	}
+	return res, nil
 }

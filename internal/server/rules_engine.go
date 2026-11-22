@@ -304,10 +304,11 @@ func clipText(s string, limit int) string {
 // ---- posting --------------------------------------------------------------
 
 // namedPlan is one posting Rule's plan with the Rule that built it, for
-// errors that name the author.
+// errors that name the author and previews that name the policy version.
 type namedPlan struct {
-	rule string
-	plan posting.Plan
+	rule    string
+	version int64
+	plan    posting.Plan
 }
 
 // postingPlans runs the enabled posting Rules of one Record Type and returns
@@ -315,8 +316,9 @@ type namedPlan struct {
 // with its outcome; a Rule that returns no plan is refused as authoring that
 // cannot post. Documents without posting Rules post nothing. Two Rules may
 // not name one book: one voucher revision, event and book owns one posting
-// group, so a second plan for it could never post.
-func (e ruleEngine) postingPlans(ctx context.Context, tx *sql.Tx, def recordTypeDefinition, recordID string, revision int64, doc *lifecycle.Document) ([]namedPlan, error) {
+// group, so a second plan for it could never post. dryRun marks the Rule Run
+// rows a preview leaves, so they never read as submitted posts.
+func (e ruleEngine) postingPlans(ctx context.Context, tx *sql.Tx, def recordTypeDefinition, recordID string, revision int64, doc *lifecycle.Document, dryRun bool) ([]namedPlan, error) {
 	list, err := loadRulesFor(ctx, tx, def.Name, string(lifecycle.OnSubmit))
 	if err != nil {
 		return nil, err
@@ -328,7 +330,7 @@ func (e ruleEngine) postingPlans(ctx context.Context, tx *sql.Tx, def recordType
 			continue
 		}
 		run := ruleRun{
-			engine: e, rule: rule, def: &def, tx: tx, doc: doc, recordID: recordID, event: string(lifecycle.OnSubmit),
+			engine: e, rule: rule, def: &def, tx: tx, doc: doc, recordID: recordID, event: string(lifecycle.OnSubmit), dryRun: dryRun,
 		}
 		out, err := run.execute(ctx)
 		if err != nil {
@@ -344,7 +346,7 @@ func (e ruleEngine) postingPlans(ctx context.Context, tx *sql.Tx, def recordType
 			return nil, connect.NewError(connect.CodeFailedPrecondition, fmt.Sprintf("The Rules %s and %s both post to book %q; merge them into one Rule", first, rule.Key, out.Plan.Book))
 		}
 		books[out.Plan.Book] = rule.Key
-		plans = append(plans, namedPlan{rule: rule.Key, plan: voucherPlan(def.Name, recordID, revision, out.Plan)})
+		plans = append(plans, namedPlan{rule: rule.Key, version: rule.Version, plan: voucherPlan(def.Name, recordID, revision, out.Plan)})
 	}
 	return plans, nil
 }
