@@ -249,7 +249,9 @@ func (s recordService) transition(ctx context.Context, requestID string, action 
 			return nil, connect.NewError(connect.CodeFailedPrecondition, fmt.Sprintf("cannot cancel: a submitted %s links to this document; cancel that first", label))
 		}
 	}
-	event := lifecycle.Event{RecordType: key, RecordID: id, RequestID: requestID, From: from, To: to, Tx: tx}
+	event := lifecycle.Event{RecordType: key, RecordID: id, RequestID: requestID,
+		Actor: actorName(ctx), Workspace: s.workspace, Revision: expected + 1,
+		From: from, To: to, Tx: tx}
 	if event.Doc, err = pendingDocument(ctx, recordType, id, current, nil, nil); err != nil {
 		return nil, err
 	}

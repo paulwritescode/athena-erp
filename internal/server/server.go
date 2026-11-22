@@ -192,6 +192,15 @@ func filesWorkspace(config Config) *Workspace {
 	return config.Workspace
 }
 
+// configWorkspaceSlug is the bound Workspace slug for durable event
+// envelopes, or empty when the server has no Workspace.
+func configWorkspaceSlug(config Config) string {
+	if config.Workspace == nil {
+		return ""
+	}
+	return config.Workspace.Slug
+}
+
 // mountRPC registers every ConnectRPC service on mux behind interceptors and
 // the permission gate. The gate runs last, so denials are traced and carry the
 // request ID. Without a database it refuses every call.
@@ -207,7 +216,8 @@ func mountRPC(mux *http.ServeMux, config Config, db *sql.DB, telemetry bool, int
 	athenav1connect.RegisterRecordTypeServiceHandler(rpcServer, recordTypeService{db: db})
 	hooks := lifecycle.NewRegistry()
 	registerRules(hooks, db)
-	athenav1connect.RegisterRecordServiceHandler(rpcServer, recordService{db: db, hooks: hooks})
+	registerDurableEvents(hooks)
+	athenav1connect.RegisterRecordServiceHandler(rpcServer, recordService{db: db, hooks: hooks, workspace: configWorkspaceSlug(config)})
 	athenav1connect.RegisterRuleServiceHandler(rpcServer, newRuleService(db))
 	athenav1connect.RegisterFileServiceHandler(rpcServer, newFileService(filesWorkspace(config), db))
 	athenav1connect.RegisterWorkspaceServiceHandler(rpcServer, newWorkspaceService(filesWorkspace(config), db))

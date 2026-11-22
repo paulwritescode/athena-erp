@@ -69,7 +69,12 @@ func OpenKernel(ctx context.Context, endpoint *workspace.DBEndpoint, svc *Worksp
 	files := newFileService(svc, db)
 	hooks := lifecycle.NewRegistry()
 	registerRules(hooks, db)
-	return &Kernel{Workspace: newWorkspaceService(svc, db), RecordTypes: recordTypeService{db: db}, Records: recordService{db: db, hooks: hooks}, System: systemService{db: db}, Auth: authService{auth: users}, Users: users, Files: files, Rules: newRuleService(db), Hooks: hooks, db: db}, nil
+	registerDurableEvents(hooks)
+	var slug string
+	if svc != nil {
+		slug = svc.Slug
+	}
+	return &Kernel{Workspace: newWorkspaceService(svc, db), RecordTypes: recordTypeService{db: db}, Records: recordService{db: db, hooks: hooks, workspace: slug}, System: systemService{db: db}, Auth: authService{auth: users}, Users: users, Files: files, Rules: newRuleService(db), Hooks: hooks, db: db}, nil
 }
 
 // Close releases the database connection.

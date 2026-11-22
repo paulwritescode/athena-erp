@@ -1052,3 +1052,31 @@ func TestIdempotentReplayProperty(t *testing.T) {
 		}
 	})
 }
+
+// TestPostEmitsEnvelopeAndOutbox checks a post writes the posting.posted
+// envelope and its linked pending outbox row in the posting transaction.
+func TestPostEmitsEnvelopeAndOutbox(t *testing.T) {
+	ctx := context.Background()
+	engine, masters, db := setup(t)
+	engine.Workspace = "testws"
+	seedBasics(t, masters)
+	plan := basePlan()
+	if _, err := engine.Post(ctx, plan, opts()); err != nil {
+		t.Fatalf("post: %v", err)
+	}
+	var eventType, producer, subjectType, subjectID, actor, workspace, correlation, status string
+	var revision int64
+	if err := db.QueryRow(`SELECT e.event_type, e.producer, e.subject_type, e.subject_id,
+		e.subject_revision, e.actor, e.workspace, e.correlation_id, o.status
+		FROM athena_events e JOIN athena_outbox o ON o.event_id = e.id`).Scan(
+		&eventType, &producer, &subjectType, &subjectID, &revision,
+		&actor, &workspace, &correlation, &status); err != nil {
+		t.Fatalf("envelope: %v", err)
+	}
+	if eventType != "posting.posted" || producer != "posting" || subjectType != "journal" ||
+		subjectID != plan.VoucherID || revision != 1 || actor != "tester" ||
+		workspace != "testws" || correlation != "req-1" || status != "pending" {
+		t.Fatalf("envelope mismatch: %q %q %q/%q rev %d actor %q workspace %q correlation %q outbox %q",
+			eventType, producer, subjectType, subjectID, revision, actor, workspace, correlation, status)
+	}
+}

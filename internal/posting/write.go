@@ -13,6 +13,7 @@ import (
 	"unicode/utf8"
 
 	"athena-erp/internal/audit"
+	"athena-erp/internal/events"
 	"athena-erp/internal/ledger"
 	"athena-erp/internal/types"
 
@@ -144,7 +145,7 @@ func (e *Engine) writePosting(ctx context.Context, tx *sql.Tx, plan Plan, opts P
 	}); err != nil {
 		return fmt.Errorf("append audit event: %w", err)
 	}
-	if err := insertOutbox(ctx, tx, result.PostingGroupID, result.PlanHash, plan); err != nil {
+	if err := insertOutbox(ctx, tx, e.Workspace, result.PostingGroupID, result.PlanHash, plan, opts); err != nil {
 		return err
 	}
 	return nil
@@ -351,27 +352,28 @@ func lookupBalanceCompany(ctx context.Context, masters *ledger.Service, cache ma
 	return company, nil
 }
 
-func insertOutbox(ctx context.Context, tx *sql.Tx, groupID, hash string, plan Plan) error {
-	id, err := uuid.NewV7()
-	if err != nil {
-		return err
-	}
-	payload, err := json.Marshal(map[string]any{
-		"voucher_type":     plan.VoucherType,
-		"voucher_id":       plan.VoucherID,
-		"voucher_revision": plan.Revision,
-		"event":            plan.Event,
-		"book":             plan.Book,
-		"posting_date":     plan.PostingDate,
-		"posting_group_id": groupID,
-		"row_count":        len(plan.Lines),
-		"plan_hash":        hash,
+func insertOutbox(ctx context.Context, tx *sql.Tx, workspace, groupID, hash string, plan Plan, opts PostOptions) error {
+	_, err := events.Emit(ctx, tx, events.Envelope{
+		EventType:       OutboxEventType,
+		Workspace:       workspace,
+		Producer:        "posting",
+		SubjectType:     plan.VoucherType,
+		SubjectID:       plan.VoucherID,
+		SubjectRevision: plan.Revision,
+		Actor:           opts.Actor,
+		CorrelationID:   opts.RequestID,
+		Payload: map[string]any{
+			"voucher_type":     plan.VoucherType,
+			"voucher_id":       plan.VoucherID,
+			"voucher_revision": plan.Revision,
+			"event":            plan.Event,
+			"book":             plan.Book,
+			"posting_date":     plan.PostingDate,
+			"posting_group_id": groupID,
+			"row_count":        len(plan.Lines),
+			"plan_hash":        hash,
+		},
 	})
-	if err != nil {
-		return err
-	}
-	_, err = tx.ExecContext(ctx, `INSERT INTO athena_outbox (id, event_type, payload) VALUES (?, ?, ?)`,
-		id.String(), OutboxEventType, string(payload))
 	return err
 }
 

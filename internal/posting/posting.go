@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"strings"
 
+	"athena-erp/internal/events"
 	"athena-erp/internal/ledger"
 	"athena-erp/internal/store"
 	"athena-erp/internal/types"
@@ -35,7 +36,7 @@ const (
 
 // OutboxEventType is the event type of the row Post writes to athena_outbox.
 // The event bus (G8) owns the envelope and may extend the payload.
-const OutboxEventType = "posting.posted"
+const OutboxEventType = events.TypePostingPosted
 
 // AuditAction is the Audit Log action of the row Post writes. The lifecycle
 // transition writes its own submitted/cancelled row beside it.
@@ -117,9 +118,11 @@ type Result struct {
 // Engine posts plans. DB is the workspace database; Dialect classifies its
 // errors and is required wherever a duplicate key decides the replay path,
 // so always set it: a nil Dialect degrades collisions to raw errors.
+// Workspace names the event envelope's Workspace; empty leaves it blank.
 type Engine struct {
-	DB      *sql.DB
-	Dialect store.Dialect
+	DB        *sql.DB
+	Dialect   store.Dialect
+	Workspace string
 }
 
 // ValidatePlan checks the mechanical rules of Requirement 6: the plan names

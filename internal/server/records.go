@@ -42,6 +42,9 @@ var emailDomainDot = regexp.MustCompile(`^[^\s@]+@[^\s@]+\.[^\s@]+$`)
 type recordService struct {
 	db    *sql.DB
 	hooks *lifecycle.Registry
+	// workspace names the Workspace slug on durable event envelopes; empty
+	// leaves it blank.
+	workspace string
 }
 
 func (s recordService) ListRecords(ctx context.Context, req *athenav1.ListRecordsRequest) (*athenav1.ListRecordsResponse, error) {

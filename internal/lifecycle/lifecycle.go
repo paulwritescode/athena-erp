@@ -141,6 +141,11 @@ type Event struct {
 	// RelatedID is the original on amend; empty otherwise.
 	RelatedID string
 	RequestID string
+	// Actor, Workspace and Revision feed the durable event envelope; the
+	// server sets them on transitions that emit one.
+	Actor     string
+	Workspace string
+	Revision  int64
 	From, To  State
 	Tx        *sql.Tx
 	// Doc is the document the event is about, when it has one in hand.
