@@ -21,12 +21,11 @@ import (
 // changing it.
 type Handler func(ctx context.Context, tx *sql.Tx, job Job) (map[string]any, error)
 
-// Runner claims due jobs and runs their handlers. DB and Errors are
-// required. Jobs whose kind has no registered handler sit queued until a
-// deploy registers one; the runner never drops work it cannot run.
+// Runner claims due jobs and runs their handlers. DB is required. Jobs
+// whose kind has no registered handler sit queued until a deploy
+// registers one; the runner never drops work it cannot run.
 type Runner struct {
-	DB     *sql.DB
-	Errors Classifier
+	DB *sql.DB
 	// Handlers runs one job kind each, by kind name.
 	Handlers map[string]Handler
 	// Owner names the lease holder in lease_owner; empty means runner.
@@ -133,6 +132,8 @@ func (r *Runner) claim(ctx context.Context) (Job, bool, error) {
 	}
 	args := append([]any{token, now.Add(lease)}, kinds...)
 	args = append(args, now)
+	// Retried jobs sort ahead of fresh rows with no next run; every due
+	// job is eventually claimed, so the order only favors finishing work.
 	result, err := r.DB.ExecContext(ctx, `UPDATE athena_jobs
 		SET status = 'leased', lease_owner = ?, lease_expires_at = ?, fencing = fencing + 1
 		WHERE kind IN `+inClause+` AND status = 'queued' AND (next_run_at IS NULL OR next_run_at <= ?)
@@ -302,7 +303,9 @@ func (r *Runner) release(ctx context.Context, job Job, cause error) error {
 // many jobs it released and how many it parked dead. Jobs already out
 // of attempts park dead with their owner instead of running again; the
 // threshold is row-first like maxAttempts, so a restart never parks a
-// job the live reclaim path would still run.
+// job the live reclaim path would still run. A release counts one
+// attempt like the live reclaim, so a job that crashes the process on
+// every run still reaches dead.
 func (r *Runner) Recover(ctx context.Context) (released, dead int64, err error) {
 	now := r.now()
 	maxAttempts := r.MaxAttempts
@@ -322,7 +325,7 @@ func (r *Runner) Recover(ctx context.Context) (released, dead int64, err error) 
 		return 0, 0, fmt.Errorf("jobs: recover dead: %w", err)
 	}
 	freed, err := r.DB.ExecContext(ctx, `UPDATE athena_jobs
-		SET status = 'queued', lease_owner = NULL, lease_expires_at = NULL
+		SET status = 'queued', attempts = attempts + 1, lease_owner = NULL, lease_expires_at = NULL
 		WHERE status = 'leased' AND lease_expires_at < ?`, now)
 	if err != nil {
 		return 0, 0, fmt.Errorf("jobs: recover queued: %w", err)

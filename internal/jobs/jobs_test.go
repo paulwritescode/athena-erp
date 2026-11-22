@@ -30,7 +30,7 @@ func setup(t *testing.T) *sql.DB {
 }
 
 func runner(db *sql.DB) *jobs.Runner {
-	return &jobs.Runner{DB: db, Errors: store.MariaDB{}, Handlers: map[string]jobs.Handler{}}
+	return &jobs.Runner{DB: db, Handlers: map[string]jobs.Handler{}}
 }
 
 func jobStatus(t *testing.T, db *sql.DB, id string) (string, int, string) {
@@ -200,8 +200,8 @@ func TestRecoverReleasesExpiredLeases(t *testing.T) {
 	if released != 1 || dead != 0 {
 		t.Fatalf("recovered %d released %d dead, want 1 and 0", released, dead)
 	}
-	if status, _, _ := jobStatus(t, db, stuck); status != "queued" {
-		t.Fatalf("stuck status = %q, want queued", status)
+	if status, attempts, _ := jobStatus(t, db, stuck); status != "queued" || attempts != 1 {
+		t.Fatalf("stuck status = %q attempts %d, want queued with one attempt counted", status, attempts)
 	}
 	if status, _, _ := jobStatus(t, db, held); status != "leased" {
 		t.Fatalf("held status = %q, want leased", status)
@@ -355,6 +355,25 @@ func TestOccurrenceEnsureDispatchAndComplete(t *testing.T) {
 		Workspace: "acme", Schedule: "nightly", Kind: "close-day",
 	}); err != nil || dispatched {
 		t.Fatalf("second dispatch = %v, %v, want nothing due", dispatched, err)
+	}
+}
+
+func TestDispatchDueLeavesCallerPayloadAlone(t *testing.T) {
+	ctx := context.Background()
+	db := setup(t)
+	if _, err := jobs.EnsureOccurrence(ctx, db, store.MariaDB{}, jobs.EnsureOptions{
+		Workspace: "acme", Schedule: "nightly", Period: "2026-11-24",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	payload := map[string]any{"book": "main"}
+	if _, _, err := jobs.DispatchDue(ctx, db, jobs.DispatchOptions{
+		Workspace: "acme", Schedule: "nightly", Kind: "close-day", Payload: payload,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if len(payload) != 1 || payload["book"] != "main" {
+		t.Fatalf("caller payload = %v, want it untouched", payload)
 	}
 }
 

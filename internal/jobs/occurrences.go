@@ -166,7 +166,7 @@ func DispatchDue(ctx context.Context, db *sql.DB, opts DispatchOptions) (string,
 	if err != nil {
 		return "", false, err
 	}
-	payload := nonNilMap(opts.Payload)
+	payload := cloneMap(opts.Payload)
 	payload["occurrence"] = map[string]any{
 		"workspace": opts.Workspace, "schedule": opts.Schedule,
 		"scope": opts.Scope, "period": period, "timezone": timezone,

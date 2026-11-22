@@ -46,7 +46,7 @@ func startWorkers(ctx context.Context, db *sql.DB, opts WorkerOptions) {
 	if purgeEvery <= 0 {
 		purgeEvery = time.Hour
 	}
-	runner := &jobs.Runner{DB: db, Errors: dialect, Handlers: opts.JobHandlers, Owner: "server"}
+	runner := &jobs.Runner{DB: db, Handlers: opts.JobHandlers, Owner: "server"}
 	dispatcher := &events.Dispatcher{DB: db, Errors: dialect, Handlers: opts.EventHandlers, Owner: "server"}
 	if released, dead, err := runner.Recover(ctx); err != nil {
 		log.Printf("workers: recover jobs: %v", err)

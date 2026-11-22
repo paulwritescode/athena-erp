@@ -166,6 +166,16 @@ func nonNilMap(values map[string]any) map[string]any {
 	return values
 }
 
+// cloneMap copies values so the caller keeps its own map; a nil map
+// becomes an empty one.
+func cloneMap(values map[string]any) map[string]any {
+	out := make(map[string]any, len(values))
+	for key, value := range values {
+		out[key] = value
+	}
+	return out
+}
+
 func nullText(value string) any {
 	if value == "" {
 		return nil
