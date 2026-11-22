@@ -16,6 +16,8 @@ import {
   loadCachedAppearance,
   oklchToHex,
   previewCustom,
+  PRESET_ACCENTS,
+  rampFallbackHex,
   saveCachedAppearance,
 } from './appearance'
 
@@ -130,6 +132,22 @@ describe('appearance colors', () => {
     expect(previewCustom('nope')).toBeNull()
   })
 
+  it('derives each accent’s picker ramp from the accent itself', () => {
+    // The ink ramp keeps the exact mixes the old hardcoded fallback showed.
+    expect([0, 1, 2, 3, 4].map((i) => rampFallbackHex(PRESET_ACCENTS.ink, i))).toEqual(['#18181b', '#3f3f42', '#616164', '#818183', '#9e9ea0'])
+    for (const { value } of ACCENT_PRESETS) {
+      if (value === 'custom') continue
+      const ramp = [0, 1, 2, 3, 4].map((i) => rampFallbackHex(PRESET_ACCENTS[value], i))
+      for (const hex of ramp) expect(hex).toMatch(/^#[0-9a-f]{6}$/)
+      // Slot 0 is the accent; lightness rises toward white down the ramp.
+      expect(ramp[0]).toBe(oklchToHex(PRESET_ACCENTS[value]))
+      const lightness = ramp.map((hex) => parseInt(hex.slice(1, 3), 16) + parseInt(hex.slice(3, 5), 16) + parseInt(hex.slice(5, 7), 16))
+      for (let i = 1; i < lightness.length; i++) expect(lightness[i]).toBeGreaterThan(lightness[i - 1])
+    }
+    // Unparseable accents read as ink rather than black.
+    expect(rampFallbackHex('nope', 0)).toBe('#18181b')
+  })
+
   it('round-trips the per-workspace cache', () => {
     expect(loadCachedAppearance()).toBeNull()
     saveCachedAppearance(
@@ -170,6 +188,13 @@ describe('preset tokens in theme.css', () => {
   it('lists the nine presets and six chart choices both sides share', () => {
     expect(ACCENT_PRESETS.map((p) => p.value)).toEqual(['ink', 'slate', 'blue', 'sky', 'green', 'amber', 'orange', 'brown', 'red', 'custom'])
     expect(CHART_PALETTES.map((p) => p.value)).toEqual(['match', 'neutral', 'earth', 'ocean', 'forest', 'custom'])
+  })
+
+  it('mirrors the light preset primaries for picker fallbacks', () => {
+    for (const { value } of ACCENT_PRESETS) {
+      if (value === 'custom') continue
+      expect(PRESET_ACCENTS[value], value).toBe(prop(block(`\\[data-accent="${value}"\\]`), '--primary'))
+    }
   })
 
   it('passes text contrast on every preset in both themes', () => {

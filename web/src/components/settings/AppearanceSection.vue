@@ -17,12 +17,13 @@ import {
   CHART_PALETTES,
   MATCH_RAMP_VARS,
   MATCH_RAMP_VARS_DARK,
-  RAMP_FALLBACK_HEX,
+  PRESET_ACCENTS,
   applyAppearance,
   hexToOklch,
   loadCachedAppearance,
   oklchToHex,
   previewCustom,
+  rampFallbackHex,
   saveCachedAppearance,
 } from '../../appearance'
 import type { ThemeState } from '../../composables/useTheme'
@@ -46,10 +47,15 @@ const chartPalette = ref('match')
 const charts = ref<string[]>(['', '', '', '', ''])
 const suggested = ref('')
 
-// Empty chart slots fall through to the accent ramp; the picker shows the
-// fallback ramp so black never poses as a choice.
+// Empty chart slots fall through to the accent ramp; the picker shows that
+// ramp for the draft accent, so black never poses as a choice and the ink
+// ramp never stands in for another accent.
+const draftAccent = computed(() => {
+  if (preset.value === 'custom') return candidate.value?.accent || PRESET_ACCENTS.ink
+  return PRESET_ACCENTS[preset.value] ?? PRESET_ACCENTS.ink
+})
 function chartDisplay(index: number): string {
-  return charts.value[index] || RAMP_FALLBACK_HEX[index]
+  return charts.value[index] || rampFallbackHex(draftAccent.value, index)
 }
 
 const accentLabel = computed(() => ACCENT_PRESETS.find((p) => p.value === preset.value)?.label ?? 'Ink')

@@ -25,10 +25,20 @@ export const ACCENT_PRESETS = [
   { value: 'custom', label: 'Custom' },
 ]
 
-// What an empty custom chart slot shows in the picker: the ink accent ramp
-// in hex (the exact oklab mixes toward white), so black never poses as a
-// choice. It lives here because the token guard forbids hex in components.
-export const RAMP_FALLBACK_HEX = ['#18181b', '#3f3f42', '#616164', '#818183', '#9e9ea0']
+// The light primary of each named preset, for picker fallbacks that follow
+// the draft accent. Mirrors the [data-accent] blocks in theme.css (the
+// preset test keeps them in step); custom accents arrive as oklch already.
+export const PRESET_ACCENTS: Record<string, string> = {
+  ink: 'oklch(0.21 0.006 285.885)',
+  slate: 'oklch(0.38 0.03 260)',
+  blue: 'oklch(0.45 0.15 260)',
+  sky: 'oklch(0.52 0.11 235)',
+  green: 'oklch(0.47 0.115 155)',
+  amber: 'oklch(0.55 0.1139 80)',
+  orange: 'oklch(0.52 0.1288 55)',
+  brown: 'oklch(0.42 0.07 50)',
+  red: 'oklch(0.42 0.13 22)',
+}
 
 // The match-accent ramp for custom drafts, which scope no data-accent: the
 // same declarations theme.css puts on [data-accent], applied inline so the
@@ -57,6 +67,27 @@ export const MATCH_RAMP_VARS_DARK: Record<string, string> = {
 // (no palette recorded). Mirrors the server's read rule in Resolve.
 export function chartsAreCustom(chartPalette: string, chartColors: string[]): boolean {
   return chartPalette === 'custom' || (chartPalette === '' && chartColors.length > 0)
+}
+
+// The match ramp's mix ratios per slot, shared by theme.css and the picker
+// fallback below.
+const RAMP_RATIOS = [1, 0.8, 0.64, 0.5, 0.38]
+
+// rampFallbackHex mixes an accent toward white in oklab at the match ramp's
+// ratio for the slot, as hex for the color picker. Empty custom chart slots
+// show the draft accent's ramp, so black never poses as a choice and the ink
+// ramp never stands in for another accent. Unparseable accents read as ink.
+export function rampFallbackHex(accent: string, index: number): string {
+  const c = parseColor(accent) ?? { l: 0.21, c: 0.006, h: 285.885 }
+  const p = RAMP_RATIOS[index] ?? 1
+  const h = (c.h * Math.PI) / 180
+  const l = p * c.l + (1 - p)
+  const a = p * c.c * Math.cos(h)
+  const b = p * c.c * Math.sin(h)
+  const mixedC = Math.sqrt(a * a + b * b)
+  let mixedH = (Math.atan2(b, a) * 180) / Math.PI
+  if (mixedH < 0) mixedH += 360
+  return oklchToHex(`oklch(${trim(l)} ${trim(mixedC)} ${trim(mixedH)})`)
 }
 
 // The one shared chart list: a tonal ramp of the accent, four named
