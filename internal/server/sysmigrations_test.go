@@ -129,6 +129,55 @@ func TestSystemMigrationsAreValid(t *testing.T) {
 	}
 }
 
+// TestEventsJobsWorkflowsMigrationExtendsTheOutbox builds a database the way
+// migration 14 leaves it, inserts a minimal posting outbox row, upgrades to
+// migration 17 and checks the row survives with its id, event type and
+// payload intact, the dispatch columns default to pending, and the new
+// events, inbox, subscription, job, occurrence, workflow and task tables
+// exist with no secret or disposal tables.
+func TestEventsJobsWorkflowsMigrationExtendsTheOutbox(t *testing.T) {
+	ctx := context.Background()
+	db := testdb.New(t)
+	if _, err := store.Up(ctx, db, dialect, SystemMigrations(), store.UpOptions{Target: 14}); err != nil {
+		t.Fatal(err)
+	}
+	const rowID = "01911111-2222-7333-8444-555555555555"
+	if _, err := db.ExecContext(ctx, `INSERT INTO athena_outbox (id, event_type, payload) VALUES (?, 'posting.posted', '{"row_count":2}')`, rowID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Up(ctx, db, dialect, SystemMigrations(), store.UpOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	var id, eventType, payload, status string
+	var eventID sql.NullString
+	var attempts int
+	var dispatchedAt sql.NullString
+	if err := db.QueryRowContext(ctx, `SELECT id, event_type, CAST(payload AS CHAR), status, event_id, attempts, dispatched_at FROM athena_outbox`).Scan(&id, &eventType, &payload, &status, &eventID, &attempts, &dispatchedAt); err != nil {
+		t.Fatalf("legacy outbox row: %v", err)
+	}
+	if id != rowID || eventType != "posting.posted" || payload != `{"row_count":2}` {
+		t.Errorf("legacy outbox row became %q %q %q, want id, posting.posted and payload intact", id, eventType, payload)
+	}
+	if status != "pending" || eventID.Valid || attempts != 0 || dispatchedAt.Valid {
+		t.Errorf("legacy outbox dispatch columns are %q %v %d %v, want pending, NULL, 0, NULL", status, eventID, attempts, dispatchedAt)
+	}
+	for _, table := range []string{"athena_events", "athena_inbox", "athena_event_subscriptions", "athena_jobs", "athena_schedule_occurrences", "athena_workflow_instances", "athena_tasks"} {
+		var name string
+		if err := db.QueryRowContext(ctx, `SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ?`, table).Scan(&name); err != nil {
+			t.Errorf("table %s missing after migration 17: %v", table, err)
+		}
+	}
+	for _, table := range []string{"athena_secret_refs", "athena_disposal_register", "athena_holds"} {
+		var count int
+		if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ?`, table).Scan(&count); err != nil {
+			t.Fatal(err)
+		}
+		if count != 0 {
+			t.Errorf("table %s exists, want it deferred until Z4 rules on retention and custody", table)
+		}
+	}
+}
+
 // TestAccessModelMigrationPreservesAccess builds a database the way the
 // current build leaves it (migrations 1 to 11), adds users, a Role and a
 // session, upgrades to migration 12 and checks that nobody gains or loses
