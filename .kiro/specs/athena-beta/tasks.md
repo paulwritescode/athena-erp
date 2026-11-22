@@ -50,8 +50,8 @@
   - Migration: `athena_notifications` (recipient user, kind, subject reference, actor, created, read_at) and `NotificationService` (List with keyset paging, UnreadCount, MarkRead, MarkAllRead). Notifications are written in the same transaction as the event, by the services that own it: auth (invite accepted, access changed, sign-in failed or locked, session ended by someone else), rules (save stopped), lifecycle (approval waiting), ledger (period closed). Text is built from a kind and parameters; no Record values in the row beyond the subject's display label.
   - Desk per design-system §17: bell with unread count, inbox popover (bottom drawer on phones), Today and Earlier, mark read, deep links, 30 s polling.
   - Accept: a Go test per source; the Desk shows a new notification within 30 s without reload.
-- [ ] **B4a. Steering sync** (master)
-  - Confirm `AGENTS.md`, `.kiro/steering/athena-design.md` and `docs/design/athena-design-system.md` agree with what B1 to B4 shipped; move tokens from *Proposed* to implemented; update `docs/architecture/frontend-theme-and-type.md` and `docs/README.md`.
+- [x] **B4a. Steering sync** (master). Complete 2026-11-22.
+  - Confirmed `AGENTS.md`, `.kiro/steering/athena-design.md` and `docs/design/athena-design-system.md` agree with what B1 to B4 shipped; tokens moved from *Proposed* to implemented; `docs/architecture/frontend-theme-and-type.md` (nine presets, Satori not Cal Sans, Appearance page) and `docs/README.md` updated.
 
 ## B. Platform completion before ledgers
 

@@ -1,6 +1,6 @@
 # Athena design system
 
-**Status:** Proposed, 2026-11-21. Tokens marked *Proposed* are not in `web/src/theme.css` or `web/src/typography.css` yet; the beta task list (`.kiro/specs/athena-beta/tasks.md`, tasks B1 to B4) implements them. Existing color values and the Satori, Inter and JetBrains Mono stacks are kept as they are (D-010).
+**Status:** Implemented 2026-11-22 (tasks B1 to B4 shipped; §2.3 presets extended by B4b). Every token below is in `web/src/theme.css` or `web/src/typography.css`. Existing color values and the Satori, Inter and JetBrains Mono stacks are kept as they are (D-010).
 **Applies to:** every Desk page, every Pack task screen, every public page.
 **Who we design for:** the person doing the work: a cashier, a storekeeper, a clerk, a teacher, a farm hand. Not the developer, not the product owner, not the business analyst. If a screen needs a manual, it is not finished.
 
@@ -24,15 +24,15 @@ Review question for every screen: *could a new cashier finish this without askin
 
 Following shadcn-vue's theming model, the base palette is neutral (Zinc) and only these tokens may carry the accent hue: `--primary`, `--primary-foreground`, `--ring`, `--chart-1` to `--chart-5`, `--sidebar-primary`, `--sidebar-ring`. Everything else (background, card, popover, sidebar, header, muted, border, input) stays neutral.
 
-Semantic status colors are separate and fixed: `--destructive`, and the *Proposed* `--success`, `--warning`, `--info`. They are used only for state (error, done, attention), always with text or an icon, never as decoration.
+Semantic status colors are separate and fixed: `--destructive`, `--success`, `--warning`, `--info`. They are used only for state (error, done, attention), always with text or an icon, never as decoration.
 
 ### 2.2 Kept values
 
-The current light and dark values in `web/src/theme.css` stay unchanged as the neutral base. One existing value breaks the rule: dark `--sidebar-primary: oklch(0.488 0.243 264.376)` is blue. Task B4 sets it to `var(--primary)`.
+The current light and dark values in `web/src/theme.css` stay unchanged as the neutral base. One existing value broke the rule: dark `--sidebar-primary: oklch(0.488 0.243 264.376)` was blue. Task B4 set it to `var(--primary)`.
 
-### 2.3 Accent (decided 2026-11-21: both, chosen per Workspace)
+### 2.3 Accent (nine presets + Custom, chosen per Workspace; B4 shipped ink/red, B4b extended)
 
-Athena ships both accents as named presets, and each Workspace picks one in Settings (stored as a Workspace setting, applied as `data-accent="ink"` or `data-accent="red"` on `<html>`). Ink is the default for a new Workspace. Only the tokens in §2.1 change between presets.
+Athena ships nine named presets — Ink (default), Slate, Blue, Sky, Green, Amber, Orange, Brown, Red — plus Custom (a color picker). Each Workspace picks one in Settings → Appearance (stored as a Workspace setting, applied as `data-accent="<name>"` on `<html>`; Custom writes one `#athena-appearance` style block). Every preset is one `[data-accent]` block in `theme.css` (light and dark), listed once in `web/src/appearance.ts`. Only the tokens in §2.1 change between presets. The table shows the first two; the rest follow the same shape in `theme.css`.
 
 | Preset | Light `--primary` | Dark `--primary` | Character |
 | --- | --- | --- | --- |
@@ -41,7 +41,7 @@ Athena ships both accents as named presets, and each Workspace picks one in Sett
 
 The Workspace can override the accent in Settings (playbook §8), within contrast limits checked at save: text on `--primary` ≥ 4.5:1.
 
-### 2.4 Chart series (*Proposed*)
+### 2.4 Chart series
 
 Muted, earthy and distinguishable, ordered so series 1 and 2 differ in lightness as well as hue (readable in grayscale):
 
@@ -53,9 +53,9 @@ Muted, earthy and distinguishable, ordered so series 1 and 2 differ in lightness
 | `--chart-4` | `oklch(0.50 0.08 240)` | `oklch(0.70 0.08 240)` | indigo |
 | `--chart-5` | `oklch(0.75 0.06 85)` | `oklch(0.55 0.06 85)` | kinari (unbleached) |
 
-With the `red` preset, `--chart-1` becomes the accent.
+With "Match accent" (the default charts choice), the chart colors derive from the accent through a tonal ramp; `--chart-1` follows it.
 
-### 2.5 Status tokens (*Proposed*)
+### 2.5 Status tokens
 
 | Token | Light | Dark | Use |
 | --- | --- | --- | --- |
@@ -69,7 +69,7 @@ Each has a `-foreground` and a `-soft` (`color-mix(in oklab, <token> 12%, var(--
 
 Hex, `rgb()` or named colors in components. Full-color header, sidebar or card backgrounds. Gradients. Colored shadows or glows. Color as the only carrier of meaning.
 
-## 3. Spacing, size and layout (*Proposed* tokens)
+## 3. Spacing, size and layout
 
 Base unit 4 px. Spacing tokens in `web/src/theme.css`:
 
@@ -172,7 +172,7 @@ The safe icon registry (`web/src/icons.ts`, task B3) maps names to imported comp
 
 One motion language, after Emil Kowalski's guidance: short, purposeful, transform and opacity only, and reduced motion respected.
 
-| Token (*Proposed*) | Value | Use |
+| Token | Value | Use |
 | --- | --- | --- |
 | `--duration-fast` | 120 ms | hover, press, toggle |
 | `--duration-base` | 180 ms | popover, dropdown, tooltip, toast |
@@ -227,7 +227,7 @@ Copy rules: sentences, not title case. Controls name their action. Errors say wh
 
 ## 9. Ornament: hairline figures and ASCII art
 
-Source: [Hairline](https://hairline.lucasmarkes.com/) (`@lucasmarkes/hairline`, MIT, SVG, no dependencies, vanilla API works in Vue). Adding it as a dependency needs approval (task B10).
+Source: [Hairline](https://hairline.lucasmarkes.com/) (`@lucasmarkes/hairline`, MIT, SVG, no dependencies, vanilla API works in Vue). It was approved for and added by task B10 (`0.5.1` in `web/package.json`); stock figures shipped, a custom Athena set is still wanted.
 
 Rules:
 
@@ -241,7 +241,7 @@ Rules:
 
 ## 10. Brand and Workspace logo
 
-The Athena mark comes in two files at the repository root, `athena-black-logo` and `athena-white-logo` (PNG, 1254 x 1254, RGBA; added 2026-11-21 without a file extension). Use the black mark on the light theme and the white mark on the dark theme. Task B5 renames them to `.png`, makes web sizes (favicon 32 and 180 px, header 48 px, sign-in 96 px) and an SVG if one is supplied. It is the platform logo for the installer, the CLI banner, the default favicon and the sign-in page when a Workspace has no logo.
+The Athena mark comes in two files at the repository root, `athena-black-logo` and `athena-white-logo` (PNG, 1254 x 1254, RGBA; added 2026-11-21 without a file extension). Use the black mark on the light theme and the white mark on the dark theme. Task B5 copied them to `web/src/assets/brand/` as `.png` and wired them as the fallback (header, sign-in, tab title, favicon). It is the platform logo for the installer, the CLI banner, the default favicon and the sign-in page when a Workspace has no logo.
 
 Each Workspace can set its own logo and name (task B5): stored as a Workspace file and referenced from Workspace settings, served same-origin, shown in the header, the sign-in page, the browser tab title and favicon, printed documents and public pages. Rules: SVG or PNG, up to 512 KB, shown at 24 px height in the header and 48 px on sign-in, never stretched, with the Workspace name as text beside or below it. The platform mark appears only as "Powered by Athena" in the footer once a Workspace logo is set.
 

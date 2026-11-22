@@ -1,7 +1,7 @@
 # Frontend theme and typography
 
-**Last updated:** 2026-11-21  
-**Status:** Shared semantic color tokens, chart series, status tokens, spacing and size tokens, motion tokens, accent presets and the supplied typography scale are implemented. No Settings UI chooses the accent yet (B4).
+**Last updated:** 2026-11-22
+**Status:** Shared semantic color tokens, chart series, status tokens, spacing and size tokens, motion tokens, accent presets and the supplied typography scale are implemented. Settings → Appearance (B4b) chooses the accent, the charts palette and the theme.
 
 ## Palette and buttons
 
@@ -17,7 +17,7 @@ The design-system §14 action system (`ActionButton`, `ActionGroup`) builds its 
 
 ## Accent presets
 
-Two presets ship as `[data-accent]` blocks on `<html>`, per design-system §2.3: `ink` (default, current values) and `red` (one warm primary on actions, with `--chart-1` and `--sidebar-primary` following it). Only the §2.1 accent tokens change between presets; `--ring` and `--sidebar-ring` keep their neutral values until specified. Dark `--sidebar-primary` is `var(--primary)`; every other existing color value is unchanged. Text on `--primary` passes ≥ 4.5:1 in both presets and themes (8.67/5.80 for red, verified at authoring; B4 re-checks with the Settings preview).
+Nine named presets ship as `[data-accent]` blocks on `<html>`, per design-system §2.3: `ink` (default, current values), `slate`, `blue`, `sky`, `green`, `amber`, `orange`, `brown` and `red` (one warm primary on actions, with `--chart-1` and `--sidebar-primary` following it), plus Custom. Only the §2.1 accent tokens change between presets; `--ring` and `--sidebar-ring` keep their neutral values until specified. Dark `--sidebar-primary` is `var(--primary)`; every other existing color value is unchanged. Text on `--primary` passes ≥ 4.5:1 in every preset and theme (8.67/5.80 for red, verified at authoring; a test parses `theme.css` and re-checks all presets, see below).
 
 ## Workspace appearance (B4b)
 
@@ -48,7 +48,7 @@ B2 adapts the shadcn-vue sidebar to the R2 breakpoints: full sidebar at 1024 px 
 
 ## Type scale
 
-`web/src/typography.css` is the single source for typography values extracted from the supplied design specification. It defines Cal Sans display styles; Inter title, body, caption, button, and navigation styles; and JetBrains Mono code styles. The control desk uses display-sm for page headings, title-md/title-sm for section/card headings, body-sm for normal text, caption for dense metadata, and the specified button and nav styles. Display-xl through display-md remain available for future larger surfaces.
+`web/src/typography.css` is the single source for typography values extracted from the supplied design specification. It defines Satori display styles (trial font, loaded from the local machine); Inter title, body, caption, button, and navigation styles; and JetBrains Mono code styles. The control desk uses display-sm for page headings, title-md/title-sm for section/card headings, body-sm for normal text, caption for dense metadata, and the specified button and nav styles. Display-xl through display-md remain available for future larger surfaces.
 
 Only typography values were extracted from the supplied specification; its spacing, radius, and component layout sections were not applied through this typography file.
 
