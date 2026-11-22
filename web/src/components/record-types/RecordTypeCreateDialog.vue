@@ -42,6 +42,16 @@ const blocked = computed(() => {
   return null
 })
 
+function toggleKeyManual() {
+  if (keyManual.value === null) keyManual.value = key.value
+  else {
+    // Back to auto-derive: the derived key is always valid, so the Key
+    // field's touched state goes with it.
+    keyManual.value = null
+    keyTouched.value = false
+  }
+}
+
 function create() {
   if (blocked.value || creating.value) return
   creating.value = true
@@ -69,7 +79,7 @@ function create() {
       />
       <div class="text-muted-foreground -mt-2 text-sm">
         Saved as <code class="font-mono">{{ key || '—' }}</code>{{ ' ' }}
-        <button class="cursor-pointer underline" @click="keyManual = keyManual ?? key">Change</button>
+        <button class="cursor-pointer underline" @click="toggleKeyManual">{{ keyManual === null ? 'Change' : 'Auto' }}</button>
       </div>
       <TextField
         v-if="keyManual !== null"
