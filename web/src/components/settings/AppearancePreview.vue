@@ -74,11 +74,11 @@ const forceClass = computed(() => (props.force === 'light' ? 'preview-light' : p
         <div class="flex h-24 items-end gap-2" aria-hidden="true">
           <div v-for="month in months" :key="month.short" class="flex h-full min-w-0 flex-1 flex-col items-stretch justify-end gap-1">
             <i class="block w-full rounded-sm" :style="{ height: month.height, background: month.color }" />
-            <span class="block text-center text-[11px] text-muted-foreground">{{ month.short }}</span>
+            <span class="block text-center text-caption text-muted-foreground">{{ month.short }}</span>
           </div>
         </div>
         <div class="mt-2 flex flex-wrap gap-x-3 gap-y-1" aria-hidden="true">
-          <span v-for="month in months" :key="month.short" class="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+          <span v-for="month in months" :key="month.short" class="inline-flex items-center gap-1 text-caption text-muted-foreground">
             <i class="size-2 rounded-full" :style="{ background: month.color }" />
             {{ month.short }}
           </span>
