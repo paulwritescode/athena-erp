@@ -26,6 +26,17 @@ Object.defineProperty(window, 'matchMedia', {
   }),
 })
 
+// The hairline figures observe intersection; jsdom has no
+// IntersectionObserver, so the figure load throws and latches the page
+// switch error state. A no-op observer keeps the art mount quiet.
+class NoopIntersectionObserver {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+Object.defineProperty(window, 'IntersectionObserver', { configurable: true, value: NoopIntersectionObserver })
+Object.defineProperty(globalThis, 'IntersectionObserver', { configurable: true, value: NoopIntersectionObserver })
+
 async function flush() {
   await nextTick()
   await new Promise((resolve) => setTimeout(resolve, 0))
