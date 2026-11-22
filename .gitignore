@@ -15,3 +15,4 @@ bin/
 .agents/stylus/locks/
 .agents/stylus/suite-logs/
 !.agents/bin/
+.agents/bin/__pycache__/
