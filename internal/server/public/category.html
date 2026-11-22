@@ -1,0 +1,11 @@
+{{define "content"}}
+<h1>{{.Category.Name}}</h1>
+{{if .Category.Description}}<p>{{.Category.Description}}</p>{{end}}
+{{if .Products}}
+<ul class="cards">
+{{range .Products}}<li><a href="{{.URL}}">{{.Name}}</a>{{if .Price}} — {{.Price}}{{end}}{{if .Description}}<br>{{.Description}}{{end}}</li>{{end}}
+</ul>
+{{else}}
+<p>Nothing here yet. New products will appear on this page.</p>
+{{end}}
+{{end}}

@@ -1,0 +1,7 @@
+{{define "content"}}
+<h1>{{.Product.Name}}</h1>
+{{if .Product.HasImage}}<p><img src="{{.Product.ImageURL}}" alt="{{.Product.ImageAlt}}"{{if .ImageWidth}} width="{{.ImageWidth}}" height="{{.ImageHeight}}"{{end}} decoding="async"></p>{{end}}
+{{if .Product.Description}}<p>{{.Product.Description}}</p>{{end}}
+{{if .Product.Price}}<p><strong>{{.Product.Price}}</strong></p>{{end}}
+{{if .Product.HasCategory}}<p>Category: <a href="{{.Product.CategoryURL}}">{{.Product.Category}}</a></p>{{end}}
+{{end}}

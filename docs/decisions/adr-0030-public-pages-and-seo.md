@@ -58,7 +58,7 @@ A projection is a Go function per page that returns only allowlisted values. It 
 | Catalogue | `course` | `name`, `slug`, `description`, `image` |
 | Verification | `transcript` | match on `verification_token`; show only `holder_name`, `course_name`, `completed_on`, `status` |
 
-These keys are conventions Packs adopt (D5, D7); the core seeds nothing (D-007). Until a Pack installs them the commerce and catalogue routes answer `404`, which keeps thin or empty pages out of the index. `price` renders as plain text from the stored Money value; `image` renders through a public image route that serves only images referenced by published rows, with content-hash URLs in the `/brand/` style. Product, category and course detail beyond the listed fields (stock, cost, internal notes) is never reachable from these routes.
+These keys are conventions Packs adopt (D5, D7); the core seeds nothing (D-007). Until a Pack installs them the commerce and catalogue routes answer `404`, which keeps thin or empty pages out of the index. `price` renders as plain text from the stored Money value; `image` renders through a public image route that serves only images referenced by published rows, with content-hash URLs in the `/brand/` style. On submittable documents `name` reads the kernel document name (the field key is reserved there); only submittable documents carry `docstate`, so only they need the cancelled filter. Product, category and course detail beyond the listed fields (stock, cost, internal notes) is never reachable from these routes.
 
 ### Per-page SEO contract
 

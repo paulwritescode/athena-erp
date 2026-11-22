@@ -40,11 +40,20 @@ footer{border-top:1px solid #e4e4e7;color:#71717a;font-size:14px;padding:24px}
 footer p{margin:0}
 @media (prefers-color-scheme:dark){footer{border-color:#27272a;color:#a1a1aa}}
 h1{font-size:28px;line-height:1.2;margin:0 0 16px}
+h2{font-size:18px;font-weight:600;margin:32px 0 12px}
 p{margin:0 0 16px}
+.crumbs{font-size:14px;color:#71717a;padding-top:16px}
+@media (prefers-color-scheme:dark){.crumbs{color:#a1a1aa}}
+.cards{list-style:none;margin:0 0 16px;padding:0}
+.cards li{border-bottom:1px solid #e4e4e7;padding:12px 0}
+@media (prefers-color-scheme:dark){.cards li{border-color:#27272a}}
+.cards img{max-height:96px;width:auto;display:block;margin-bottom:8px}
+main img{max-width:100%;height:auto}
 </style>
 </head>
 <body>
 <header class="site"><div class="wrap site-row">{{if .LogoURL}}<img src="{{.LogoURL}}" alt="{{.Name}} logo" height="24" decoding="async">{{end}}<span class="site-name">{{.Name}}</span><nav><a href="/">Sign in</a></nav></div></header>
+{{if .Crumbs}}<nav class="wrap crumbs" aria-label="Breadcrumb">{{range $i, $c := .Crumbs}}{{if $i}}<span aria-hidden="true"> / </span>{{end}}<a href="{{$c.URL}}">{{$c.Name}}</a>{{end}}</nav>{{end}}
 <main class="wrap">{{block "content" .}}{{end}}</main>
 <footer class="wrap"><p>Powered by Athena</p></footer>
 </body>

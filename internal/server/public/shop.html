@@ -1,0 +1,13 @@
+{{define "content"}}
+<h1>Shop {{.Name}}</h1>
+{{if .Categories}}
+<h2>Categories</h2>
+<ul class="cards">
+{{range .Categories}}<li><a href="{{.URL}}">{{.Name}}</a>{{if .Description}} — {{.Description}}{{end}} ({{.Count}})</li>{{end}}
+</ul>
+{{end}}
+<h2>Products</h2>
+<ul class="cards">
+{{range .Products}}<li>{{if .HasImage}}<img src="{{.ImageURL}}" alt="{{.ImageAlt}}" loading="lazy" decoding="async">{{end}}<a href="{{.URL}}">{{.Name}}</a>{{if .Price}} — {{.Price}}{{end}}{{if .Description}}<br>{{.Description}}{{end}}</li>{{end}}
+</ul>
+{{end}}

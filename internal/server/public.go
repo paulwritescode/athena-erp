@@ -13,8 +13,7 @@ import (
 	"net/url"
 	"strings"
 
-	"athena-erp/internal/brand"
-	"athena-erp/internal/ledger"
+	"athena-erp/internal/files"
 )
 
 //go:embed public/*.html
@@ -31,6 +30,9 @@ var publicLayout = template.Must(template.ParseFS(publicTemplates, "public/layou
 var publicPageTemplates = map[string]*template.Template{
 	"home":     mustPublicPage("home.html"),
 	"notfound": mustPublicPage("notfound.html"),
+	"shop":     mustPublicPage("shop.html"),
+	"category": mustPublicPage("category.html"),
+	"product":  mustPublicPage("product.html"),
 }
 
 func mustPublicPage(file string) *template.Template {
@@ -46,14 +48,21 @@ func mustPublicPage(file string) *template.Template {
 // and 4) the commerce and catalogue pages. Public handlers ignore sessions
 // and cookies entirely; publication is by content, never by login.
 type publicHandler struct {
-	db   *sql.DB
-	name string
+	db    *sql.DB
+	name  string
+	files *files.Store
 }
 
 func newPublicHandler(workspace *Workspace, db *sql.DB) publicHandler {
 	h := publicHandler{db: db, name: "Athena"}
 	if workspace != nil && workspace.Name != "" {
 		h.name = workspace.Name
+	}
+	if workspace == nil || workspace.Root == "" || db == nil {
+		return h
+	}
+	if store, err := files.Open(workspace.Root, db, dialect); err == nil {
+		h.files = store
 	}
 	return h
 }
@@ -63,6 +72,10 @@ func newPublicHandler(workspace *Workspace, db *sql.DB) publicHandler {
 func mountPublic(mux *http.ServeMux, workspace *Workspace, db *sql.DB) {
 	h := newPublicHandler(workspace, db)
 	mux.HandleFunc("GET /home", h.home)
+	mux.HandleFunc("GET /shop", h.shop)
+	mux.HandleFunc("GET /shop/c/{slug}", h.category)
+	mux.HandleFunc("GET /shop/p/{slug}", h.product)
+	mux.HandleFunc("GET /p/img/{kind}/{slug}/{hash}", h.publicImage)
 	mux.HandleFunc("GET /sitemap.xml", h.sitemap)
 	mux.HandleFunc("GET /robots.txt", h.robots)
 }
@@ -96,6 +109,9 @@ type publicPage struct {
 	Name        string
 	LogoURL     string
 	Base        string
+	Crumbs      []publicCrumb
+	ShopURL     string
+	CoursesURL  string
 }
 
 // publicJSONLD encodes v for the application/ld+json block. encoding/json
@@ -156,8 +172,9 @@ func publicBaseSetting(ctx context.Context, db *sql.DB) string {
 }
 
 // renderPublic writes a page with the HTML content type. It renders into a
-// buffer first so a render failure answers 500 instead of half a page.
-func renderPublic(w http.ResponseWriter, page string, data publicPage) {
+// buffer first so a render failure answers 500 instead of half a page. Data
+// is publicPage or a struct embedding it.
+func renderPublic(w http.ResponseWriter, page string, data any) {
 	t, ok := publicPageTemplates[page]
 	if !ok {
 		publicError(w)
@@ -210,45 +227,23 @@ func (h publicHandler) notFound(w http.ResponseWriter, r *http.Request) {
 // Organization structured data. Without a database it renders the fallback
 // name; a database failure answers 500.
 func (h publicHandler) home(w http.ResponseWriter, r *http.Request) {
-	var doc ledger.IdentityDoc
-	if h.db != nil {
-		svc := ledger.Service{DB: h.db, Dialect: dialect}
-		d, err := svc.GetIdentityDoc(r.Context())
-		if err != nil {
-			log.Printf("public: home identity read failed")
-			publicError(w)
-			return
-		}
-		doc = d
+	doc, err := h.publicIdentity(r.Context())
+	if err != nil {
+		log.Printf("public: home identity read failed")
+		publicError(w)
+		return
 	}
 	page := h.base(r, "/home")
-	name := doc.DisplayName
-	if name == "" {
-		name = h.name
-	}
-	page.Name = name
-	page.Title = name
+	applyBrand(&page, h.name, doc)
+	page.Title = page.Name
 	// Meta description source: composed from the display name. The Workspace
 	// holds no tagline field, so nothing else can source it.
-	page.Description = "Welcome to " + name + "."
-	if doc.Light != nil {
-		page.LogoURL = brand.LogoURL(doc.Light.Hash, doc.Light.Ext)
-	} else if doc.Dark != nil {
-		page.LogoURL = brand.LogoURL(doc.Dark.Hash, doc.Dark.Ext)
-	}
-	if page.LogoURL != "" {
-		page.Image = page.Base + page.LogoURL
-	}
-	favHash := brand.MarkHash
-	if doc.Light != nil && doc.Light.Ext == "png" {
-		favHash = doc.Light.Hash
-	}
-	page.Favicon32 = brand.FaviconURL(favHash, brand.FaviconSmall)
-	page.Favicon180 = brand.FaviconURL(favHash, brand.FaviconLarge)
+	page.Description = "Welcome to " + page.Name + "."
+	page.ShopURL = h.shopURLFor(r.Context())
 	org := map[string]any{
 		"@context": "https://schema.org",
 		"@type":    "Organization",
-		"name":     name,
+		"name":     page.Name,
 		"url":      page.Canonical,
 	}
 	if page.Image != "" {
@@ -272,15 +267,17 @@ type publicSitemapDoc struct {
 }
 
 // sitemap serves the per-Workspace sitemap. It lists only live URLs: /home
-// now, published commerce and catalogue URLs once slices 3 and 4 land.
+// always, published commerce URLs with their modified dates, and catalogue
+// URLs once slice 4 lands. A projection failure degrades to the home entry.
 func (h publicHandler) sitemap(w http.ResponseWriter, r *http.Request) {
-	doc := publicSitemapDoc{
-		Xmlns: "http://www.sitemaps.org/schemas/sitemap/0.9",
-		URLs:  []publicSitemapURL{{Loc: h.baseURL(r) + "/home"}},
+	base := h.baseURL(r)
+	urls := []publicSitemapURL{{Loc: base + "/home"}}
+	if h.db != nil {
+		urls = append(urls, h.sitemapCommerce(r, base)...)
 	}
 	w.Header().Set("Content-Type", "application/xml; charset=utf-8")
 	_, _ = w.Write([]byte(xml.Header))
-	_ = xml.NewEncoder(w).Encode(doc)
+	_ = xml.NewEncoder(w).Encode(publicSitemapDoc{Xmlns: "http://www.sitemaps.org/schemas/sitemap/0.9", URLs: urls})
 }
 
 // robots serves the per-Workspace crawlers file: the Desk, token routes,
