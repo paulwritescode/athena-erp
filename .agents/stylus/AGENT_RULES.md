@@ -47,7 +47,7 @@ The machine has 8 CPUs and 8 GB RAM. A full `make test`, a full `pnpm --dir web 
 /Users/iampaulking/projects/duchess/athena-erp/.agents/bin/suite --label "C1 slice 4" -- make test
 ```
 
-It queues behind whoever holds the lock and logs the result. Package tests (`go test ./internal/posting/...`, one Vitest file) may run without the lock. Two full suites in parallel time out; never bypass the lock.
+It waits its turn in an ordered queue (master's merge gate first, then everyone in arrival order) and logs the result. If you stop a waiting `suite` with ctrl+c it leaves the queue cleanly. Package tests (`go test ./internal/posting/...`, one Vitest file) may run without the lock. Two full suites in parallel time out; never bypass the lock.
 
 Scoped runs for workers and reviewers: `/Users/iampaulking/projects/duchess/athena-erp/.agents/bin/affected` runs, through the same lock, only the Go packages your change touches plus every package that imports them, and the web tests when `web/` changed. It falls back to the full `make test` for proto, `go.mod`, `Makefile`, shared field-rule testdata or a change that reaches most packages. `affected --print` shows the plan. Use it for slice reports and reviews. Master's merge-time gate after the rebase is always the full `make test`, so nothing reaches `main` without the whole suite.
 

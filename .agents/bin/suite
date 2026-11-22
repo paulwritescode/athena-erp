@@ -51,13 +51,46 @@ def alive(pid):
         return False
 
 
+# Ordered queue: master's merge gate first, then everyone else in arrival order.
+# Each waiter keeps a ticket in locks/queue/<pid>.json; dead waiters are dropped.
+qdir = s.path("locks/queue")
+os.makedirs(qdir, exist_ok=True)
+ticket = os.path.join(qdir, f"{os.getpid()}.json")
+prio = 0 if who == "master" else 1
+json.dump({"pid": os.getpid(), "who": who, "label": label, "prio": prio, "t": time.time()}, open(ticket, "w"))
+for sig in (signal.SIGTERM, signal.SIGHUP):
+    signal.signal(sig, lambda *_: sys.exit(143))
+
+
+def first_in_line():
+    tickets = []
+    for f in os.listdir(qdir):
+        try:
+            t = json.load(open(os.path.join(qdir, f)))
+        except (ValueError, OSError):
+            continue
+        if alive(t["pid"]):
+            tickets.append(t)
+        else:
+            try:
+                os.remove(os.path.join(qdir, f))
+            except OSError:
+                pass
+    tickets.sort(key=lambda t: (t["prio"], t["t"]))
+    return not tickets or tickets[0]["pid"] == os.getpid()
+
+
 waited = time.time()
-s.append("suite.jsonl", {"event": "queued", "who": who, "cwd": cwd, "cmd": " ".join(cmd), "label": label})
-while True:
-    try:
-        os.mkdir(lock)
-        break
-    except FileExistsError:
+s.append("suite.jsonl", {"event": "queued", "who": who, "cwd": cwd, "cmd": " ".join(cmd), "label": label,
+                         "pid": os.getpid()})
+try:
+    while True:
+        if first_in_line():
+            try:
+                os.mkdir(lock)
+                break
+            except FileExistsError:
+                pass
         try:
             owner = json.load(open(os.path.join(lock, "owner.json")))
             if not alive(owner["pid"]):
@@ -66,12 +99,20 @@ while True:
                 s.append("suite.jsonl", {"event": "stale", "who": owner.get("who"), "pid": owner["pid"]})
                 continue
         except (FileNotFoundError, ValueError, KeyError):
-            if time.time() - os.path.getmtime(lock) > 60:
-                try:
+            try:
+                if time.time() - os.path.getmtime(lock) > 60:
                     os.rmdir(lock)
-                except OSError:
-                    pass
-        time.sleep(5)
+            except OSError:
+                pass
+        time.sleep(3)
+except BaseException:
+    s.append("suite.jsonl", {"event": "gave-up", "who": who, "cwd": cwd, "cmd": " ".join(cmd), "label": label})
+    raise
+finally:
+    try:
+        os.remove(ticket)
+    except OSError:
+        pass
 
 json.dump({"pid": os.getpid(), "who": who, "cwd": cwd, "cmd": " ".join(cmd), "label": label,
            "since": s.now()}, open(os.path.join(lock, "owner.json"), "w"))

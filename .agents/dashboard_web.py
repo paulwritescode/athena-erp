@@ -197,8 +197,11 @@ def ops(wout, tasks):
         k = (r["who"], r.get("label"), r["cwd"])
         if r["event"] == "queued":
             queue = [q for q in queue if (q["who"], q.get("label"), q["cwd"]) != k] + [r]
-        elif r["event"] in ("start", "end"):
+        elif r["event"] in ("start", "end", "gave-up", "reused"):
             queue = [q for q in queue if (q["who"], q.get("label"), q["cwd"]) != k]
+    ps = run(["ps", "-axo", "pid=,command="])
+    live_pids = {int(l.split(None, 1)[0]) for l in ps.splitlines() if l.strip()}
+    queue = [q for q in queue if (q["pid"] in live_pids if "pid" in q else ("--label " + (q.get("label") or "")) in ps)]
     lim = LIMITS()
     du = shutil.disk_usage("/")
     return {"lanes": lane_out, "blocked": lane_cfg.get("blocked", {}),
