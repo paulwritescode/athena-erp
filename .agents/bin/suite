@@ -8,7 +8,7 @@ whose owner process is gone is taken over. Every run is logged with its exit
 status and duration in .agents/stylus/suite.jsonl; the output tail goes to
 .agents/stylus/suite-logs/<time>-<who>.log.
 """
-import json, os, signal, subprocess, sys, time
+import glob, json, os, shutil, signal, subprocess, sys, time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import _stylus as s
 
@@ -64,8 +64,14 @@ logf = s.path(f"suite-logs/{time.strftime('%m%d-%H%M%S')}-{who}.log")
 code = 1
 try:
     with open(logf, "w") as log:
+        env = dict(os.environ)
+        if not shutil.which("node", path=env.get("PATH")):  # agent shells often miss nvm's node
+            nvm = sorted(glob.glob(os.path.expanduser("~/.nvm/versions/node/*/bin")))
+            if nvm:
+                env["PATH"] = nvm[-1] + os.pathsep + env.get("PATH", "")
+                log.write(f"suite: node not on PATH, using {nvm[-1]}\n")
         proc = subprocess.Popen(cmd, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-                                start_new_session=True)
+                                start_new_session=True, env=env)
         limit = s.limits().get("suiteTimeoutMinutes", 30) * 60
         for line in proc.stdout:
             sys.stdout.write(line)
