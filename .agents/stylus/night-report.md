@@ -1,88 +1,46 @@
-# Night report — FINAL (clocked out 07:58)
+# Stylus night report — shift 2, 2026-11-22 evening (CLOCKED OUT 02:22)
 
 ## Summary
 
-Eighteen merges in main and pushed to origin: B4b, B9b, B2a (complete),
-B5 (complete), B9 (complete), B10 (complete), B8 (complete), B11 slice 1,
-C1 slices 1–2, C2 slices 1–2. Three items finished review but did NOT
-merge (see Pending). B7 verified 5/6 with one documented gap awaiting
-the user's call. The :3000 server was left running, fresh on the
-C2-2-complete main (722e183).
+Shift 2 closed on main `da0ca2f` with 7 merges pushed: C1 slice 3, B11 slice 2 (B11 complete), B4a, D3 slice 1, C4 slice 1, C1 6.8 and C1 6.9. The shift ran the new lane workflow (five lanes, `spawn`/`say`/`suite`/`progress`/`affected`, ordered suite queue with master priority, merge train, close-early rule — all committed). Both clock-out red suites from shift 1 re-ran green in quiet runs (parallel-suite contention confirmed). Every lane ends mid-flight with clean trees and committed work: C2 fix needs a re-gate + round 2, C4-2/C1-docs/D3-3 need gates + reports, FU needs its browser pass, D3-2's PASS needs its merge. No user server pane ran tonight, so no restarts happened. Panes left open for Stylus.
 
-## Merged tonight
+## Merged this shift
 
-- B4b Appearance redesign (1568c0b + fix fb603a6). Try: Settings → Appearance → Blue + Ocean → Save → reload.
-- B9b name-first flow (2468598). Try: Build → Record Types → New Record Type → "Vendor".
-- B2a complete (slices 1–3: afc70a6, b4791a3+96edd68, f3c8c1b). Try: every Desk list.
-- B5 complete (slice 1: 2e5595e + SMIL fix e80ad39 + union 4698f96; slice 2: bd49f75 + fix c2674c2). Try: Settings → Workspace identity.
-- B9 complete (server 9260d04; Desk 99cc6ed, 4113b23, 7c7192d): layouts, renderer, builder, list thumbnails.
-- B10 complete (slices 1–2: 82cf024, cf95819): art registry + placements.
-- B8 complete (slice 1: 4d03467; slice 2: 48d804d + test fix d81473f): root guards + presentation. Try: sign in as root, mode switch, Preview-as.
-- B11 slice 1 (b27b6c3): CLI install path + e2e-install.sh 28/28 + guide.
-- C1 slice 1 (9d87fbf+a9e1d49): posting validation + writer + balanced-postings property.
-- C1 slice 2 (f94fe09+367a56c): op-id contract + idempotent replay; one correctness fix (cross-actor winner by group id) re-reviewed PASS.
-- C2 slice 1 (5d1e55f): migration 17 (events/jobs/workflows tables) + ADR-0028; Z4 secrets/lifetimes deferred.
-- C2 slice 2 (6be771e): event bus (Emit/Claim/Declare/Match + dispatcher) + posting/lifecycle emit hooks + Property 13 inbox dedup. Z4/Z2 clean.
+- **C1 slice 3** (`4334fc3`): reversal mirrors + correction-period rules (6.6+6.7); Property 10; Z2 unchanged. Review PASS + delta re-review PASS of the `insertOutbox`→`events.Emit` rebase adaptation (the candidate differed from the reviewed tree); quiet suite green.
+- **B11 slice 2** (`7ccf163`+`4c666b5`, B11 COMPLETE): Desk Setup wizard + readiness view; round-1 period-retry wedge fixed in place. Round-2 PASS, 49-screenshot browser pass, quiet suite green. B group now complete except B7's open question.
+- **B4a** (`2bde6c7`, master, docs-only): steering sync — design tokens Proposed → Implemented, nine presets + Custom, Cal Sans → Satori fix. All claims verified in code.
+- **D3 slice 1** (`e801e78`): ADR-0030 (Proposed) + log/README rows. Review PASS.
+- **C4 slice 1** (`d54d6e4`): migration 18 + ADR-0029 (Proposed). Review PASS (scoped run 169s); full merge gate green. Slice 2 stacked during review; merged the slice-1 commit only.
+- **C1 6.8** (`8fd7bef`): lifecycle hooks + Posting Rule type with activation gate. Review PASS (deviation accepted, Z2 byte-identical, first dedup reuse). Two gates ran (C4-1 landed under the first — the incident behind the merge-train rule). Same-user approval accepted for beta; Z13 opened (Z12 was taken).
+- **C1 6.9** (`cf2f674`): posting RPCs + CLI; preview-hash loop closed; dryRun clean; gate policies tested. Review PASS (detached -r tree, dedup reuse). Full merge gate green.
+- **Tooling chores**: suite node fallback, per-commit dedup, `affected` scoped runs, ordered queue (master first), merge-train + close-early rules, no-lock git, `--help` guards, rebase-first affected, ticker close rules.
 
-## Pending (left on branches — reviews PASS, merge-time suites red)
+## In progress (by lane, all clean trees, queued gates cancelled at clock-out)
 
-- C1 slice 3 (reversal mirrors + Property 10): review PASS at 5bbc94e;
-  rebased to 981ee78 on feat/c1-posting (3 posting-file conflicts,
-  unified insertOutbox signature over events.Emit). Merge-time
-  `make test` EXIT 1. Left on branch per clock-out rule.
-- B11 slice 2 (Setup wizard + readiness): re-review PASS at bdff521
-  (B1 wedge fix verified in browser); rebased to be91324+5fbf685 on
-  feat/b11-install (clean). Merge-time `make test` EXIT 1. Left on
-  branch per clock-out rule.
-- Both suites ran in parallel near the 20m budget the C2-2 review
-  proved tight (auth/posting/server need 4–6 min each); both branches
-  were green at review time. Leading hypothesis: contention timeouts,
-  not logic. Morning: re-run each suite QUIETLY (one at a time); if
-  green, merge --ff-only + records as usual. If C1-3 fails again in
-  isolation, triage the insertOutbox unification first (C1-3's tests
-  now run against the Emit path, not the direct INSERT they were
-  written against).
-- C2 slice 3 (job runner + leases + occurrences + Property 15,
-  aec5366 on feat/c2-events-jobs): COMMITTED by the worker at 07:46
-  but unreviewed, no PASS report (worker was mid-report-suite at
-  clock-out; stop orders queued, no ack). Morning: confirm w-c2 idle,
-  then review aec5366 normally before merging.
+- **L1 Books and posting:** `feat/c1-hooks` @ `edf94a1` (6.8+6.9 merged; 6.11 docs committed, unreviewed). Next: gate + review + merge 6.11 docs; 6.10 Desk still gated on master GO (check FU's RecordsPage first); 6.12 checkpoint last.
+- **L2 Jobs, events, integration:** `feat/c2-events-jobs` @ `e2c2bf2` (slice 3 + B1/F1/F2/F4/F5/F3-migration-19 fix, rebased on 1271dc7). Next: re-gate with affected, FIX PASS, r-c2 round 2 in a detached -r tree, merge slice-3+fix; slices 4–6 stack behind (w-c2 prepped slice 4).
+- **L3 Masters and Packs:** `feat/c4-trees` @ `2d921c3` (slice 2 code complete, rebased; narrow checks green). Next: requeue affected → PASS → review. Slice 3 will touch accounts.go/masters.go for tree-path maintenance (w-c4 flagged unless vetoed).
+- **L4 Desk, first run, access:** `feat/d3-public` @ `6f2ad1b` (slices 1–3; slice 1 merged, slice 2 review PASS, slice 3 committed). Next: merge slice 2 (rebase + gate), then re-gate 6f2ad1b + re-report slice-3 PASS (its PASS cited the slice-2 gate), then review slice 3.
+- **L5 Quality:** `feat/fu-batch-1` @ `faa093d` (12 fixes: B9a×2, B4×1, B4b×6, B9b×3; typecheck + vitest + build + affected green). Next: re-queue hardened browser pass + screenshots, rebase, report; then review, merge, D1/D2 drafts.
 
-## Morning resume checklist
+## Blocked and why
 
-1. Confirm w-c2 idle (it may have finished its report suite overnight).
-2. Quiet `make test` on feat/c1-posting (981ee78) → merge + records.
-3. Quiet `make test` on feat/b11-install (5fbf685) → merge + records
-   (rebase onto post-C1-3 main first; expect clean, web-only).
-4. Review C2 slice 3 (aec5366) → merge.
-5. Continue: C1 slice 4, B4a, C-group continuations, D1/D2 drafts.
-6. Refresh the :3000 server after the queued merges land.
+Nothing blocked. Everything pending is queued work, not stuck work.
 
 ## Questions for the user
 
-- B7's "a Workspace switch clears caches" has no trigger because the Desk has no Workspace switch (single-workspace servers). Recommended: descope that bullet until a switch flow is designed, and track it as a follow-up under B8 or B11. (Stylus agrees; B7 otherwise verified 5/6 and stays unticked until you decide.)
-- B10 shipped with stock hairline figures; custom Athena figures need the `hairline-create` skill, which is not installed and cannot be fetched overnight (no-network policy). Recommended: install the skill in the morning and let a worker generate the custom set, or accept stock figures.
-- Section Z decisions untouched.
+Carried: B7 Workspace-switch cache bullet; B10 custom figures; B2a notifications full-list page; section Z now Z1–Z7, Z10, Z11, Z13 (new: segregation of duties for posting-Rule activation; Z12 was already taken by a 2026-11-21 decided row); no user server pane (nothing restarts after merges). No new questions except Z13.
 
 ## Errors and how they were handled
 
-- Server panes t24 (node PATH) and t25 (install lock) failed at startup; all later exits were planned refresh kills.
-- r-b4b's lock stall: fake-HOME nudge; r-b9b's hung script: restarted; both PASS.
-- Fix loops, all re-reviewed PASS: B4b ramp/charts; B5-1 SMIL; B5-2 typecheck/CSP; B2a-2 stale delete targets (two data-loss bugs); B8-2 jsdom observer stub; C1-2 cross-actor op-id LIMIT 1; B11-2 stale years list.
-- B5 slice-1 merge conflicts (5 files): union + regen + one test-precedence update, suite green.
-- B9-form rebase import conflict: kept B2a's list + new image import, zero dangling refs.
-- The B8-2 merge blocked once on a rebase-only test failure (B10 lazy art vs jsdom remount timing); bisected to B10-2's files, worker fixed with a test-only observer stub, re-reviewed PASS.
-- A `rebase --continue` hung on an editor prompt; killed and retried with `GIT_EDITOR=true` (now standard).
-- A B2a-2 worker nudged with a 15-minute timebox during a long browser pass (it then found, fixed, and reported).
-- B2a-3 scope fork (no notifications page): Stylus chose skip + follow-up; recorded in tasks.md.
-- B8/B11 commit messages reworded to Conventional style at merge (content identical).
-- A stale redelivered review message recognized and ignored (B9 already complete).
-- Early log timestamps were estimates; corrected 00:09, clock-stamped since.
-- r-c1 ran B11-2 gates in the C1 tree with hung servers (nothing listening on :3222/:3223); redirected twice, recovered onto b11-tree binaries with healthz proof, and its review file carries explicit b11-tree provenance.
-- Clock-out: both merge-time suites (C1-3, B11-2) went red running in parallel; per the clock-out rule both branches were left intact for quiet morning re-runs. w-c2 committed slice 3 instead of stopping uncommitted — safer than ordered, kept as is.
+- C1-3 candidate ≠ reviewed tree: delta re-review (PASS). B11 rebase byte-identical: PASS stood.
+- `merge --ff-only` failed on Stylus's mid-merge docs commits, twice: rebased (patch identical) and merged; Stylus stopped committing to main.
+- Two `docs(spec)` commits hit transient `index.lock` (dashboard `git status` every 2 s): content swept into the next commit both times; cause fixed (no-lock git); future commits wait the lock out.
+- C1-1 green gate lost to the C4-1 under-merge: re-gated after rebase (correct — the combination was untested); merge-train rule adopted so it never repeats.
+- Two premature PASSes rejected and re-gated: w-c2 gated pre-rebase (rule: rebase first, then gate, then PASS — now enforced by `affected`), w-d3's slice-3 PASS cited slice 2's gate.
+- r-d3 ran unfiltered tests outside the lock in /tmp (slowed the gated suite): finished untouched, deleted; reviewers now gate in detached `-r` worktrees, lock-free runs narrowed to `-run` filters.
+- Stale worktree tool copies bit twice (node missing, no dedup): agents now call tools by absolute main-repo path; `suite` falls back to nvm node.
 
-## Observations
+## Next up (morning)
 
-- OTEL export errors (:4318 refused): endpoint set, no collector. Server healthy; changed nothing.
-- Leftover `test_b9b_review` DB kept per policy (no `test_athena_` prefix); merged `b9-server` worktree still dirty (untracked testdata).
-- Suite wall-time is now the binding constraint: three packages need 4–6 min each of the 20m budget. Never run two full suites at once again; before E2, raise the budget or parallelize packages.
+Re-gates first (C2 fix, C4-2, FU browser, D3-3, C1 docs), then round 2 + reviews in order, then merges — training ready branches (C2-fix + D3-2 are the likely first train). Then C2 slices 4–6, C1 6.10 + 6.12, C4-3+, D3-4/5, D1/D2 drafts.

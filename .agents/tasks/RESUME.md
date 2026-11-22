@@ -1,83 +1,116 @@
-# Resume point (Stylus, 2026-11-22 07:50)
+# Resume point (Stylus, 2026-11-23 02:25)
 
-The day is clocked out after the first Stylus night shift. This file is the single place to start from next time. It replaces the 2026-11-21 restart notes.
+This file is the single place to start from next time. It replaces the 2026-11-22 07:50 notes (they are in git history). Say to kiro-cli in `athena-erp`: **"Read `.agents/tasks/RESUME.md` and continue as Stylus."**
 
-## Stylus v2 (2026-11-22 evening): lanes, submasters, tools
+## The workflow (Stylus v2)
 
-Read `.agents/stylus/AGENT_RULES.md` (rules for every agent) and `.agents/stylus/MASTER.md` (master's brief) first; they supersede the workflow notes below.
+```
+Stylus (kiro-cli, the main repo pane) ── reasons, plans, decides; may start read-only Codex thinkers th-*
+└── master (Muse YOLO) ── five lanes, reviews, merge trains, the record, 10-minute updates
+    ├── w-<task> (Muse YOLO) ── one worker per lane, at most 5
+    │   └── sm-<task> (kiro-cli --trust-all-tools or Codex bypass) ── only for a big task master approves
+    │       └── sw-<task>-<n> (Muse YOLO) ── at most 2 per submaster
+    └── r-<task> (Muse YOLO, fresh session, own -r worktree) ── at most 3
+```
 
-- Hierarchy: Stylus (kiro-cli, `t6`) → master (Muse YOLO) → up to 5 workers `w-*` (one per lane in `lanes.json`) and up to 3 reviewers `r-*`. A worker with a big task starts a submaster `sm-*` (kiro-cli `--trust-all-tools` or Codex bypass) that runs at most 2 subworkers `sw-*`. Stylus may start read-only Codex thinkers `th-*`. Caps live in `limits.json` (12 agents in all; 15 % free memory and 8 GB free disk minimum).
-- Tools in `.agents/bin/`: `spawn` (start an agent as a split pane beside the caller, with guards, recorded in `agents.jsonl`), `say` (every message, recorded in `comms.jsonl`), `suite` (full suites and browser passes one at a time machine-wide, `suite.jsonl` and `suite-logs/`), `progress` (master's update to Stylus, `progress.jsonl`), `ticker` (asks master for an update every 10 minutes; runs in the dashboard tab).
-- Migration numbers are reserved in `.agents/stylus/migrations.md`.
-- Dashboard: `python3 .agents/dashboard_web.py` in the `dashboard` tab, <http://127.0.0.1:8765>. The Operations panel has Team (agent tree with Kiro, Muse and Codex logos), Lanes, Messages, Updates and Suite tabs; `?ops=lanes` opens a tab directly.
-- Restart order: MariaDB, dashboard pane, ticker pane (`hc run --bg --outlive-parent --name ticker -- python3 .agents/bin/ticker`, then give it a pane in the dashboard tab), master (`hc run --bg --outlive-parent --name master -- muse --yolo --model muse-spark-1.3-contributor --reasoning-effort max 'You are master ... follow .agents/stylus/MASTER.md'`).
+Binding documents (read these first, every agent reads AGENT_RULES):
+- `.agents/stylus/AGENT_RULES.md`: permissions, `say`, the suite lock, scoped tests, splitting, review worktrees, closing terminals.
+- `.agents/stylus/MASTER.md`: master's brief (lanes, one task start to finish, merge trains, the record, health). Its "Queue now" section must be updated before restarting master (see Queue below).
+- `.agents/stylus/lanes.json` (five lanes), `limits.json` (caps: 12 agents, 5 workers, 3 reviewers, 2 submasters, 15 % free memory, 8 GB free disk), `migrations.md` (next free number: **20**).
 
-## The Stylus workflow (shift 1)
+Tools in `.agents/bin/` (call by absolute path from any worktree):
 
-- **Stylus** is the kiro-cli agent in the main repo pane (`t6` last time). It does the reasoning and planning and answers the master's questions.
-- **Master** is a Muse YOLO agent (terminal name `master`). It follows `.agents/stylus/MASTER.md`: it briefs and starts workers (`w-<task>`) and reviewers (`r-<task>`) as split panes, merges after a review PASS and green checks, pushes `main`, closes finished panes, and keeps `.agents/stylus/night-log.md` and `night-report.md`.
-- Permission policy (in MASTER.md): work only inside `athena-erp` and `athena-erp-*`; nothing destructive; no dev database; no new dependencies; no section Z decisions.
+| Tool | What it does |
+| --- | --- |
+| `spawn <role> <name> --task T --lane L --cwd ../athena-erp-x --brief f "msg"` | starts an agent as a split pane beside the caller (never a new tab), checks caps, memory and disk, records it in `agents.jsonl` |
+| `say <to> "KIND: text"` | every message between agents; recorded in `comms.jsonl` |
+| `suite --label L -- make test` | heavy runs one at a time machine-wide; ordered queue with master first; reuses a green run on the same clean commit; node fallback to nvm |
+| `affected` | scoped tests for workers and reviewers (changed Go packages plus importers, web tests if `web/` changed; full suite for proto, go.mod, Makefile); refuses a worker whose branch lacks code from main |
+| `progress "text"` | master's update to Stylus; `progress.jsonl` |
+| `ticker` | every 10 minutes asks master for its update and lists close candidates |
 
-## The dashboard (saved in the repo)
+## Restart, step by step (in Herdr, space `athena-erp`)
 
-- Files: `.agents/dashboard_web.py` (server and data), `.agents/dashboard.html` (the n8n-style map page), `.agents/dashboard.py` (terminal fallback view).
-- Start it: `python3 .agents/dashboard_web.py` from the repo root, in its own pane, then open <http://127.0.0.1:8765>.
-- It reads `tasks.md`, `hc ls` / `hc read`, git worktrees and `.agents/stylus/` live; nothing else to configure. Task dependencies are the `EDGES` list in `dashboard_web.py`.
-- The 🌙 Night report button reads `.agents/stylus/shift.json` (shift start and `mainAtStart`), `night-log.md` and `night-report.md`. **For a new shift**, write a new `shift.json` with the current time and `git rev-parse --short main`, and start a fresh `night-log.md` (keep the old one as `night-log-2026-11-21.md` if you want it; it is in git history either way).
+1. **Database and disk.** `brew services start mariadb@11.8` (it is left running); `df -h /` must show more than 8 GB free (12.7 GB at clock-out).
+2. **Stylus.** Tab `1`: start kiro-cli in `/Users/iampaulking/projects/duchess/athena-erp` and say the line at the top of this file. Stylus's terminal address goes in `limits.json` `"stylus"` (it was `t6`; change it if Herdr gives another address, or messages to Stylus will not arrive).
+3. **Dashboard.** Tab `dashboard`, left pane: `python3 .agents/dashboard_web.py`, then open <http://127.0.0.1:8765>. It may still be running from tonight; check the page first. Operations panel: Team (agent tree with Kiro, Muse and Codex logos), Lanes, Messages, Updates, Suite; `?ops=lanes` opens a tab directly.
+4. **Ticker.** Split under the dashboard pane:
+   ```sh
+   hc run --bg --outlive-parent --name ticker --cwd "$PWD" -- python3 .agents/bin/ticker
+   herdr-app do pane.focus --terminal <dashboard address>
+   herdr-app do terminal.keep --terminal <ticker address> --place down
+   ```
+5. **Fresh shift record.** Keep the old files in git: `git mv .agents/stylus/night-log.md .agents/stylus/night-log-2026-11-22.md` (and the same for `comms.jsonl`, `progress.jsonl`, `suite.jsonl`, `agents.jsonl` if you want them archived; empty files are fine), then write `shift.json` with the current time and `git rev-parse --short main` (format: `{"start": "...", "startEpoch": N, "mainAtStart": "..."}`), and start `night-log.md` with `- HH:MM STARTED shift 3`.
+6. **Update MASTER.md "Queue now"** from the Queue section below.
+7. **Master.** Resume tonight's session, or start fresh (fresh is fine; it rebuilds context from the files):
+   ```sh
+   hc run --bg --outlive-parent --name master --cwd /Users/iampaulking/projects/duchess/athena-erp -- \
+     muse --yolo --model muse-spark-1.3-contributor --reasoning-effort max resume 01a204e4-6ad1-7e90-a54b-92d6d8dec1b3
+   # fresh instead: ... --reasoning-effort max 'You are master for Stylus shift 3. Read .agents/tasks/RESUME.md, then .agents/stylus/MASTER.md and follow it, starting with its Queue now. Agents are split panes in tab 1, never new tabs. Log to .agents/stylus/night-log.md.'
+   herdr-app do pane.focus --terminal <stylus address>
+   herdr-app do terminal.keep --terminal <master address> --place right
+   ```
+   Note: a message sent with `hc send` into a plain shell that then starts muse may not submit; starting muse with the first message as its argument (as above) works.
+8. **Workers.** Master restarts them with `spawn` (split panes in tab 1), resuming their sessions where the table below gives one: first message `muse ... resume <id>` is not possible through spawn, so either resume by hand in the worktree (`muse --yolo --model muse-spark-1.3-contributor --reasoning-effort max resume <id>`, then `herdr-app do terminal.keep`) or spawn fresh with "Read and follow <brief>; you are continuing: run git status and git log main.. first". Fresh is simpler and safe because every tree is clean and all work is committed.
+9. **User server (optional).** It was not running at clock-out. `make run` in the main repo (node must be on `PATH`: `export PATH=$HOME/.nvm/versions/node/v26.7.0/bin:$PATH`).
 
-## State at clock-out
+## State at clock-out (2026-11-23 02:22)
 
-- `main` = `722e183`, pushed. The master closed the shift at 07:58 with 18 merges pushed; the last night-log lines give the final state. The user server was left running on `722e183` (pane `server`).
-- Merged tonight (from `9260d04`): B9b, B4b, B2a (notifications full list skipped by decision), B5, B9 (slices 1 and 2 plus the 2.3 thumbnails follow-up), B10, B8, B11 slice 1, C1 slices 1 and 2, C2 slices 1 and 2. Full list and commits: the Night report button, or `.agents/stylus/night-report.md`.
-- Ticked in tasks.md: A group except B4a; B group except B4a, B7 and B11.
+- `main` = `da0ca2f`, pushed (`origin/main` equal). The main checkout has only the shift record files modified (night log, report, `.jsonl` records); they are committed with this file.
+- Merged this shift (from `1e25ab9`): C1 slice 3, B11 slice 2 (**B11 complete, ticked**), B4a steering sync (ticked), D3 slice 1 (ADR-0030 Proposed), C4 slice 1 (migration 18, ADR-0029 Proposed), C1 6.8 (posting Rule type and activation gate), C1 6.9 (preview, status, log RPCs and post CLI), plus all Stylus tooling.
+- No suite running, the suite lock is free; one dead queue ticket was removed.
+- All agents stopped at safe points: every worktree is clean and all work is committed on its branch. Panes closed by Stylus after the report.
 
-### Open worktrees
+### Lanes and open worktrees
 
-| Worktree | Branch | State | Next step |
+| Lane | Worktree / branch | Head | State | Next step |
+| --- | --- | --- | --- | --- |
+| L1 Books and posting | `athena-erp-c1` / `feat/c1-hooks` | `edf94a1` | 6.11 docs committed (1 commit ahead, 3 behind main) | rebase, `affected`, web build via `suite`, review, merge. 6.10 (Desk voucher view) waits for a GO; then C1 6.12, then C5 |
+| L2 Jobs and events | `athena-erp-c2` / `feat/c2-events-jobs` | `e2c2bf2` | slice 3 plus fix for review B1 and F1, F2, F4, F5, and F3 as migration 19 | rebase (4 behind), re-gate with `affected`, FIX PASS, `r-c2` round 2, merge; then slices 4 to 6 (runner hardening, invite and reset delivery through the outbox, events.proto, handlers, CLI, Jobs and Settings pages) |
+| L3 Masters and Packs | `athena-erp-c4` / `feat/c4-trees` | `2d921c3` | slice 2 (13.2) code complete, narrow checks green | rebase (4 behind), `affected` (full: protos), PASS, review, merge; slice 3 (UoM and determination ranges; may touch accounts and masters); then C3 |
+| L4 Desk, first run, access | `athena-erp-d3` / `feat/d3-public` | `6f2ad1b` | slice 2 review PASS (`10ce8cb`), slice 3 committed | merge slice 2 (merge train), re-gate and re-report slice 3, review; B7 waits on the user |
+| L5 Quality | `athena-erp-fu` / `feat/fu-batch-1` | `faa093d` | 12 follow-up fixes (B9a, B4, B4b, B9b), typecheck, touched Vitest, build and `affected` green | rebase (21 behind), browser pass through `suite`, report, review, merge; then more follow-ups, D1 and D2 drafts |
+
+### Muse sessions (for `muse ... resume <id>` in the worktree)
+
+| Role | Name | Session id | Worktree |
 | --- | --- | --- | --- |
-| `../athena-erp-c1` | `feat/c1-posting` | C1 slice 3 (`981ee78`, reversal mirrors, 6.6 and 6.7) **review PASS**, but the merge-time `make test` was **red**. It ran at the same time as the B11 suite, near the 20-minute budget, so the likely cause is contention; the branch was green at `5bbc94e` for worker and reviewer | Run `make test` alone; if green, merge. If red again, triage (the master suspects the `insertOutbox` unification) |
-| `../athena-erp-b11` | `feat/b11-install` | B11 slice 2 (`be91324` wizard and readiness, `5fbf685` fix) **review PASS round 2**, merge-time `make test` **red**, same contention pattern | Run `make test` alone after C1; if green, merge and tick B11 |
-| `../athena-erp-c2` | `feat/c2-events-jobs` | C2 slice 3 job runner committed (`aec5366`, includes slice-2 F1 and F2 fixes, **not reviewed**); the worker was told to stop and had not acknowledged at clock-out. Slices 4 to 6 not done (4 per the worker's plan, 5: invite and reset delivery through the outbox, 6: events.proto, handlers, CLI, pages, docs) | Check `git status` for leftover work, review `aec5366`, then continue |
-| `../athena-erp-b9-server` | `feat/b9-form-layout-server` | Merged already | `git worktree remove` it (clean) |
+| master | green-aegaeon | `01a204e4-6ad1-7e90-a54b-92d6d8dec1b3` | `athena-erp` |
+| w-c1 | plum-megrez | `01a204ff-8c15-7b63-93f1-ec9c09f38ebd` | `athena-erp-c1` |
+| w-c2 | agate-corona | `01a2051f-8a08-7540-808c-e198e39ce306` | `athena-erp-c2` |
+| r-c2 | cloud-circinus | `01a204fe-b576-71c1-b48b-3a08c107f3c0` | `athena-erp-c2` (move to `athena-erp-c2-r` for round 2) |
+| w-c4 | horizon-setebos | `01a204ff-02c6-7ff3-8550-580876c03f4a` | `athena-erp-c4` |
+| w-d3 | lagoon-merak | `01a20505-baf0-7823-be3d-b44ba939745a` | `athena-erp-d3` |
+| w-fu | orchid-singularity | `01a204ff-0ca3-7522-92a4-9cfeff3c7aa7` | `athena-erp-fu` |
 
-### Muse sessions (resume with `muse --yolo --model muse-spark-1.3-contributor --reasoning-effort max resume <id>` in the worktree)
+## Queue after resume (copy into MASTER.md "Queue now")
 
-| Role | Session | Id | Worktree |
-| --- | --- | --- | --- |
-| master | hazel-gibbous | `01a1ffe6-cf48-7951-8caa-a24d1e0b9190` | `athena-erp` |
-| w-b11 | cherry-zosma | `01a200bd-ea6f-7881-bf71-e91bafb8c728` | `athena-erp-b11` |
-| w-c1 (likely; the earlier of the two) | timber-himalia | `01a200e7-f7b3-7d81-b4b3-27a1a6ce46f4` | `athena-erp-c1` |
-| r-c1 (likely) | seaglass-flare | `01a200fb-8ae0-76a0-93d3-fc90aadfa771` | `athena-erp-c1` |
-| w-c2 | ruby-circinus | `01a20106-0e4a-7aa1-936f-aaf8026ed14f` | `athena-erp-c2` |
-| r-c2 | misty-vela | `01a20136-e0e9-7de1-bae4-e9b20bd911a2` | `athena-erp-c2` |
-
-The master and the reviewers can also be started fresh: the master from `.agents/stylus/MASTER.md`, reviewers from the review briefs in `.agents/tasks/beta-<task>/`.
-
-## How to resume
-
-1. `brew services start mariadb@11.8` if MariaDB is not running; check `df -h /` (keep 8 GB free).
-2. Open Herdr, start kiro-cli in `athena-erp`, and say: "Read `.agents/tasks/RESUME.md` and continue as Stylus."
-3. Stylus starts the dashboard pane (`python3 .agents/dashboard_web.py`), the user server pane (`make run`, with node on `PATH`), and the master (resume `hazel-gibbous`, or fresh: `muse --yolo ... 'You are master for the Stylus shift. Read and follow .agents/stylus/MASTER.md.'`). Update MASTER.md's "Queue" section first so it starts from this file's state.
-4. The master adopts or restarts the workers in the table above.
-
-## Queue after resume
-
-1. Rerun `make test` **one suite at a time** for C1 slice 3, then B11 slice 2; merge each that is green, triage any that is red. Tick B11 when done. Run full suites one at a time from now on (two in parallel timed out).
-2. C2 slice 3 review, then slices 4 to 6. Secrets and lifetimes stay deferred on Z4.
-3. C1 remaining sub-tasks (6.8 to 6.12) that do not need Z2.
-4. C4 (trees, effective dating, UoM), then C3 (Pack packaging, no licence text while Z5 is open).
-5. B4a steering sync (docs only).
-6. D1 and D2 as Proposed drafts for the user.
+1. Merge train: D3 slice 2 and C2 slice 3 plus fix (after its FIX PASS and `r-c2` round 2) on current main, one full gate on the stack tip.
+2. C1 6.11 gate and review; C4 slice 2 gate and review; FU batch 1 browser pass and review. Every branch rebases first (`affected` refuses otherwise).
+3. Then per lane: C1 6.12 (and 6.10 once GO), C5; C2 slices 4 to 6, C10; C4 slice 3, C3; D3 slice 3 then D3 complete; more follow-ups, D1 and D2 Proposed drafts, Bruno coverage.
 
 ## Questions waiting for the user
 
-- **B7:** "a Workspace switch clears caches" has no trigger because the Desk has no Workspace switch. Recommended: descope the bullet until a switch flow is designed and track it under B8 or B11. B7 stays unticked until decided (verify report: `.agents/tasks/beta-b7/verify-report.md`).
-- **B10:** custom Athena figures need the `hairline-create` skill, which is not installed. Recommended: install it and let a worker make the custom set, or accept the stock figures.
-- **B2a follow-up:** a Notifications full-list page needs a route, nav entry and permission designed before it is built.
-- **Section Z** (`tasks.md`): Z1 to Z7, Z10, Z11 still open. Z2 blocks parts of C1, Z3 blocks C7, Z4 blocks C2 secrets, Z5 blocks C3 licence text.
+- **B7:** "a Workspace switch clears caches" has no trigger (no Workspace switch in the Desk). Recommended: descope until a switch flow is designed.
+- **B10:** custom Athena figures need the `hairline-create` skill (not installed). Install it, or accept the stock figures.
+- **Notifications full-list page:** route, nav entry and permission need design first.
+- **Z13 (new):** segregation of duties for posting Rule activation (the author may approve today; audit rows record both). Recommended: a Workspace setting, on by default when two or more users hold the approve permission.
+- **C1 6.10:** the Desk voucher view waits for a GO.
+- **Second suite slot (offered, not decided):** allow scoped runs in parallel with full suites to cut queue waits (30 to 50 minutes tonight). Risk: contention timeouts; would be monitored.
+- Section Z still open: Z1 to Z7, Z10, Z11, Z13 (Z2 blocks parts of C1, Z3 C7, Z4 C2 secrets, Z5 C3 licence text).
+
+## Lessons from tonight (already built into the tools and rules)
+
+- The suite queue is the bottleneck (10 to 13 minutes per full run): scoped `affected` runs, one green run per commit, master's gate first, merge trains, rebase before any gate.
+- Never merge while another merge gate runs; never move main during a gate (docs commits wait for the train).
+- Read-only tools must not take `index.lock` (dashboard and tools use `GIT_OPTIONAL_LOCKS=0`).
+- Reviewers use their own `<task>-r` detached worktree; no test copies in `/tmp`; heavy packages only through the lock.
+- Close a terminal as soon as its work is done.
 
 ## Loose ends
 
-- `athena-black-logo` and `athena-white-logo` at the repo root are untracked originals; B5 copied them into `web/src/assets/brand/`. Leave or delete them as you prefer.
-- `internal/webui/dist/.gitkeep` gets deleted by web builds; restore it with `git checkout internal/webui/dist/.gitkeep` before committing.
-- Stale `test_athena_*` databases from killed runs exist in MariaDB; they are harmless.
+- `posts.md` at the repo root (LinkedIn and X drafts) is untracked on purpose; publish or delete it.
+- `athena-black-logo` and `athena-white-logo` at the repo root are untracked originals (copies live in `web/src/assets/brand/`).
+- Empty folders `../athena-erp-b3-experience`, `-b4b12-server`, `-b6-words` (0 bytes, not worktrees) can be deleted.
+- Unnamed shells `t3g` (tab 3) and `t3v` (tab 2) were not started by Stylus; left alone.
+- `internal/webui/dist/.gitkeep` is deleted by web builds; restore with `git checkout internal/webui/dist/.gitkeep` before committing.
