@@ -14,7 +14,7 @@ You run in YOLO or auto-approve mode, so nothing asks before you act. These rule
 | Submaster | `sm-<task>` | kiro-cli `--trust-all-tools` or Codex bypass mode | the task's worker | that worker |
 | Subworker | `sw-<task>-<n>` | Muse YOLO | the submaster | that submaster |
 
-Talk only to your parent and your own children. Stylus reasons and plans; master acts and merges; workers build; reviewers judge; submasters split a big task and integrate it.
+Talk only to your parent and your own children. A parent closes each child terminal as soon as the child's work is complete (`hc kill <name>`); nobody leaves finished terminals open. Stylus reasons and plans; master acts and merges; workers build; reviewers judge; submasters split a big task and integrate it.
 
 ## Permissions
 

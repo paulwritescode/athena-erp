@@ -1,22 +1,71 @@
 #!/usr/bin/env python3
 """Every N minutes (limits.json updateEveryMinutes), ask master for its progress
-update, and nudge agents that have been idle with no report for too long.
+update and name the agent terminals that look finished, so they get closed.
 Run it in its own pane in the dashboard tab: python3 .agents/bin/ticker
+
+A terminal is a close candidate when it has been idle for at least 10 minutes
+and either its last message was a final one (PASS, DONE, review verdicts) or
+its task is ticked in tasks.md. Exited terminals are removed from the list.
 """
-import os, subprocess, sys, time
+import json, os, re, subprocess, sys, time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import _stylus as s
+
+AGENT = re.compile(r"^(w|r|sm|sw|th)-")
+FINAL = re.compile(r"\b(PASS|DONE|NEEDS_CHANGES|REVIEW)\b")
+
+
+def ticked():
+    try:
+        text = open(os.path.join(s.ROOT, ".kiro/specs/athena-beta/tasks.md")).read()
+    except OSError:
+        return set()
+    return {m.group(1).upper() for m in re.finditer(r"^- \[x\] \*\*([A-Z0-9a-z]+)\.", text, re.M)}
+
+
+def candidates():
+    done_tasks, now = ticked(), time.time() * 1000
+    spawned = {r["name"]: r for r in s.read_jsonl("agents.jsonl") if r.get("event") == "spawn"}
+    last = {}
+    for m in s.read_jsonl("comms.jsonl"):
+        last[m.get("from")] = m
+    out = []
+    for t in json.loads(s.hc("ls", "--all") or "{}").get("terminals", []):
+        name = t.get("name") or ""
+        if t.get("state") != "live":
+            s.hc("rm", t["address"])
+            continue
+        if not AGENT.match(name):
+            continue
+        info = json.loads(s.hc("get", t["address"]) or "{}")
+        idle_min = (now - (info.get("status_ms") or now)) / 60000
+        if (info.get("status") or {}).get("state") == "working" or idle_min < 10:
+            continue
+        task = (spawned.get(name, {}).get("task") or "").upper()
+        msg = last.get(name, {})
+        why = None
+        if task and task in done_tasks:
+            why = f"task {task} is ticked"
+        elif FINAL.search((msg.get("kind") or "") + " " + (msg.get("text") or "")[:80]):
+            why = f"last message {msg.get('kind')} {msg.get('ts', '')[11:16]}"
+        if why:
+            out.append(f"{name} (idle {int(idle_min)} min, {why})")
+    return out
+
 
 print("ticker: asks master for an update every", s.limits()["updateEveryMinutes"], "minutes (ctrl+c quits)")
 while True:
     time.sleep(s.limits()["updateEveryMinutes"] * 60)
-    names = [t.get("name") for t in s.terminals()]
-    if "master" not in names:
+    if "master" not in [t.get("name") for t in s.terminals()]:
         print(time.strftime("%H:%M"), "no master terminal; skipped")
         continue
-    text = ("ORDER: 10-minute tick. Post your progress update now: run .agents/bin/progress, then "
-            ".agents/bin/say stylus \"UPDATE: <lanes, merges, blockers, next>\". Check every agent you own "
-            "(hc ls, hc read) and unstick any that is idle without a report.")
+    close = candidates()
+    text = ("ORDER: 10-minute tick. Post your progress update now with .agents/bin/progress \"<lanes, merges, "
+            "blockers, next>\". Check every agent you own (hc ls, hc read) and unstick any that is idle without a report.")
+    if close:
+        text += (" Close candidates (finished and idle): " + "; ".join(close) +
+                 ". Close each one whose work is complete with hc kill <name> and log CLOSED; keep one only if it "
+                 "still owes a fix or a re-review, and say why in your update.")
     subprocess.run(["hc", "send", "master", "TICKER→MASTER: " + text], capture_output=True)
     s.append("comms.jsonl", {"from": "ticker", "to": "master", "kind": "ORDER", "text": text, "delivered": True})
-    print(time.strftime("%H:%M"), "asked master for an update")
+    print(time.strftime("%H:%M"), "asked master for an update;", len(close), "close candidates")
