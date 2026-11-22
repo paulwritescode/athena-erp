@@ -14,16 +14,17 @@ const rows = [
 
 describe('record type list', () => {
   it('searches label, key and description', () => {
-    expect(filterRecordTypes(rows, 'bill', 'all', 'all').map((row) => row.name)).toEqual(['invoice'])
-    expect(filterRecordTypes(rows, 'CUSTOMER', 'all', 'all').map((row) => row.name)).toEqual(['customer'])
-    expect(filterRecordTypes(rows, 'restricted', 'all', 'all').map((row) => row.name)).toEqual(['secret'])
-    expect(filterRecordTypes(rows, 'nope', 'all', 'all')).toEqual([])
+    expect(filterRecordTypes(rows, 'bill', [], []).map((row) => row.name)).toEqual(['invoice'])
+    expect(filterRecordTypes(rows, 'CUSTOMER', [], []).map((row) => row.name)).toEqual(['customer'])
+    expect(filterRecordTypes(rows, 'restricted', [], []).map((row) => row.name)).toEqual(['secret'])
+    expect(filterRecordTypes(rows, 'nope', [], [])).toEqual([])
   })
 
   it('filters by kind and pack', () => {
-    expect(filterRecordTypes(rows, '', 'document', 'all').map((row) => row.name)).toEqual(['invoice'])
-    expect(filterRecordTypes(rows, '', 'all', 'none').map((row) => row.name)).toEqual(['customer', 'invoice', 'secret'])
-    expect(filterRecordTypes(rows, '', 'master', 'none').map((row) => row.name)).toEqual(['customer', 'secret'])
+    expect(filterRecordTypes(rows, '', ['document'], []).map((row) => row.name)).toEqual(['invoice'])
+    expect(filterRecordTypes(rows, '', [], ['none']).map((row) => row.name)).toEqual(['customer', 'invoice', 'secret'])
+    expect(filterRecordTypes(rows, '', ['master'], ['none']).map((row) => row.name)).toEqual(['customer', 'secret'])
+    expect(filterRecordTypes(rows, '', ['master', 'document'], []).map((row) => row.name)).toEqual(['customer', 'invoice', 'secret'])
   })
 
   it('labels kinds and packs', () => {

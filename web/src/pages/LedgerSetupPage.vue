@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, h, onMounted, ref, watch } from 'vue'
 import { ConnectError } from '@connectrpc/connect'
 import { toast } from 'vue-sonner'
 import { ledgerClient } from '../api'
@@ -8,7 +8,9 @@ import HelpHint from '@/copy/HelpHint.vue'
 import ActionGroup from '@/components/ActionGroup.vue'
 import type { ActionItem } from '@/components/actions'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import DataTable, { type TableFilter } from '@/components/DataTable.vue'
 import DetailSheet from '@/components/DetailSheet.vue'
+import PrimaryCell from '@/components/PrimaryCell.vue'
 import CheckboxField from '@/components/fields/CheckboxField.vue'
 import DateField from '@/components/fields/DateField.vue'
 import NumberField from '@/components/fields/NumberField.vue'
@@ -33,10 +35,20 @@ import type {
   ReadinessCheck,
 } from '@/gen/athena/v1/ledger_pb'
 
-const props = defineProps<{ canWrite: boolean }>()
+const props = withDefaults(defineProps<{ canWrite: boolean; username?: string }>(), { username: '' })
 
 function failure(err: unknown, action: string): void {
   toast.error(err instanceof ConnectError ? `${action}: ${err.rawMessage}` : `${action}.`)
+}
+
+// Master cells share a few shapes: the primary code in mono with its
+// label below it, muted dashes for empties, lowercase yes/no flags.
+function primaryCode(title: string, subtitle: string) {
+  return h(PrimaryCell, { title, subtitle: subtitle || null, mono: true })
+}
+
+function dashCell(value: string) {
+  return value === '' ? h('span', { class: 'text-muted-foreground' }, '—') : value
 }
 
 // The company every scoped section works on.
@@ -111,6 +123,23 @@ async function saveCompany(): Promise<void> {
     failure(err, 'Could not save the company')
   }
 }
+
+const companySearch = ref('')
+const companyFilteredActive = computed(() => companySearch.value.trim() !== '')
+const filteredCompanies = computed(() => {
+  const needle = companySearch.value.trim().toLowerCase()
+  return companies.value.filter((company) => !needle || `${company.name} ${company.label}`.toLowerCase().includes(needle))
+})
+const companyColumns = [
+  {
+    id: 'code', header: 'Code', accessorFn: (company: Company) => company.name.toLowerCase(), meta: { label: 'Code' },
+    cell: ({ row }: { row: { original: Company } }) => primaryCode(row.original.name, row.original.label),
+  },
+  {
+    id: 'money', header: 'Main money', accessorFn: (company: Company) => company.baseCurrency, meta: { label: 'Main money' },
+    cell: ({ row }: { row: { original: Company } }) => dashCell(row.original.baseCurrency),
+  },
+]
 
 // Branches, departments and cost centres of the current company.
 const branches = ref<Branch[]>([])
@@ -200,6 +229,69 @@ function editCostCentre(centre: CostCentre): void {
   costCentreForm.value = { name: centre.name, label: centre.label, parent: centre.parent, isGroup: centre.isGroup, revision: centre.revision }
 }
 
+const branchSearch = ref('')
+const branchFilteredActive = computed(() => branchSearch.value.trim() !== '')
+const filteredBranches = computed(() => {
+  const needle = branchSearch.value.trim().toLowerCase()
+  return branches.value.filter((branch) => !needle || `${branch.name} ${branch.label}`.toLowerCase().includes(needle))
+})
+const branchColumns = [
+  {
+    id: 'code', header: 'Code', accessorFn: (branch: Branch) => branch.name.toLowerCase(), meta: { label: 'Code' },
+    cell: ({ row }: { row: { original: Branch } }) => primaryCode(row.original.name, row.original.label),
+  },
+  {
+    id: 'parent', header: 'Belongs under', accessorFn: (branch: Branch) => branch.parent, meta: { label: 'Belongs under' },
+    cell: ({ row }: { row: { original: Branch } }) => dashCell(row.original.parent),
+  },
+  {
+    id: 'group', header: 'Group', accessorFn: (branch: Branch) => (branch.isGroup ? 'yes' : 'no'), meta: { label: 'Group' },
+    cell: ({ row }: { row: { original: Branch } }) => (row.original.isGroup ? 'yes' : 'no'),
+  },
+]
+
+const departmentSearch = ref('')
+const departmentFilteredActive = computed(() => departmentSearch.value.trim() !== '')
+const filteredDepartments = computed(() => {
+  const needle = departmentSearch.value.trim().toLowerCase()
+  return departments.value.filter((department) => !needle || `${department.name} ${department.label} ${department.branch}`.toLowerCase().includes(needle))
+})
+const departmentColumns = [
+  {
+    id: 'code', header: 'Code', accessorFn: (department: Department) => department.name.toLowerCase(), meta: { label: 'Code' },
+    cell: ({ row }: { row: { original: Department } }) => primaryCode(row.original.name, row.original.label),
+  },
+  {
+    id: 'branch', header: 'Branch', accessorFn: (department: Department) => department.branch, meta: { label: 'Branch' },
+    cell: ({ row }: { row: { original: Department } }) => dashCell(row.original.branch),
+  },
+  {
+    id: 'parent', header: 'Belongs under', accessorFn: (department: Department) => department.parent, meta: { label: 'Belongs under' },
+    cell: ({ row }: { row: { original: Department } }) => dashCell(row.original.parent),
+  },
+]
+
+const costCentreSearch = ref('')
+const costCentreFilteredActive = computed(() => costCentreSearch.value.trim() !== '')
+const filteredCostCentres = computed(() => {
+  const needle = costCentreSearch.value.trim().toLowerCase()
+  return costCentres.value.filter((centre) => !needle || `${centre.name} ${centre.label}`.toLowerCase().includes(needle))
+})
+const costCentreColumns = [
+  {
+    id: 'code', header: 'Code', accessorFn: (centre: CostCentre) => centre.name.toLowerCase(), meta: { label: 'Code' },
+    cell: ({ row }: { row: { original: CostCentre } }) => primaryCode(row.original.name, row.original.label),
+  },
+  {
+    id: 'parent', header: 'Belongs under', accessorFn: (centre: CostCentre) => centre.parent, meta: { label: 'Belongs under' },
+    cell: ({ row }: { row: { original: CostCentre } }) => dashCell(row.original.parent),
+  },
+  {
+    id: 'group', header: 'Group', accessorFn: (centre: CostCentre) => (centre.isGroup ? 'yes' : 'no'), meta: { label: 'Group' },
+    cell: ({ row }: { row: { original: CostCentre } }) => (row.original.isGroup ? 'yes' : 'no'),
+  },
+]
+
 // Dimensions.
 const dimensions = ref<DimensionDefinition[]>([])
 const dimensionForm = ref({ name: '', label: '', members: '', mandatoryFor: '', validFrom: '', validTo: '', revision: BigInt(0) })
@@ -234,6 +326,27 @@ async function saveDimension(): Promise<void> {
 function editDimension(dimension: DimensionDefinition): void {
   dimensionForm.value = { name: dimension.name, label: dimension.label, members: dimension.members.join(', '), mandatoryFor: dimension.mandatoryFor.join(', '), validFrom: dimension.validFrom, validTo: dimension.validTo, revision: dimension.revision }
 }
+
+const dimensionSearch = ref('')
+const dimensionFilteredActive = computed(() => dimensionSearch.value.trim() !== '')
+const filteredDimensions = computed(() => {
+  const needle = dimensionSearch.value.trim().toLowerCase()
+  return dimensions.value.filter((dimension) => !needle || `${dimension.name} ${dimension.label}`.toLowerCase().includes(needle))
+})
+const dimensionColumns = [
+  {
+    id: 'code', header: 'Code', accessorFn: (dimension: DimensionDefinition) => dimension.name.toLowerCase(), meta: { label: 'Code' },
+    cell: ({ row }: { row: { original: DimensionDefinition } }) => primaryCode(row.original.name, row.original.label),
+  },
+  {
+    id: 'members', header: 'Allowed values', accessorFn: (dimension: DimensionDefinition) => dimension.members.join(', '), meta: { label: 'Allowed values' },
+    cell: ({ row }: { row: { original: DimensionDefinition } }) => row.original.members.join(', '),
+  },
+  {
+    id: 'mandatory', header: 'Always needed for', accessorFn: (dimension: DimensionDefinition) => dimension.mandatoryFor.join(', '), meta: { label: 'Always needed for' },
+    cell: ({ row }: { row: { original: DimensionDefinition } }) => dashCell(row.original.mandatoryFor.join(', ')),
+  },
+]
 
 // Fiscal years and periods of the current company.
 const fiscalYears = ref<FiscalYear[]>([])
@@ -280,6 +393,23 @@ async function saveFiscalYear(): Promise<void> {
 function editFiscalYear(year: FiscalYear): void {
   fiscalYearForm.value = { name: year.name, label: year.label, startDate: year.startDate, endDate: year.endDate, revision: year.revision }
 }
+
+const fiscalYearSearch = ref('')
+const fiscalYearFilteredActive = computed(() => fiscalYearSearch.value.trim() !== '')
+const filteredFiscalYears = computed(() => {
+  const needle = fiscalYearSearch.value.trim().toLowerCase()
+  return fiscalYears.value.filter((year) => !needle || `${year.name} ${year.label}`.toLowerCase().includes(needle))
+})
+const fiscalYearColumns = [
+  {
+    id: 'code', header: 'Code', accessorFn: (year: FiscalYear) => year.name.toLowerCase(), meta: { label: 'Code' },
+    cell: ({ row }: { row: { original: FiscalYear } }) => primaryCode(row.original.name, row.original.label),
+  },
+  {
+    id: 'dates', header: 'Dates', accessorFn: (year: FiscalYear) => year.startDate, meta: { label: 'Dates' },
+    cell: ({ row }: { row: { original: FiscalYear } }) => `${row.original.startDate}..${row.original.endDate}`,
+  },
+]
 
 async function savePeriod(): Promise<void> {
   const form = periodForm.value
@@ -375,6 +505,38 @@ async function setPeriodStatus(period: Period, status: string): Promise<void> {
   }
 }
 
+const periodSearch = ref('')
+const periodStatusSelected = ref<string[]>([])
+const periodFilters = computed<TableFilter[]>(() => {
+  const statuses = [...new Set(periods.value.map((period) => period.status))].sort()
+  return [{ id: 'status', label: 'Status', options: statuses.map((status) => ({ value: status, label: status })), selected: periodStatusSelected.value }]
+})
+const periodFilteredActive = computed(() => periodSearch.value.trim() !== '' || periodStatusSelected.value.length > 0)
+const filteredPeriods = computed(() => {
+  const needle = periodSearch.value.trim().toLowerCase()
+  return periods.value.filter((period) => {
+    if (periodStatusSelected.value.length > 0 && !periodStatusSelected.value.includes(period.status)) return false
+    return !needle || `${period.name} ${period.label}`.toLowerCase().includes(needle)
+  })
+})
+function onPeriodFiltersChanged(next: TableFilter[]) {
+  periodStatusSelected.value = next.find((filter) => filter.id === 'status')?.selected ?? []
+}
+const periodColumns = [
+  {
+    id: 'code', header: 'Code', accessorFn: (period: Period) => period.name.toLowerCase(), meta: { label: 'Code' },
+    cell: ({ row }: { row: { original: Period } }) => primaryCode(row.original.name, row.original.label),
+  },
+  {
+    id: 'dates', header: 'Dates', accessorFn: (period: Period) => period.startDate, meta: { label: 'Dates' },
+    cell: ({ row }: { row: { original: Period } }) => `${row.original.startDate}..${row.original.endDate}`,
+  },
+  {
+    id: 'status', header: 'Status', accessorFn: (period: Period) => period.status, meta: { label: 'Status' },
+    cell: ({ row }: { row: { original: Period } }) => h(Badge, { variant: row.original.status === 'open' ? 'secondary' : 'outline' }, () => row.original.status),
+  },
+]
+
 // A hard close is permanent, so it asks first and names the consequence.
 // The server exposes no step-up challenge for this call (SetPeriodStatus
 // takes no proof), so the destructive confirm is the gate.
@@ -419,6 +581,23 @@ async function saveCurrency(): Promise<void> {
 function editCurrency(currency: Currency): void {
   currencyForm.value = { code: currency.code, label: currency.label, exponent: currency.exponent, disabled: currency.disabled, revision: currency.revision }
 }
+
+const currencySearch = ref('')
+const currencyFilteredActive = computed(() => currencySearch.value.trim() !== '')
+const filteredCurrencies = computed(() => {
+  const needle = currencySearch.value.trim().toLowerCase()
+  return currencies.value.filter((currency) => !needle || `${currency.code} ${currency.label}`.toLowerCase().includes(needle))
+})
+const currencyColumns = [
+  {
+    id: 'code', header: 'Code', accessorFn: (currency: Currency) => currency.code.toLowerCase(), meta: { label: 'Code' },
+    cell: ({ row }: { row: { original: Currency } }) => primaryCode(row.original.code, row.original.label),
+  },
+  {
+    id: 'exponent', header: 'Decimal places', accessorFn: (currency: Currency) => currency.exponent, meta: { label: 'Decimal places', numeric: true },
+    cell: ({ row }: { row: { original: Currency } }) => String(row.original.exponent),
+  },
+]
 
 // The §16 currency sheet: rows open it to view and edit, New currency
 // opens it blank. Closing with edits asks first.
@@ -591,6 +770,69 @@ function editDetermination(determination: Determination): void {
   determinationForm.value = { id: determination.id, label: determination.label, account: determination.account, match: Object.entries(determination.match).map(([k, v]) => `${k}=${v}`).join(','), disabled: determination.disabled, revision: determination.revision }
 }
 
+const accountTypeSearch = ref('')
+const accountTypeFilteredActive = computed(() => accountTypeSearch.value.trim() !== '')
+const filteredAccountTypes = computed(() => {
+  const needle = accountTypeSearch.value.trim().toLowerCase()
+  return accountTypes.value.filter((type) => !needle || `${type.name} ${type.label}`.toLowerCase().includes(needle))
+})
+const accountTypeColumns = [
+  {
+    id: 'code', header: 'Code', accessorFn: (type: AccountType) => type.name.toLowerCase(), meta: { label: 'Code' },
+    cell: ({ row }: { row: { original: AccountType } }) => primaryCode(row.original.name, row.original.label),
+  },
+  {
+    id: 'balance', header: 'Usual balance', accessorFn: (type: AccountType) => type.normalBalance, meta: { label: 'Usual balance' },
+    cell: ({ row }: { row: { original: AccountType } }) => row.original.normalBalance,
+  },
+]
+
+const accountSearch = ref('')
+const accountFilteredActive = computed(() => accountSearch.value.trim() !== '')
+const filteredAccounts = computed(() => {
+  const needle = accountSearch.value.trim().toLowerCase()
+  return accounts.value.filter((account) => !needle || `${account.name} ${account.label} ${account.type}`.toLowerCase().includes(needle))
+})
+const accountColumns = [
+  {
+    id: 'code', header: 'Code', accessorFn: (account: Account) => account.name.toLowerCase(), meta: { label: 'Code' },
+    cell: ({ row }: { row: { original: Account } }) => primaryCode(row.original.name, row.original.label),
+  },
+  {
+    id: 'type', header: 'Type', accessorFn: (account: Account) => account.type, meta: { label: 'Type' },
+    cell: ({ row }: { row: { original: Account } }) => row.original.type,
+  },
+  {
+    id: 'parent', header: 'Belongs under', accessorFn: (account: Account) => account.parent, meta: { label: 'Belongs under' },
+    cell: ({ row }: { row: { original: Account } }) => dashCell(row.original.parent),
+  },
+  {
+    id: 'group', header: 'Group', accessorFn: (account: Account) => (account.isGroup ? 'yes' : 'no'), meta: { label: 'Group' },
+    cell: ({ row }: { row: { original: Account } }) => (row.original.isGroup ? 'yes' : 'no'),
+  },
+]
+
+const determinationSearch = ref('')
+const determinationFilteredActive = computed(() => determinationSearch.value.trim() !== '')
+const filteredDeterminations = computed(() => {
+  const needle = determinationSearch.value.trim().toLowerCase()
+  return determinations.value.filter((determination) => !needle || `${determination.label} ${determination.account}`.toLowerCase().includes(needle))
+})
+const determinationColumns = [
+  {
+    id: 'name', header: 'Name', accessorFn: (determination: Determination) => determination.label.toLowerCase(), meta: { label: 'Name' },
+    cell: ({ row }: { row: { original: Determination } }) => h(PrimaryCell, { title: row.original.label }),
+  },
+  {
+    id: 'account', header: 'Account', accessorFn: (determination: Determination) => determination.account, meta: { label: 'Account' },
+    cell: ({ row }: { row: { original: Determination } }) => h('code', null, row.original.account),
+  },
+  {
+    id: 'match', header: 'Matches when', accessorFn: (determination: Determination) => Object.entries(determination.match).map(([k, v]) => `${k}=${v}`).join(', '), meta: { label: 'Matches when' },
+    cell: ({ row }: { row: { original: Determination } }) => Object.entries(row.original.match).map(([k, v]) => `${k}=${v}`).join(', ') || 'always',
+  },
+]
+
 async function resolvePreview(): Promise<void> {
   try {
     resolvedAccount.value = (await ledgerClient.resolveAccount({ context: parsePairs(resolveContext.value) })).determination?.account ?? ''
@@ -620,6 +862,7 @@ async function loadReadiness(): Promise<void> {
 
 const hasCompany = computed(() => currentCompany.value !== '')
 const ledgerTab = ref('readiness')
+const initialLoaded = ref(false)
 
 function onLedgerTab(tab: unknown): void {
   if (typeof tab !== 'string') return
@@ -635,8 +878,12 @@ watch(currentCompany, () => {
 })
 
 onMounted(async () => {
-  await loadCompanies()
-  await Promise.all([loadOrg(), loadDimensions(), loadPeriods(), loadCurrencies(), loadAccounts(), loadReadiness()])
+  try {
+    await loadCompanies()
+    await Promise.all([loadOrg(), loadDimensions(), loadPeriods(), loadCurrencies(), loadAccounts(), loadReadiness()])
+  } finally {
+    initialLoaded.value = true
+  }
 })
 </script>
 
@@ -673,22 +920,48 @@ onMounted(async () => {
           <Card>
             <CardHeader><CardTitle>Companies</CardTitle><CardDescription>Each company keeps its own books. Click a row to view and edit it.</CardDescription></CardHeader>
             <CardContent>
-              <div v-if="props.canWrite" class="ledger-actions ledger-new"><ActionButton kind="primary" density="row" label="New company" icon="plus" @press="openCompany()" /></div>
-              <Table v-if="companies.length > 0" class="datatable-stacked">
-                <TableHeader><TableRow><TableHead>Code</TableHead><TableHead>Name</TableHead><TableHead>Main money</TableHead></TableRow></TableHeader>
-                <TableBody><TableRow v-for="company in companies" :key="company.name" class="cursor-pointer" :class="{ chosen: company.name === currentCompany }" @click="openCompany(company)"><TableCell data-label="Code"><button type="button" class="row-open" :aria-label="`Open details for ${company.name}`" @click.stop="openCompany(company)"><code>{{ company.name }}</code></button></TableCell><TableCell data-label="Name">{{ company.label }}</TableCell><TableCell data-label="Main money">{{ company.baseCurrency || '-' }}</TableCell></TableRow></TableBody>
-              </Table>
-              <p v-else class="empty-state">No companies yet.</p>
+              <DataTable
+                :columns="companyColumns"
+                :data="filteredCompanies"
+                table-id="ledger-companies"
+                :username="username"
+                :get-row-id="(company) => company.name"
+                v-model:search="companySearch"
+                search-placeholder="Find companies…"
+                :loading="!initialLoaded"
+                :filtered="companyFilteredActive"
+                clickable
+                empty-title="No companies yet"
+                empty-body="Create one to get started."
+                @row-click="openCompany"
+              >
+                <template v-if="props.canWrite" #toolbar-actions>
+                  <ActionButton kind="primary" density="row" label="New company" icon="plus" @press="openCompany()" />
+                </template>
+                <template v-if="props.canWrite" #empty-action>
+                  <ActionButton kind="primary" label="Create your first company" icon="plus" @press="openCompany()" />
+                </template>
+              </DataTable>
             </CardContent>
           </Card>
           <Card>
             <CardHeader><CardTitle>Branches</CardTitle><CardDescription>Places or teams inside {{ currentCompany || 'the company' }}.</CardDescription></CardHeader>
             <CardContent>
-              <Table v-if="branches.length > 0" class="datatable-stacked">
-                <TableHeader><TableRow><TableHead>Code</TableHead><TableHead>Belongs under</TableHead><TableHead>Group</TableHead><TableHead></TableHead></TableRow></TableHeader>
-                <TableBody><TableRow v-for="branch in branches" :key="branch.name"><TableCell data-label="Code"><code>{{ branch.name }}</code></TableCell><TableCell data-label="Belongs under">{{ branch.parent || '-' }}</TableCell><TableCell data-label="Group">{{ branch.isGroup ? 'yes' : 'no' }}</TableCell><TableCell data-label=""><ActionButton kind="secondary" density="row" label="Edit" icon="pencil" @press="editBranch(branch)" /></TableCell></TableRow></TableBody>
-              </Table>
-              <p v-else class="empty-state">No branches yet.</p>
+              <DataTable
+                :columns="branchColumns"
+                :data="filteredBranches"
+                table-id="ledger-branches"
+                :username="username"
+                :get-row-id="(branch) => branch.name"
+                v-model:search="branchSearch"
+                search-placeholder="Find branches…"
+                :loading="!initialLoaded"
+                :filtered="branchFilteredActive"
+                clickable
+                empty-title="No branches yet"
+                empty-body="Add one with the form below."
+                @row-click="editBranch"
+              />
               <div v-if="props.canWrite && hasCompany" class="settings-grid">
                 <TextField id="ledger-branch-name" label="Code" v-model="branchForm.name" />
                 <TextField id="ledger-branch-label" label="Name" v-model="branchForm.label" />
@@ -701,11 +974,21 @@ onMounted(async () => {
           <Card>
             <CardHeader><CardTitle>Departments</CardTitle><CardDescription>Who spends and earns inside {{ currentCompany || 'the company' }}.</CardDescription></CardHeader>
             <CardContent>
-              <Table v-if="departments.length > 0" class="datatable-stacked">
-                <TableHeader><TableRow><TableHead>Code</TableHead><TableHead>Branch</TableHead><TableHead>Belongs under</TableHead><TableHead></TableHead></TableRow></TableHeader>
-                <TableBody><TableRow v-for="department in departments" :key="department.name"><TableCell data-label="Code"><code>{{ department.name }}</code></TableCell><TableCell data-label="Branch">{{ department.branch || '-' }}</TableCell><TableCell data-label="Belongs under">{{ department.parent || '-' }}</TableCell><TableCell data-label=""><ActionButton kind="secondary" density="row" label="Edit" icon="pencil" @press="editDepartment(department)" /></TableCell></TableRow></TableBody>
-              </Table>
-              <p v-else class="empty-state">No departments yet.</p>
+              <DataTable
+                :columns="departmentColumns"
+                :data="filteredDepartments"
+                table-id="ledger-departments"
+                :username="username"
+                :get-row-id="(department) => department.name"
+                v-model:search="departmentSearch"
+                search-placeholder="Find departments…"
+                :loading="!initialLoaded"
+                :filtered="departmentFilteredActive"
+                clickable
+                empty-title="No departments yet"
+                empty-body="Add one with the form below."
+                @row-click="editDepartment"
+              />
               <div v-if="props.canWrite && hasCompany" class="settings-grid">
                 <TextField id="ledger-department-name" label="Code" v-model="departmentForm.name" />
                 <TextField id="ledger-department-label" label="Name" v-model="departmentForm.label" />
@@ -719,11 +1002,21 @@ onMounted(async () => {
           <Card>
             <CardHeader><CardTitle>Cost centres</CardTitle><CardDescription>What costs are tracked against.</CardDescription></CardHeader>
             <CardContent>
-              <Table v-if="costCentres.length > 0" class="datatable-stacked">
-                <TableHeader><TableRow><TableHead>Code</TableHead><TableHead>Belongs under</TableHead><TableHead>Group</TableHead><TableHead></TableHead></TableRow></TableHeader>
-                <TableBody><TableRow v-for="centre in costCentres" :key="centre.name"><TableCell data-label="Code"><code>{{ centre.name }}</code></TableCell><TableCell data-label="Belongs under">{{ centre.parent || '-' }}</TableCell><TableCell data-label="Group">{{ centre.isGroup ? 'yes' : 'no' }}</TableCell><TableCell data-label=""><ActionButton kind="secondary" density="row" label="Edit" icon="pencil" @press="editCostCentre(centre)" /></TableCell></TableRow></TableBody>
-              </Table>
-              <p v-else class="empty-state">No cost centres yet.</p>
+              <DataTable
+                :columns="costCentreColumns"
+                :data="filteredCostCentres"
+                table-id="ledger-cost-centres"
+                :username="username"
+                :get-row-id="(centre) => centre.name"
+                v-model:search="costCentreSearch"
+                search-placeholder="Find cost centres…"
+                :loading="!initialLoaded"
+                :filtered="costCentreFilteredActive"
+                clickable
+                empty-title="No cost centres yet"
+                empty-body="Add one with the form below."
+                @row-click="editCostCentre"
+              />
               <div v-if="props.canWrite && hasCompany" class="settings-grid">
                 <TextField id="ledger-cc-name" label="Code" v-model="costCentreForm.name" />
                 <TextField id="ledger-cc-label" label="Name" v-model="costCentreForm.label" />
@@ -736,11 +1029,21 @@ onMounted(async () => {
           <Card>
             <CardHeader><CardTitle>Dimensions</CardTitle><CardDescription>Extra labels a posting can carry, like project or region.</CardDescription></CardHeader>
             <CardContent>
-              <Table v-if="dimensions.length > 0" class="datatable-stacked">
-                <TableHeader><TableRow><TableHead>Code</TableHead><TableHead>Allowed values</TableHead><TableHead>Always needed for</TableHead><TableHead></TableHead></TableRow></TableHeader>
-                <TableBody><TableRow v-for="dimension in dimensions" :key="dimension.name"><TableCell data-label="Code"><code>{{ dimension.name }}</code></TableCell><TableCell data-label="Allowed values">{{ dimension.members.join(', ') }}</TableCell><TableCell data-label="Always needed for">{{ dimension.mandatoryFor.join(', ') || '-' }}</TableCell><TableCell data-label=""><ActionButton kind="secondary" density="row" label="Edit" icon="pencil" @press="editDimension(dimension)" /></TableCell></TableRow></TableBody>
-              </Table>
-              <p v-else class="empty-state">No dimensions yet.</p>
+              <DataTable
+                :columns="dimensionColumns"
+                :data="filteredDimensions"
+                table-id="ledger-dimensions"
+                :username="username"
+                :get-row-id="(dimension) => dimension.name"
+                v-model:search="dimensionSearch"
+                search-placeholder="Find dimensions…"
+                :loading="!initialLoaded"
+                :filtered="dimensionFilteredActive"
+                clickable
+                empty-title="No dimensions yet"
+                empty-body="Add one with the form below."
+                @row-click="editDimension"
+              />
               <div v-if="props.canWrite" class="settings-grid">
                 <TextField id="ledger-dimension-name" label="Code" v-model="dimensionForm.name" />
                 <TextField id="ledger-dimension-label" label="Name" v-model="dimensionForm.label" />
@@ -762,11 +1065,21 @@ onMounted(async () => {
               <div class="settings-grid">
                 <TextField id="ledger-book" label="Book" v-model="book" placeholder="main" help="Which set of books. Usually main." @blur="loadPeriods" />
               </div>
-              <Table v-if="fiscalYears.length > 0" class="datatable-stacked">
-                <TableHeader><TableRow><TableHead>Code</TableHead><TableHead>Dates</TableHead><TableHead></TableHead></TableRow></TableHeader>
-                <TableBody><TableRow v-for="year in fiscalYears" :key="year.name"><TableCell data-label="Code"><code>{{ year.name }}</code></TableCell><TableCell data-label="Dates">{{ year.startDate }}..{{ year.endDate }}</TableCell><TableCell data-label=""><ActionButton kind="secondary" density="row" label="Edit" icon="pencil" @press="editFiscalYear(year)" /></TableCell></TableRow></TableBody>
-              </Table>
-              <p v-else class="empty-state">No financial years yet.</p>
+              <DataTable
+                :columns="fiscalYearColumns"
+                :data="filteredFiscalYears"
+                table-id="ledger-fiscal-years"
+                :username="username"
+                :get-row-id="(year) => year.name"
+                v-model:search="fiscalYearSearch"
+                search-placeholder="Find financial years…"
+                :loading="!initialLoaded"
+                :filtered="fiscalYearFilteredActive"
+                clickable
+                empty-title="No financial years yet"
+                empty-body="Add one with the form below."
+                @row-click="editFiscalYear"
+              />
               <div v-if="props.canWrite && hasCompany" class="settings-grid">
                 <TextField id="ledger-fy-name" label="Code" v-model="fiscalYearForm.name" />
                 <TextField id="ledger-fy-label" label="Name" v-model="fiscalYearForm.label" />
@@ -779,12 +1092,30 @@ onMounted(async () => {
           <Card>
             <CardHeader><CardTitle>Periods</CardTitle><CardDescription>Posting windows. Dates never overlap within one book. Close a period to stop new postings; a hard close cannot be undone here.</CardDescription></CardHeader>
             <CardContent>
-              <div v-if="props.canWrite && hasCompany" class="ledger-actions ledger-new"><ActionButton kind="primary" density="row" label="New period" icon="plus" @press="openPeriod()" /></div>
-              <Table v-if="periods.length > 0" class="datatable-stacked">
-                <TableHeader><TableRow><TableHead>Code</TableHead><TableHead>Dates</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
-                <TableBody><TableRow v-for="period in periods" :key="period.name" class="cursor-pointer" @click="openPeriod(period)"><TableCell data-label="Code"><button type="button" class="row-open" :aria-label="`Open details for ${period.name}`" @click.stop="openPeriod(period)"><code>{{ period.name }}</code></button></TableCell><TableCell data-label="Dates">{{ period.startDate }}..{{ period.endDate }}</TableCell><TableCell data-label="Status"><Badge :variant="period.status === 'open' ? 'secondary' : 'outline'">{{ period.status }}</Badge></TableCell></TableRow></TableBody>
-              </Table>
-              <p v-else class="empty-state">No periods yet.</p>
+              <DataTable
+                :columns="periodColumns"
+                :data="filteredPeriods"
+                table-id="ledger-periods"
+                :username="username"
+                :get-row-id="(period) => period.name"
+                v-model:search="periodSearch"
+                search-placeholder="Find periods…"
+                :filters="periodFilters"
+                :loading="!initialLoaded"
+                :filtered="periodFilteredActive"
+                clickable
+                empty-title="No periods yet"
+                empty-body="Create one to get started."
+                @row-click="openPeriod"
+                @update:filters="onPeriodFiltersChanged"
+              >
+                <template v-if="props.canWrite && hasCompany" #toolbar-actions>
+                  <ActionButton kind="primary" density="row" label="New period" icon="plus" @press="openPeriod()" />
+                </template>
+                <template v-if="props.canWrite && hasCompany" #empty-action>
+                  <ActionButton kind="primary" label="Create your first period" icon="plus" @press="openPeriod()" />
+                </template>
+              </DataTable>
             </CardContent>
           </Card>
         </div>
@@ -794,12 +1125,28 @@ onMounted(async () => {
           <Card>
             <CardHeader><CardTitle>Currencies</CardTitle><CardDescription>Money the books can use.</CardDescription></CardHeader>
             <CardContent>
-              <div v-if="props.canWrite" class="ledger-actions ledger-new"><ActionButton kind="primary" density="row" label="New currency" icon="plus" @press="openCurrency()" /></div>
-              <Table v-if="currencies.length > 0" class="datatable-stacked">
-                <TableHeader><TableRow><TableHead>Code</TableHead><TableHead>Name</TableHead><TableHead>Decimal places</TableHead></TableRow></TableHeader>
-                <TableBody><TableRow v-for="currency in currencies" :key="currency.code" class="cursor-pointer" @click="openCurrency(currency)"><TableCell data-label="Code"><button type="button" class="row-open" :aria-label="`Open details for ${currency.code}`" @click.stop="openCurrency(currency)"><code>{{ currency.code }}</code></button></TableCell><TableCell data-label="Name">{{ currency.label }}</TableCell><TableCell data-label="Decimal places">{{ currency.exponent }}</TableCell></TableRow></TableBody>
-              </Table>
-              <p v-else class="empty-state">No currencies yet.</p>
+              <DataTable
+                :columns="currencyColumns"
+                :data="filteredCurrencies"
+                table-id="ledger-currencies"
+                :username="username"
+                :get-row-id="(currency) => currency.code"
+                v-model:search="currencySearch"
+                search-placeholder="Find currencies…"
+                :loading="!initialLoaded"
+                :filtered="currencyFilteredActive"
+                clickable
+                empty-title="No currencies yet"
+                empty-body="Create one to get started."
+                @row-click="openCurrency"
+              >
+                <template v-if="props.canWrite" #toolbar-actions>
+                  <ActionButton kind="primary" density="row" label="New currency" icon="plus" @press="openCurrency()" />
+                </template>
+                <template v-if="props.canWrite" #empty-action>
+                  <ActionButton kind="primary" label="Create your first currency" icon="plus" @press="openCurrency()" />
+                </template>
+              </DataTable>
             </CardContent>
           </Card>
           <Card>
@@ -823,11 +1170,19 @@ onMounted(async () => {
           <Card>
             <CardHeader><CardTitle>Account types</CardTitle><CardDescription>Kinds of account, like asset or income.</CardDescription></CardHeader>
             <CardContent>
-              <Table v-if="accountTypes.length > 0" class="datatable-stacked">
-                <TableHeader><TableRow><TableHead>Code</TableHead><TableHead>Usual balance</TableHead></TableRow></TableHeader>
-                <TableBody><TableRow v-for="type in accountTypes" :key="type.name"><TableCell data-label="Code"><code>{{ type.name }}</code></TableCell><TableCell data-label="Usual balance">{{ type.normalBalance }}</TableCell></TableRow></TableBody>
-              </Table>
-              <p v-else class="empty-state">No account types yet.</p>
+              <DataTable
+                :columns="accountTypeColumns"
+                :data="filteredAccountTypes"
+                table-id="ledger-account-types"
+                :username="username"
+                :get-row-id="(type) => type.name"
+                v-model:search="accountTypeSearch"
+                search-placeholder="Find account types…"
+                :loading="!initialLoaded"
+                :filtered="accountTypeFilteredActive"
+                empty-title="No account types yet"
+                empty-body="Add one with the form below."
+              />
               <div v-if="props.canWrite" class="settings-grid">
                 <TextField id="ledger-type-name" label="Code" v-model="accountTypeForm.name" />
                 <TextField id="ledger-type-label" label="Name" v-model="accountTypeForm.label" />
@@ -839,22 +1194,48 @@ onMounted(async () => {
           <Card>
             <CardHeader><CardTitle>Accounts</CardTitle><CardDescription>The chart of accounts. Groups organize; only the rest can take postings.</CardDescription></CardHeader>
             <CardContent>
-              <div v-if="props.canWrite" class="ledger-actions ledger-new"><ActionButton kind="primary" density="row" label="New account" icon="plus" @press="openAccount()" /></div>
-              <Table v-if="accounts.length > 0" class="datatable-stacked">
-                <TableHeader><TableRow><TableHead>Code</TableHead><TableHead>Type</TableHead><TableHead>Belongs under</TableHead><TableHead>Group</TableHead></TableRow></TableHeader>
-                <TableBody><TableRow v-for="account in accounts" :key="account.name" class="cursor-pointer" @click="openAccount(account)"><TableCell data-label="Code"><button type="button" class="row-open" :aria-label="`Open details for ${account.name}`" @click.stop="openAccount(account)"><code>{{ account.name }}</code></button></TableCell><TableCell data-label="Type">{{ account.type }}</TableCell><TableCell data-label="Belongs under">{{ account.parent || '-' }}</TableCell><TableCell data-label="Group">{{ account.isGroup ? 'yes' : 'no' }}</TableCell></TableRow></TableBody>
-              </Table>
-              <p v-else class="empty-state">No accounts yet.</p>
+              <DataTable
+                :columns="accountColumns"
+                :data="filteredAccounts"
+                table-id="ledger-accounts"
+                :username="username"
+                :get-row-id="(account) => account.name"
+                v-model:search="accountSearch"
+                search-placeholder="Find accounts…"
+                :loading="!initialLoaded"
+                :filtered="accountFilteredActive"
+                clickable
+                empty-title="No accounts yet"
+                empty-body="Create one to get started."
+                @row-click="openAccount"
+              >
+                <template v-if="props.canWrite" #toolbar-actions>
+                  <ActionButton kind="primary" density="row" label="New account" icon="plus" @press="openAccount()" />
+                </template>
+                <template v-if="props.canWrite" #empty-action>
+                  <ActionButton kind="primary" label="Create your first account" icon="plus" @press="openAccount()" />
+                </template>
+              </DataTable>
             </CardContent>
           </Card>
           <Card>
             <CardHeader><CardTitle>Posting rules</CardTitle><CardDescription>Decide which account a posting uses. More detail wins; ties are refused.</CardDescription></CardHeader>
             <CardContent>
-              <Table v-if="determinations.length > 0" class="datatable-stacked">
-                <TableHeader><TableRow><TableHead>Name</TableHead><TableHead>Account</TableHead><TableHead>Matches when</TableHead><TableHead></TableHead></TableRow></TableHeader>
-                <TableBody><TableRow v-for="determination in determinations" :key="determination.id"><TableCell data-label="Name">{{ determination.label }}</TableCell><TableCell data-label="Account"><code>{{ determination.account }}</code></TableCell><TableCell data-label="Matches when">{{ Object.entries(determination.match).map(([k, v]) => `${k}=${v}`).join(', ') || 'always' }}</TableCell><TableCell data-label=""><ActionButton kind="secondary" density="row" label="Edit" icon="pencil" @press="editDetermination(determination)" /></TableCell></TableRow></TableBody>
-              </Table>
-              <p v-else class="empty-state">No posting rules yet.</p>
+              <DataTable
+                :columns="determinationColumns"
+                :data="filteredDeterminations"
+                table-id="ledger-determinations"
+                :username="username"
+                :get-row-id="(determination) => determination.id"
+                v-model:search="determinationSearch"
+                search-placeholder="Find posting rules…"
+                :loading="!initialLoaded"
+                :filtered="determinationFilteredActive"
+                clickable
+                empty-title="No posting rules yet"
+                empty-body="Add one with the form below."
+                @row-click="editDetermination"
+              />
               <div v-if="props.canWrite" class="settings-grid">
                 <TextField id="ledger-det-label" label="Name" v-model="determinationForm.label" help="A name you'll recognize." />
                 <TextField id="ledger-det-account" label="Account" v-model="determinationForm.account" />

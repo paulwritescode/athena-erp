@@ -43,12 +43,14 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableEmpty, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { chunkByKind, type ActionItem } from './actions'
 import { dataTableFeatures, type DataTableColumn } from './dataTableFeatures'
+import HelpHint from '@/copy/HelpHint.vue'
+import type { GlossaryKey } from '@/copy/glossary'
 import { pageText, rangeText, rowNumber, selectionText } from '@/dataTableModel'
 import { PAGE_SIZE_OPTIONS, loadHiddenColumns, loadPageSize, saveHiddenColumns, savePageSize } from '@/tablePrefs'
 import type { Component } from 'vue'
 
 export type TableFilterOption = { value: string; label: string }
-export type TableFilter = { id: string; label: string; options: TableFilterOption[]; selected: string[] }
+export type TableFilter = { id: string; label: string; options: TableFilterOption[]; selected: string[]; hint?: GlossaryKey }
 export type ServerPaging = { page: number; total?: number | null; hasNext: boolean }
 export type DataTableColumnMeta = { label?: string; hideOnMobile?: boolean; numeric?: boolean; center?: boolean; hideable?: boolean }
 
@@ -705,7 +707,7 @@ const activeFilterCount = computed(() => props.filters.reduce((count, filter) =>
         </div>
       </div>
       <div v-for="filter in filters" :key="filter.id" class="grid gap-2">
-        <p class="text-sm font-medium">{{ filter.label }}</p>
+        <p class="text-sm font-medium">{{ filter.label }} <HelpHint v-if="filter.hint" :term="filter.hint" /></p>
         <ul class="grid gap-0.5">
           <li v-for="option in filter.options" :key="option.value">
             <label class="flex cursor-pointer items-center gap-2.5 rounded-md px-2 py-2.5 text-sm">

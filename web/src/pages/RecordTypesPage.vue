@@ -5,24 +5,18 @@
 import { computed, h, ref, watch } from 'vue'
 import { useMediaQuery } from '@vueuse/core'
 import ActionButton from '@/components/ActionButton.vue'
-import HelpHint from '@/copy/HelpHint.vue'
-import BottomDrawer from '@/components/BottomDrawer.vue'
-import DataTable from '@/components/DataTable.vue'
-import EmptyState from '@/components/EmptyState.vue'
+import DataTable, { type TableFilter } from '@/components/DataTable.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import PullToRefresh from '@/components/PullToRefresh.vue'
 import RecordTypeSummaryDrawer from '@/components/record-types/RecordTypeSummaryDrawer.vue'
 import { filterRecordTypes, kindLabel, kindOptions, listSortValues, packLabel } from '@/components/record-types/recordTypeList'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { recordTypeIcon as fallbackIcon } from '@/pages/registry'
 import { formatWhen, formatWhenFull } from '@/times'
 import type { RecordType } from '@/types'
 
-const props = defineProps<{ recordTypes: RecordType[]; typesLoaded: boolean; typesLoadFailed: boolean }>()
+const props = withDefaults(defineProps<{ recordTypes: RecordType[]; typesLoaded: boolean; typesLoadFailed: boolean; username?: string }>(), { username: '' })
 const emit = defineEmits<{
   createRecordType: []
   openEditor: [key: string]
@@ -31,30 +25,35 @@ const emit = defineEmits<{
 }>()
 
 const search = ref('')
-const kindFilter = ref('all')
-const packFilter = ref('all')
-const filtersOpen = ref(false)
+const kindSelected = ref<string[]>([])
+const packSelected = ref<string[]>([])
 const drawerRow = ref<RecordType | null>(null)
 const drawerOpen = ref(false)
 const isPhone = useMediaQuery('(max-width: 639px)')
 const refreshing = ref(false)
 watch(() => props.recordTypes, () => { refreshing.value = false })
 
-const packOptions = computed(() => {
+const filters = computed<TableFilter[]>(() => {
   const packs = [...new Set(props.recordTypes.map((type) => type.pack_key).filter((pack): pack is string => !!pack))].sort()
   return [
-    { value: 'all', label: 'All packs' },
-    { value: 'none', label: 'None' },
-    ...packs.map((pack) => ({ value: pack, label: pack })),
+    {
+      id: 'kind', label: 'Kind', hint: 'recordKind',
+      options: kindOptions.filter((option) => option.value !== 'all').map((option) => ({ value: option.value, label: option.label })),
+      selected: kindSelected.value,
+    },
+    {
+      id: 'pack', label: 'Pack', hint: 'pack',
+      options: [{ value: 'none', label: 'None' }, ...packs.map((pack) => ({ value: pack, label: pack }))],
+      selected: packSelected.value,
+    },
   ]
 })
-const filtered = computed(() => filterRecordTypes(props.recordTypes, search.value, kindFilter.value, packFilter.value))
-const hasActiveFilters = computed(() => search.value.trim() !== '' || kindFilter.value !== 'all' || packFilter.value !== 'all')
+const filtered = computed(() => filterRecordTypes(props.recordTypes, search.value, kindSelected.value, packSelected.value))
+const hasActiveFilters = computed(() => search.value.trim() !== '' || kindSelected.value.length > 0 || packSelected.value.length > 0)
 
-function clearFilters() {
-  search.value = ''
-  kindFilter.value = 'all'
-  packFilter.value = 'all'
+function onFiltersChanged(next: TableFilter[]) {
+  kindSelected.value = next.find((filter) => filter.id === 'kind')?.selected ?? []
+  packSelected.value = next.find((filter) => filter.id === 'pack')?.selected ?? []
 }
 
 function onRowClick(row: RecordType) {
@@ -89,11 +88,11 @@ const columns = [
     cell: ({ row }: { row: { original: RecordType } }) => h(Badge, { variant: 'secondary' }, () => kindLabel(row.original.kind || 'master')),
   },
   {
-    id: 'fields', header: 'Fields', accessorFn: (type: RecordType) => listSortValues.fields(type), meta: { label: 'Fields' },
+    id: 'fields', header: 'Fields', accessorFn: (type: RecordType) => listSortValues.fields(type), meta: { label: 'Fields', numeric: true },
     cell: ({ row }: { row: { original: RecordType } }) => h('span', { class: 'tabular-nums' }, String(row.original.fields.length)),
   },
   {
-    id: 'records', header: 'Records', accessorFn: (type: RecordType) => listSortValues.records(type), meta: { label: 'Records', hideOnMobile: true },
+    id: 'records', header: 'Records', accessorFn: (type: RecordType) => listSortValues.records(type), meta: { label: 'Records', numeric: true, hideOnMobile: true },
     cell: ({ row }: { row: { original: RecordType } }) => {
       if (!row.original.count_hidden) return h('span', { class: 'tabular-nums' }, String(row.original.record_count ?? 0))
       return h(Tooltip, null, {
@@ -130,61 +129,35 @@ const columns = [
         <ActionButton kind="primary" label="New Record Type" icon="plus" @press="emit('createRecordType')" />
       </template>
     </PageHeader>
-    <EmptyState
-      v-if="typesLoaded && !typesLoadFailed && recordTypes.length === 0"
-      :icon="fallbackIcon"
-      title="No Record Types yet"
-      body="Create a Record Type, add its fields and save it to start adding records."
-    >
-      <template #action>
-        <ActionButton kind="primary" label="Create your first Record Type" icon="plus" @press="emit('createRecordType')" />
-      </template>
-    </EmptyState>
-    <PullToRefresh v-else v-model:refreshing="refreshing" @refresh="onRefresh">
-      <div class="mt-4 flex flex-wrap items-center gap-2">
-        <Input v-model="search" class="min-w-40 flex-1" placeholder="Find a Record Type" aria-label="Find a Record Type" />
-        <div class="hidden min-[640px]:contents">
-          <NativeSelect v-model="kindFilter" class="w-36" aria-label="Kind filter">
-            <NativeSelectOption v-for="option in kindOptions" :key="option.value" :value="option.value">{{ option.label }}</NativeSelectOption>
-          </NativeSelect>
-          <NativeSelect v-model="packFilter" class="w-36" aria-label="Pack filter">
-            <NativeSelectOption v-for="option in packOptions" :key="option.value" :value="option.value">{{ option.label }}</NativeSelectOption>
-          </NativeSelect>
-          <Button v-if="hasActiveFilters" variant="link" @click="clearFilters">Clear all</Button>
-        </div>
-        <ActionButton class="min-[640px]:hidden" kind="secondary" label="Filters" icon="list-filter" @press="filtersOpen = true" />
-      </div>
-      <BottomDrawer v-model:open="filtersOpen" title="Filters">
-        <div class="space-y-4">
-          <label class="block text-sm font-medium">Kind <HelpHint term="recordKind" />
-            <NativeSelect v-model="kindFilter" class="mt-1 w-full" aria-label="Kind filter">
-              <NativeSelectOption v-for="option in kindOptions" :key="option.value" :value="option.value">{{ option.label }}</NativeSelectOption>
-            </NativeSelect>
-          </label>
-          <label class="block text-sm font-medium">Pack <HelpHint term="pack" />
-            <NativeSelect v-model="packFilter" class="mt-1 w-full" aria-label="Pack filter">
-              <NativeSelectOption v-for="option in packOptions" :key="option.value" :value="option.value">{{ option.label }}</NativeSelectOption>
-            </NativeSelect>
-          </label>
-          <Button v-if="hasActiveFilters" variant="link" class="px-0" @click="clearFilters">Clear all</Button>
-        </div>
-        <template #footer>
-          <ActionButton kind="primary" label="Done" icon="check" full-bleed @press="filtersOpen = false" />
-        </template>
-      </BottomDrawer>
+    <PullToRefresh v-model:refreshing="refreshing" @refresh="onRefresh">
       <TooltipProvider :delay-duration="500">
         <DataTable
           class="mt-4"
           :columns="columns"
           :data="filtered"
+          table-id="record-types"
+          :username="username"
+          :get-row-id="(type) => type.name"
+          :row-actions="() => [{ id: 'view', label: 'View records', kind: 'quiet', icon: 'eye' }]"
+          v-model:search="search"
+          search-placeholder="Find a Record Type"
+          :filters="filters"
           :loading="!typesLoaded && !typesLoadFailed"
           :error="typesLoadFailed ? 'The list did not load. Try again.' : null"
+          :filtered="hasActiveFilters"
           clickable
-          empty-title="No matching Record Types"
-          empty-body="Try a different search, or clear the filters."
+          :empty-icon="fallbackIcon"
+          empty-title="No Record Types yet"
+          empty-body="Create a Record Type, add its fields and save it to start adding records."
           @row-click="onRowClick"
+          @row-action="(id, type) => emit('viewRecords', type.name)"
+          @update:filters="onFiltersChanged"
           @retry="emit('reloadRecordTypes')"
-        />
+        >
+          <template #empty-action>
+            <ActionButton kind="primary" label="Create your first Record Type" icon="plus" @press="emit('createRecordType')" />
+          </template>
+        </DataTable>
       </TooltipProvider>
     </PullToRefresh>
     <RecordTypeSummaryDrawer

@@ -58,7 +58,7 @@ export const pageEntries: PageEntry[] = [
     key: 'record-types', title: 'Record Types', shortTitle: 'Types', blurb: 'Define the kinds of records you keep.', icon: icon('layout-template'),
     modes: ['build'], gate: { build: true }, nav: true, group: 'build',
     load: () => import('@/pages/RecordTypesPage.vue'),
-    props: (ctx) => ({ recordTypes: ctx.recordTypes, currentRecordType: ctx.currentRecordType, databaseState: ctx.databaseState, typesLoaded: ctx.typesLoaded, typesLoadFailed: ctx.typesLoadFailed }),
+    props: (ctx) => ({ recordTypes: ctx.recordTypes, currentRecordType: ctx.currentRecordType, databaseState: ctx.databaseState, typesLoaded: ctx.typesLoaded, typesLoadFailed: ctx.typesLoadFailed, username: ctx.username }),
   },
   {
     key: 'packs', title: 'Packs', shortTitle: 'Packs', blurb: 'Installable bundles of Record Types.', icon: icon('package'),
@@ -87,7 +87,7 @@ export const pageEntries: PageEntry[] = [
     key: 'ledger', title: 'Ledger', shortTitle: 'Ledger', blurb: 'Companies, periods and accounts.', icon: icon('book-open'),
     modes: ['build'], gate: { anyPermission: ['ledger:read'] }, nav: true, group: 'operate',
     load: () => import('@/pages/LedgerSetupPage.vue'),
-    props: (ctx) => ({ canWrite: ctx.canWriteLedger }),
+    props: (ctx) => ({ canWrite: ctx.canWriteLedger, username: ctx.username }),
   },
   {
     key: 'reports', title: 'Reports', shortTitle: 'Reports', blurb: 'Lists and totals from your Records.', icon: icon('chart-column'),

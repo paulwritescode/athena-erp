@@ -19,11 +19,11 @@ export function packLabel(packKey: string | undefined): string {
   return packKey || 'None'
 }
 
-export function filterRecordTypes(types: RecordType[], search: string, kind: string, pack: string): RecordType[] {
+export function filterRecordTypes(types: RecordType[], search: string, kinds: string[], packs: string[]): RecordType[] {
   const needle = search.trim().toLowerCase()
   return types.filter((type) => {
-    if (kind !== 'all' && (type.kind || 'master') !== kind) return false
-    if (pack !== 'all' && (type.pack_key || '') !== (pack === 'none' ? '' : pack)) return false
+    if (kinds.length > 0 && !kinds.includes(type.kind || 'master')) return false
+    if (packs.length > 0 && !packs.includes(type.pack_key || 'none')) return false
     if (!needle) return true
     return `${type.label} ${type.name} ${type.description}`.toLowerCase().includes(needle)
   })

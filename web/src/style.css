@@ -142,9 +142,6 @@ body,.page-content{background:var(--background);color:var(--foreground)}
 .sidebar-tablet-overlay [data-slot="sidebar-gap"]{width:var(--sidebar-width-icon)}
 /* Table rows that open a detail drawer: the primary cell holds a real
    button so keyboard users can open it; the row click stays for pointers. */
-.row-open{border:0;background:transparent;padding:0;font:inherit;color:inherit;text-align:left;cursor:pointer;border-radius:var(--radius-md)}
-.row-open:hover{text-decoration:underline}
-.row-open:focus-visible{outline:2px solid var(--ring);outline-offset:2px}
 /* Mobile forms run at body-md so phones never zoom into a focused field. */
 @media(max-width:639px){input:not([type=checkbox]):not([type=radio]):not([type=range]),select,textarea{font-size:var(--type-body-md-size)}}
 /* Action buttons keep a 44 px floor on touch pointers and on phones. */
@@ -303,7 +300,7 @@ body,.page-content{background:var(--background);color:var(--foreground)}
 
 /* Ledger setup: one card per section with even spacing. */
 .ledger-stack{display:grid;gap:24px;margin-top:16px}
-.ledger-actions{display:flex;align-items:center;gap:8px;margin-top:16px}.ledger-new{justify-content:flex-end;margin:0 0 12px}.sheet-form{display:grid;gap:16px}
+.ledger-actions{display:flex;align-items:center;gap:8px;margin-top:16px}.sheet-form{display:grid;gap:16px}
 .ledger-select{height:36px;padding:0 12px;background-color:transparent;color:var(--foreground);border:1px solid var(--input);border-radius:var(--radius-md);font-size:var(--type-body-sm-size);cursor:pointer}
 .sign-in{display:grid;min-height:100vh;padding:16px;background:var(--background);overflow-y:auto}
 @media(min-width:640px){.sign-in{padding:24px}}

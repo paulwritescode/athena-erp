@@ -1,6 +1,7 @@
 // PrimaryCell is the table's primary column (§21): the thing's name with an
 // optional 32 px icon tile and a muted second line, as in a transaction
-// list. Callers render it inside their primary column's cell.
+// list. Callers render it inside their primary column's cell. Ledger codes
+// render mono.
 <script setup lang="ts">
 import { icon, type IconName } from '@/icons'
 import type { Component } from 'vue'
@@ -10,6 +11,7 @@ const props = defineProps<{
   title: string
   subtitle?: string | null
   icon?: IconName | Component | null
+  mono?: boolean
 }>()
 
 const tileIcon = computed(() => {
@@ -24,7 +26,7 @@ const tileIcon = computed(() => {
       <component :is="tileIcon" class="text-muted-foreground size-4" />
     </span>
     <span class="min-w-0">
-      <span class="block truncate font-medium">{{ title }}</span>
+      <span class="block truncate font-medium" :class="mono ? 'font-mono' : undefined">{{ title }}</span>
       <span v-if="subtitle" class="text-muted-foreground block truncate text-caption">{{ subtitle }}</span>
     </span>
   </span>
