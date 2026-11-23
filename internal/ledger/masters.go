@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 )
 
 // Company tops the organisation tree. Postings name it on every row.
@@ -126,21 +127,44 @@ func (s *Service) SaveBranch(ctx context.Context, branch Branch, expected int64)
 	if err := s.checkNested(ctx, "athena_branches", "branch", branch.Name, branch.Company, branch.Parent, branch.IsGroup); err != nil {
 		return Branch{}, err
 	}
-	if expected == 0 {
-		_, err := s.DB.ExecContext(ctx, `INSERT INTO athena_branches (name, label, company_name, parent_name, is_group, disabled) VALUES (?, ?, ?, ?, ?, ?)`,
-			branch.Name, branch.Label, branch.Company, nullText(branch.Parent), branch.IsGroup, branch.Disabled)
-		if err != nil {
-			return Branch{}, s.conflict(err, "branch", branch.Name)
+	var out Branch
+	err := s.withTransaction(ctx, func(tx *sql.Tx) error {
+		svc := &Service{DB: tx, Dialect: s.Dialect}
+		if expected == 0 {
+			path, depth, err := treePathFor(ctx, tx, "athena_branches", branch.Name, branch.Parent)
+			if err != nil {
+				return err
+			}
+			_, err = tx.ExecContext(ctx, `INSERT INTO athena_branches (name, label, company_name, parent_name, tree_path, tree_depth, is_group, disabled) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+				branch.Name, branch.Label, branch.Company, nullText(branch.Parent), path, depth, branch.IsGroup, branch.Disabled)
+			if err != nil {
+				return svc.conflict(err, "branch", branch.Name)
+			}
+			branch.Revision = 1
+			out = branch
+			return nil
 		}
-		branch.Revision = 1
-		return branch, nil
-	}
-	result, err := s.DB.ExecContext(ctx, `UPDATE athena_branches SET label = ?, company_name = ?, parent_name = ?, is_group = ?, disabled = ?, revision = revision + 1 WHERE name = ? AND revision = ?`,
-		branch.Label, branch.Company, nullText(branch.Parent), branch.IsGroup, branch.Disabled, branch.Name, expected)
-	if err != nil {
-		return Branch{}, err
-	}
-	return branch, s.cas(ctx, result, "athena_branches", "name", branch.Name, expected, &branch.Revision)
+		var oldParent sql.NullString
+		if err := tx.QueryRowContext(ctx, `SELECT parent_name FROM athena_branches WHERE name = ?`, branch.Name).Scan(&oldParent); err != nil {
+			return notFound(err, "branch", branch.Name)
+		}
+		result, err := tx.ExecContext(ctx, `UPDATE athena_branches SET label = ?, company_name = ?, parent_name = ?, is_group = ?, disabled = ?, revision = revision + 1 WHERE name = ? AND revision = ?`,
+			branch.Label, branch.Company, nullText(branch.Parent), branch.IsGroup, branch.Disabled, branch.Name, expected)
+		if err != nil {
+			return err
+		}
+		if err := svc.cas(ctx, result, "athena_branches", "name", branch.Name, expected, &branch.Revision); err != nil {
+			return err
+		}
+		if oldParent.String != branch.Parent {
+			if err := refreshSubtreePaths(ctx, tx, "athena_branches", branch.Name); err != nil {
+				return err
+			}
+		}
+		out = branch
+		return nil
+	})
+	return out, err
 }
 
 func (s *Service) GetBranch(ctx context.Context, name string) (Branch, error) {
@@ -196,21 +220,44 @@ func (s *Service) SaveDepartment(ctx context.Context, department Department, exp
 	if err := s.checkNested(ctx, "athena_departments", "department", department.Name, department.Company, department.Parent, department.IsGroup); err != nil {
 		return Department{}, err
 	}
-	if expected == 0 {
-		_, err := s.DB.ExecContext(ctx, `INSERT INTO athena_departments (name, label, company_name, branch_name, parent_name, is_group, disabled) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-			department.Name, department.Label, department.Company, nullText(department.Branch), nullText(department.Parent), department.IsGroup, department.Disabled)
-		if err != nil {
-			return Department{}, s.conflict(err, "department", department.Name)
+	var out Department
+	err := s.withTransaction(ctx, func(tx *sql.Tx) error {
+		svc := &Service{DB: tx, Dialect: s.Dialect}
+		if expected == 0 {
+			path, depth, err := treePathFor(ctx, tx, "athena_departments", department.Name, department.Parent)
+			if err != nil {
+				return err
+			}
+			_, err = tx.ExecContext(ctx, `INSERT INTO athena_departments (name, label, company_name, branch_name, parent_name, tree_path, tree_depth, is_group, disabled) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				department.Name, department.Label, department.Company, nullText(department.Branch), nullText(department.Parent), path, depth, department.IsGroup, department.Disabled)
+			if err != nil {
+				return svc.conflict(err, "department", department.Name)
+			}
+			department.Revision = 1
+			out = department
+			return nil
 		}
-		department.Revision = 1
-		return department, nil
-	}
-	result, err := s.DB.ExecContext(ctx, `UPDATE athena_departments SET label = ?, company_name = ?, branch_name = ?, parent_name = ?, is_group = ?, disabled = ?, revision = revision + 1 WHERE name = ? AND revision = ?`,
-		department.Label, department.Company, nullText(department.Branch), nullText(department.Parent), department.IsGroup, department.Disabled, department.Name, expected)
-	if err != nil {
-		return Department{}, err
-	}
-	return department, s.cas(ctx, result, "athena_departments", "name", department.Name, expected, &department.Revision)
+		var oldParent sql.NullString
+		if err := tx.QueryRowContext(ctx, `SELECT parent_name FROM athena_departments WHERE name = ?`, department.Name).Scan(&oldParent); err != nil {
+			return notFound(err, "department", department.Name)
+		}
+		result, err := tx.ExecContext(ctx, `UPDATE athena_departments SET label = ?, company_name = ?, branch_name = ?, parent_name = ?, is_group = ?, disabled = ?, revision = revision + 1 WHERE name = ? AND revision = ?`,
+			department.Label, department.Company, nullText(department.Branch), nullText(department.Parent), department.IsGroup, department.Disabled, department.Name, expected)
+		if err != nil {
+			return err
+		}
+		if err := svc.cas(ctx, result, "athena_departments", "name", department.Name, expected, &department.Revision); err != nil {
+			return err
+		}
+		if oldParent.String != department.Parent {
+			if err := refreshSubtreePaths(ctx, tx, "athena_departments", department.Name); err != nil {
+				return err
+			}
+		}
+		out = department
+		return nil
+	})
+	return out, err
 }
 
 func (s *Service) GetDepartment(ctx context.Context, name string) (Department, error) {
@@ -257,21 +304,44 @@ func (s *Service) SaveCostCentre(ctx context.Context, centre CostCentre, expecte
 	if err := s.checkNested(ctx, "athena_cost_centres", "cost centre", centre.Name, centre.Company, centre.Parent, centre.IsGroup); err != nil {
 		return CostCentre{}, err
 	}
-	if expected == 0 {
-		_, err := s.DB.ExecContext(ctx, `INSERT INTO athena_cost_centres (name, label, company_name, parent_name, is_group, disabled) VALUES (?, ?, ?, ?, ?, ?)`,
-			centre.Name, centre.Label, centre.Company, nullText(centre.Parent), centre.IsGroup, centre.Disabled)
-		if err != nil {
-			return CostCentre{}, s.conflict(err, "cost centre", centre.Name)
+	var out CostCentre
+	err := s.withTransaction(ctx, func(tx *sql.Tx) error {
+		svc := &Service{DB: tx, Dialect: s.Dialect}
+		if expected == 0 {
+			path, depth, err := treePathFor(ctx, tx, "athena_cost_centres", centre.Name, centre.Parent)
+			if err != nil {
+				return err
+			}
+			_, err = tx.ExecContext(ctx, `INSERT INTO athena_cost_centres (name, label, company_name, parent_name, tree_path, tree_depth, is_group, disabled) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+				centre.Name, centre.Label, centre.Company, nullText(centre.Parent), path, depth, centre.IsGroup, centre.Disabled)
+			if err != nil {
+				return svc.conflict(err, "cost centre", centre.Name)
+			}
+			centre.Revision = 1
+			out = centre
+			return nil
 		}
-		centre.Revision = 1
-		return centre, nil
-	}
-	result, err := s.DB.ExecContext(ctx, `UPDATE athena_cost_centres SET label = ?, company_name = ?, parent_name = ?, is_group = ?, disabled = ?, revision = revision + 1 WHERE name = ? AND revision = ?`,
-		centre.Label, centre.Company, nullText(centre.Parent), centre.IsGroup, centre.Disabled, centre.Name, expected)
-	if err != nil {
-		return CostCentre{}, err
-	}
-	return centre, s.cas(ctx, result, "athena_cost_centres", "name", centre.Name, expected, &centre.Revision)
+		var oldParent sql.NullString
+		if err := tx.QueryRowContext(ctx, `SELECT parent_name FROM athena_cost_centres WHERE name = ?`, centre.Name).Scan(&oldParent); err != nil {
+			return notFound(err, "cost centre", centre.Name)
+		}
+		result, err := tx.ExecContext(ctx, `UPDATE athena_cost_centres SET label = ?, company_name = ?, parent_name = ?, is_group = ?, disabled = ?, revision = revision + 1 WHERE name = ? AND revision = ?`,
+			centre.Label, centre.Company, nullText(centre.Parent), centre.IsGroup, centre.Disabled, centre.Name, expected)
+		if err != nil {
+			return err
+		}
+		if err := svc.cas(ctx, result, "athena_cost_centres", "name", centre.Name, expected, &centre.Revision); err != nil {
+			return err
+		}
+		if oldParent.String != centre.Parent {
+			if err := refreshSubtreePaths(ctx, tx, "athena_cost_centres", centre.Name); err != nil {
+				return err
+			}
+		}
+		out = centre
+		return nil
+	})
+	return out, err
 }
 
 func (s *Service) GetCostCentre(ctx context.Context, name string) (CostCentre, error) {
@@ -354,6 +424,83 @@ func nullText(value string) any {
 		return nil
 	}
 	return value
+}
+
+// treePathFor computes the path and depth a row takes under parentName:
+// roots sit at /name/ with depth 0, children extend their parent's path.
+// It reads the parent through q so a save sees its own transaction. A
+// parent without a path means hand-edited rows; re-saving the parent from
+// the top down repairs the chain.
+func treePathFor(ctx context.Context, q DB, table, name, parentName string) (string, int, error) {
+	if parentName == "" {
+		return "/" + name + "/", 0, nil
+	}
+	var parentPath sql.NullString
+	var parentDepth sql.NullInt64
+	err := q.QueryRowContext(ctx, "SELECT tree_path, tree_depth FROM "+table+" WHERE name = ?", parentName).
+		Scan(&parentPath, &parentDepth)
+	if err != nil {
+		return "", 0, err
+	}
+	if !parentPath.Valid || !parentDepth.Valid {
+		return "", 0, fmt.Errorf("ledger: parent %q has no tree path; re-save it first", parentName)
+	}
+	return parentPath.String + name + "/", int(parentDepth.Int64) + 1, nil
+}
+
+// refreshSubtreePaths rewrites the path and depth of root and every row
+// under it, following parent links level by level from the root down. A
+// save calls it after changing a parent; the walk heals stale paths
+// however they got that way. Cycles are refused before any write, so the
+// bounded pass count only trips past a hundred levels.
+func refreshSubtreePaths(ctx context.Context, q DB, table, root string) error {
+	var parentName sql.NullString
+	if err := q.QueryRowContext(ctx, "SELECT parent_name FROM "+table+" WHERE name = ?", root).Scan(&parentName); err != nil {
+		return err
+	}
+	path, depth, err := treePathFor(ctx, q, table, root, parentName.String)
+	if err != nil {
+		return err
+	}
+	if _, err := q.ExecContext(ctx, "UPDATE "+table+" SET tree_path = ?, tree_depth = ? WHERE name = ?", path, depth, root); err != nil {
+		return err
+	}
+	frontier := []string{root}
+	for range 100 {
+		if len(frontier) == 0 {
+			return nil
+		}
+		marks := strings.Repeat("?,", len(frontier))
+		list := marks[:len(marks)-1]
+		args := make([]any, len(frontier))
+		for i, name := range frontier {
+			args[i] = name
+		}
+		if _, err := q.ExecContext(ctx, `UPDATE `+table+` AS child JOIN `+table+` AS parent ON child.parent_name = parent.name `+
+			`SET child.tree_path = CONCAT(parent.tree_path, child.name, '/'), child.tree_depth = parent.tree_depth + 1 `+
+			`WHERE parent.name IN (`+list+`)`, args...); err != nil {
+			return err
+		}
+		rows, err := q.QueryContext(ctx, "SELECT name FROM "+table+" WHERE parent_name IN ("+list+")", args...)
+		if err != nil {
+			return err
+		}
+		var next []string
+		for rows.Next() {
+			var name string
+			if err := rows.Scan(&name); err != nil {
+				rows.Close()
+				return err
+			}
+			next = append(next, name)
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			return err
+		}
+		frontier = next
+	}
+	return fmt.Errorf("ledger: subtree under %q in %s exceeds 100 levels", root, table)
 }
 
 func notFound(err error, what, name string) error {

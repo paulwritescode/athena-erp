@@ -115,21 +115,44 @@ func (s *Service) SaveAccount(ctx context.Context, account Account, expected int
 			return Account{}, inputErrorf("account %q has children and must be a group", account.Name)
 		}
 	}
-	if expected == 0 {
-		_, err := s.DB.ExecContext(ctx, `INSERT INTO athena_accounts (name, label, account_type, parent_name, is_group, class, control_role, company_name, disabled) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			account.Name, account.Label, account.Type, nullText(account.Parent), account.IsGroup, nullText(account.Class), nullText(account.ControlRole), nullText(account.Company), account.Disabled)
-		if err != nil {
-			return Account{}, s.conflict(err, "account", account.Name)
+	var out Account
+	err := s.withTransaction(ctx, func(tx *sql.Tx) error {
+		svc := &Service{DB: tx, Dialect: s.Dialect}
+		if expected == 0 {
+			path, depth, err := treePathFor(ctx, tx, "athena_accounts", account.Name, account.Parent)
+			if err != nil {
+				return err
+			}
+			_, err = tx.ExecContext(ctx, `INSERT INTO athena_accounts (name, label, account_type, parent_name, tree_path, tree_depth, is_group, class, control_role, company_name, disabled) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				account.Name, account.Label, account.Type, nullText(account.Parent), path, depth, account.IsGroup, nullText(account.Class), nullText(account.ControlRole), nullText(account.Company), account.Disabled)
+			if err != nil {
+				return svc.conflict(err, "account", account.Name)
+			}
+			account.Revision = 1
+			out = account
+			return nil
 		}
-		account.Revision = 1
-		return account, nil
-	}
-	result, err := s.DB.ExecContext(ctx, `UPDATE athena_accounts SET label = ?, account_type = ?, parent_name = ?, is_group = ?, class = ?, control_role = ?, company_name = ?, disabled = ?, revision = revision + 1 WHERE name = ? AND revision = ?`,
-		account.Label, account.Type, nullText(account.Parent), account.IsGroup, nullText(account.Class), nullText(account.ControlRole), nullText(account.Company), account.Disabled, account.Name, expected)
-	if err != nil {
-		return Account{}, err
-	}
-	return account, s.cas(ctx, result, "athena_accounts", "name", account.Name, expected, &account.Revision)
+		var oldParent sql.NullString
+		if err := tx.QueryRowContext(ctx, `SELECT parent_name FROM athena_accounts WHERE name = ?`, account.Name).Scan(&oldParent); err != nil {
+			return notFound(err, "account", account.Name)
+		}
+		result, err := tx.ExecContext(ctx, `UPDATE athena_accounts SET label = ?, account_type = ?, parent_name = ?, is_group = ?, class = ?, control_role = ?, company_name = ?, disabled = ?, revision = revision + 1 WHERE name = ? AND revision = ?`,
+			account.Label, account.Type, nullText(account.Parent), account.IsGroup, nullText(account.Class), nullText(account.ControlRole), nullText(account.Company), account.Disabled, account.Name, expected)
+		if err != nil {
+			return err
+		}
+		if err := svc.cas(ctx, result, "athena_accounts", "name", account.Name, expected, &account.Revision); err != nil {
+			return err
+		}
+		if oldParent.String != account.Parent {
+			if err := refreshSubtreePaths(ctx, tx, "athena_accounts", account.Name); err != nil {
+				return err
+			}
+		}
+		out = account
+		return nil
+	})
+	return out, err
 }
 
 func (s *Service) checkAccountCycle(ctx context.Context, name, parent string) error {
