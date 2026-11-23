@@ -1,102 +1,104 @@
-# Stylus night log (shift 2, 2026-11-22 evening)
-
-- 23:11 STARTED shift 2 (resumed by Stylus)
-- 23:16 STARTED master shift 2 (adopted Stylus-rotated shift.json @1e25ab9, dashboard :8765 ok, MariaDB running, no workers alive)
-- 23:16 DECIDED C1 slice 3 needs delta re-review: PASS was for 5bbc94e, candidate ccaf482 carries an unreviewed insertOutbox rebase adaptation onto the C2-merged base (events.Emit + workspace/opts); patch differs, reviewer verifies
-- 23:16 DECIDED B11 slice 2 round-2 PASS stands for 5fbf685: slice and fix patches byte-identical across the rebase (pure rebase, base 722e183 docs-only behind main); only merge-time suite needed
-- 23:18 STARTED r-c1 (t37) C1 slice 3 delta re-review of ccaf482 (insertOutbox adaptation only, posting pkg, no full suite)
-- 23:25 REVIEW PASS C1 slice 3 delta (ccaf482, insertOutbox adaptation verified, posting pkg green 225s); rebased to 2837a38 on 751be00
-- 23:26 STARTED C1 slice 3 merge-time make test alone on 2837a38 (quiet run, no parallel suites)
-- 23:52 MERGED C1 slice 3 suite GREEN (2837a38, quiet run exit 0, contention hypothesis confirmed); lock released
-- 23:35 MERGED C1 slice 3 (4334fc3 → main 0ac599e with docs) review PASS + delta PASS, quiet suite green; pushed
-- 23:35 CLOSED r-c1 (t37), removed athena-erp-c1 worktree
-- 23:35 STARTED B11 slice 2 merge-time suite on 4c666b5 (via suite lock)
-- 23:42 SPAWNED r-c2 (t3h) C2 slice 3 review of 3a9a3a1 (full suite via lock)
-- 23:42 SPAWNED w-c4 (t3j) C4 G13 slices 1-6 (migration 18 + ADR-0029 reserved)
-- 23:42 SPAWNED w-fu (t3k) FU batch 1 Desk polish (B9a/B4/B4b/B9b/B2a1, one fix per commit)
-- 23:42 TICK progress posted; r-c2 healthy, B11 suite holds the lock
-- 23:43 SPAWNED w-c1 (t3m) C1 6.8-6.12 backend-first (Desk slice gated on master GO); worktree athena-erp-c1 re-added on feat/c1-hooks
-- 23:43 LANES full: L1 w-c1, L2 r-c2, L3 w-c4, L4 B11 suite+merge (master), L5 w-fu
-- 23:46 MERGED B11 slice 2 (4c666b5) round-2 PASS, quiet suite green; pushed
-- 23:46 MERGED B11 slice 2 (4c666b5 → main + docs) review round-2 PASS, quiet suite green; B11 ticked; pushed; worktree removed
-- 23:49 MERGED B4a (2bde6c7) steering sync docs-only by master; pushed
-- 23:49 SPAWNED w-d3 (t3n) D3 public pages + SEO slices 1-5 (ADR-0030, no migration, no Desk changes)
-- 23:52 TICK progress posted (B11+B4a merged, main 2bde6c7); all 5 agents working in tab 1, none idle>15m; w-c4 suite holds lock, r-c2 queued
-- 23:53 PASS D3 slice 1 (e801e78, ADR-0030 Proposed + log/README rows, docs-only, at main tip)
-- 23:53 SPAWNED r-d3 (t3p) D3 slice 1 docs review (no suite)
-- 23:56 MERGED D3 slice 1 (e801e78 → main 9cf4005 with docs) review PASS docs-only; pushed
-- 23:56 ERROR docs(spec) commit hit a transient index.lock, tasks.md line swept into eb769f1 instead; content complete, history left as-is (no rewrites)
-- 23:56 CLOSED r-d3 (t3p) after D3 slice 1 merge
-- 00:02 TICK progress posted (D3-1 merged, main 9cf4005); w-c4 suite ~13m, r-c2 queued
-- 00:02 SUITE w-c4 C4 slice 1 exit 0 (787s); worker rebasing + re-verifying
-- 00:02 SUITE r-c2 first attempt exit 2 instant (node missing in stale c2-tree suite wrapper); re-running with nvm PATH since 00:00:53
-- 00:02 SUITE w-fu FU batch 1 build exit 0 (28s)
-- 00:04 PASS C4 slice 1 (d9cee00, migration 18 + ADR-0029, worker suite green 787s)
-- 00:04 SPAWNED r-c4 (t3q) C4 slice 1 review (absolute-path suite)
-- 00:04 ANSWERED w-c4: records.proto extension approved, merge-serialized vs L1 R6.15; kernelColumns wrapper approved
-- 00:04 COMMITTED suite dedup + rule (e97ca1d, chore(agents)); broadcast to r-c2 + 4 workers (r-d3 already closed)
-- 00:04 UPDATE w-c1 slice 1 code+tests done, package suites running, full suite next; dedup rule acked
-- 00:11 UPDATE w-fu all 12 fixes committed, browser pass queued in suite
-- 00:12 TICK progress posted (no merges, main e97ca1d); r-c2 suite ~12m, r-c4/w-fu/w-d3 queued behind; all agents active
-- 00:12 UPDATE w-d3 slice 2 code complete (route group, /home, sitemap/robots, noindex, 9 tests green), suite confirming before commit
-- 00:14 COMMITTED affected scoped runs (f28e953); r-c4/w-d3/w-fu/w-c1 ordered onto it; w-c4 stacking slice 2 on d9cee00
-- 00:16 SUITE r-c2 C2 slice 3 review exit 0 (884s); verdict write-up pending
-- 00:17 COMMITTED ordered suite queue (master first) + dashboard stale-wait hiding
-- 00:18 REVIEW C2 slice 3: NEEDS_CHANGES (B1 Recover LEAST parks live jobs dead + 5 follow-ups, suite green 884s)
-- 00:18 SPAWNED w-c2 (t3r) B1 fix + F1-F5 + slices 4-6 stacked; r-c2 holds for round 2
-- 00:18 SUITE r-c4 C4 slice 1 affected exit 0 (169s, cmd+server pkgs); verdict pending
-- 00:20 REVIEW PASS C4 slice 1 (d9cee00, migration 18 + ADR-0029, affected green 169s, 1 cosmetic follow-up); rebased to d54d6e4 (identical), merge-testing in detached worktree
-- 00:22 TICK progress posted (no merges, main 503a8f3); all 7 agents accounted for, none stuck
-- 00:22 UPDATE w-c1 slice 1 committed b805616, rebased to a3691da, gate running via affected-full
-- 00:23 ANSWERED w-c2: migration 19 reserved for F3 widen, include in fix commit
-- 00:26 UPDATE w-c2 fix committed (bcd0691 B1 + test, c549fce F1/F2/F4/F5); F3/19 held for the rebase bringing 18; continuing 4-6
-- 00:29 PASS C1 slice 1 (a3691da, 6.8 hooks + Posting rule type, worker full gate green)
-- 00:29 SPAWNED r-c1 (t3s) C1 6.8 review; w-c1 stacking slice 2
-- 00:29 SUITE w-c1 slice-1 gate exit 0 (571s); master C4-1 merge gate started 00:28:04 (queue priority worked); w-c2 fix gate queued
-- 00:30 UPDATE w-c1 slice 2 started (6.9 RPCs+CLI); dryRun + main.go wiring approved
-- 00:32 TICK progress posted (no merges, main 503a8f3); 8 agents live, all active or holding-with-orders; w-fu self-fixed browser env, requeued; w-c2 gate + r-c2 round 2 pending my gate
-- 00:33 INFO r-c1 gating in pristine scratch worktree (c1 tree dirty with slice-2 WIP); approach approved
-- 00:39 REVIEW PASS C1 6.8 (a3691da, deviation accepted, Z2 verified, dedup reuse worked); rebased to 96b69d0 (identical), merge gate queued
-- 00:42 TICK progress posted (no merges, main 503a8f3); C4 gate running, C1 gate queued; all agents active or holding
-- 00:42 UPDATE w-c2 fix stack clean on 503a8f3, gate queued behind C4 gate, slice 4 prepped no-edits
-- 00:49 MERGED C4 slice 1 (d54d6e4 → main 64bb3d2 with docs) review PASS, full gate green; pushed; r-c4 closed
-- 00:50 UPDATE w-fu browser pass queued behind merge gates, nothing stuck
-- 00:51 UPDATE w-c1 slice 2 committed d4ee433, packages green, gate running; reminded to rebase (C4-1 landed)
-- 00:52 TICK progress posted (C4-1 merged, main 64bb3d2); C1 gate running; all agents active or holding
-- 00:52 w-c2 rebased on 64bb3d2 + committed F3 (8272278, occurrence_key to 700); tree clean, no nudge needed
-- 01:02 REBASE c1 stack on 64bb3d2 (C4-1): slice 1 now 8fd7bef (identical), slice 2 now 40bcfbe; re-gate queued (master priority)
-- 01:02 DECIDED merge-train rule adopted (Stylus order): no merge during another gate; stack ready branches, one gate on tip; MASTER.md step 6 updated, commits with C1-1 docs
-- 01:12 TICK progress posted (no merges, main 64bb3d2); C1 re-gate queued behind w-c4; merge-train adopted
-- 01:13 HELD close-early tooling commit for C1-1 docs (merge-train: no main moves during the running gate)
-- 01:14 CLOSED r-c1 (t3s) by Stylus after PASS delivery; master removed its /tmp scratch worktree
-- 01:23 TICK progress posted (no merges, main 64bb3d2); C1 re-gate running
-- 01:25 MERGED C1 6.8 (8fd7bef → main 1271dc7 with docs) review PASS, re-gate green; pushed
-- 01:25 ERROR docs(spec) hit transient index.lock again, tasks.md swept into f46dfac; future commits wait out the lock first
-- 01:25 SUITE w-fu affected regressions exit 0 (110s); browser pass still queued
-- 01:26 HELD no-lock tooling fix (4 files) for next docs commit; w-c2 ordered to kill stuck --help waiter
-- 01:27 HELD --help tooling fix (suite/affected/progress/say) for next docs commit; verified no queue/send
-- 01:29 PASS D3 slice 2 (10ce8cb, public plumbing + home + noindex, worker affected green)
-- 01:29 SPAWNED r-d3 (fresh) D3 slice 2 review (incl. throwaway render check); w-d3 stacking slice 3
-- 01:30 UPDATE w-fu affected green (cmd/athena + 566 web), browser queued behind w-c2
-- 01:30 UPDATE w-c1 slice-2 gate on 40bcfbe still running (30m incl. queue), tree untouched
-- 01:33 TICK progress posted (C1-1 merged, main 1271dc7); w-c2 fix gate running
-- 01:43 TICK progress posted (no merges, main 1271dc7); w-c2 fix gate ~15m, auth slow
-- 01:44 ORDERED r-d3: finish /tmp run, delete it, detached review worktrees henceforth; r-c2 briefed for round 2; AGENT_RULES.md joins held docs commit
-- 01:47 SUITE w-c2 fix gate exit 0 (1093s, 7 pkgs); FIX PASS pending
-- 01:49 REJECTED w-c2 FIX PASS: gate ran pre-rebase (8272278), branch now e2c2bf2 on C1-1 base; ordered re-gate then re-report
-- 01:53 TICK progress posted (no merges, main 1271dc7); w-c2 re-gate running
-- 01:54 ORDERED w-c4: cancel stale gate, rebase on 1271dc7, requeue (rebase-first rule); affected verified + held
-- 01:59 PASS C1 slice 2 (40bcfbe, 6.9 RPCs+CLI, worker full gate green)
-- 01:59 SPAWNED r-c1 (fresh) C1 6.9 review (detached -r tree, dedup reuse); w-c1 stacking 6.11+6.12 docs, Desk parked
-- 02:03 TICK progress posted (no merges, main 1271dc7); close candidates w-d3/w-c2 both KEPT (work in flight)
-- 02:04 Ticker close-candidate fix (workers only when ticked, lock holders never flagged); bin/ticker already in held docs commit
-- 02:05 REJECTED w-d3 slice-3 PASS: gate covered 10ce8cb not 20a06e5; ordered gate-then-report, slice-4 prep read-only
-- 02:06 REVIEW PASS C1 slice 2 (40bcfbe, 6.9 RPCs+CLI, dedup reuse); r-c1 closed; holding w-c1 for rebase
-- 02:07 REBASE c1 stack on 1271dc7: slice 2 now cf2f674 (identical), docs now edf94a1; merge gate queued (master priority)
-- 02:11 REVIEW PASS D3 slice 2 (10ce8cb, render check + affected green, 4 follow-ups); r-d3 closed; merges after C1 gate (train rule)
-- 02:14 TICK progress posted (no merges, main 1271dc7); C1 gate running, D3-2 queued behind
-- 02:21 MERGED C1 6.9 (cf2f674 → main da0ca2f with docs + tooling batch) review PASS, full gate green; pushed
-- 02:21 CLOCK-OUT received from Stylus: nothing new started; workers at safe points (all trees clean, all work committed, queued gates cancelled)
-- 02:21 CLOCK-OUT merges tonight: C1-3, B11-2 (ticked), B4a, D3-1, C4-1, C1-6.8, C1-6.9 (7 merges) + tooling chores; main da0ca2f pushed
-- 02:21 CLOCK-OUT left on branches: C2 fix (e2c2bf2, needs re-gate + FIX PASS + r-c2 round 2), C4-2 (2d921c3, needs gate + PASS), FU batch 1 (faa093d, needs browser + report), D3-2/3 (6f2ad1b, slice 2 PASS needs merge, slice 3 needs re-gate + re-report), C1 docs (edf94a1, needs gate + PASS)
-- 02:21 CLOSED shift: panes left open for Stylus; final report written
+- 21:20 STARTED shift 3
+- 21:21 master removed stray untracked 46MB athena binary from athena-erp-fu (go build output, not agent work)
+- 21:23 SPAWNED w-c1 (t42), w-c2 (t43), w-c4 (t44), w-d3 (t45), w-fu (t46): fresh shift-3 workers, all briefed git status + git log main.. first, then rebase + affected/PASS
+- 21:27 w-c4 UPDATE: tree clean at 2d921c3, rebasing on main then affected (slice 2)
+- 21:28 w-fu UPDATE: 12 commits, clean tree, 23 behind main; rebasing then typecheck/tests/build + suite gate
+- 21:32 SPAWNED r-c2 (t47), r-d3 (t48), r-c1 (t49): pre-start reads, own -r trees, reviewer cap 3/3; r-c4 waits for a slot
+- 21:32 DECIDED split of C2 slices 4-6 pre-approved (sm-c2 + 2 sw-), starts after slice-3 merge on master ORDER
+- 21:36 PASS C1 6.11 (203b758): docs rebased clean, patch identical, narrow gates + affected green; ORDERED r-c1 to review
+- 21:36 w-c2 ANSWER: split noted, starts sm-c2 after merge on ORDER; slice-3 affected still running
+- 21:38 r-d3 UPDATE: pre-start reads done, tree clean at 6f2ad1b, awaiting ORDER
+- 21:39 r-c2 UPDATE: pre-start reads done, fix delta understood (B1+F1/F2/F4/F5+F3), awaiting ORDER
+- 21:41 All 5 branches rebased (0 behind main); suite: w-c2 running, w-c4 + w-d3 queued, lock discipline holds
+- 21:43 w-d3 UPDATE: slice-2 tree identical to 10ce8cb, rebased clean (7f5d934 s2, b856967 s3), affected running
+- 21:45 NEEDS_CHANGES C1 6.11 (r-c1): overview:98 false claim (posting Rules vs lifecycle registry); ORDERED w-c1 one-claim fix
+- 21:34 PASS C1 6.11 FIX (bdce628): overview:98 corrected, narrow gates green; ORDERED r-c1 re-review
+- 21:33 REVIEW PASS C1 6.11 (bdce628, r-c1); joins D3s2+C2 merge train; w-c1 holds for merge
+- 21:33 CLOSED r-c1 (t49, verdict delivered); removed athena-erp-c1-r; slot frees for r-c4
+- 21:35 SPAWNED r-c4 (t4b): C4 slice-2 pre-start reads in own -r tree; reviewer cap 3/3 again
+- 21:37 r-c4 UPDATE: pre-start reads done at b3940a3, awaiting ORDER
+- 21:41 PASS C2 slice-3 FIX (c18ae67): rebased clean, affected green, all fixes verified; ORDERED r-c2 round 2
+- 21:44 w-fu UPDATE: narrow checks green (typecheck, 35 Vitest, build, go gates), full gate in suite queue, browser pass prepped
+- 21:43 REVIEW PASS C2 slice 3 round 2 (c18ae67, r-c2): B1 + F1/F2/F4/F5 + F3 verified; ready for merge train
+- 21:44 CLOSED r-c2 (t47, verdict delivered); removed athena-erp-c2-r; w-c2 holds at c18ae67 for train
+- 21:50 PASS C4 slice 2 (b3940a3): full suite green, rebase clean; ORDERED r-c4 review
+- 21:53 w-c2 UPDATE: holding at c18ae67; told round-2 PASS already in, train waits on D3s2
+- 21:53 w-c2 ANSWER: holding at c18ae67 for post-merge ORDER
+- 21:54 PASS D3 slice 2 (7f5d934): rebased clean, content identical to 10ce8cb, affected green; ORDERED r-d3 re-confirm
+- 21:55 REVIEW PASS C4 slice 2 (b3940a3, r-c4); joins merge train; w-c4 holds
+- 21:56 w-c4 UPDATE: holding at b3940a3, slice 3 on hold
+- 21:55 CLOSED r-c4 (t4b, verdict delivered); removed athena-erp-c4-r
+- 21:59 w-fu UPDATE: full gate running (30m incl. queue wait), narrow green, browser pass next
+- 22:03 w-c2 UPDATE: train-ready hold at c18ae67
+- 22:07 w-fu UPDATE: full gate GREEN (exit 0, 616/616 Vitest, b41077d clean); browser pass queuing
+- 22:11 REVIEW PASS D3 slice 2 re-confirm (7f5d934, r-d3); all 4 cars ready, building train
+- 22:12 w-fu UPDATE: browser pass green but light trio invalid (headless dark); re-running Light-pinned, then holds for train
+- 22:14 w-fu ANSWER: holds after Light-pinned rerun; w-c2 UPDATE: train-ready hold at c18ae67
+- 22:15 TRAIN stacked D3s2+C2+C1+C4 (8 commits, tip 919bab4) clean; gofmt/build/vet/generate green; tip gate queuing (master-first, behind w-fu browser rerun)
+- 22:18 w-fu UPDATE: Light-pinned rerun exit 0, flows green, 5/6 shots eye-verified (driver timing patched in /tmp); holding at b41077d for train push
+- 22:22 w-c2 UPDATE: train-ready hold at c18ae67 (tip gate in flight)
+- 22:28 MERGED train D3s2+C2s3+C1-6.11+C4s2 (8 commits, f02a4b7 -> 919bab4) gate on tip green (Go ok, web 613/613)
+- 22:28 PUSHED main 919bab4 to origin; removed athena-erp-train + train/shift3
+- 22:30 RESTARTED user server on 919bab4 (old foreground make on ttys006 stopped, new headless athena-server t4h, healthz ok)
+- 22:30 r-d3 UPDATE: holding -r tree at 7f5d934 for slice-3 review
+- 22:31 w-c1 UPDATE: rebased on 919bab4 (merged commits dropped), 6.12 checkpoint started, 6.10 untouched
+- 22:32 SPLIT C2 slices 4-6: split.md written (A core 4+5, B surface 6, disjoint), sm-c2 started (t4j) with up to 2 sw-
+- 22:36 w-c4 UPDATE: rebased empty on 919bab4, slice 3 (13.3) started (UoM masters, determination effective ranges, as-of today, no proto)
+- 22:37 w-d3 UPDATE: rebased on 919bab4 (slice-2 skipped, single slice-3 commit 9cbe313, patch identical), re-gate running
+- 22:37 w-d3 gate confirmed post-rebase (affected would refuse a branch lacking 919bab4; it started)
+- 22:37 w-c1 UPDATE: 6.12 generate/typecheck green, make test via merge-gate reuse (0 FAIL); writing throwaway CDP driver, preview via CLI (no 6.10 dialog)
+- 22:38 w-fu UPDATE: rebased clean on 919bab4 (12 commits, no train overlap), affected green on 425791b, browser pass queued
+- 22:40 PASS D3 slice 3 (9cbe313): patch identical, affected green; ORDERED r-d3 slice-3 review
+- 22:39 w-fu browser post-train exit 2: TIMEOUT on theme-menu-closed (dark leg); all functional checks passed; awaiting w-fu diagnosis
+- 22:41 w-fu UPDATE: browser fail diagnosed driver-only (menu-close check), app flows all green; driver patched to toggle+continue, rerunning
+- 22:43 w-c2 UPDATE: split healthy (A building workflow.go, B discovery done), task branch clean at e063f01
+- 22:45 w-c1 UPDATE: 6.12 seed path validated end to end; full browser pass queued/running
+- 22:52 PASS C4 slice 3 (8df6b0c): affected green, rebase no-op on 919bab4
+- 22:52 w-c4 FLAG: ADR-0029 says ledger saves recompute tree path+depth but no C4 slice lists ledger master files; verifying
+- 22:52 SPAWNED r-c4 (t4p, C4 slice-3 review, -r tree at 8df6b0c); reviewer cap 2/3
+- 22:53 REVIEW PASS D3 slice 3 (9cbe313, r-d3); holds for FU train (saves a gate + FU rebase)
+- 22:53 CLOSED r-d3 (t48, both verdicts delivered); removed athena-erp-d3-r; slice-4 review gets a fresh reviewer
+- 22:53 QUESTION to Stylus: ADR-0029 ledger-save recompute has no implementing slice (verified: no tree_path in internal/ledger, no G13 task); recommend adding a C4 slice, no migration
+- 22:55 DECIDED (Stylus a): new C4 slice 13.3b ledger-save recompute (accounts.go/masters.go + new test files, no migration); w-c4 does 13.3b before slice 4; brief amended
+- 22:55 w-d3 UPDATE: slice-3 PASS received, holding 9cbe313, slice 4 starting stacked
+- 22:55 w-c2 UPDATE: split nearing done (A on auth delivery, B on Desk), branch clean at e063f01
+- 22:55 w-fu UPDATE: browser exit 0 but dialog-dark shot caught menu open (driver race); patched to reopen dialog post-flip, rerunning for clean shot
+- 22:56 w-c4 UPDATE: starting 13.3b per decision, slice 4 queued after; clean at 8df6b0c
+- 22:57 w-c1 UPDATE: 6.12 browser failed on harness bug (CDP evaluate misuse), driver fixed, retry queued
+- 22:58 NEEDS_CHANGES C4 slice 3 (r-c4): 13dp factors silently corrupt (no scale check vs DECIMAL(30,12)); ORDERED w-c4 fix-on-top
+- 23:00 w-c4 UPDATE: slice-3 scale fix implemented, stale 13.3b gate stopped, fix committing on top + re-gating
+- 23:04 w-c2 UPDATE: split gating (B Desk+docs committed, affected+browser next; A auth delivery gating)
+- 23:06 w-d3 UPDATE: slice-4 code complete (catalogue/verify/images/vitals harness), narrow tests in flight, then vitals+ADR+commit+gate
+- 23:10 PASS C1 6.12 (no commit, tree clean at 919bab4): merge-gate reuse + typecheck/build green, browser 22/22, 6 shots eyeballed
+- 23:11 SPAWNED r-c1 (t4q, C1 6.12 evidence review, -r tree at 919bab4); reviewer cap 2/3; w-c1 holds
+- 23:12 w-fu UPDATE: browser exit 0, dialog-dark clean, settings-light caught menu (same race); driver re-navigates fresh, rerunning
+- 23:13 w-c2 UPDATE: split found WorkflowHandler unwired at startup; w-c2 decided fix-in-split (one integration commit after B merges, re-gated, no migration)
+- 23:14 REVIEW PASS C1 6.12 (r-c1, zero-diff checkpoint verified); C1 task complete except 6.10 GO
+- 23:14 CLOSED r-c1 (t4q, verdict delivered); removed athena-erp-c1-r
+- 23:15 w-c2 UPDATE: split A merged at 8684ccb, B rebasing then wiring fix
+- 23:15 w-d3 UPDATE: slice-4 narrow 28/28 green (logo-JSON-LD fallback fix), vitals queued, then ADR+commit+gate
+- 23:17 CLOSED w-c1 (t42, C1 complete); removed athena-erp-c1 worktree (clean, content merged); branch feat/c1-hooks kept for provenance
+- 23:17 SPAWNED w-c5 (t4r, C5 slice 1, migration 20 + ADR-0031); L1 continues
+- 23:19 w-c5 QUESTION: migration 20 vs worktree-stale migrations.md; ANSWERED proceed with 20, read reservations via main-repo path
+- 23:21 PASS C4 slice-3 FIX (ac31fc1): scale check + tests, gate green; ORDERED r-c4 fix re-review (pick onto 8df6b0c)
+- 23:22 QUESTION from Stylus: 6.10 done or deferred? ANSWERED deferred/open (report+RESUME record it; tasks.md ticks with docs batch); never start without GO
+- 23:23 w-c4 UPDATE: holding for re-review, 13.3b rebase queued on merge signal
+- 23:23 PASS FU batch 1 (425791b): 12 Desk fixes, affected + browser green, 6 shots; SPAWNED r-fu (t4s, review); w-fu holds for D3s3+FU train
+- 23:24 w-fu ANSWER: holding at 425791b for r-fu verdict
+- 23:24 w-c2 UPDATE: A merged 8684ccb, B rebase+merge + wiring fix pending with sm-c2
+- 23:25 REVIEW PASS FU batch 1 (425791b, r-fu): 12/12 fixes verified, 3 follow-ups
+- 23:26 w-c5 UPDATE: slice 1 committed 6c77049 (migration 20 + ADR-0031), full suite queued, filtered migration tests green
+- 23:25 CLOSED r-fu (t4s, verdict delivered); removed athena-erp-fu-r
+- 23:30 TRAIN2 stacked D3s3+FU (13 commits, tip 2d9c17d) clean; gofmt/build/vet/generate/typecheck/vite-build green; tip gate queuing master-first
+- 23:31 w-c2 UPDATE: A merged 8684ccb, B gates/browser running under sm-c2
+- 23:33 ORDER from Stylus: docs batch same-turn as train2 push + tasks.md within 10min of merges going forward; ANSWERED confirmed (waiter stand-down method, 3s poll)
+- 23:38 Docs batch drafted (tasks.md slice lines + follow-ups, 7 summaries); commits after train2 push (docs-spec + docs-agents, one push)
+- 23:41 w-c2 UPDATE: A merged 8684ccb, nudging sm-c2 for B status (no sub-reports 30+ min)
+- 23:45 w-c2 UPDATE: B rebased 50356ae, queued for gates; wiring fix part-tested uncommitted, Serve patch held post-B-merge
+- 23:46 w-c2 UPDATE: holding (B 50356ae queued, wiring uncommitted, awaiting sm-c2 merge+PASS)
+- 23:51 Train2 tip gate GREEN (exit 0, Go ok, web 616/616); r-c4 grabbed lock for fix verification — waiting it out; waiters w-c5 + sw-c2-2 stood down for the push window
+- 23:53 w-c2 UPDATE: split HOLD confirmed (sw-c2-2 wait cancelled, no split gates queued)
+- 23:54 w-c2 UPDATE: HOLD down the chain (sw-c2-2 clean 50356ae, narrow green, no gates queued)
+- 23:56 MERGED train2 D3s3+FU (13 commits, 919bab4 -> 2d9c17d) gate on tip green (Go ok, web 616/616)
+- 23:56 PUSHED main 2d9c17d to origin (during r-c4 pinned-tree verification per Stylus order)
+- 23:56 w-d3 UPDATE: slice 4 committed a064771 on 9cbe313, vitals LCP 28-52ms CLS 0 INP unmeasured (honest), gate queued

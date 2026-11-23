@@ -77,12 +77,12 @@ Write plainly. No claims you did not check.
 - MariaDB: `brew services start mariadb@11.8` on "connection refused".
 - Leave stale `test_athena_*` databases alone unless one blocks a test; then drop only the named one and log it.
 
-## Queue now (2026-11-22 evening, shift 2)
+## Queue now (2026-11-23 evening, shift 3)
 
-1. L1: C1 slice 3 (`athena-erp-c1`, `ccaf482`): r-c1 delta re-review of the rebase adaptation, then `suite -- make test`, merge if green, else triage `insertOutbox`. Then C1 6.8 to 6.12 without Z2.
-2. L4: B11 slice 2 (`athena-erp-b11`, `5fbf685`, round-2 PASS): `suite -- make test`, merge, tick B11. Then B4a.
-3. L2: C2 slice 3 (`athena-erp-c2`, `aec5366`, unreviewed): reviewer, then slices 4 to 6 with a worker (split candidate: 4 runner hardening, 5 invite and reset delivery, 6 events.proto, handlers, CLI, Jobs and Settings pages, docs).
-4. L3: C4 (trees, effective dating, determination specificity, UoM): new worktree and worker now.
-5. L5: follow-ups batch 1 (Desk polish: B9a, B2a, B9b, B4 items) with a worker now; D1 and D2 drafts after.
+Main is `f02a4b7`. All five worktrees are clean; every branch is behind main and must rebase before any gate. Details: `.agents/tasks/RESUME.md` (lanes table, Muse sessions).
 
-Open user questions (do not decide; skip the dependent part): B7 Workspace-switch cache bullet, B10 custom figures, Notifications full-list page, Z1 to Z7, Z10, Z11.
+1. Merge train: D3 slice 2 (review PASS `10ce8cb`) and C2 slice 3 plus fix (after FIX PASS and `r-c2` round 2), one full gate on the stack tip.
+2. C1 6.11 gate and review; C4 slice 2 gate and review; FU batch 1 browser pass and review.
+3. Then per lane: C1 6.12 (6.10 waits for a GO), C5; C2 slices 4 to 6, C10; C4 slice 3, C3; D3 slice 3, then D3 complete; more follow-ups, D1 and D2 drafts, Bruno coverage.
+
+Open user questions (do not decide; skip the dependent part): B7, B10, Notifications full-list page, Z13, C1 6.10 GO, second suite slot, Z1 to Z7, Z10, Z11.
