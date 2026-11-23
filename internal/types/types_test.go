@@ -9,6 +9,8 @@ import (
 	"testing"
 	"testing/quick"
 	"time"
+
+	"pgregory.net/rapid"
 )
 
 var (
@@ -306,4 +308,54 @@ func TestNoBinaryFractionsInPackage(t *testing.T) {
 			t.Errorf("%s mentions float", f)
 		}
 	}
+}
+
+// TestQuantityConversionRoundTripProperty checks Property 25 without a
+// database: Convert then FromBase returns the entered quantity within the
+// declared scale, and exactly when neither rounding drops a digit. The
+// bound is exact integer math: each rounding errs at most half a
+// last-place unit, so with factor f at scale s,
+// f·|back − entered| ≤ 0.5·10^−s·(1+f).
+//
+// Feature: athena-batch-2, Property 25: Effective ranges and UoM round trip.
+func TestQuantityConversionRoundTripProperty(t *testing.T) {
+	one := MustDecimal("1")
+	rapid.Check(t, func(t *rapid.T) {
+		factor, err := NewDecimal(int64(rapid.IntRange(1, 999999).Draw(t, "factor unscaled")), rapid.IntRange(0, 6).Draw(t, "factor scale"))
+		if err != nil {
+			t.Fatalf("factor: %v", err)
+		}
+		scale := rapid.IntRange(0, 6).Draw(t, "scale")
+		mode := HalfUp
+		if rapid.IntRange(0, 1).Draw(t, "mode") == 1 {
+			mode = HalfEven
+		}
+		q, err := NewDecimal(int64(rapid.IntRange(-99999999, 99999999).Draw(t, "entered unscaled")), rapid.IntRange(0, 8).Draw(t, "entered scale"))
+		if err != nil {
+			t.Fatalf("entered: %v", err)
+		}
+		entered, err := NewQuantity(q, "ua")
+		if err != nil {
+			t.Fatalf("quantity: %v", err)
+		}
+		base, err := entered.Convert(factor, "ub", scale, mode)
+		if err != nil {
+			t.Fatalf("convert: %v", err)
+		}
+		back, err := base.FromBase(factor, "ua", scale, mode)
+		if err != nil {
+			t.Fatalf("from base: %v", err)
+		}
+		lhs := factor.Mul(back.Value.Sub(q).Abs())
+		halfUnit, err := NewDecimal(5, scale+1)
+		if err != nil {
+			t.Fatalf("half unit: %v", err)
+		}
+		if rhs := halfUnit.Mul(one.Add(factor)); lhs.Cmp(rhs) > 0 {
+			t.Fatalf("round trip %v -> %v exceeds scale %d", q, back.Value, scale)
+		}
+		if _, err := q.Mul(factor).Rescale(scale); err == nil && q.Scale() <= scale && !back.Value.Equal(q) {
+			t.Fatalf("exact round trip %v -> %v lost digits", q, back.Value)
+		}
+	})
 }
