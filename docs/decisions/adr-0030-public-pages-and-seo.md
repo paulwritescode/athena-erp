@@ -23,7 +23,7 @@ Task D3 needs public pages a Pack publishes (storefront, product pages, course c
 
 ## Decision
 
-Proposed. Public pages are server-rendered HTML from Go `html/template` templates (new directory, embedded at build), rendered per request by a public route group registered in `server.go` ahead of the SPA catch-all. The sections below are the contract slices 2 to 4 implement. Still needed: project owner review of the route paths, the projection field lists (which become the Pack contract for D5/D7), and the vitals numbers from slice 4.
+Proposed. Public pages are server-rendered HTML from Go `html/template` templates (new directory, embedded at build), rendered per request by a public route group registered in `server.go` ahead of the SPA catch-all. The sections below are the contract slices 2 to 4 implement. Still needed: project owner review of the route paths and the projection field lists (which become the Pack contract for D5/D7). Vitals measured in slice 4, recorded below.
 
 ### Route design
 
@@ -36,6 +36,8 @@ Proposed. Public pages are server-rendered HTML from Go `html/template` template
 | `GET /courses` | Course catalogue | yes |
 | `GET /verify` | Verification form | yes |
 | `GET /verify/{token}` | Verification result | no (`noindex`) |
+| `GET /p/img/{kind}/{slug}/{hash}` | Image of one published row (`product`, `course`) | n/a (image) |
+| `GET /p/og-fallback.png` | Neutral 1200x630 `og:image` fallback | n/a (image) |
 | `GET /sitemap.xml` | Per-Workspace sitemap | n/a |
 | `GET /robots.txt` | Crawlers file | n/a |
 
@@ -60,6 +62,8 @@ A projection is a Go function per page that returns only allowlisted values. It 
 
 These keys are conventions Packs adopt (D5, D7); the core seeds nothing (D-007). Until a Pack installs them the commerce and catalogue routes answer `404`, which keeps thin or empty pages out of the index. `price` renders as plain text from the stored Money value; `image` renders through a public image route that serves only images referenced by published rows, with content-hash URLs in the `/brand/` style. On submittable documents `name` reads the kernel document name (the field key is reserved there); only submittable documents carry `docstate`, so only they need the cancelled filter. Product, category and course detail beyond the listed fields (stock, cost, internal notes) is never reachable from these routes.
 
+Slice-4 specifics: text slots accept `Text` and `Long text` fields only. Transcript lookup is an exact match on the `verification_token` column (a fixed column name in code, never from the request); `completed_on` reads a `Date` field rendered as `YYYY-MM-DD`; `holder_name`, `course_name` and `status` are text slots. Transcripts need `is_published` like every other type, and the catalogue has no detail pages, so `/courses` is the only course URL.
+
 ### Per-page SEO contract
 
 Every indexable page carries: a unique `<title>`, a unique meta description, a canonical URL, Open Graph tags, Twitter card tags (`summary_large_image`), a 1200x630 image, and JSON-LD. Per page:
@@ -73,7 +77,7 @@ Every indexable page carries: a unique `<title>`, a unique meta description, a c
 | Catalogue | `Courses — {Workspace name}` | `ItemList` of `Course` (+ `Organization`) |
 | Verify form | `Verify a transcript — {Workspace name}` | `Organization` only |
 
-`og:image` uses the page's projection image when present, else the Workspace logo, else one neutral 1200x630 fallback PNG embedded in the binary (slice 4; until then pages without an image omit `og:image` rather than claim dimensions they lack). The catalogue page embeds one `Course` node per listed course. Canonical URLs use a `public.base_url` Workspace setting when set (Settings chain, no new table) and otherwise fall back to the request's own scheme and host; while the server is loopback-only (O-008) canonicals are placeholders, and the deployment decision must set the public origin. `sitemap.xml` lists the home, storefront, catalogue and every published category, product and course URL with `lastmod` from the row's modified timestamp; `robots.txt` points at the sitemap and disallows `/build/`, `/view/`, `/verify/`, `/otlp/` and the RPC paths.
+`og:image` uses the page's projection image when present, else the Workspace logo, else the neutral 1200x630 fallback PNG embedded in the binary and served at `/p/og-fallback.png` (slice 4). Only the fallback claims `og:image:width`/`og:image:height`; page images and logos omit dimensions the server has not verified. The catalogue page embeds one `Course` node per listed course. Canonical URLs use a `public.base_url` Workspace setting when set (Settings chain, no new table) and otherwise fall back to the request's own scheme and host; while the server is loopback-only (O-008) canonicals are placeholders, and the deployment decision must set the public origin. `sitemap.xml` lists the home, storefront, catalogue and every published category, product and course URL with `lastmod` from the row's modified timestamp; `robots.txt` points at the sitemap and disallows `/build/`, `/view/`, `/verify/`, `/otlp/` and the RPC paths.
 
 Meta description sources (slice-1 review note (a)): the Workspace holds no tagline field, so index pages use composed strings and detail pages use the projection's `description` field, cut at 160 characters on a word boundary with the fallback below when the field is empty.
 
@@ -93,6 +97,20 @@ These send `X-Robots-Tag: noindex, nofollow` (header, so no Desk file changes): 
 ### Vitals budget
 
 Targets from tasks.md D3: LCP ≤ 2.5 s, INP ≤ 200 ms, CLS ≤ 0.1, measured with headless Chrome on every new page (slice 4 records the numbers or reports that the harness cannot measure). The construction budget that meets them: one HTML response per page, no client JavaScript, no render-blocking external requests, a system font stack (Satori is unavailable while Z10 is open), inline CSS only, and explicit `width`/`height` on every image. Public pages follow design-system §1 restraint and §8 everyday words; they are not Desk screens, so the Desk component checks do not apply.
+
+Measured (slice 4, 2026-11-23): headless Chrome 158 over loopback against seeded demo content, unthrottled CPU/network, 1280x800, via a CDP harness reading buffered `largest-contentful-paint` and `layout-shift` entries after load:
+
+| Page | LCP | CLS |
+| --- | --- | --- |
+| `/home` | 52 ms | 0 |
+| `/shop` | 44 ms | 0 |
+| `/shop/c/tools` | 32 ms | 0 |
+| `/shop/p/widget` | 32 ms | 0 |
+| `/courses` | 48 ms | 0 |
+| `/verify` | 44 ms | 0 |
+| `/verify/VFY-2026-0001` | 28 ms | 0 |
+
+INP has no number: the harness's trusted CDP click produced zero EventTiming entries on these pages, so INP is unmeasured rather than zero. The pages carry no client JavaScript and no event handlers, so nothing on them can block an interaction; the risk sits with future pages that add handlers. Loopback flatters server time, but the margins (about 50x on LCP, exactly 0 CLS) leave room for real networks.
 
 ### Safety rules
 

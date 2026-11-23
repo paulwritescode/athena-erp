@@ -1,0 +1,11 @@
+{{define "content"}}
+<h1>Transcript verified</h1>
+<p>This transcript matches a {{.Name}} record:</p>
+<dl>
+<dt>Awarded to</dt><dd>{{.Transcript.HolderName}}</dd>
+<dt>Course</dt><dd>{{.Transcript.CourseName}}</dd>
+{{if .Transcript.HasDate}}<dt>Completed on</dt><dd>{{.Transcript.CompletedOn}}</dd>{{end}}
+<dt>Status</dt><dd>{{.Transcript.Status}}</dd>
+</dl>
+<p><a href="/verify">Verify another transcript</a></p>
+{{end}}

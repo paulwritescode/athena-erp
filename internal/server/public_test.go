@@ -133,8 +133,18 @@ func TestPublicHomeWithoutIdentity(t *testing.T) {
 	if !strings.Contains(body, "<title>Acme Workspace</title>") {
 		t.Fatal("home misses the Workspace name fallback")
 	}
-	if strings.Contains(body, "og:image") || strings.Contains(body, "<img") {
-		t.Fatal("home without a logo must carry no image tags")
+	for _, want := range []string{
+		`<meta property="og:image" content="http://example.com/p/og-fallback.png">`,
+		`<meta property="og:image:width" content="1200">`,
+		`<meta property="og:image:height" content="630">`,
+		`<meta name="twitter:image" content="http://example.com/p/og-fallback.png">`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("home without a logo misses %q", want)
+		}
+	}
+	if strings.Contains(body, "<img") {
+		t.Fatal("home without a logo must carry no page images")
 	}
 	if !strings.Contains(body, brand.FaviconURL(brand.MarkHash, brand.FaviconSmall)) {
 		t.Fatal("home misses the mark favicon fallback")

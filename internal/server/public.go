@@ -19,20 +19,25 @@ import (
 //go:embed public/*.html
 var publicTemplates embed.FS
 
+//go:embed public/og-fallback.png
+var ogFallbackPNG []byte
+
 // publicLayout is the shared shell every public page renders inside: the SEO
 // head block, the Workspace header and the footer. Each page clones it and
 // adds its own "content" block, because one parsed set cannot hold several
 // blocks of the same name.
 var publicLayout = template.Must(template.ParseFS(publicTemplates, "public/layout.html"))
 
-// publicPageTemplates holds one layout clone per public page. Slices 3 and 4
-// add their pages here.
+// publicPageTemplates holds one layout clone per public page.
 var publicPageTemplates = map[string]*template.Template{
-	"home":     mustPublicPage("home.html"),
-	"notfound": mustPublicPage("notfound.html"),
-	"shop":     mustPublicPage("shop.html"),
-	"category": mustPublicPage("category.html"),
-	"product":  mustPublicPage("product.html"),
+	"home":         mustPublicPage("home.html"),
+	"notfound":     mustPublicPage("notfound.html"),
+	"shop":         mustPublicPage("shop.html"),
+	"category":     mustPublicPage("category.html"),
+	"product":      mustPublicPage("product.html"),
+	"courses":      mustPublicPage("courses.html"),
+	"verify":       mustPublicPage("verify.html"),
+	"verifyresult": mustPublicPage("verifyresult.html"),
 }
 
 func mustPublicPage(file string) *template.Template {
@@ -75,7 +80,11 @@ func mountPublic(mux *http.ServeMux, workspace *Workspace, db *sql.DB) {
 	mux.HandleFunc("GET /shop", h.shop)
 	mux.HandleFunc("GET /shop/c/{slug}", h.category)
 	mux.HandleFunc("GET /shop/p/{slug}", h.product)
+	mux.HandleFunc("GET /courses", h.courses)
+	mux.HandleFunc("GET /verify", h.verify)
+	mux.HandleFunc("GET /verify/{token}", h.verifyResult)
 	mux.HandleFunc("GET /p/img/{kind}/{slug}/{hash}", h.publicImage)
+	mux.HandleFunc("GET /p/og-fallback.png", h.ogFallback)
 	mux.HandleFunc("GET /sitemap.xml", h.sitemap)
 	mux.HandleFunc("GET /robots.txt", h.robots)
 }
@@ -94,8 +103,8 @@ func deskNoIndex(next http.Handler) http.Handler {
 
 // publicPage is the data every public template receives. Title, Description
 // and Canonical form the per-page SEO contract; Image is the absolute
-// og:image URL (empty until a page has an image); JSONLD is encoder output
-// only, never raw content (see publicJSONLD).
+// og:image URL (the page image, else the logo, else the 1200x630 fallback);
+// JSONLD is encoder output only, never raw content (see publicJSONLD).
 type publicPage struct {
 	Title       string
 	Description string
@@ -240,14 +249,17 @@ func (h publicHandler) home(w http.ResponseWriter, r *http.Request) {
 	// holds no tagline field, so nothing else can source it.
 	page.Description = "Welcome to " + page.Name + "."
 	page.ShopURL = h.shopURLFor(r.Context())
+	page.CoursesURL = h.coursesURLFor(r.Context())
 	org := map[string]any{
 		"@context": "https://schema.org",
 		"@type":    "Organization",
 		"name":     page.Name,
 		"url":      page.Canonical,
 	}
-	if page.Image != "" {
-		org["logo"] = page.Image
+	// The logo is the Workspace mark only; the og:image fallback chain in
+	// page.Image must never stand in for it.
+	if page.LogoURL != "" {
+		org["logo"] = page.Base + page.LogoURL
 	}
 	page.JSONLD = publicJSONLD(org)
 	renderPublic(w, "home", page)
@@ -267,17 +279,30 @@ type publicSitemapDoc struct {
 }
 
 // sitemap serves the per-Workspace sitemap. It lists only live URLs: /home
-// always, published commerce URLs with their modified dates, and catalogue
-// URLs once slice 4 lands. A projection failure degrades to the home entry.
+// always, published commerce URLs with their modified dates, and /courses
+// when the catalogue has content. A projection failure degrades to the home
+// entry.
 func (h publicHandler) sitemap(w http.ResponseWriter, r *http.Request) {
 	base := h.baseURL(r)
 	urls := []publicSitemapURL{{Loc: base + "/home"}}
 	if h.db != nil {
 		urls = append(urls, h.sitemapCommerce(r, base)...)
+		urls = append(urls, h.sitemapLearn(r, base)...)
 	}
 	w.Header().Set("Content-Type", "application/xml; charset=utf-8")
 	_, _ = w.Write([]byte(xml.Header))
 	_ = xml.NewEncoder(w).Encode(publicSitemapDoc{Xmlns: "http://www.sitemaps.org/schemas/sitemap/0.9", URLs: urls})
+}
+
+// ogFallback serves the neutral 1200x630 image behind every og:image tag
+// whose page has no image of its own. The bytes are fixed at build time, so
+// answers cache for a day; crawlers may index it (it backs og:image).
+func (h publicHandler) ogFallback(w http.ResponseWriter, _ *http.Request) {
+	header := w.Header()
+	header.Set("Content-Type", "image/png")
+	header.Set("X-Content-Type-Options", "nosniff")
+	header.Set("Cache-Control", "public, max-age=86400")
+	_, _ = w.Write(ogFallbackPNG)
 }
 
 // robots serves the per-Workspace crawlers file: the Desk, token routes,

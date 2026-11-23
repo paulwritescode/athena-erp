@@ -25,7 +25,7 @@ var publicTextTypes = map[string]bool{"Text": true, "Long text": true}
 const publicListLimit = 200
 
 // publicSlot is one allowlisted field: its key and the expected kind (text,
-// checkbox, money, image or link).
+// checkbox, money, image, link or date).
 type publicSlot struct {
 	Key  string
 	Kind string
@@ -42,9 +42,11 @@ type publicRow struct {
 }
 
 // publicFilter selects published rows: Slug matches one row exactly (the
-// oldest ID wins when slugs collide), Limit caps a listing.
+// oldest ID wins when slugs collide), Token matches the verification_token
+// column exactly (transcript verification only), Limit caps a listing.
 type publicFilter struct {
 	Slug  string
+	Token string
 	Limit int
 }
 
@@ -90,6 +92,8 @@ func publicRead(ctx context.Context, db *sql.DB, typeKey string, required, optio
 			return f.Type == "Image"
 		case "link":
 			return f.Type == "Link"
+		case "date":
+			return f.Type == "Date"
 		}
 		return false
 	}
@@ -121,6 +125,13 @@ func publicRead(ctx context.Context, db *sql.DB, typeKey string, required, optio
 		where += " AND " + dialect.QuoteIdent("slug") + " = ?"
 		args = append(args, filter.Slug)
 	}
+	if filter.Token != "" {
+		// The column name is fixed here, never from the request; the
+		// caller pairs this filter with a verification_token slot, so
+		// the required-slot check above guarantees the column exists.
+		where += " AND " + dialect.QuoteIdent("verification_token") + " = ?"
+		args = append(args, filter.Token)
+	}
 	limit := filter.Limit
 	if limit <= 0 || limit > publicListLimit {
 		limit = publicListLimit
@@ -142,6 +153,8 @@ func publicRead(ctx context.Context, db *sql.DB, typeKey string, required, optio
 				values[i] = new(sql.NullBool)
 			case "money":
 				values[i] = new(sql.NullInt64)
+			case "date":
+				values[i] = new(sql.NullTime)
 			default:
 				values[i] = new(sql.NullString)
 			}
@@ -159,6 +172,10 @@ func publicRead(ctx context.Context, db *sql.DB, typeKey string, required, optio
 			case "money":
 				if v := values[i].(*sql.NullInt64); v.Valid {
 					row.Money[s.Key] = v.Int64
+				}
+			case "date":
+				if v := values[i].(*sql.NullTime); v.Valid {
+					row.Text[s.Key] = v.Time.Format(time.DateOnly)
 				}
 			case "image":
 				if v := values[i].(*sql.NullString); v.Valid && v.String != "" {

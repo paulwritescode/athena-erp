@@ -88,7 +88,8 @@ func (h publicHandler) publicIdentity(ctx context.Context) (ledger.IdentityDoc, 
 
 // applyBrand fills the shared brand slots: the display name (or the
 // fallback), the logo with the light side preferred, the favicons, and the
-// logo as the og:image fallback when the page has no image of its own.
+// og:image chain (the logo, else the neutral 1200x630 fallback) when the
+// page has no image of its own. Only the fallback claims dimensions.
 func applyBrand(page *publicPage, fallback string, doc ledger.IdentityDoc) {
 	name := doc.DisplayName
 	if name == "" {
@@ -102,6 +103,11 @@ func applyBrand(page *publicPage, fallback string, doc ledger.IdentityDoc) {
 	}
 	if page.Image == "" && page.LogoURL != "" {
 		page.Image = page.Base + page.LogoURL
+	}
+	if page.Image == "" {
+		page.Image = page.Base + "/p/og-fallback.png"
+		page.ImageWidth = "1200"
+		page.ImageHeight = "630"
 	}
 	favHash := brand.MarkHash
 	if doc.Light != nil && doc.Light.Ext == "png" {
@@ -313,9 +319,12 @@ func (h publicHandler) product(w http.ResponseWriter, r *http.Request) {
 	page := h.base(r, "/shop/p/"+url.PathEscape(row.Text["slug"]))
 	applyBrand(&page, h.name, doc)
 	view := h.productView(page.Base, productDef, row, byID)
-	// The page image wins over the brand fallback applyBrand just set.
+	// The page image wins over the chain applyBrand just set; its
+	// dimensions are unknown, so the fallback's claim goes with it.
 	if view.HasImage {
 		page.Image = view.ImageURL
+		page.ImageWidth = ""
+		page.ImageHeight = ""
 	}
 	page.Title = row.Text["name"] + " — " + page.Name
 	page.Description = row.Text["name"] + " at " + page.Name + "."
@@ -415,16 +424,24 @@ func (h publicHandler) publicImageSize(ctx context.Context, ref imageReference) 
 
 var publicImageHash = regexp.MustCompile(`^[0-9a-f]{64}$`)
 
+// publicImageTypes pairs each image kind with the Record Type and slots
+// whose published rows may serve images.
+var publicImageTypes = map[string]struct {
+	key      string
+	required []publicSlot
+	optional []publicSlot
+}{
+	"product": {key: "product", required: shopProductRequired, optional: shopProductOptional},
+	"course":  {key: "course", required: learnCourseRequired, optional: learnCourseOptional},
+}
+
 // publicImage serves the image of one published row. The hash pins the
 // content (stale URLs 404), so answers carry immutable cache. Anything
 // unpublished, missing or mismatched is a bare 404.
 func (h publicHandler) publicImage(w http.ResponseWriter, r *http.Request) {
 	kind, slug, hash := r.PathValue("kind"), r.PathValue("slug"), r.PathValue("hash")
-	var typeKey string
-	switch kind {
-	case "product":
-		typeKey = "product"
-	default:
+	imageType, ok := publicImageTypes[kind]
+	if !ok {
 		http.NotFound(w, r)
 		return
 	}
@@ -432,7 +449,7 @@ func (h publicHandler) publicImage(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	rows, _, err := publicRead(r.Context(), h.db, typeKey, shopProductRequired, shopProductOptional, publicFilter{Slug: slug, Limit: 1})
+	rows, _, err := publicRead(r.Context(), h.db, imageType.key, imageType.required, imageType.optional, publicFilter{Slug: slug, Limit: 1})
 	if err != nil {
 		log.Printf("public: image read failed")
 		publicError(w)

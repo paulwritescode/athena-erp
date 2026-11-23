@@ -1,0 +1,9 @@
+{{define "content"}}
+<h1>Verify a transcript</h1>
+<p>Enter the verification code printed on the transcript to check it against {{.Name}} records.</p>
+<form method="get" action="/verify">
+<label for="token">Verification code</label>
+<input id="token" name="token" type="text" autocomplete="off" spellcheck="false" required>
+<button type="submit">Verify</button>
+</form>
+{{end}}

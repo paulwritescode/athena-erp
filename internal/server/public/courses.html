@@ -1,0 +1,7 @@
+{{define "content"}}
+<h1>Courses</h1>
+<p>Browse courses at {{.Name}}.</p>
+<ul class="cards">
+{{range .Courses}}<li>{{if .HasImage}}<img src="{{.ImageURL}}" alt="{{.ImageAlt}}" loading="lazy" decoding="async">{{end}}<strong>{{.Name}}</strong>{{if .Description}}<br>{{.Description}}{{end}}</li>{{end}}
+</ul>
+{{end}}
