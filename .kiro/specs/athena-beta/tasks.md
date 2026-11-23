@@ -120,6 +120,7 @@ Order follows dependencies. Desk parts of each group follow the design system an
   - Slice 2 merged 2026-11-23 (919bab4, train1): tree + effective-date Record Type attributes (path/depth/cycle/range, 12 files incl. protos, additive only). Review PASS (4 follow-ups). Open: slices 3 (UoM, in review), 13.3b (ledger-save recompute, added per Stylus — ADR-0029 line 27 had no implementing slice), 4–6 (Property 25, CLI + Desk, docs + checkpoint).
   - Slice 3 merged 2026-11-24 (21e5973+bc9b1e3): UoM families + conversions (exact factors, overrides, cross-family rejection) + determination effective ranges (total as-of contract); 12dp factor-scale fix from review. Review PASS (5 follow-ups). Open: 13.3b (ledger-save recompute, committed, re-gating), 4–6 (Property 25, CLI + Desk, docs + checkpoint).
 - [ ] **C5. G7 Party ledger, settlements, realised FX.** "What customers owe" and "What we owe" in View vocabulary.
+  - Slice 1 merged 2026-11-24 (f00fc58): migration 20 `party_ledger` (l_party, party items, settlement applications) + ADR-0031 (Proposed). Review PASS (1 wording follow-up). Open: slices 2–9 (settlement engine, properties, FX, RPCs/CLI/Desk, fixture, docs + checkpoint).
 - [ ] **C6. G9 Balances, Query compiler, Reports v1, Report Runs.** ReportsPage with charts using `--chart-*` only.
 - [ ] **C7. G11 Stock ledger, reservations, serial and batch, valuation.** (Needs valuation method, Z3.)
 - [ ] **C8. G12 Remaining ledgers.**
@@ -206,6 +207,7 @@ Gates per name: pattern, 1 to 2 syllables, clean as `athena-<noun>`, the user ca
 - D3 slice 3: (a) adversarial escaping test for commerce names (proven live, unguarded); (b) ImageWidth/Height int fields shadow embedded string fields (fragile); (c) corrupt image JSON / image read errors 500 instead of degrading to no-image/404; (d) published-but-empty categories 200 + sitemap-listed (intended?); (e) CoursesURL placeholder for slice 4; (f) slice-2 notes (a)/(c) still stand.
 - FU batch 1: Accent-row indicator under Custom with nothing picked (consider wheel); harden browser theme-menu predicate to the radio group (flaked 1 in 4); capture wheel/picker-ramp/Auto-link states in a future browser pass.
 - C4 slice 3: posting must pass the voucher's business date (not today) when adopting ResolveAccount; as-of not yet on RPC/CLI (slice 5 owns CLI/Desk); trim-before-validate consistency; pin the two-leg conversion bound in Property 25; FromBase-with-override + g→mg test gaps.
+- C5 slice 1: ADR-0031 "mirrors negate by convention" → "mirrors swap sides" (engine swaps sides, amounts never negative).
 
 ## Z. Decisions the user must make (OPEN)
 
