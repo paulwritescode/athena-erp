@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"log"
+	"reflect"
 	"strings"
 	"unicode/utf8"
 
@@ -172,6 +173,11 @@ func (s workspaceService) SetIdentity(ctx context.Context, req *v1.SetIdentityRe
 	}
 	if name != "" {
 		doc.DisplayName = name
+	}
+	// A save that changes nothing writes no generation: `identity set` with
+	// no flags answers the current identity instead of duplicating it.
+	if reflect.DeepEqual(doc, read) {
+		return &v1.SetIdentityResponse{Identity: identityMessage(s.name, doc)}, nil
 	}
 	if err := svc.SaveIdentityDoc(ctx, read, doc, actorName(ctx)); err != nil {
 		if errors.Is(err, ledger.ErrIdentityConflict) {

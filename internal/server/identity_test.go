@@ -248,3 +248,40 @@ func TestSetIdentityPruneFailureKeepsTheSave(t *testing.T) {
 		t.Fatalf("save did not commit: %+v", got)
 	}
 }
+
+func TestSetIdentityUnchangedWritesNoGeneration(t *testing.T) {
+	ctx := context.Background()
+	db := testdb.New(t)
+	if _, err := store.Up(ctx, db, dialect, SystemMigrations(), store.UpOptions{}); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	st, err := files.Open(t.TempDir(), db, dialect)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = st.Close() })
+	s := workspaceService{db: db, name: "Acme", files: st}
+	if _, err := s.SetIdentity(ctx, &v1.SetIdentityRequest{DisplayName: "Acme"}); err != nil {
+		t.Fatal(err)
+	}
+	// No flags: answers the current identity instead of duplicating it.
+	res, err := s.SetIdentity(ctx, &v1.SetIdentityRequest{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.GetIdentity().GetDisplayName() != "Acme" {
+		t.Fatalf("identity: %+v", res.GetIdentity())
+	}
+	// The same name again is a no-op too.
+	if _, err := s.SetIdentity(ctx, &v1.SetIdentityRequest{DisplayName: "Acme"}); err != nil {
+		t.Fatal(err)
+	}
+	var generations int
+	err = db.QueryRowContext(ctx, `SELECT COUNT(*) FROM athena_setting_values WHERE owner_pack='athena' AND setting_type='brand.identity'`).Scan(&generations)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if generations != 1 {
+		t.Fatalf("generations = %d, want 1", generations)
+	}
+}
