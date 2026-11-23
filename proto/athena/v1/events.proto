@@ -1,0 +1,247 @@
+syntax = "proto3";
+
+package athena.v1;
+
+option go_package = "athena-erp/gen/athena/v1;athenav1";
+
+// EventService reads the durable event bus (ADR-0028, Proposed): committed
+// business events, their outbox delivery rows and the declared
+// subscriptions. Every procedure needs the build system permission, the same
+// gate as the Jobs page that serves them.
+service EventService {
+  // ListEvents returns committed events, newest first, with keyset paging
+  // over the event id.
+  rpc ListEvents(ListEventsRequest) returns (ListEventsResponse);
+  // GetEvent returns one event envelope with its minimal payload of ids and
+  // counts. Envelopes never carry full Record values.
+  rpc GetEvent(GetEventRequest) returns (GetEventResponse);
+  // ListOutbox returns outbox delivery rows, newest first, with keyset
+  // paging over the row id.
+  rpc ListOutbox(ListOutboxRequest) returns (ListOutboxResponse);
+  // RequeueOutbox tries a dead delivery again by emitting a fresh envelope
+  // with the same type, subject and payload: the new event carries a new id,
+  // keeps the correlation id and names the dead event as its cause, so every
+  // consumer handles it again. The dead row stays as history. Only dead rows
+  // with an envelope can be requeued; rows written before envelopes existed
+  // are refused.
+  rpc RequeueOutbox(RequeueOutboxRequest) returns (RequeueOutboxResponse);
+  // ListSubscriptions returns the declared consumer subscriptions.
+  rpc ListSubscriptions(ListSubscriptionsRequest) returns (ListSubscriptionsResponse);
+}
+
+// JobService reads the durable job runner (ADR-0028, Proposed): queued and
+// finished jobs with their leases and owners, and schedule occurrences.
+// Every procedure needs the build system permission, the same gate as the
+// Jobs page that serves them.
+service JobService {
+  // ListJobs returns jobs, newest first, with keyset paging over the job id.
+  // The list carries no payload or result; GetJob returns them.
+  rpc ListJobs(ListJobsRequest) returns (ListJobsResponse);
+  // GetJob returns one job with its payload and result.
+  rpc GetJob(GetJobRequest) returns (GetJobResponse);
+  // RetryJob runs dead work again by enqueueing a new job with the same
+  // kind, payload and owner through the runner, so leases, fencing and
+  // backoff apply as for any job. The dead row stays as history. Only dead
+  // jobs can be retried. A retried schedule occurrence stays dead: the new
+  // job runs as ad-hoc work and its outcome does not move the occurrence.
+  rpc RetryJob(RetryJobRequest) returns (RetryJobResponse);
+  // ListOccurrences returns schedule occurrences in period order. The list
+  // is bounded and carries no page token: schedules hold few periods.
+  rpc ListOccurrences(ListOccurrencesRequest) returns (ListOccurrencesResponse);
+}
+
+// Event is one durable business envelope: what happened, to which subject
+// revision, caused by what, with a minimal payload of ids and counts.
+message Event {
+  string id = 1;
+  int64 sequence = 2;
+  string event_type = 3;
+  int32 schema_version = 4;
+  string workspace = 5;
+  string producer = 6;
+  string subject_type = 7;
+  string subject_id = 8;
+  int64 subject_revision = 9;
+  string actor = 10;
+  string operation_id = 11;
+  string correlation_id = 12;
+  string causation_id = 13;
+  // JSON object of ids and counts, never full Record values.
+  string payload = 14;
+  // RFC 3339 UTC.
+  string created_at = 15;
+}
+
+message ListEventsRequest {
+  // Filters; empty means any.
+  string event_type = 1;
+  string subject_type = 2;
+  string subject_id = 3;
+  int32 page_size = 4;
+  // Opaque token from the previous page.
+  string page_token = 5;
+}
+
+message ListEventsResponse {
+  repeated Event events = 1;
+  string next_page_token = 2;
+}
+
+message GetEventRequest {
+  string id = 1;
+}
+
+message GetEventResponse {
+  Event event = 1;
+}
+
+// OutboxRow is one delivery row: a pending, leased, dispatched or dead
+// envelope on its way to subscribed consumers.
+message OutboxRow {
+  string id = 1;
+  // Empty for rows written before envelopes existed.
+  string event_id = 2;
+  string event_type = 3;
+  // JSON object of ids and counts, never full Record values.
+  string payload = 4;
+  string status = 5;
+  int32 attempts = 6;
+  // RFC 3339 UTC; empty when unset.
+  string available_at = 7;
+  string leased_by = 8;
+  string leased_until = 9;
+  string last_error = 10;
+  string dispatched_at = 11;
+  string created_at = 12;
+}
+
+message ListOutboxRequest {
+  // Filter by status: pending, leased, dispatched or dead. Empty means any.
+  string status = 1;
+  int32 page_size = 2;
+  // Opaque token from the previous page.
+  string page_token = 3;
+}
+
+message ListOutboxResponse {
+  repeated OutboxRow rows = 1;
+  string next_page_token = 2;
+}
+
+message RequeueOutboxRequest {
+  string id = 1;
+}
+
+message RequeueOutboxResponse {
+  // The id of the freshly emitted event. The dead row keeps its own id.
+  string event_id = 1;
+}
+
+// Subscription is one consumer's declared interest in an event type.
+message Subscription {
+  string consumer = 1;
+  string event_type = 2;
+  string mode = 3;
+  string action = 4;
+  string effect_key = 5;
+  string exhaust_behavior = 6;
+  string pack = 7;
+  bool enabled = 8;
+}
+
+message ListSubscriptionsRequest {
+  // Filter by event type; empty means any.
+  string event_type = 1;
+}
+
+message ListSubscriptionsResponse {
+  repeated Subscription subscriptions = 1;
+}
+
+// Job is one unit of durable work: its kind and payload, lease, attempts
+// and, once finished, its result or its owner and error.
+message Job {
+  string id = 1;
+  string kind = 2;
+  string status = 3;
+  int32 attempts = 4;
+  int32 max_attempts = 5;
+  // RFC 3339 UTC; empty when unset.
+  string next_run_at = 6;
+  string lease_owner = 7;
+  string lease_expires_at = 8;
+  int64 fencing = 9;
+  string occurrence_key = 10;
+  string owner_user_id = 11;
+  string owner_role = 12;
+  string last_error = 13;
+  // JSON objects. ListJobs leaves both empty; GetJob fills them.
+  string payload = 14;
+  string result = 15;
+  // RFC 3339 UTC.
+  string created_at = 16;
+  string updated_at = 17;
+}
+
+message ListJobsRequest {
+  // Filters; empty means any. Status is one of queued, leased, succeeded
+  // or dead.
+  string status = 1;
+  string kind = 2;
+  int32 page_size = 3;
+  // Opaque token from the previous page.
+  string page_token = 4;
+}
+
+message ListJobsResponse {
+  repeated Job jobs = 1;
+  string next_page_token = 2;
+}
+
+message GetJobRequest {
+  string id = 1;
+}
+
+message GetJobResponse {
+  Job job = 1;
+}
+
+message RetryJobRequest {
+  string id = 1;
+}
+
+message RetryJobResponse {
+  // The id of the newly enqueued job. The dead row keeps its own id.
+  string job_id = 1;
+}
+
+// Occurrence is one period of one schedule in one scope.
+message Occurrence {
+  string workspace = 1;
+  string schedule = 2;
+  string scope = 3;
+  string period = 4;
+  string timezone = 5;
+  string catchup_policy = 6;
+  string status = 7;
+  string lease_owner = 8;
+  // RFC 3339 UTC; empty when unset.
+  string lease_expires_at = 9;
+  string watermark = 10;
+  // JSON object; empty when the occurrence has no result yet.
+  string result = 11;
+  string job_id = 12;
+}
+
+message ListOccurrencesRequest {
+  // Filters; empty means any.
+  string schedule = 1;
+  string scope = 2;
+  string status = 3;
+  // Rows returned, 1 to 500. Zero means 100.
+  int32 limit = 4;
+}
+
+message ListOccurrencesResponse {
+  repeated Occurrence occurrences = 1;
+}
