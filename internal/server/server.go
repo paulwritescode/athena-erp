@@ -14,6 +14,7 @@ import (
 	"athena-erp/gen/athena/v1/athenav1connect"
 	"athena-erp/internal/audit"
 	"athena-erp/internal/auth"
+	"athena-erp/internal/events"
 	"athena-erp/internal/lifecycle"
 	"athena-erp/internal/store"
 	"athena-erp/internal/telemetry"
@@ -125,7 +126,10 @@ func Serve(ctx context.Context, config Config) error {
 		}
 		databaseStatus = "Connected"
 		log.Printf("%s connected; metadata tables are ready", driverName)
-		startWorkers(ctx, db, WorkerOptions{JobHandlers: defaultJobHandlers(db)})
+		startWorkers(ctx, db, WorkerOptions{
+			JobHandlers:   defaultJobHandlers(db),
+			EventHandlers: map[string]events.Handler{events.ConsumerWorkflows: events.WorkflowHandler(dialect)},
+		})
 	}
 
 	mux := http.NewServeMux()

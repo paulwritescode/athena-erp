@@ -196,7 +196,7 @@ func TestWorkflowSignalStopsPastTheBudget(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer tx.Rollback()
-	if err := events.WaitFor(ctx, tx, id, "later", time.Now().Add(time.Hour)); err != nil {
+	if err := events.WaitFor(ctx, tx, store.MariaDB{}, id, "later", time.Now().Add(time.Hour)); err != nil {
 		t.Fatalf("wait after stop: %v, want a no-op", err)
 	}
 	if err := events.Complete(ctx, tx, id, map[string]any{}); err != nil {
@@ -224,7 +224,7 @@ func TestWorkflowWaitWakeAndDue(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer tx.Rollback()
-		if err := events.WaitFor(ctx, tx, id, event, until); err != nil {
+		if err := events.WaitFor(ctx, tx, store.MariaDB{}, id, event, until); err != nil {
 			t.Fatal(err)
 		}
 		if err := tx.Commit(); err != nil {
@@ -495,4 +495,46 @@ func TestGatedTaskCreationProperty(t *testing.T) {
 				inst.CycleCount, len(arrived))
 		}
 	})
+}
+
+// A wait declares its own subscription, so an emitted event reaches the
+// workflows consumer through the dispatcher and wakes the instance.
+func TestWorkflowEventWakesWaitThroughDispatcher(t *testing.T) {
+	ctx := context.Background()
+	db := setup(t)
+	id := startInstance(t, db, events.Definition{Name: "approval", Gates: []events.Gate{
+		{TaskKey: "act", Title: "Act", Needs: []string{"document.approved"}},
+	}}, events.StartOptions{})
+	tx, err := db.Begin()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := events.WaitFor(ctx, tx, store.MariaDB{}, id, "document.approved", time.Now().Add(time.Hour)); err != nil {
+		_ = tx.Rollback()
+		t.Fatal(err)
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatal(err)
+	}
+	eventID := emit(t, db, events.Envelope{EventType: "document.approved", Producer: "test", SubjectType: "doc", SubjectID: "d1"})
+	dispatcher := &events.Dispatcher{DB: db, Errors: store.MariaDB{}, Handlers: map[string]events.Handler{
+		events.ConsumerWorkflows: events.WorkflowHandler(store.MariaDB{}),
+	}}
+	if ran, err := dispatcher.DispatchNext(ctx); err != nil || !ran {
+		t.Fatalf("dispatch = %v, %v, want one delivery", ran, err)
+	}
+	if status, _ := outboxStatus(t, db, eventID); status != "dispatched" {
+		t.Fatalf("outbox status = %q, want dispatched", status)
+	}
+	inst, err := events.GetInstance(ctx, db, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if inst.WaitEvent != "" || len(inst.ReceivedFacts) != 1 || inst.ReceivedFacts[0] != "document.approved" {
+		t.Fatalf("instance = %+v, want the wait cleared and the event recorded", inst)
+	}
+	tasks, err := events.ListTasks(ctx, db, id)
+	if err != nil || len(tasks) != 1 {
+		t.Fatalf("tasks = %+v, %v, want the gated task", tasks, err)
+	}
 }

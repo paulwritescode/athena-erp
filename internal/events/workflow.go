@@ -364,8 +364,10 @@ func WakeWaits(ctx context.Context, tx *sql.Tx, classifier Classifier, eventType
 // WaitFor parks an open instance on an event until a deadline, in the
 // caller's transaction. The matching event wakes it through WakeWaits;
 // the deadline shows it in DueWaits. Waiting on a terminal instance is
-// a no-op.
-func WaitFor(ctx context.Context, tx *sql.Tx, instanceID, event string, until time.Time) error {
+// a no-op. A wait on a live instance also declares the workflows
+// consumer's subscription for the event type, in the same transaction, so
+// the dispatcher delivers the event that wakes it.
+func WaitFor(ctx context.Context, tx *sql.Tx, classifier Classifier, instanceID, event string, until time.Time) error {
 	if instanceID == "" || event == "" {
 		return fmt.Errorf("events: a wait needs an instance and an event")
 	}
@@ -382,13 +384,17 @@ func WaitFor(ctx context.Context, tx *sql.Tx, instanceID, event string, until ti
 	if err != nil {
 		return fmt.Errorf("events: wait: %w", err)
 	}
-	if affected > 0 {
-		return nil
-	}
-	if _, err := loadInstance(ctx, tx, instanceID, false); err != nil {
+	if affected == 0 {
+		// An unknown instance is an error; a terminal one is a no-op.
+		_, err := loadInstance(ctx, tx, instanceID, false)
 		return err
 	}
-	return nil
+	return Declare(ctx, tx, classifier, Subscription{
+		Consumer:  ConsumerWorkflows,
+		EventType: event,
+		Action:    "wake_waits",
+		Enabled:   true,
+	})
 }
 
 // DueWaits lists the open instances whose wait deadline has passed, in
