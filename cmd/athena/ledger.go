@@ -410,7 +410,7 @@ func ledgerDetermination(ctx context.Context, svc *ledger.Service, out io.Writer
 		if err != nil {
 			return err
 		}
-		resolved, err := svc.ResolveAccount(ctx, context_)
+		resolved, err := svc.ResolveAccount(ctx, context_, time.Now().UTC().Format(time.DateOnly))
 		if err != nil {
 			return err
 		}

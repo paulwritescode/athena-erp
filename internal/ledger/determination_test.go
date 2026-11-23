@@ -72,11 +72,11 @@ func TestDeterminationResolve(t *testing.T) {
 	if _, err := s.SaveDetermination(ctx, ledger.Determination{Label: "acme bank", Account: "bank", Match: map[string]string{"company": "acme"}}, 0); err != nil {
 		t.Fatal(err)
 	}
-	got, err := s.ResolveAccount(ctx, map[string]string{"company": "acme"})
+	got, err := s.ResolveAccount(ctx, map[string]string{"company": "acme"}, "2026-06-15")
 	if err != nil || got.Account != "bank" {
 		t.Fatalf("specific wins: %+v %v", got, err)
 	}
-	got, err = s.ResolveAccount(ctx, map[string]string{"company": "globex"})
+	got, err = s.ResolveAccount(ctx, map[string]string{"company": "globex"}, "2026-06-15")
 	if err != nil || got.Account != "cash" {
 		t.Fatalf("catch-all: %+v %v", got, err)
 	}
@@ -84,7 +84,7 @@ func TestDeterminationResolve(t *testing.T) {
 	if _, err := s.SaveDetermination(ctx, ledger.Determination{Label: "second cash", Account: "cash"}, 0); err != nil {
 		t.Fatal(err)
 	}
-	_, err = s.ResolveAccount(ctx, map[string]string{"company": "globex"})
+	_, err = s.ResolveAccount(ctx, map[string]string{"company": "globex"}, "2026-06-15")
 	if !errors.Is(err, ledger.ErrAmbiguous) || !strings.Contains(err.Error(), "default cash") || !strings.Contains(err.Error(), "second cash") {
 		t.Fatalf("tie: %v", err)
 	}
@@ -93,8 +93,85 @@ func TestDeterminationResolve(t *testing.T) {
 	if _, err := s.SaveDetermination(ctx, def, 1); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.ResolveAccount(ctx, map[string]string{"company": "globex"}); err != nil {
+	if _, err := s.ResolveAccount(ctx, map[string]string{"company": "globex"}, "2026-06-15"); err != nil {
 		t.Fatalf("after disable: %v", err)
+	}
+}
+
+func TestDeterminationEffectiveRanges(t *testing.T) {
+	ctx := context.Background()
+	s := service(t)
+	mustAccount(t, s, "assets", "", true)
+	mustAccount(t, s, "cash", "assets", false)
+	mustAccount(t, s, "bank", "assets", false)
+	for _, tc := range []struct {
+		name     string
+		from, to string
+	}{
+		{"bad from", "2026-13-01", ""},
+		{"bad to", "", "not-a-date"},
+		{"impossible day", "2026-02-30", ""},
+		{"empty range", "2026-07-01", "2026-07-01"},
+		{"reversed range", "2026-08-01", "2026-07-01"},
+	} {
+		if _, err := s.SaveDetermination(ctx, ledger.Determination{Label: tc.name, Account: "cash", EffectiveFrom: tc.from, EffectiveTo: tc.to}, 0); err == nil {
+			t.Fatalf("%s accepted", tc.name)
+		}
+	}
+	if _, err := s.SaveDetermination(ctx, ledger.Determination{Label: "fallback", Account: "cash"}, 0); err != nil {
+		t.Fatal(err)
+	}
+	dated, err := s.SaveDetermination(ctx, ledger.Determination{
+		Label: "dated bank", Account: "bank", Match: map[string]string{"company": "acme"},
+		EffectiveFrom: "2026-07-01", EffectiveTo: "2026-08-01",
+	}, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.GetDetermination(ctx, dated.ID)
+	if err != nil || got.EffectiveFrom != "2026-07-01" || got.EffectiveTo != "2026-08-01" {
+		t.Fatalf("get range: %+v %v", got, err)
+	}
+	acme := map[string]string{"company": "acme"}
+	globex := map[string]string{"company": "globex"}
+	// Before the range only the fallback holds.
+	resolved, err := s.ResolveAccount(ctx, acme, "2026-06-15")
+	if err != nil || resolved.Account != "cash" {
+		t.Fatalf("before range: %+v %v", resolved, err)
+	}
+	// From is inclusive: on July 1 the dated mapping wins and reports its revision.
+	resolved, err = s.ResolveAccount(ctx, acme, "2026-07-01")
+	if err != nil || resolved.Account != "bank" || resolved.Revision != 1 {
+		t.Fatalf("range start: %+v %v", resolved, err)
+	}
+	// To is exclusive: on August 1 the dated mapping has expired.
+	resolved, err = s.ResolveAccount(ctx, acme, "2026-08-01")
+	if err != nil || resolved.Account != "cash" {
+		t.Fatalf("range end: %+v %v", resolved, err)
+	}
+	// Outside the company the dated mapping never matches, even mid-range.
+	resolved, err = s.ResolveAccount(ctx, globex, "2026-07-15")
+	if err != nil || resolved.Account != "cash" {
+		t.Fatalf("other company: %+v %v", resolved, err)
+	}
+	// Open-ended ranges hold forever after their start.
+	open, err := s.SaveDetermination(ctx, ledger.Determination{
+		Label: "open bank", Account: "bank", Match: map[string]string{"company": "globex", "book": "tax"},
+		EffectiveFrom: "2026-07-01",
+	}, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = open
+	resolved, err = s.ResolveAccount(ctx, map[string]string{"company": "globex", "book": "tax"}, "2030-01-01")
+	if err != nil || resolved.Account != "bank" {
+		t.Fatalf("open range: %+v %v", resolved, err)
+	}
+	if _, err := s.ResolveAccount(ctx, acme, "2026-07-15x"); err == nil {
+		t.Fatal("bad as-of accepted")
+	}
+	if _, err := s.ResolveAccount(ctx, acme, ""); err == nil {
+		t.Fatal("empty as-of accepted")
 	}
 }
 
@@ -150,7 +227,7 @@ func TestDeterminationProperty(t *testing.T) {
 				winners = append(winners, mapping)
 			}
 		}
-		got, err := ledger.MatchDeterminations(mappings, context_)
+		got, err := ledger.MatchDeterminations(mappings, context_, "2026-06-15")
 		switch {
 		case len(winners) == 0:
 			if !errors.Is(err, ledger.ErrNoMatch) {

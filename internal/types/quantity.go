@@ -13,6 +13,11 @@ var (
 
 var uomCode = regexp.MustCompile(`^[a-z][a-z0-9_]{0,31}$`)
 
+// ValidUoM reports whether uom is a well-formed unit-of-measure key: a
+// lowercase letter followed by up to 31 lowercase letters, digits or
+// underscores. The UoM master reuses it so saved units always parse here.
+func ValidUoM(uom string) bool { return uomCode.MatchString(uom) }
+
 // Quantity is an exact decimal amount of one unit of measure. The UoM is a
 // key (for example "kg" or "box") that refers to a UoM master; conversion
 // factors live in that master and are passed to Convert by the caller.
@@ -23,7 +28,7 @@ type Quantity struct {
 
 // NewQuantity validates the UoM key and returns a Quantity.
 func NewQuantity(v Decimal, uom string) (Quantity, error) {
-	if !uomCode.MatchString(uom) {
+	if !ValidUoM(uom) {
 		return Quantity{}, ErrUoM
 	}
 	return Quantity{Value: v, UoM: uom}, nil
@@ -55,13 +60,31 @@ func (q Quantity) Sub(o Quantity) (Quantity, error) {
 // Convert multiplies by factor (target units per one source unit) and rounds
 // once to scale fraction digits with mode.
 func (q Quantity) Convert(factor Decimal, to string, scale int, mode RoundingMode) (Quantity, error) {
-	if !uomCode.MatchString(to) {
+	if !ValidUoM(to) {
 		return Quantity{}, ErrUoM
 	}
 	if factor.Sign() <= 0 {
 		return Quantity{}, errors.New("types: conversion factor must be positive")
 	}
 	v, err := q.Value.Mul(factor).Round(scale, mode)
+	if err != nil {
+		return Quantity{}, err
+	}
+	return Quantity{Value: v, UoM: to}, nil
+}
+
+// FromBase divides by factor (base units per one target unit) and rounds
+// once to scale fraction digits with mode. It is the inverse of Convert
+// for UoM round trips: ToBase multiplies an entered quantity into base
+// units, FromBase divides base units back into the entered unit.
+func (q Quantity) FromBase(factor Decimal, to string, scale int, mode RoundingMode) (Quantity, error) {
+	if !ValidUoM(to) {
+		return Quantity{}, ErrUoM
+	}
+	if factor.Sign() <= 0 {
+		return Quantity{}, errors.New("types: conversion factor must be positive")
+	}
+	v, err := q.Value.Div(factor, scale, mode)
 	if err != nil {
 		return Quantity{}, err
 	}

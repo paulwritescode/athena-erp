@@ -130,6 +130,26 @@ func TestQuantity(t *testing.T) {
 	if err != nil || g.String() != "1250 g" {
 		t.Errorf("convert = %v %v", g, err)
 	}
+	back, err := g.FromBase(MustDecimal("1000"), "kg", 2, HalfEven)
+	if err != nil || back.String() != "1.25 kg" {
+		t.Errorf("from base = %v %v", back, err)
+	}
+	if _, err := g.FromBase(MustDecimal("0"), "kg", 2, HalfUp); err == nil {
+		t.Error("zero factor accepted")
+	}
+	if _, err := g.FromBase(MustDecimal("1000"), "KG", 2, HalfUp); !errors.Is(err, ErrUoM) {
+		t.Errorf("bad uom: %v", err)
+	}
+	for _, uom := range []string{"kg", "box_2", "a"} {
+		if !ValidUoM(uom) {
+			t.Errorf("ValidUoM(%q) = false", uom)
+		}
+	}
+	for _, uom := range []string{"", "Kg", "has space", "0box"} {
+		if ValidUoM(uom) {
+			t.Errorf("ValidUoM(%q) = true", uom)
+		}
+	}
 }
 
 func TestDates(t *testing.T) {

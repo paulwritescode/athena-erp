@@ -569,7 +569,9 @@ func (s ledgerService) ResolveAccount(ctx context.Context, req *athenav1.Resolve
 	if _, err := requireSystem(ctx, auth.PermissionLedgerRead); err != nil {
 		return nil, err
 	}
-	determination, err := s.svc().ResolveAccount(ctx, req.GetContext())
+	// The request carries no date yet, so resolution runs as of today; a
+	// later slice may add an as-of field and pass it through.
+	determination, err := s.svc().ResolveAccount(ctx, req.GetContext(), time.Now().UTC().Format(time.DateOnly))
 	if err != nil {
 		return nil, ledgerError(err)
 	}
