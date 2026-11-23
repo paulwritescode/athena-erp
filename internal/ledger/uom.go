@@ -107,6 +107,9 @@ func (s *Service) SaveUoMConversion(ctx context.Context, conversion UoMConversio
 	if conversion.Factor.Sign() <= 0 {
 		return UoMConversion{}, inputErrorf("a conversion factor must be above zero")
 	}
+	if conversion.Factor.Scale() > 12 {
+		return UoMConversion{}, inputErrorf("a conversion factor holds at most 12 fraction digits")
+	}
 	if conversion.Scale < 0 || conversion.Scale > 12 {
 		return UoMConversion{}, inputErrorf("the conversion scale is 0 to 12")
 	}

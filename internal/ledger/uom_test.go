@@ -124,6 +124,24 @@ func TestUoMConversionRules(t *testing.T) {
 	}
 }
 
+func TestUoMConversionFactorPrecision(t *testing.T) {
+	ctx := context.Background()
+	s := service(t)
+	mustFamily(t, s, "mass", "kg")
+	// 12 fraction digits are the column's fill: they round-trip exactly.
+	if _, err := s.SaveUoMConversion(ctx, ledger.UoMConversion{Family: "mass", Unit: "mg", Factor: mustDecimal(t, "0.000000000001"), Scale: 6}, 0); err != nil {
+		t.Fatalf("12dp factor: %v", err)
+	}
+	got, err := s.GetUoMConversion(ctx, "mass", "mg", "")
+	if err != nil || !got.Factor.Equal(mustDecimal(t, "0.000000000001")) {
+		t.Fatalf("12dp round trip: %+v %v", got, err)
+	}
+	// A 13th digit would corrupt silently at rest, so the save refuses it.
+	if _, err := s.SaveUoMConversion(ctx, ledger.UoMConversion{Family: "mass", Unit: "ng", Factor: mustDecimal(t, "0.0000000000001"), Scale: 6}, 0); err == nil {
+		t.Fatal("13dp factor accepted")
+	}
+}
+
 func TestUoMToBaseAndBack(t *testing.T) {
 	ctx := context.Background()
 	s := service(t)
