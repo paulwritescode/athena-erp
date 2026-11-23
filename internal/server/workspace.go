@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"log"
 	"strings"
 	"unicode/utf8"
 
@@ -178,11 +179,13 @@ func (s workspaceService) SetIdentity(ctx context.Context, req *v1.SetIdentityRe
 		}
 		return nil, internalError("save Workspace identity", err)
 	}
+	// Pruning is best-effort cleanup after the committed save: a stale file
+	// must never fail a saved identity.
 	if err := s.pruneLogos(ctx, "light", doc.Light, meta); err != nil {
-		return nil, err
+		log.Printf("identity: prune light logos failed: %v", err)
 	}
 	if err := s.pruneLogos(ctx, "dark", doc.Dark, meta); err != nil {
-		return nil, err
+		log.Printf("identity: prune dark logos failed: %v", err)
 	}
 	return &v1.SetIdentityResponse{Identity: identityMessage(s.name, doc)}, nil
 }

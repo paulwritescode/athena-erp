@@ -13,6 +13,10 @@ import (
 
 	v1 "athena-erp/gen/athena/v1"
 	"athena-erp/internal/auth"
+	"athena-erp/internal/files"
+	"athena-erp/internal/ledger"
+	"athena-erp/internal/store"
+	"athena-erp/internal/testdb"
 	"connectrpc.com/connect/v2"
 )
 
@@ -205,5 +209,42 @@ func TestFileServiceRefusesBrandWrites(t *testing.T) {
 	got, err := b.files.GetFile(ctx, &v1.GetFileRequest{Path: "brand/logo-light.png"})
 	if err != nil || !bytes.Equal(got.GetContent(), png) {
 		t.Fatalf("brand read: %v", err)
+	}
+}
+
+func TestSetIdentityPruneFailureKeepsTheSave(t *testing.T) {
+	ctx := context.Background()
+	db := testdb.New(t)
+	if _, err := store.Up(ctx, db, dialect, SystemMigrations(), store.UpOptions{}); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	svc := &ledger.Service{DB: db, Dialect: dialect}
+	ref := ledger.LogoRef{Ext: "png", Hash: strings.Repeat("a", 64)}
+	if err := svc.SaveIdentityDoc(ctx, ledger.IdentityDoc{}, ledger.IdentityDoc{DisplayName: "Acme", Light: &ref}, "test"); err != nil {
+		t.Fatal(err)
+	}
+	// A files store on a closed database: every prune read fails, while the
+	// identity database stays healthy.
+	dead := testdb.New(t)
+	st, err := files.Open(t.TempDir(), dead, dialect)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = st.Close() })
+	_ = dead.Close()
+	s := workspaceService{db: db, name: "Acme", files: st}
+	res, err := s.SetIdentity(ctx, &v1.SetIdentityRequest{ClearLogoLight: true})
+	if err != nil {
+		t.Fatalf("prune failure failed the save: %v", err)
+	}
+	if res.GetIdentity().GetLogoLightUrl() != "" {
+		t.Fatalf("logo still set: %+v", res.GetIdentity())
+	}
+	got, err := svc.GetIdentityDoc(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Light != nil || got.DisplayName != "Acme" {
+		t.Fatalf("save did not commit: %+v", got)
 	}
 }
