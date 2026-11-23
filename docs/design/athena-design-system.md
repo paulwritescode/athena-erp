@@ -236,7 +236,7 @@ Rules:
 3. **Size:** empty state 160 to 240 px wide (120 px on mobile); sign-in 200 to 280 px; never larger than the content it accompanies.
 4. **Look:** line color from `--app-text-subtle`, theme follows the Desk (`theme: "auto"`), `intensity` 0.3 or less, `play` off. Reduced motion rests the figure.
 5. **Meaning:** the figure matches the page (Sieve for "no results", Padlock for sign-in, Drawer for empty Files, Plot for empty Reports, Stack for empty Records). Decorative figures are `aria-hidden`; meaningful ones get a label.
-6. **ASCII:** set in JetBrains Mono at caption size in `--app-text-subtle`, `aria-hidden`, at most 8 lines, used for the CLI banner, the sign-in footer mark and the 404 page.
+6. **ASCII:** the live Athena logo, generated from the brand artwork (pipeline, ramp and sizes in `ascii-logo.md`). Set in JetBrains Mono at caption size in `--app-text-subtle`, `aria-hidden`, at most 8 lines and one per screen. It draws once, top to bottom at 180 ms a row with an opacity-only row fade, then rests; reduced motion shows the full mark at once. Used for the sign-in footer, the first-run readiness view, the 404 and offline footers, and the CLI banner (static, above the version lines).
 7. **One place to change:** every use goes through `web/src/art/registry.ts` (placement key → figure or ASCII block, size, label). Pages never import a figure directly. Custom Athena figures made with the `hairline-create` skill live in `web/src/art/figures/` and register there.
 
 ## 10. Brand and Workspace logo

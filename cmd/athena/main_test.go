@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-// The CLI banner carries the ASCII wordmark above the product name. The mark
+// The CLI banner carries the ASCII tree above the product name. The mark
 // stays within eight lines of plain ASCII (design §9.6).
 func TestUsageBannerShowsMarkAndVersion(t *testing.T) {
 	banner := usageBanner()
@@ -25,5 +25,17 @@ func TestUsageBannerShowsMarkAndVersion(t *testing.T) {
 		if strings.HasSuffix(line, " ") {
 			t.Fatalf("mark line %q has trailing space", line)
 		}
+	}
+}
+
+// The version output keeps the banner above the version lines; the last
+// line stays the bare version F8 owns.
+func TestVersionPrintsBannerAboveVersion(t *testing.T) {
+	lines := strings.Split(versionBanner(), "\n")
+	if got := lines[len(lines)-1]; got != version {
+		t.Fatalf("version last line = %q, want %q", got, version)
+	}
+	if got := strings.Join(lines[:len(lines)-1], "\n"); got != asciiMark {
+		t.Fatalf("version banner differs from the usage mark:\n%s", got)
 	}
 }

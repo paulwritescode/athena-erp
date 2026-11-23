@@ -87,7 +87,7 @@ func run(args []string) error {
 	case "rules":
 		return rulesCommand(args[1:], os.Stdout)
 	case "version", "--version", "-v":
-		fmt.Println(version)
+		fmt.Println(versionBanner())
 		return nil
 	case "help", "--help", "-h":
 		printUsage()
@@ -98,16 +98,26 @@ func run(args []string) error {
 	}
 }
 
-// asciiMark is the Athena wordmark for the CLI banner. web/src/art/ascii.ts
-// keeps the same drawing for the sign-in footer; change both together.
-const asciiMark = `   _    ___  _   _  ___  _   _    _
-  / \    |  | | | | |    | \ | |  / \
- / _ \   |  | |_| | |__  |  \| | / _ \
-/ /_\ \  |  |  _  | |    | |\  | / /_\ \
-|_| |_| _|_ |_| |_| |___| |_| \_| |_| |_|`
+// asciiMark is the static Athena tree for the CLI banner: a copy of the
+// light final frame in web/src/art/logo-frames.ts (docs/design/ascii-logo.md
+// explains the sync; web/src/art/logo-sync.test.ts enforces it).
+const asciiMark = `##   ##    # ##      # #      ## #
+### #  ###       ##  ### ## ##  ##  #
+ #######         ######  ##   ###    #
+   #############           ###########
+     ######
+        ####
+            #############
+                 ####`
 
 func usageBanner() string {
 	return asciiMark + "\n\nAthena ERP " + version
+}
+
+// versionBanner keeps the banner above the version lines (F8 owns the
+// lines below it).
+func versionBanner() string {
+	return asciiMark + "\n" + version
 }
 
 func printUsage() {
