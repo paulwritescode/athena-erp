@@ -9,6 +9,7 @@ import { RecordService, type FieldValue } from './gen/athena/v1/records_pb'
 import { RecordTypeService, RecordTypeSchema, type MigrationStep, type RecordType as RecordTypeMessage, type RecordTypeField as RecordTypeFieldMessage } from './gen/athena/v1/record_types_pb'
 import { NotificationService } from './gen/athena/v1/notifications_pb'
 import { WorkspaceService } from './gen/athena/v1/workspace_pb'
+import { EventService, JobService } from './gen/athena/v1/events_pb'
 import { create } from '@bufbuild/protobuf'
 import { Code, ConnectError } from '@connectrpc/connect'
 import { isStepUpRequired, sessionEndReason } from './apiErrors'
@@ -247,3 +248,8 @@ export async function saveRecordType(recordType: RecordType, answers?: SaveAnswe
 export async function deleteRecordType(recordType: RecordType): Promise<void> {
   await recordTypeClient.deleteRecordType({ key: recordType.name, expectedRevision: BigInt(recordType.revision), deleteRecords: true })
 }
+
+// Durable background work (ADR-0028, Proposed): the event bus and the job
+// runner behind the build permission.
+export const eventClient = createClient(EventService, transport)
+export const jobClient = createClient(JobService, transport)
