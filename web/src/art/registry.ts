@@ -1,12 +1,13 @@
-// The one place for every hairline figure and ASCII block in the desk
+// The one place for every hairline figure and ASCII logo in the desk
 // (design §9.7). Pages ask for a placement key through useArt and render it
-// with ArtFigure or AsciiMark; they never import a figure themselves.
-// Unknown keys return undefined, so a page cannot add art on its own.
-// Figures load lazily through dynamic import, so the desk bundle carries no
-// figure until a placement mounts one. Every figure plays the same quiet
-// part: theme auto, intensity 0.3 or less, play off (§9.4).
+// with ArtFigure or AsciiLogo; they never import a figure or the frames
+// themselves. Unknown keys return undefined, so a page cannot add art on
+// its own. Figures load lazily through dynamic import, so the desk bundle
+// carries no figure until a placement mounts one. Every figure plays the
+// same quiet part: theme auto, intensity 0.3 or less, play off (§9.4). The
+// logo draws its frames once, top to bottom, and rests on the full mark.
 import type { Figure as HairlineFigure, HairlineOptions } from '@lucasmarkes/hairline'
-import { ATHENA_MARK } from './ascii'
+import { LOGO_DARK_FRAMES, LOGO_LIGHT_FRAMES, LOGO_STEP_MS } from './logo-frames'
 
 export type FigureName =
   | 'basket'
@@ -39,21 +40,35 @@ export interface FigurePlacement {
   label?: string
 }
 
-export interface AsciiPlacement {
-  kind: 'ascii'
-  block: string
+export interface LogoPlacement {
+  kind: 'logo'
+  /** Draw-in frames, light theme; frame k shows the first k rows. */
+  light: readonly (readonly string[])[]
+  /** Draw-in frames, dark theme. */
+  dark: readonly (readonly string[])[]
+  /** Milliseconds per frame (120 to 240). */
+  stepMs: number
 }
 
-export type ArtPlacement = FigurePlacement | AsciiPlacement
+export type ArtPlacement = FigurePlacement | LogoPlacement
 
 function loader(name: FigureName): FigureLoader {
   return () => import('@lucasmarkes/hairline').then((figures) => figures[name])
 }
 
+function logo(): LogoPlacement {
+  return { kind: 'logo', light: LOGO_LIGHT_FRAMES, dark: LOGO_DARK_FRAMES, stepMs: LOGO_STEP_MS }
+}
+
 const placements: Record<string, ArtPlacement> = {
   // Padlock for sign-in (§9.5), at the sign-in size (§9.3: 200 to 280).
   signin: { kind: 'figure', figure: 'padlock', load: loader('padlock'), width: 240, mobileWidth: 160 },
-  'signin-mark': { kind: 'ascii', block: ATHENA_MARK },
+  // The live logo (§9.6): the sign-in footer, the setup readiness view at
+  // the end of first-run, and the 404 and offline footers. One per screen.
+  'signin-logo': logo(),
+  'first-run-logo': logo(),
+  'not-found-logo': logo(),
+  'offline-logo': logo(),
   // A question mark for the page that does not exist; a plug that stops
   // short of its socket for the offline page. Both match their page (§9.5)
   // and stay within the empty-state cap (§9.3: at most 240).

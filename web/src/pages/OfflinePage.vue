@@ -4,6 +4,7 @@
 // back, in case the server is down too.
 <script setup lang="ts">
 import ArtFigure from '@/art/ArtFigure.vue'
+import AsciiLogo from '@/art/AsciiLogo.vue'
 import ActionButton from '@/components/ActionButton.vue'
 
 const emit = defineEmits<{ retry: [] }>()
@@ -15,5 +16,8 @@ const emit = defineEmits<{ retry: [] }>()
     <h1>You are offline</h1>
     <p>Check your connection, then try again.</p>
     <ActionButton kind="primary" class="offline-retry" label="Try again" icon="refresh-ccw" @press="emit('retry')" />
+    <div class="mt-12">
+      <AsciiLogo art-key="offline-logo" />
+    </div>
   </main>
 </template>

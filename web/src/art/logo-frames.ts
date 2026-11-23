@@ -5,12 +5,12 @@
 // nearest its ink value, which is darkness composited over white for the
 // light theme and brightness composited over black for the dark theme,
 // after gamma (light 1.00, dark 1.00). Frames draw the mark top to bottom
-// at 150 ms a row; frame 0 is blank and later frames keep the full height
+// at 180 ms a row; frame 0 is blank and later frames keep the full height
 // with empty rows so the draw never moves the page. The CLI banner in
 // cmd/athena/main.go copies the light final frame.
 export const LOGO_COLS = 40
 export const LOGO_ROWS = 8
-export const LOGO_STEP_MS = 150
+export const LOGO_STEP_MS = 180
 export const LOGO_RAMP = ' #'
 export const LOGO_LIGHT_FRAMES: readonly (readonly string[])[] = [
   ['', '', '', '', '', '', '', ''],

@@ -1,7 +1,8 @@
 // Registry guarantees (design §9): unknown keys return nothing, figures stay
-// quiet (intensity ≤ 0.3, play off, theme auto), sizes follow §9.3, ASCII
-// stays within eight lines, figures load lazily, pages never import a figure
-// directly, and at most one figure stands on a screen.
+// quiet (intensity ≤ 0.3, play off, theme auto), sizes follow §9.3, the logo
+// draws letter-free frames within eight lines, figures load lazily, pages
+// never import a figure or the frames directly, and at most one figure and
+// one logo stand on a screen.
 import { describe, expect, it } from 'vitest'
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
@@ -46,7 +47,12 @@ describe('art registry', () => {
     expect(useArt('signin')).toMatchObject({ kind: 'figure', figure: 'padlock' })
     expect(useArt('not-found')).toMatchObject({ kind: 'figure', figure: 'query' })
     expect(useArt('offline')).toMatchObject({ kind: 'figure', figure: 'plug' })
-    expect(useArt('signin-mark')).toMatchObject({ kind: 'ascii' })
+  })
+
+  it('lists the logo placements, one per waiting surface', () => {
+    for (const key of ['signin-logo', 'first-run-logo', 'not-found-logo', 'offline-logo']) {
+      expect(useArt(key), key).toMatchObject({ kind: 'logo' })
+    }
   })
 
   it('maps empty states per the section 9.5 meaning table', () => {
@@ -89,14 +95,34 @@ describe('art registry', () => {
     }
   })
 
-  it('keeps ASCII blocks within eight lines of plain ASCII', () => {
-    const mark = useArt('signin-mark')
-    if (mark?.kind !== 'ascii') throw new Error('signin-mark is not ASCII')
-    const lines = mark.block.split('\n')
-    expect(lines.length).toBeLessThanOrEqual(8)
-    for (const line of lines) {
-      expect(line, 'plain ASCII').toMatch(/^[\x20-\x7e]*$/)
-      expect(line, 'no trailing space').not.toMatch(/ $/)
+  it('draws the logo from letter-free frames within eight lines', () => {
+    for (const key of ['signin-logo', 'first-run-logo', 'not-found-logo', 'offline-logo']) {
+      const entry = useArt(key)
+      if (entry?.kind !== 'logo') throw new Error(`${key} is not a logo`)
+      expect(entry.stepMs, `${key} step`).toBeGreaterThanOrEqual(120)
+      expect(entry.stepMs, `${key} step`).toBeLessThanOrEqual(240)
+      expect(entry.dark.length, `${key} dark frames`).toBe(entry.light.length)
+      for (const [theme, frames] of [['light', entry.light], ['dark', entry.dark]] as const) {
+        expect(frames.length, `${key}.${theme} frame count`).toBeGreaterThan(1)
+        const final = frames[frames.length - 1]!
+        expect(final.length, `${key}.${theme} rows`).toBeLessThanOrEqual(8)
+        for (const frame of frames) {
+          expect(frame.length, `${key}.${theme} keeps full height`).toBe(final.length)
+        }
+        for (let k = 0; k < frames.length; k++) {
+          const frame = frames[k]!
+          for (let row = 0; row < frame.length; row++) {
+            // Frame k reveals the first k rows and leaves the rest blank.
+            expect(frame[row], `${key}.${theme} frame ${k} row ${row}`).toBe(row < k ? final[row] : '')
+          }
+        }
+        for (const line of final) {
+          expect(line, 'plain ASCII').toMatch(/^[\x20-\x7e]*$/)
+          expect(line, 'no trailing space').not.toMatch(/ $/)
+          expect(line, 'never letters').not.toMatch(/[A-Za-z]/)
+        }
+        expect(final.join(''), `${key}.${theme} draws ink`).toMatch(/#/)
+      }
     }
   })
 
@@ -133,9 +159,17 @@ describe('art registry', () => {
     }
   })
 
+  it('draws at most one logo on a screen', () => {
+    for (const path of files(srcDir)) {
+      if (!path.endsWith('.vue') || rel(path).startsWith('art/')) continue
+      const uses = readFileSync(path, 'utf8').split('<AsciiLogo').length - 1
+      expect(uses, `${rel(path)} mounts at most one logo`).toBeLessThanOrEqual(1)
+    }
+  })
+
   it('resolves every art key a template names to its kind', () => {
     let keys = 0
-    const tag = /<(ArtFigure|AsciiMark|EmptyState|DataTable)\b((?:"[^"]*"|'[^']*'|[^>"'])*)(\/>|>)/g
+    const tag = /<(ArtFigure|AsciiLogo|EmptyState|DataTable)\b((?:"[^"]*"|'[^']*'|[^>"'])*)(\/>|>)/g
     for (const path of files(srcDir)) {
       if (!path.endsWith('.vue') || rel(path).endsWith('.test.ts')) continue
       const body = readFileSync(path, 'utf8')
@@ -145,7 +179,7 @@ describe('art registry', () => {
         // runtime with an icon fallback.
         for (const key of match[2].matchAll(/(?:^|\s)(?:art|empty-art|filtered-art|art-key)="([^"]+)"/g)) {
           keys += 1
-          const want = component === 'AsciiMark' ? 'ascii' : 'figure'
+          const want = component === 'AsciiLogo' ? 'logo' : 'figure'
           expect(useArt(key[1])?.kind, `${rel(path)} ${component} names ${key[1]}`).toBe(want)
         }
       }
@@ -169,6 +203,19 @@ describe('art registry', () => {
   it('rests every figure under reduced motion', () => {
     const css = readFileSync(join(artDir, 'art.css'), 'utf8')
     expect(css).toMatch(/@media\s*\(\s*prefers-reduced-motion\s*:\s*reduce\s*\)\s*\{[^}]*\.art-figure\s*\{[^}]*pointer-events\s*:\s*none/s)
+  })
+
+  it('rests the logo draw under reduced motion', () => {
+    const css = readFileSync(join(artDir, 'art.css'), 'utf8')
+    expect(css).toMatch(/@media\s*\(\s*prefers-reduced-motion\s*:\s*reduce\s*\)\s*\{[^}]*\.ascii-logo-line-new\s*\{[^}]*animation\s*:\s*none/s)
+  })
+
+  it('fades new logo rows through opacity only', () => {
+    const css = readFileSync(join(artDir, 'art.css'), 'utf8')
+    const frames = css.match(/@keyframes ascii-logo-in\s*\{([\s\S]*?)\n\}/)
+    if (!frames) throw new Error('ascii-logo-in keyframes are missing')
+    expect(frames[1]).toMatch(/opacity/)
+    expect(frames[1]).not.toMatch(/transform|color|width|height|margin|padding/)
   })
 
   it('paints lines from --app-text-subtle on --background', () => {

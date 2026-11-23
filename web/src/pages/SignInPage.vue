@@ -5,7 +5,7 @@ import { classify, describeFailure, type Failure } from '../apiErrors'
 import type { SessionInfo } from '../gen/athena/v1/auth_pb'
 import { challengeProblems, type ChallengeProblems, signInProblems, type SignInProblems } from '../signInRules'
 import ArtFigure from '@/art/ArtFigure.vue'
-import AsciiMark from '@/art/AsciiMark.vue'
+import AsciiLogo from '@/art/AsciiLogo.vue'
 import ActionButton from '@/components/ActionButton.vue'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader } from '@/components/ui/card'
@@ -159,7 +159,7 @@ async function complete() {
         </CardContent>
       </Card>
       <footer class="sign-in-footer">
-        <AsciiMark art-key="signin-mark" />
+        <AsciiLogo art-key="signin-logo" />
       </footer>
     </div>
   </main>

@@ -6,6 +6,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { authClient, ledgerClient, workspaceClient } from '@/api'
+import AsciiLogo from '@/art/AsciiLogo.vue'
 import { isRootUsername } from '@/rootUser'
 import PageHeader from '@/components/PageHeader.vue'
 import ErrorState from '@/components/ErrorState.vue'
@@ -229,6 +230,9 @@ function onInvite(result: { owners: string[]; skipped: boolean }) {
             />
           </div>
         </Transition>
+        <div v-if="step === 'ready'" class="mt-12">
+          <AsciiLogo art-key="first-run-logo" />
+        </div>
       </template>
     </div>
   </div>

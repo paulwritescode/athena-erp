@@ -3,6 +3,7 @@
 // sign-in; signed out, the sign-in page comes first.
 <script setup lang="ts">
 import ArtFigure from '@/art/ArtFigure.vue'
+import AsciiLogo from '@/art/AsciiLogo.vue'
 import ActionButton from '@/components/ActionButton.vue'
 
 const emit = defineEmits<{ goHome: [] }>()
@@ -15,6 +16,9 @@ const emit = defineEmits<{ goHome: [] }>()
     <p class="text-muted-foreground mt-1 max-w-sm text-base">The address is mistyped, or the page was moved.</p>
     <div class="mt-4">
       <ActionButton kind="primary" label="Back to home" icon="arrow-left" @press="emit('goHome')" />
+    </div>
+    <div class="mt-12">
+      <AsciiLogo art-key="not-found-logo" />
     </div>
   </div>
 </template>

@@ -27,7 +27,7 @@ go run ./tools/asciilogo
 ```
 
 Flags: `-cols` (default 40), `-rows` (default 8, at most 8 per design
-§9.6), `-step-ms` (default 150, allowed 120 to 240), `-light-gamma` and
+§9.6), `-step-ms` (default 180, allowed 120 to 240), `-light-gamma` and
 `-dark-gamma` (default 1.0), `-ramp` (default `" #"`), `-light-src`,
 `-dark-src`, `-out` (default `web/src/art/logo-frames.ts`). The generator
 refuses a ramp with letters or non-ASCII, and prints how many cells the
@@ -51,10 +51,10 @@ variants differ in.
 Frame *k* shows the first *k* rows of the mark and leaves the rest blank;
 frame 0 is empty and frame 8 is the whole mark. Every frame keeps the
 full 8-line height, so the draw never moves the page. The desk steps one
-frame per 150 ms (top to bottom), each new row fading in through an
-opacity-only keyframe; the animation plays once and rests on the full
-mark. Under `prefers-reduced-motion` the full mark renders at once with
-no timer and no animation.
+frame per 180 ms (`--duration-base`, top to bottom), each new row fading
+in through an opacity-only keyframe of the same length; the animation
+plays once and rests on the full mark. Under `prefers-reduced-motion`
+the full mark renders at once with no timer and no animation.
 
 ## CLI banner
 

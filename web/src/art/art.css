@@ -30,9 +30,12 @@
     animation: none;
   }
 }
-/* ASCII marks (§9.6): caption mono in the subtle color, never wider than
-   their block. */
-.ascii-mark {
+/* The live ASCII logo (§9.6): caption mono in the subtle color, never
+   wider than its block. Both theme variants render and the theme shows
+   one. Lines are blocks so blank rows keep their height while the mark
+   draws; the page never moves. Each new row fades in through opacity
+   only; the draw plays once and rests. */
+.ascii-logo {
   width: fit-content;
   max-width: 100%;
   margin: 0 auto;
@@ -41,5 +44,23 @@
   font-size: var(--type-caption-size);
   line-height: var(--type-caption-line);
   color: var(--app-text-subtle);
+}
+.ascii-logo-frame {
+  margin: 0;
   white-space: pre;
+}
+.ascii-logo-line {
+  display: block;
+}
+.ascii-logo-line-new {
+  animation: ascii-logo-in var(--duration-base) var(--ease-out);
+}
+@keyframes ascii-logo-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ascii-logo-line-new {
+    animation: none;
+  }
 }
