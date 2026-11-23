@@ -357,7 +357,7 @@ function reset() {
             <div v-for="index in 5" :key="index" class="flex items-center gap-3">
               <input
                 :id="`appearance-chart-${index}`"
-                :model-value="chartDisplay(index - 1)"
+                :value="chartDisplay(index - 1)"
                 type="color"
                 :aria-label="`Chart ${index} color`"
                 class="h-9 w-12 shrink-0 cursor-pointer rounded-md border border-border bg-card p-1"
