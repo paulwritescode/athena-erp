@@ -435,3 +435,85 @@ func TestTreesEffectiveUoMMigrationBackfillsPaths(t *testing.T) {
 		t.Errorf("legacy determination range is %v to %v, want open-ended NULLs", from, to)
 	}
 }
+
+// TestPartyLedgerMigrationCreatesThePartyTables builds a database the way
+// migration 19 leaves it, upgrades to migration 20 and checks the party
+// ledger tables exist with their keys: append-only l_party facts with party
+// and control indexes, mutable athena_party_items with one row per source
+// instalment, and append-only athena_settlement_applications with one row
+// per settlement line and item. The tables start empty: items and
+// applications are Workspace data the settlement service writes.
+func TestPartyLedgerMigrationCreatesThePartyTables(t *testing.T) {
+	ctx := context.Background()
+	db := testdb.New(t)
+	if _, err := store.Up(ctx, db, dialect, SystemMigrations(), store.UpOptions{Target: 19}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Up(ctx, db, dialect, SystemMigrations(), store.UpOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	tables := map[string][]string{
+		"l_party": {
+			"id", "company_name", "book", "party_type", "party_id",
+			"control_account_name", "item_id", "application_id", "posting_date",
+			"debit_base", "credit_base", "txn_currency", "txn_debit", "txn_credit",
+			"voucher_type", "voucher_id", "voucher_revision", "event",
+			"posting_group_id", "is_reversal", "reversed_row_id", "created_at",
+		},
+		"athena_party_items": {
+			"id", "company_name", "book", "party_type", "party_id",
+			"control_account_name", "source_voucher_type", "source_voucher_id",
+			"source_voucher_revision", "instalment_no", "due_date", "currency",
+			"side", "original_amount", "residual_amount", "status", "revision",
+			"created_at", "updated_at",
+		},
+		"athena_settlement_applications": {
+			"id", "company_name", "book", "event", "settlement_voucher_type",
+			"settlement_voucher_id", "settlement_voucher_revision",
+			"settlement_line_no", "item_id", "payment_currency", "payment_amount",
+			"item_currency", "item_amount", "base_amount", "is_reversal",
+			"reverses_application_id", "posting_group_id", "created_at",
+		},
+	}
+	for table, columns := range tables {
+		rows, err := db.QueryContext(ctx, `SELECT column_name FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ?`, table)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := map[string]bool{}
+		for rows.Next() {
+			var column string
+			if err := rows.Scan(&column); err != nil {
+				rows.Close()
+				t.Fatal(err)
+			}
+			got[column] = true
+		}
+		rows.Close()
+		if len(got) == 0 {
+			t.Errorf("table %s missing after migration 20", table)
+			continue
+		}
+		for _, column := range columns {
+			if !got[column] {
+				t.Errorf("table %s misses column %s after migration 20", table, column)
+			}
+		}
+		var count int
+		if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM `+table).Scan(&count); err != nil {
+			t.Fatal(err)
+		}
+		if count != 0 {
+			t.Errorf("table %s holds %d rows, want it empty: migration 20 seeds nothing", table, count)
+		}
+	}
+	for table, key := range map[string]string{
+		"athena_party_items":             "uq_party_items_source",
+		"athena_settlement_applications": "uq_settlement_apps_line",
+	} {
+		var name string
+		if err := db.QueryRowContext(ctx, `SELECT index_name FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = ? AND index_name = ? LIMIT 1`, table, key).Scan(&name); err != nil {
+			t.Errorf("unique key %s on %s missing after migration 20: %v", key, table, err)
+		}
+	}
+}
