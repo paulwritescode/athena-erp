@@ -17,6 +17,7 @@ import (
 	"strings"
 	"time"
 
+	"athena-erp/internal/events"
 	"athena-erp/internal/notifications"
 
 	"github.com/go-sql-driver/mysql"
@@ -100,6 +101,31 @@ const (
 	UserStateSuspended     = "suspended"
 )
 
+// Invite delivery channels of an account. Manual hands the single-use code
+// to the administrator to show once; any other value names the
+// destination alias the outbox delivery event carries for a future mail
+// relay. Setup marks the workspace root (ADR-0018) and is never a
+// destination.
+const (
+	DeliveryManual = "manual"
+	DeliverySetup  = "setup"
+)
+
+// Delivery event types of the outbox invite and reset events (G8.11). The
+// payload carries the destination alias, the kind, the Challenge id and
+// the expiry only: the Challenge value itself stays out of the outbox,
+// because secret custody is undecided (Z4).
+const (
+	TypeInviteCreated = "auth.invite_created"
+	TypeResetStarted  = "auth.reset_started"
+)
+
+// Delivery kinds carried in the invite and reset event payload.
+const (
+	DeliveryKindInvite = "invite"
+	DeliveryKindReset  = "reset"
+)
+
 // User is one account. It never carries a password hash.
 type User struct {
 	ID          string
@@ -111,6 +137,9 @@ type User struct {
 	LockedUntil *time.Time
 	LastLoginAt *time.Time
 	Roles       []string
+	// Delivery is the invite_delivery channel: manual, or a destination
+	// alias for outbox delivery.
+	Delivery string
 }
 
 // Locked reports whether the user is locked at time at.
@@ -172,16 +201,20 @@ func validateNewUser(username, displayName string) (string, string, error) {
 
 // insertInvitedUser stores an invited account with no password at generation
 // zero. The caller issues the invite Challenge in the same transaction.
-func insertInvitedUser(ctx context.Context, db execQuerier, username, displayName string, owner bool) (User, error) {
+// An empty delivery stores manual.
+func insertInvitedUser(ctx context.Context, db execQuerier, username, displayName string, owner bool, delivery string) (User, error) {
+	if delivery == "" {
+		delivery = DeliveryManual
+	}
 	id := newID()
-	if _, err := db.ExecContext(ctx, "INSERT INTO athena_users (id, username, display_name, password_hash, is_owner, state, generation, invite_delivery) VALUES (?,?,?,NULL,?,?,0,'manual')",
-		id, username, displayName, owner, UserStateInvited); err != nil {
+	if _, err := db.ExecContext(ctx, "INSERT INTO athena_users (id, username, display_name, password_hash, is_owner, state, generation, invite_delivery) VALUES (?,?,?,NULL,?,?,0,?)",
+		id, username, displayName, owner, UserStateInvited, delivery); err != nil {
 		if isDuplicate(err) {
 			return User{}, fmt.Errorf("%w: the username %q is taken", ErrExists, username)
 		}
 		return User{}, fmt.Errorf("create user: %w", err)
 	}
-	return User{ID: id, Username: username, DisplayName: displayName, Owner: owner, State: UserStateInvited}, nil
+	return User{ID: id, Username: username, DisplayName: displayName, Owner: owner, State: UserStateInvited, Delivery: delivery}, nil
 }
 
 // CreateUser invites an account: it stores an invited user with no password
@@ -201,8 +234,23 @@ func assignRoleTx(ctx context.Context, tx *sql.Tx, userID, role string) error {
 }
 
 func (s *Service) CreateUser(ctx context.Context, username, displayName string, owner bool, requestID string) (User, string, error) {
+	return s.CreateUserWithDelivery(ctx, username, displayName, owner, "", requestID)
+}
+
+// CreateUserWithDelivery invites an account like CreateUser and stores
+// the invite delivery channel with it: empty or manual keeps the manual
+// code path, and a destination alias additionally enqueues an outbox
+// delivery event in the same transaction. The single-use Challenge is
+// returned either way, so the flow completes while no relay is deployed.
+func (s *Service) CreateUserWithDelivery(ctx context.Context, username, displayName string, owner bool, delivery, requestID string) (User, string, error) {
 	username, displayName, err := validateNewUser(username, displayName)
 	if err != nil {
+		return User{}, "", err
+	}
+	if delivery == "" {
+		delivery = DeliveryManual
+	}
+	if err := checkDelivery(delivery); err != nil {
 		return User{}, "", err
 	}
 	tx, err := s.DB.BeginTx(ctx, nil)
@@ -217,12 +265,15 @@ func (s *Service) CreateUser(ctx context.Context, username, displayName string, 
 			return User{}, "", err
 		}
 	}
-	user, err := insertInvitedUser(ctx, tx, username, displayName, owner)
+	user, err := insertInvitedUser(ctx, tx, username, displayName, owner, delivery)
 	if err != nil {
 		return User{}, "", err
 	}
-	_, token, err := IssueChallenge(ctx, tx, user.ID, ChallengePurposeFirstLogin, 0, s.now())
+	challenge, token, err := IssueChallenge(ctx, tx, user.ID, ChallengePurposeFirstLogin, 0, s.now())
 	if err != nil {
+		return User{}, "", err
+	}
+	if err := emitDelivery(ctx, tx, user, 0, TypeInviteCreated, DeliveryKindInvite, challenge, requestID); err != nil {
 		return User{}, "", err
 	}
 	if owner {
@@ -235,6 +286,64 @@ func (s *Service) CreateUser(ctx context.Context, username, displayName string, 
 	}
 	s.LogAccess(ctx, AccessEvent{Event: EventInviteCreated, Outcome: OutcomeOK, UserID: user.ID, Username: user.Username, RequestID: requestID, Detail: "first login"})
 	return user, token, nil
+}
+
+// maxDeliveryLength is the invite_delivery column width.
+const maxDeliveryLength = 20
+
+// checkDelivery refuses a blank, overlong or reserved delivery channel.
+// Setup belongs to the workspace root seeding only.
+func checkDelivery(delivery string) error {
+	if delivery == "" || len(delivery) > maxDeliveryLength {
+		return fmt.Errorf("%w: the delivery channel needs 1 to 20 characters", ErrInvalid)
+	}
+	if delivery == DeliverySetup {
+		return fmt.Errorf("%w: the delivery channel %q is reserved", ErrInvalid, delivery)
+	}
+	return nil
+}
+
+// wantsOutboxDelivery reports whether the channel names a destination a
+// relay should deliver to. Manual and setup accounts keep the show-once
+// code path.
+func wantsOutboxDelivery(delivery string) bool {
+	switch delivery {
+	case "", DeliveryManual, DeliverySetup:
+		return false
+	default:
+		return true
+	}
+}
+
+// emitDelivery enqueues the invite or reset delivery event in the caller's
+// transaction where the user has a destination, and does nothing for the
+// manual code path. The payload carries the destination alias, the kind,
+// the Challenge id and the expiry; the Challenge value itself stays out,
+// because secret custody is undecided (Z4). generation is the Challenge's
+// user generation, carried as the subject revision.
+func emitDelivery(ctx context.Context, tx *sql.Tx, user User, generation int, eventType, kind string, challenge Challenge, requestID string) error {
+	if !wantsOutboxDelivery(user.Delivery) {
+		return nil
+	}
+	_, err := events.Emit(ctx, tx, events.Envelope{
+		EventType:       eventType,
+		Producer:        "auth",
+		SubjectType:     "user",
+		SubjectID:       user.ID,
+		SubjectRevision: int64(generation),
+		Actor:           ActorID(ctx),
+		CorrelationID:   requestID,
+		Payload: map[string]any{
+			"destination":  user.Delivery,
+			"kind":         kind,
+			"challenge_id": challenge.ID,
+			"expires_at":   challenge.ExpiresAt.UTC().Format(time.RFC3339),
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("enqueue delivery: %w", err)
+	}
+	return nil
 }
 
 // BootstrapOwner invites the first instance owner. It holds a named lock
@@ -279,12 +388,17 @@ func (s *Service) BootstrapOwner(ctx context.Context, username, displayName, req
 	if err := ensureSystemRolesTx(ctx, tx); err != nil {
 		return User{}, "", err
 	}
-	user, err := insertInvitedUser(ctx, tx, username, displayName, true)
+	user, err := insertInvitedUser(ctx, tx, username, displayName, true, DeliveryManual)
 	if err != nil {
 		return User{}, "", err
 	}
-	_, token, err := IssueChallenge(ctx, tx, user.ID, ChallengePurposeFirstLogin, 0, s.now())
+	challenge, token, err := IssueChallenge(ctx, tx, user.ID, ChallengePurposeFirstLogin, 0, s.now())
 	if err != nil {
+		return User{}, "", err
+	}
+	// The first setup is always local, so this stays manual today; the
+	// call keeps every Challenge issue on the delivery path.
+	if err := emitDelivery(ctx, tx, user, 0, TypeInviteCreated, DeliveryKindInvite, challenge, requestID); err != nil {
 		return User{}, "", err
 	}
 	if err := assignRoleTx(ctx, tx, user.ID, RoleInstanceOwner); err != nil {
@@ -307,8 +421,8 @@ func (s *Service) ResendInvite(ctx context.Context, username, requestID string) 
 	defer func() { _ = tx.Rollback() }()
 	var user User
 	var generation int
-	err = tx.QueryRowContext(ctx, "SELECT id, username, display_name, state, generation FROM athena_users WHERE username = ? FOR UPDATE",
-		strings.ToLower(strings.TrimSpace(username))).Scan(&user.ID, &user.Username, &user.DisplayName, &user.State, &generation)
+	err = tx.QueryRowContext(ctx, "SELECT id, username, display_name, state, generation, invite_delivery FROM athena_users WHERE username = ? FOR UPDATE",
+		strings.ToLower(strings.TrimSpace(username))).Scan(&user.ID, &user.Username, &user.DisplayName, &user.State, &generation, &user.Delivery)
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
 		return User{}, "", fmt.Errorf("%w: user %q", ErrNotFound, username)
@@ -322,8 +436,11 @@ func (s *Service) ResendInvite(ctx context.Context, username, requestID string) 
 	if _, err := tx.ExecContext(ctx, "UPDATE athena_users SET generation = ? WHERE id = ?", generation, user.ID); err != nil {
 		return User{}, "", fmt.Errorf("resend invite: %w", err)
 	}
-	_, token, err := IssueChallenge(ctx, tx, user.ID, ChallengePurposeFirstLogin, generation, s.now())
+	challenge, token, err := IssueChallenge(ctx, tx, user.ID, ChallengePurposeFirstLogin, generation, s.now())
 	if err != nil {
+		return User{}, "", err
+	}
+	if err := emitDelivery(ctx, tx, user, generation, TypeInviteCreated, DeliveryKindInvite, challenge, requestID); err != nil {
 		return User{}, "", err
 	}
 	if err := tx.Commit(); err != nil {
@@ -526,8 +643,8 @@ func (s *Service) StartReset(ctx context.Context, username, actorPassword, reque
 	defer func() { _ = tx.Rollback() }()
 	var user User
 	var generation int
-	err = tx.QueryRowContext(ctx, "SELECT id, username, display_name, state, generation FROM athena_users WHERE username = ? FOR UPDATE",
-		strings.ToLower(strings.TrimSpace(username))).Scan(&user.ID, &user.Username, &user.DisplayName, &user.State, &generation)
+	err = tx.QueryRowContext(ctx, "SELECT id, username, display_name, state, generation, invite_delivery FROM athena_users WHERE username = ? FOR UPDATE",
+		strings.ToLower(strings.TrimSpace(username))).Scan(&user.ID, &user.Username, &user.DisplayName, &user.State, &generation, &user.Delivery)
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
 		return User{}, "", fmt.Errorf("%w: user %q", ErrNotFound, username)
@@ -548,8 +665,11 @@ func (s *Service) StartReset(ctx context.Context, username, actorPassword, reque
 	if err := revokeSessions(ctx, tx, user.ID, "", s.now(), true); err != nil {
 		return User{}, "", err
 	}
-	_, token, err := IssueChallenge(ctx, tx, user.ID, ChallengePurposeReset, generation, s.now())
+	challenge, token, err := IssueChallenge(ctx, tx, user.ID, ChallengePurposeReset, generation, s.now())
 	if err != nil {
+		return User{}, "", err
+	}
+	if err := emitDelivery(ctx, tx, user, generation, TypeResetStarted, DeliveryKindReset, challenge, requestID); err != nil {
 		return User{}, "", err
 	}
 	if err := tx.Commit(); err != nil {
@@ -794,12 +914,12 @@ func (s *Service) HasUsers(ctx context.Context) (bool, error) {
 	return exists, err
 }
 
-const userColumns = "id, username, display_name, is_owner, disabled, state, locked_until, last_login_at"
+const userColumns = "id, username, display_name, is_owner, disabled, state, locked_until, last_login_at, invite_delivery"
 
 func scanUser(row interface{ Scan(...any) error }) (User, error) {
 	var u User
 	var locked, last sql.NullTime
-	if err := row.Scan(&u.ID, &u.Username, &u.DisplayName, &u.Owner, &u.Disabled, &u.State, &locked, &last); err != nil {
+	if err := row.Scan(&u.ID, &u.Username, &u.DisplayName, &u.Owner, &u.Disabled, &u.State, &locked, &last, &u.Delivery); err != nil {
 		return User{}, err
 	}
 	if locked.Valid {
@@ -867,6 +987,10 @@ type UserUpdate struct {
 	Roles       *[]string
 	// Unlock clears a lockout and the failed sign-in count.
 	Unlock bool
+	// Delivery sets the invite delivery channel: manual, or a destination
+	// alias whose invites and resets additionally enqueue an outbox
+	// delivery event.
+	Delivery *string
 }
 
 // UpdateUser changes an account. Disabling a user ends their sessions. It
@@ -902,6 +1026,9 @@ func (s *Service) updateUserOnce(ctx context.Context, username string, update Us
 		if update.Roles != nil {
 			return User{}, fmt.Errorf("%w: the Administrator account cannot be given Roles", ErrInvalid)
 		}
+		if update.Delivery != nil {
+			return User{}, fmt.Errorf("%w: the Administrator account cannot change delivery", ErrInvalid)
+		}
 	}
 	today := s.now().Format("2006-01-02")
 	guarded := (update.Disabled != nil && *update.Disabled != user.Disabled) || update.Roles != nil
@@ -935,6 +1062,15 @@ func (s *Service) updateUserOnce(ctx context.Context, username string, update Us
 	}
 	if update.Unlock {
 		if _, err := tx.ExecContext(ctx, "UPDATE athena_users SET failed_attempts = 0, locked_until = NULL WHERE id = ?", user.ID); err != nil {
+			return User{}, fmt.Errorf("update user: %w", err)
+		}
+	}
+	if update.Delivery != nil {
+		delivery := strings.TrimSpace(*update.Delivery)
+		if err := checkDelivery(delivery); err != nil {
+			return User{}, err
+		}
+		if _, err := tx.ExecContext(ctx, "UPDATE athena_users SET invite_delivery = ? WHERE id = ?", delivery, user.ID); err != nil {
 			return User{}, fmt.Errorf("update user: %w", err)
 		}
 	}
@@ -1794,7 +1930,7 @@ func (s *Service) EnsureRoot(ctx context.Context, dbPassword string) (string, er
 	case errors.Is(err, sql.ErrNoRows):
 	case err != nil:
 		return "", fmt.Errorf("seed root: %w", err)
-	case delivery == "setup":
+	case delivery == DeliverySetup:
 		return "", nil
 	default:
 		log.Printf("seed root: the username %q is taken by a regular user; not claiming it", RootUsername)
