@@ -145,6 +145,10 @@ func (s workspaceService) SetIdentity(ctx context.Context, req *v1.SetIdentityRe
 	if err != nil {
 		return nil, internalError("read Workspace identity", err)
 	}
+	// The save below publishes only when nothing changed since this read;
+	// the struct copy is enough because the merge replaces logo references
+	// instead of mutating through them.
+	read := doc
 	// New files land before the settings save, stale files leave after it,
 	// so a crash never points the settings at missing files.
 	if light != nil {
@@ -168,7 +172,10 @@ func (s workspaceService) SetIdentity(ctx context.Context, req *v1.SetIdentityRe
 	if name != "" {
 		doc.DisplayName = name
 	}
-	if err := svc.SaveIdentityDoc(ctx, doc, actorName(ctx)); err != nil {
+	if err := svc.SaveIdentityDoc(ctx, read, doc, actorName(ctx)); err != nil {
+		if errors.Is(err, ledger.ErrIdentityConflict) {
+			return nil, connect.NewError(connect.CodeAborted, "someone else changed this Workspace identity; reload it and try again")
+		}
 		return nil, internalError("save Workspace identity", err)
 	}
 	if err := s.pruneLogos(ctx, "light", doc.Light, meta); err != nil {

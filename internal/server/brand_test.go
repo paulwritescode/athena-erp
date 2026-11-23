@@ -41,13 +41,14 @@ func seedLogo(t *testing.T, svc *ledger.Service, st *files.Store, side string, l
 	if err != nil {
 		t.Fatal(err)
 	}
+	prev := doc
 	ref := ledger.LogoRef{Ext: logo.Ext, Hash: logo.Hash}
 	if side == "light" {
 		doc.Light = &ref
 	} else {
 		doc.Dark = &ref
 	}
-	if err := svc.SaveIdentityDoc(context.Background(), doc, "test"); err != nil {
+	if err := svc.SaveIdentityDoc(context.Background(), prev, doc, "test"); err != nil {
 		t.Fatal(err)
 	}
 }

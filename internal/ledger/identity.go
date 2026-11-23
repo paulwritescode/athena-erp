@@ -1,6 +1,7 @@
 package ledger
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -45,9 +46,20 @@ func (s *Service) GetIdentityDoc(ctx context.Context) (IdentityDoc, error) {
 	return doc, nil
 }
 
-// SaveIdentityDoc publishes one generation of the Workspace identity.
-func (s *Service) SaveIdentityDoc(ctx context.Context, doc IdentityDoc, actor string) error {
+// ErrIdentityConflict is a save whose read is stale: someone published a
+// generation after the caller read.
+var ErrIdentityConflict = errors.New("identity changed since read")
+
+// SaveIdentityDoc publishes one generation of the Workspace identity when the
+// latest stored generation still equals expected, the document the caller
+// read. Otherwise it writes nothing and reports ErrIdentityConflict, so two
+// concurrent saves never silently lose one side. Old generations stay.
+func (s *Service) SaveIdentityDoc(ctx context.Context, expected, doc IdentityDoc, actor string) error {
 	raw, err := json.Marshal(doc)
+	if err != nil {
+		return err
+	}
+	want, err := json.Marshal(expected)
 	if err != nil {
 		return err
 	}
@@ -57,7 +69,21 @@ func (s *Service) SaveIdentityDoc(ctx context.Context, doc IdentityDoc, actor st
 		if _, err := tx.ExecContext(ctx, `INSERT INTO athena_settings(owner_pack,setting_type,label,value_kind) VALUES (?,?,'Workspace identity','scalar') ON DUPLICATE KEY UPDATE revision=revision`, identityPack, identityKey); err != nil {
 			return err
 		}
-		_, err := tx.ExecContext(ctx, `INSERT INTO athena_setting_values(owner_pack,setting_type,scope_chain,effective_from,revision,value_json,status,published_by)
+		var latest []byte
+		err := tx.QueryRowContext(ctx, `SELECT value_json FROM athena_setting_values WHERE owner_pack=? AND setting_type=? AND scope_chain='' AND status='published' AND effective_from<=UTC_TIMESTAMP(3) ORDER BY effective_from DESC,revision DESC LIMIT 1`, identityPack, identityKey).Scan(&latest)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return err
+		}
+		if latest == nil {
+			latest, err = json.Marshal(IdentityDoc{})
+			if err != nil {
+				return err
+			}
+		}
+		if !bytes.Equal(latest, want) {
+			return ErrIdentityConflict
+		}
+		_, err = tx.ExecContext(ctx, `INSERT INTO athena_setting_values(owner_pack,setting_type,scope_chain,effective_from,revision,value_json,status,published_by)
   SELECT ?,?,'',UTC_TIMESTAMP(3),COALESCE(MAX(revision),0)+1,?,'published',? FROM athena_setting_values
   WHERE owner_pack=? AND setting_type=? AND scope_chain='' AND effective_from=UTC_TIMESTAMP(3)`, identityPack, identityKey, raw, actor, identityPack, identityKey)
 		return err

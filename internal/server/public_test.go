@@ -78,7 +78,13 @@ func TestPublicHome(t *testing.T) {
 		t.Fatal(err)
 	}
 	seedLogo(t, svc, st, "light", logo)
-	if err := svc.SaveIdentityDoc(context.Background(), ledger.IdentityDoc{DisplayName: "Acme", Light: &ledger.LogoRef{Ext: "png", Hash: logo.Hash}}, "test"); err != nil {
+	prev, err := svc.GetIdentityDoc(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	next := prev
+	next.DisplayName = "Acme"
+	if err := svc.SaveIdentityDoc(context.Background(), prev, next, "test"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -172,7 +178,7 @@ func TestPublicHomeEscapesName(t *testing.T) {
 	ws := &Workspace{Name: "Acme"}
 	db, svc, _ := publicFixture(t, ws)
 	const tricky = `Acme <b>&"quoted"`
-	if err := svc.SaveIdentityDoc(context.Background(), ledger.IdentityDoc{DisplayName: tricky}, "test"); err != nil {
+	if err := svc.SaveIdentityDoc(context.Background(), ledger.IdentityDoc{}, ledger.IdentityDoc{DisplayName: tricky}, "test"); err != nil {
 		t.Fatal(err)
 	}
 	body := getPublic(t, ws, db, "/home").Body.String()
