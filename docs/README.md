@@ -9,6 +9,7 @@ This directory describes the product and the system as it exists and as decision
 - [Frontend theme and typography](architecture/frontend-theme-and-type.md) — centralized color tokens, button variants, and the supplied typography scale.
 - [Athena design system](design/athena-design-system.md) — Implemented 2026-11-22 (B1–B4): MUJI-based principles, color rule, spacing, type, icons, motion, components per breakpoint, words, ornament, logo, pages by audience. Summary for agents in `.kiro/steering/athena-design.md`.
 - [Naming registry](design/naming.md) — Proposed 2026-11-21: product names mapped to CLI, proto service, Go package and UI label; builder and everyday words; forbidden old terms.
+- [ASCII Athena logo](design/ascii-logo.md) — Implemented 2026-11-24 (F6): brand-to-ASCII pipeline, ramp and sizes, frames and motion, CLI banner sync.
 - [Athena beta task list](../.kiro/specs/athena-beta/tasks.md) — Draft 2026-11-21: the single ordered plan from design tokens to beta release; supersedes the open tasks of `athena-batch-2` as the working checklist.
 - [Bruno API checks](testing/bruno.md) — black-box ConnectRPC smoke tests, local execution and CLI usage.
 - [Getting started](guides/getting-started.md) — install, first home, first workspace, first sign-in, first owner; every command tested (B11 slice 1).
