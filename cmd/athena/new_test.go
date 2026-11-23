@@ -69,6 +69,25 @@ func TestNewMissingLogoFailsBeforeTheNamePrompt(t *testing.T) {
 	}
 }
 
+func TestNewBadLogoContentFailsBeforeCreating(t *testing.T) {
+	newTestHome(t, workspace.DriverMariaDB, "athena:secret@tcp(127.0.0.1:1)/")
+	bad := filepath.Join(t.TempDir(), "bad.png")
+	if err := os.WriteFile(bad, []byte("not a png"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{
+		{"Acme", "--logo", bad},
+		{"--logo", bad},
+		{"--logo", bad, "Acme"},
+	} {
+		var out bytes.Buffer
+		err := newCommand(args, &out)
+		if err == nil || !strings.Contains(err.Error(), "invalid logo") {
+			t.Fatalf("new %v err = %v, want the logo content error", args, err)
+		}
+	}
+}
+
 func TestRunRejectsPositionalArguments(t *testing.T) {
 	if err := runCommand([]string{"acme_trading"}); err == nil || !strings.Contains(err.Error(), `unexpected argument "acme_trading"`) {
 		t.Fatalf("run err = %v, want the unexpected argument", err)

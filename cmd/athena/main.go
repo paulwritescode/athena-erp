@@ -19,6 +19,7 @@ import (
 	"time"
 
 	v1 "athena-erp/gen/athena/v1"
+	"athena-erp/internal/brand"
 	"athena-erp/internal/server"
 	"athena-erp/internal/workspace"
 	"github.com/go-sql-driver/mysql"
@@ -305,12 +306,16 @@ func newCommand(args []string, out io.Writer) error {
 	if driver == workspace.DriverPostgres {
 		fmt.Fprintln(out, "warning: the PostgreSQL adapter is implemented but untested; MariaDB is the only tested engine")
 	}
-	// Read the logo before asking for a name so a bad path fails fast
-	// instead of after an interactive prompt.
+	// Read and validate the logo before asking for a name, so a bad path
+	// or bad content fails fast instead of after an interactive prompt or
+	// a created Workspace.
 	var logo *v1.LogoUpload
 	if *logoFlag != "" {
 		var err error
 		if logo, err = readLogo(*logoFlag); err != nil {
+			return err
+		}
+		if _, err := brand.ValidateLogo(logo.GetFilename(), logo.GetContent()); err != nil {
 			return err
 		}
 	}
