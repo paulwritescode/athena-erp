@@ -83,6 +83,9 @@ def read_tasks():
             about = (t["owner"][:1].upper() + t["owner"][1:] + ". " if t["owner"].lower().startswith("needs") else "") + t["title"]
         t["about"] = about if len(about) <= 150 else about[:147].rsplit(" ", 1)[0] + "…"
         t["accept"] = [p[len("Accept: "):] if p.startswith("Accept: ") else p for p in t["points"] if p.lower().startswith("accept")]
+        # "Slice 2 merged", "Slice 1 (server: ...) merged", "Slice 2.1 merged": one count per slice id
+        t["slices"] = len({m.group(1) for p in t["points"]
+                           for m in re.finditer(r"\bSlice\s+(\d+(?:\.\d+)?[a-z]?)(?:\s*\([^)]*\))?\s+merged", p)})
     return out
 
 
@@ -274,7 +277,7 @@ def state():
         else:
             s = "todo"
         blocked = [a for a, b in edges if b == t["id"] and not next(x for x in tasks if x["id"] == a)["done"]]
-        out.append({**{k: t[k] for k in ("id", "title", "sec", "owner", "about")}, "state": s,
+        out.append({**{k: t[k] for k in ("id", "title", "sec", "owner", "about", "slices")}, "state": s,
                     "branch": wt["branch"] if wt else "", "ahead": wt["ahead"] if wt else 0,
                     "dirty": wt["dirty"] if wt else 0, "agents": [x["addr"] for x in ws],
                     "blockedBy": blocked if s == "todo" else []})
@@ -287,7 +290,8 @@ def state():
     for k, name in SECTIONS.items():
         ts = [t for t in out if t["sec"] == k]
         secs.append({"key": k, "name": name, "total": len(ts), "merged": sum(t["state"] == "merged" for t in ts),
-                     "active": sum(t["state"] in ("running", "waiting", "review", "started") for t in ts)})
+                     "active": sum(t["state"] in ("running", "waiting", "review", "started") for t in ts),
+                     "slices": sum(t["slices"] for t in ts if t["state"] != "merged")})
     ahead_main = run(["git", "rev-list", "--count", "origin/main..main"]).strip()
     return {"time": time.strftime("%H:%M:%S"), "main": run(["git", "rev-parse", "--short", "main"]).strip(),
             "unpushed": int(ahead_main) if ahead_main.isdigit() else 0,

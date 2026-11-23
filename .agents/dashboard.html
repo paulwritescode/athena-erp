@@ -283,16 +283,18 @@ function renderStats(st) {
   const inprog = run + wait + rev + start;
   const working = st.workers.filter(w => w.status === "working").length;
   const unmergedTasks = st.tasks.filter(t => t.state !== "merged" && (t.ahead || t.dirty)).length;
+  const open = st.tasks.filter(t => t.state !== "merged"), slices = open.reduce((n, t) => n + (t.slices || 0), 0);
+  const sliceTasks = open.filter(t => t.slices).length;
   $("stats").innerHTML = `
   <div class="stat"><div class="k">Overall progress</div><div class="v">${pct(merged, T)}% <small>${merged} of ${T} tasks done</small></div>
     ${bar([[pct(merged, T), "var(--merged)"], [pct(rev, T), "var(--review)"], [pct(run + wait, T), "var(--running)"], [pct(start, T), "var(--started)"]])}
-    <div class="sub">green done · blue review · yellow working · violet started</div></div>
+    <div class="sub">${slices ? `<b style="color:var(--merged)">+${slices} slices merged</b> in ${sliceTasks} open tasks · ` : ""}green done · blue review · yellow working</div></div>
   <div class="stat"><div class="k">Remaining</div><div class="v">${T - merged} <small>${todo} not started</small></div>
     ${bar([[pct(T - merged, T), "var(--todo)"]])}<div class="sub">${inprog} already in progress</div></div>
   <div class="stat"><div class="k">In progress</div><div class="v">${inprog} <small>${run} working now</small></div>
     ${bar([[pct(run, inprog), "var(--running)"], [pct(wait, inprog), "var(--waiting)"], [pct(rev, inprog), "var(--review)"], [pct(start, inprog), "var(--started)"]])}
     <div class="sub">${run} working · ${wait} idle · ${rev} ready to merge · ${start} parked</div></div>
-  <div class="stat"><div class="k">Merged to main</div><div class="v">${merged} <small>· ${unmergedTasks} with unmerged work</small></div>
+  <div class="stat"><div class="k">Merged to main</div><div class="v">${merged} <small>tasks · ${slices} slices · ${unmergedTasks} with unmerged work</small></div>
     ${bar([[pct(merged, merged + unmergedTasks), "var(--merged)"], [pct(unmergedTasks, merged + unmergedTasks), "var(--running)"]])}
     <div class="sub">branches not in main: ${st.branches.unmerged.length ? esc(st.branches.unmerged.join(", ")) : "none"}</div></div>
   <div class="stat"><div class="k">Agents</div><div class="v">${st.workers.length + st.master.length} <small>${working} working</small></div>
@@ -301,7 +303,7 @@ function renderStats(st) {
   <div class="stat click" id="errStat" title="Show errors"><div class="k">Errors seen</div><div class="v" style="color:${st.errors.length ? "var(--error)" : "var(--merged)"}">${st.errors.length} <small>${st.errors.length ? "click to see" : "none"}</small></div>
     ${bar([[st.errors.length ? 100 : 0, "var(--error)"]])}<div class="sub">${st.errors.length ? esc(st.errors[st.errors.length - 1].who + ": " + st.errors[st.errors.length - 1].text) : "test failures, BLOCKED, panics, crashed terminals"}</div></div>`;
   $("errStat").onclick = showErrors;
-  $("secs").innerHTML = st.sections.map(s => `<div class="sec"><div class="row"><b>${s.key} · ${esc(s.name)}</b><span>${s.merged}/${s.total} done${s.active ? " · " + s.active + " active" : ""}</span></div>
+  $("secs").innerHTML = st.sections.map(s => `<div class="sec"><div class="row"><b>${s.key} · ${esc(s.name)}</b><span>${s.merged}/${s.total} done${s.slices ? " · " + s.slices + " slices merged" : ""}${s.active ? " · " + s.active + " active" : ""}</span></div>
     ${bar([[pct(s.merged, s.total), "var(--merged)"], [pct(s.active, s.total), "var(--running)"]])}</div>`).join("");
   $("clock").textContent = "live · " + st.time;
   $("main").textContent = "main " + st.main;
@@ -318,6 +320,7 @@ function taskHTML(t, st) {
   const ags = (t.agents || []).map(a => agentById(st, a)).filter(Boolean)
     .map(a => `<span class="av" title="${esc(a.name)} ${esc(a.status)}"><span class="ic">${LOGO(a)}</span>${esc(a.addr)} ${esc(a.status)}</span>`).join("");
   let foot = ags;
+  if (t.state !== "merged" && t.slices) foot += `<span title="slices merged to main" style="color:var(--merged)">✓ ${t.slices} slice${t.slices > 1 ? "s" : ""} merged</span>`;
   if (t.branch) foot += `<span title="branch">⎇ ${esc(t.branch.replace(/^feat\//, ""))}</span>`;
   if (t.ahead) foot += `<span title="commits not in main">+${t.ahead}</span>`;
   if (t.dirty) foot += `<span title="uncommitted files">✎ ${t.dirty}</span>`;
