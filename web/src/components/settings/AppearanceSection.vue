@@ -279,7 +279,8 @@ function reset() {
             :style="{ backgroundColor: 'var(--primary)' }"
             aria-hidden="true"
           />
-          <span v-else class="size-6 shrink-0 rounded-full border border-black/10" :style="{ backgroundColor: accentHex }" aria-hidden="true" />
+          <span v-else-if="customPicked" class="size-6 shrink-0 rounded-full border border-black/10" :style="{ backgroundColor: accentHex }" aria-hidden="true" />
+          <span v-else class="size-6 shrink-0 rounded-full border border-black/10" :style="{ background: 'conic-gradient(var(--chart-1), var(--chart-2), var(--chart-3), var(--chart-4), var(--chart-5), var(--chart-1))' }" aria-hidden="true" />
         </template>
         <template #options="{ close }">
           <div role="radiogroup" aria-label="Accent" class="grid grid-cols-5 gap-1">
