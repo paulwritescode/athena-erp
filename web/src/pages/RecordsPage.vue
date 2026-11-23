@@ -1,8 +1,73 @@
+<script lang="ts">
+// Plain View words for the books-entry UI (G6.10), kept here so the one
+// test file covers them without mounting the page. The aliased import is
+// the same ConnectError the setup block imports: the two blocks compile
+// into one module, so the name cannot repeat.
+import { ConnectError as ConnectFailure } from '@connectrpc/connect'
+
+/** Plain words for one posting attempt outcome. Unknown outcomes read as a capitalized word, never raw alone. */
+export function postingOutcomeLabel(outcome: string): string {
+  switch (outcome) {
+    case 'posted': return 'Recorded'
+    case 'replayed': return 'Already recorded'
+    case 'conflict': return 'Conflict'
+    case 'rejected': return 'Blocked'
+    case 'error': return 'Failed'
+    default: return outcome ? outcome.charAt(0).toUpperCase() + outcome.slice(1) : 'Attempt'
+  }
+}
+
+// A zero or empty leg amount shows as a dash, so the other column carries
+// the row. Amounts are decimal strings from the server, shown exactly.
+const zeroAmount = /^-?0+(\.0+)?$/
+
+/** The amount text for one leg, or '' when the cell shows a dash. */
+export function ledgerAmount(value: string): string {
+  const trimmed = value.trim()
+  return trimmed === '' || zeroAmount.test(trimmed) ? '' : trimmed
+}
+
+// The reason after the server's "cannot post: " prefix, capitalized, or
+// null when the text is not a posting refusal (see postingError in
+// internal/server/lifecycle.go).
+function postingReason(text: string): string | null {
+  const at = text.indexOf('cannot post: ')
+  if (at < 0) return null
+  const reason = text.slice(at + 'cannot post: '.length).trim()
+  if (!reason) return ''
+  const sentence = reason.charAt(0).toUpperCase() + reason.slice(1)
+  return /[.!?]$/.test(sentence) ? sentence : `${sentence}.`
+}
+
+/**
+ * The plain sentence a toast shows when the books entry blocks a submit
+ * or cancel, or null when the failure is not a posting failure (which
+ * keeps its own error path).
+ */
+export function postingBlockedMessage(err: unknown, action: 'submit' | 'cancel'): string | null {
+  if (!(err instanceof ConnectFailure)) return null
+  if (err.rawMessage.includes('changed since it was previewed')) {
+    return 'The books entry changed since you previewed it. Review the new preview and submit again.'
+  }
+  const reason = postingReason(err.rawMessage)
+  if (reason === null) return null
+  const lead = action === 'submit' ? 'Not submitted: the books entry was blocked.' : 'Not cancelled: the reversal was blocked.'
+  return reason ? `${lead} ${reason}` : lead
+}
+
+/** The plain sentence the preview dialog shows when the books entry is blocked, or null for other failures. */
+export function postingPreviewBlocked(err: unknown): string | null {
+  if (!(err instanceof ConnectFailure)) return null
+  const reason = postingReason(err.rawMessage)
+  if (reason === null) return null
+  return reason ? `The books entry is blocked. ${reason}` : 'The books entry is blocked.'
+}
+</script>
 <script setup lang="ts">
 import { computed, nextTick, reactive, ref, watch } from 'vue'
 import { create } from '@bufbuild/protobuf'
 import { Code, ConnectError } from '@connectrpc/connect'
-import { recordClient } from '../api'
+import { ledgerClient, recordClient } from '../api'
 import { keyMatchesRoute } from '../composables/useRecordTypes'
 import { docstates, fieldEditable, isCalculated, validateField, validateImageValue, validateManualName, type ImageFieldValue } from '../fieldRules'
 import { itemSpanClass, planSections, type PlannedSection } from '../forms/layout'
@@ -10,13 +75,19 @@ import { gloss } from '../copy/glossary'
 import { forgetLabels, labelWithState, resolveRecords } from '../lookup'
 import { formatWhen, formatWhenFull } from '../times'
 import { FieldValueSchema, type ActivityEvent, type FieldChange, type FieldState, type Record as RecordMessage, type RecordEvent, type RecordVersion, type FieldValue } from '../gen/athena/v1/records_pb'
+import type { LedgerRow, PostingGroupStatus, PostingLogEntry, PostingPlan, PostingPlanLine } from '../gen/athena/v1/ledger_pb'
 import type { Field, RecordType } from '../types'
 import { Badge } from '@/components/ui/badge'
 import ActionButton from '@/components/ActionButton.vue'
 import type { ActionItem } from '@/components/actions'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import DataTable, { type TableFilter } from '@/components/DataTable.vue'
+import DetailSheet from '@/components/DetailSheet.vue'
 import PullToRefresh from '@/components/PullToRefresh.vue'
+import ResponsiveDialog from '@/components/ResponsiveDialog.vue'
+import StatusBadge from '@/components/StatusBadge.vue'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { buildRecordColumns, combineRecordFilter } from '@/components/records/recordColumns'
 import { loadPageSize, savePageSize } from '@/tablePrefs'
 import WorkspaceImage from '@/components/WorkspaceImage.vue'
@@ -30,14 +101,18 @@ import NumberField from '@/components/fields/NumberField.vue'
 import SelectField from '@/components/fields/SelectField.vue'
 import TextField from '@/components/fields/TextField.vue'
 import { Marker, MarkerContent, MarkerIcon } from '@/components/ui/marker'
-import { CalendarPlus, Clock, Fingerprint, Hash, Layers, Pencil, Plus, Trash2, User } from '@/icons'
+import { BookOpen, CalendarPlus, CircleAlert, Clock, Fingerprint, Hash, Layers, Pencil, Plus, Trash2, User } from '@/icons'
 import { toast } from 'vue-sonner'
+
+// The template reads the shared books-entry words through these aliases.
+const outcomeLabel = postingOutcomeLabel
+const amountText = ledgerAmount
 
 // recordType is null when no saved Record Type exists yet. recordId comes from the page
 // URL: '' for the table, 'new' for the create form, or an record ID.
 // recordTypeKey is the key the address names; writes send it, and a record
 // type that does not match it never saves.
-const props = withDefaults(defineProps<{ recordType: RecordType | null; recordTypeKey: string; recordId: string; recordTypes?: RecordType[]; username?: string; canBuild?: boolean }>(), { username: '', canBuild: false })
+const props = withDefaults(defineProps<{ recordType: RecordType | null; recordTypeKey: string; recordId: string; recordTypes?: RecordType[]; username?: string; canBuild?: boolean; canLedger?: boolean }>(), { username: '', canBuild: false, canLedger: false })
 const emit = defineEmits<{ back: []; 'update:recordId': [id: string] }>()
 
 const records = ref<RecordMessage[]>([])
@@ -250,7 +325,10 @@ function open(record: RecordMessage | 'new') {
     else if (field.type === 'Image') images[field.name] = kind?.case === 'imageValue' ? { path: kind.value.path, hash: kind.value.hash, altText: kind.value.altText } : null
     else texts[field.name] = kind?.case === 'stringValue' ? kind.value : record === 'new' ? field.default ?? '' : ''
   }
+  previewOpen.value = false
+  booksOpen.value = false
   if (record !== 'new') void loadHistory(record)
+  void loadPostingStatus()
   schedulePreview(0)
   void evaluateVisibility()
 }
@@ -582,11 +660,13 @@ const transitionText: Record<Transition, string> = { submit: 'Document submitted
 const confirmingSubmit = ref(false)
 const confirmingCancel = ref(false)
 const confirmingDelete = ref(false)
-async function runTransition(action: Transition) {
+async function runTransition(action: Transition, approvedHash = '') {
   const recordType = props.recordType
   if (!editing.value || editing.value === 'new' || !recordType) return
   const current = editing.value
-  const request = { recordTypeKey: recordType.name, id: current.id, expectedRevision: current.revision }
+  // A submit from the preview dialog carries the approved plan hash, so a
+  // plan that changed underneath is refused for review (R6.15).
+  const request = { recordTypeKey: recordType.name, id: current.id, expectedRevision: current.revision, ...(action === 'submit' && approvedHash ? { postingPreviewHash: approvedHash } : {}) }
   busy.value = true
   try {
     const record = action === 'submit' ? (await recordClient.submitRecord(request)).record
@@ -606,7 +686,14 @@ async function runTransition(action: Transition) {
     forgetLabels(recordType.name)
     toast.success(transitionText[action])
   } catch (err) {
-    reportWriteError(err)
+    // A blocked books entry reads as a plain sentence; anything else keeps
+    // its own error path. A stale preview refreshes itself so the new plan
+    // is ready to review.
+    const blocked = action === 'amend' ? null : postingBlockedMessage(err, action)
+    if (blocked) {
+      toast.error(blocked)
+      if (previewOpen.value && err instanceof ConnectError && err.rawMessage.includes('changed since it was previewed')) void loadPreview()
+    } else reportWriteError(err)
   } finally {
     confirmingSubmit.value = false
     confirmingCancel.value = false
@@ -657,6 +744,198 @@ function inputType(field: Field) {
 function calculatedError(field: Field): string | undefined {
   return states[field.name]?.error && isCalculated(field) ? states[field.name]?.error : undefined
 }
+
+// Books entries (G6.10): what submitting recorded for a submittable
+// document. The buttons stay hidden without ledger:read; the server checks
+// that Grant and the document read Grant on every call.
+const canSeePosting = computed(() => props.canLedger === true && submittable.value)
+// One page of lines or attempts; the server default is 50.
+const postingPageSize = 50
+
+// Posting status: one row per posted group, loaded with the document so
+// the badge beside the lifecycle state is there when the page settles. A
+// failure hides the badge; the sheet shows the error with a retry.
+const postingGroups = ref<PostingGroupStatus[]>([])
+const postingStatusState = ref<'idle' | 'loading' | 'ready' | 'error'>('idle')
+let statusRequest = 0
+async function loadPostingStatus() {
+  const recordType = props.recordType
+  const current = editing.value
+  if (!recordType || !current || current === 'new' || !canSeePosting.value || docstate.value === docstates.draft) {
+    postingGroups.value = []
+    postingStatusState.value = 'idle'
+    return
+  }
+  const request = ++statusRequest
+  postingStatusState.value = 'loading'
+  try {
+    const res = await ledgerClient.getPostingStatus({ recordTypeKey: recordType.name, id: current.id })
+    if (request !== statusRequest) return
+    postingGroups.value = res.groups
+    postingStatusState.value = 'ready'
+  } catch {
+    if (request !== statusRequest) return
+    postingGroups.value = []
+    postingStatusState.value = 'error'
+  }
+}
+// The badge beside the lifecycle state. A document whose submit groups all
+// unwound reads Reversed; anything recorded reads Recorded in the books.
+const booksBadge = computed<null | { status: string; label: string }>(() => {
+  if (postingStatusState.value !== 'ready') return null
+  const submits = postingGroups.value.filter((group) => group.event === 'submit')
+  if (submits.length === 0) return null
+  return submits.every((group) => group.reversed)
+    ? { status: 'reversed', label: 'Reversed' }
+    : { status: 'submitted', label: gloss('posted').label }
+})
+function groupTitle(group: PostingGroupStatus): string {
+  const event = group.event === 'cancel' ? 'Reversal' : gloss('submitted').label
+  const parts = [`Version ${group.revision}`, event]
+  if (group.book) parts.push(`Book ${group.book}`)
+  return parts.join(' · ')
+}
+function groupDetail(group: PostingGroupStatus): string {
+  const lines = group.rowCount === BigInt(1) ? '1 line' : `${group.rowCount} lines`
+  return `${lines} · ${when.format(new Date(group.postedAt))}`
+}
+
+// Preview: what submitting this draft would record (R6.14). The hash goes
+// back with the submit, so a plan that changed underneath is refused for
+// review instead of recording unseen lines (R6.15).
+const previewOpen = ref(false)
+const previewPlans = ref<PostingPlan[]>([])
+const previewHash = ref('')
+const previewState = ref<'idle' | 'loading' | 'ready' | 'error' | 'denied'>('idle')
+const previewError = ref('')
+async function openPreview() {
+  previewOpen.value = true
+  await loadPreview()
+}
+async function loadPreview() {
+  const recordType = props.recordType
+  const current = editing.value
+  if (!recordType || !current || current === 'new') return
+  previewState.value = 'loading'
+  previewError.value = ''
+  try {
+    const res = await ledgerClient.previewPosting({ recordTypeKey: recordType.name, id: current.id })
+    previewPlans.value = res.plans
+    previewHash.value = res.planHash
+    previewState.value = 'ready'
+  } catch (err) {
+    previewPlans.value = []
+    previewHash.value = ''
+    if (err instanceof ConnectError && err.code === Code.PermissionDenied) {
+      previewState.value = 'denied'
+    } else {
+      previewState.value = 'error'
+      previewError.value = postingPreviewBlocked(err) ?? message(err)
+    }
+  }
+}
+// One caption under a leg's account: dimensions, foreign amount and
+// quantity, whichever the leg carries.
+function legDetail(line: PostingPlanLine | LedgerRow): string {
+  const parts: string[] = []
+  const dimensions = Object.entries(line.dimensions ?? {}).map(([key, value]) => `${key}: ${value}`).join(' · ')
+  if (dimensions) parts.push(dimensions)
+  if (line.txnCurrency) {
+    const txn = amountText(line.txnDebit) || amountText(line.txnCredit)
+    if (txn) parts.push(`${txn} ${line.txnCurrency}`)
+  }
+  if (line.quantity) parts.push(line.quantityUom ? `Qty ${line.quantity} ${line.quantityUom}` : `Qty ${line.quantity}`)
+  return parts.join(' · ')
+}
+
+// The Books entries sheet: posted lines and attempts for a submitted or
+// cancelled document. Both lists page with a Show more button.
+const booksOpen = ref(false)
+const ledgerRows = ref<LedgerRow[]>([])
+const ledgerNext = ref('')
+const ledgerState = ref<'idle' | 'loading' | 'ready' | 'error' | 'denied'>('idle')
+const ledgerError = ref('')
+const ledgerMore = ref(false)
+const logEntries = ref<PostingLogEntry[]>([])
+const logNext = ref('')
+const logState = ref<'idle' | 'loading' | 'ready' | 'error' | 'denied'>('idle')
+const logError = ref('')
+const logMore = ref(false)
+async function openBooks() {
+  booksOpen.value = true
+  await Promise.all([loadLedgerRows(true), loadPostingLog(true)])
+}
+function denied(err: unknown): boolean {
+  return err instanceof ConnectError && err.code === Code.PermissionDenied
+}
+async function loadLedgerRows(first: boolean) {
+  const recordType = props.recordType
+  const current = editing.value
+  if (!recordType || !current || current === 'new') return
+  if (first) {
+    ledgerState.value = 'loading'
+    ledgerRows.value = []
+    ledgerNext.value = ''
+  } else {
+    ledgerMore.value = true
+  }
+  ledgerError.value = ''
+  try {
+    const res = await ledgerClient.listLedgerRows({ recordTypeKey: recordType.name, id: current.id, pageSize: postingPageSize, pageToken: first ? '' : ledgerNext.value })
+    ledgerRows.value = first ? res.rows : [...ledgerRows.value, ...res.rows]
+    ledgerNext.value = res.nextPageToken
+    ledgerState.value = 'ready'
+  } catch (err) {
+    if (denied(err)) ledgerState.value = 'denied'
+    else {
+      ledgerState.value = 'error'
+      ledgerError.value = message(err)
+    }
+  } finally {
+    ledgerMore.value = false
+  }
+}
+async function loadPostingLog(first: boolean) {
+  const recordType = props.recordType
+  const current = editing.value
+  if (!recordType || !current || current === 'new') return
+  if (first) {
+    logState.value = 'loading'
+    logEntries.value = []
+    logNext.value = ''
+  } else {
+    logMore.value = true
+  }
+  logError.value = ''
+  try {
+    const res = await ledgerClient.listPostingLog({ recordTypeKey: recordType.name, id: current.id, pageSize: postingPageSize, pageToken: first ? '' : logNext.value })
+    logEntries.value = first ? res.entries : [...logEntries.value, ...res.entries]
+    logNext.value = res.nextPageToken
+    logState.value = 'ready'
+  } catch (err) {
+    if (denied(err)) logState.value = 'denied'
+    else {
+      logState.value = 'error'
+      logError.value = message(err)
+    }
+  } finally {
+    logMore.value = false
+  }
+}
+// Nothing recorded anywhere: one quiet empty state instead of three.
+const booksEmpty = computed(() => postingStatusState.value === 'ready'
+  && ledgerState.value === 'ready' && logState.value === 'ready'
+  && postingGroups.value.length === 0 && ledgerRows.value.length === 0 && logEntries.value.length === 0)
+function attemptTitle(entry: PostingLogEntry): string {
+  const event = entry.event === 'cancel' ? gloss('cancelled').label : gloss('submitted').label
+  const parts = [outcomeLabel(entry.outcome), `Version ${entry.revision}`, event]
+  if (entry.book) parts.push(`Book ${entry.book}`)
+  return parts.join(' · ')
+}
+function attemptDetail(entry: PostingLogEntry): string {
+  const said = entry.message ? `${entry.message} · ` : ''
+  return `${said}${entry.actor} · ${when.format(new Date(entry.createdAt))}`
+}
 </script>
 
 <template>
@@ -677,10 +956,13 @@ function calculatedError(field: Field): string | undefined {
         <div class="entry-status">
           <h1>{{ editing === 'new' ? 'New record' : 'Edit record' }}</h1>
           <Badge v-if="submittable && isExisting" :variant="docstate === 2 ? 'destructive' : docstate === 1 ? 'default' : 'secondary'">{{ stateLabel }}</Badge>
+          <StatusBadge v-if="booksBadge" :status="booksBadge.status" :label="booksBadge.label" />
           <small v-if="submittable && isExisting && editing !== 'new' && editing.name !== editing.id" class="muted-label">{{ editing.name }}</small>
         </div>
         <div v-if="submittable && editing !== 'new'" class="lifecycle-actions">
+          <ActionButton v-if="docstate === 0 && canSeePosting" kind="secondary" label="Preview books entry" icon="eye" :busy="busy" @press="openPreview" />
           <ActionButton v-if="docstate === 0" kind="primary" label="Submit" icon="send" :busy="busy" @press="confirmingSubmit = true" />
+          <ActionButton v-if="docstate !== 0 && canSeePosting" kind="secondary" label="Books entries" icon="book-open" @press="openBooks" />
           <ActionButton v-if="docstate === 1" kind="destructive" label="Cancel document" icon="x" :busy="busy" @press="confirmingCancel = true" />
           <ActionButton v-if="docstate === 2 && recordType.amendable" kind="restore" label="Amend" icon="rotate-ccw" :busy="busy" @press="runTransition('amend')" />
           <ConfirmDialog
@@ -706,6 +988,157 @@ function calculatedError(field: Field): string | undefined {
           />
         </div>
       </div>
+      <ResponsiveDialog v-model:open="previewOpen" title="Preview the books entry" description="What submitting would record in the books. Nothing is recorded yet." wide>
+        <div v-if="previewState === 'loading'" class="grid gap-2" aria-busy="true" aria-label="Loading preview">
+          <Skeleton class="h-5 w-40 max-w-full" />
+          <Skeleton class="h-16 w-full" />
+          <Skeleton class="h-16 w-full" />
+        </div>
+        <div v-else-if="previewState === 'denied'" class="flex flex-col items-center gap-2 px-6 py-8 text-center">
+          <CircleAlert class="size-5 text-muted-foreground" aria-hidden="true" />
+          <p class="sheet-lead">You need permission to see the books.</p>
+          <p class="muted-label">Ask an owner to grant it.</p>
+        </div>
+        <div v-else-if="previewState === 'error'" class="flex flex-col items-center gap-2 px-6 py-8 text-center">
+          <CircleAlert class="size-5 text-destructive" aria-hidden="true" />
+          <p>{{ previewError }}</p>
+          <ActionButton kind="secondary" label="Try again" icon="refresh-ccw" @press="loadPreview" />
+        </div>
+        <div v-else-if="previewPlans.length === 0" class="px-1 py-4 text-center">
+          <p class="sheet-lead">There is nothing to record for this document.</p>
+          <p class="muted-label mt-1">Submitting it records no books entries.</p>
+        </div>
+        <div v-else class="grid gap-4">
+          <div v-for="plan in previewPlans" :key="`${plan.book}:${plan.postingDate}`" class="grid gap-2">
+            <p class="sheet-label"><span v-if="plan.book">Book {{ plan.book }} · </span>{{ plan.postingDate }}</p>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Account</TableHead>
+                  <TableHead class="text-right">Debit</TableHead>
+                  <TableHead class="text-right">Credit</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                <TableRow v-for="(line, index) in plan.lines" :key="index">
+                  <TableCell>
+                    <div class="font-medium">{{ line.accountLabel || line.account }}</div>
+                    <div v-if="line.accountLabel" class="muted-label font-mono">{{ line.account }}</div>
+                    <div v-if="legDetail(line)" class="muted-label">{{ legDetail(line) }}</div>
+                  </TableCell>
+                  <TableCell class="text-right tabular-nums">{{ amountText(line.debitBase) || '—' }}</TableCell>
+                  <TableCell class="text-right tabular-nums">{{ amountText(line.creditBase) || '—' }}</TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+        <template #footer>
+          <ActionButton kind="secondary" label="Close" icon="x" :busy="busy" @press="previewOpen = false" />
+          <ActionButton v-if="previewState === 'ready' && previewPlans.length > 0" kind="primary" label="Submit document" icon="send" :busy="busy" @press="runTransition('submit', previewHash)" />
+        </template>
+      </ResponsiveDialog>
+      <DetailSheet v-model:open="booksOpen" wide title="Books entries" description="What this document recorded in the books.">
+        <template #status>
+          <StatusBadge v-if="booksBadge" :status="booksBadge.status" :label="booksBadge.label" />
+        </template>
+        <div v-if="booksEmpty" class="px-1 py-4 text-center">
+          <p class="sheet-lead">Nothing in the books yet.</p>
+          <p class="muted-label mt-1">Submitting recorded no books entries for this document.</p>
+        </div>
+        <template v-else>
+          <div>
+            <p class="sheet-label">Status</p>
+            <div v-if="postingStatusState === 'loading'" class="grid gap-2" aria-busy="true" aria-label="Loading status">
+              <Skeleton class="h-12 w-full" />
+            </div>
+            <div v-else-if="postingStatusState === 'error'" class="flex flex-col items-start gap-2">
+              <p class="muted-label">The status did not load.</p>
+              <ActionButton kind="secondary" label="Try again" icon="refresh-ccw" @press="loadPostingStatus" />
+            </div>
+            <ol v-else-if="postingGroups.length > 0" class="entry-markers">
+              <li v-for="group in postingGroups" :key="group.postingGroupId">
+                <Marker variant="border"><MarkerIcon><BookOpen /></MarkerIcon><MarkerContent><span class="marker-label">{{ groupTitle(group) }}</span>{{ groupDetail(group) }}
+                  <StatusBadge v-if="group.reversed" status="reversed" label="Reversed" />
+                </MarkerContent></Marker>
+              </li>
+            </ol>
+            <p v-else class="muted-label">Nothing recorded yet.</p>
+          </div>
+          <div>
+            <p class="sheet-label">Lines</p>
+            <div v-if="ledgerState === 'loading'" class="grid gap-2" aria-busy="true" aria-label="Loading lines">
+              <Skeleton class="h-12 w-full" />
+              <Skeleton class="h-12 w-full" />
+            </div>
+            <div v-else-if="ledgerState === 'denied'" class="flex flex-col items-center gap-2 px-6 py-8 text-center">
+              <CircleAlert class="size-5 text-muted-foreground" aria-hidden="true" />
+              <p class="sheet-lead">You need permission to see the books.</p>
+              <p class="muted-label">Ask an owner to grant it.</p>
+            </div>
+            <div v-else-if="ledgerState === 'error'" class="flex flex-col items-center gap-2 px-6 py-8 text-center">
+              <CircleAlert class="size-5 text-destructive" aria-hidden="true" />
+              <p>{{ ledgerError }}</p>
+              <ActionButton kind="secondary" label="Try again" icon="refresh-ccw" @press="loadLedgerRows(true)" />
+            </div>
+            <template v-else-if="ledgerRows.length > 0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Account</TableHead>
+                    <TableHead class="text-right">Debit</TableHead>
+                    <TableHead class="text-right">Credit</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  <TableRow v-for="row in ledgerRows" :key="row.id">
+                    <TableCell>
+                      <div class="font-medium">{{ row.account }}</div>
+                      <div class="muted-label">{{ row.postingDate }} · {{ row.period }}</div>
+                      <div v-if="legDetail(row)" class="muted-label">{{ legDetail(row) }}</div>
+                      <StatusBadge v-if="row.isReversal" status="reversed" label="Reversal" />
+                    </TableCell>
+                    <TableCell class="text-right tabular-nums">{{ amountText(row.debitBase) || '—' }}</TableCell>
+                    <TableCell class="text-right tabular-nums">{{ amountText(row.creditBase) || '—' }}</TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+              <div v-if="ledgerNext" class="mt-2">
+                <ActionButton kind="secondary" label="Show more lines" icon="chevron-down" :busy="ledgerMore" @press="loadLedgerRows(false)" />
+              </div>
+            </template>
+            <p v-else class="muted-label">No lines recorded.</p>
+          </div>
+          <div>
+            <p class="sheet-label">Attempts</p>
+            <div v-if="logState === 'loading'" class="grid gap-2" aria-busy="true" aria-label="Loading attempts">
+              <Skeleton class="h-12 w-full" />
+              <Skeleton class="h-12 w-full" />
+            </div>
+            <div v-else-if="logState === 'denied'" class="flex flex-col items-center gap-2 px-6 py-8 text-center">
+              <CircleAlert class="size-5 text-muted-foreground" aria-hidden="true" />
+              <p class="sheet-lead">You need permission to see the books.</p>
+              <p class="muted-label">Ask an owner to grant it.</p>
+            </div>
+            <div v-else-if="logState === 'error'" class="flex flex-col items-center gap-2 px-6 py-8 text-center">
+              <CircleAlert class="size-5 text-destructive" aria-hidden="true" />
+              <p>{{ logError }}</p>
+              <ActionButton kind="secondary" label="Try again" icon="refresh-ccw" @press="loadPostingLog(true)" />
+            </div>
+            <template v-else-if="logEntries.length > 0">
+              <ol class="entry-markers">
+                <li v-for="entry in logEntries" :key="entry.id">
+                  <Marker variant="border"><MarkerIcon><Clock /></MarkerIcon><MarkerContent><span class="marker-label">{{ attemptTitle(entry) }}</span>{{ attemptDetail(entry) }}</MarkerContent></Marker>
+                </li>
+              </ol>
+              <div v-if="logNext" class="mt-2">
+                <ActionButton kind="secondary" label="Show more attempts" icon="chevron-down" :busy="logMore" @press="loadPostingLog(false)" />
+              </div>
+            </template>
+            <p v-else class="muted-label">No attempts recorded.</p>
+          </div>
+        </template>
+      </DetailSheet>
       <form ref="formRef" class="entry-form" novalidate @submit.prevent="submit">
         <div class="entry-form-sections">
           <LinkField

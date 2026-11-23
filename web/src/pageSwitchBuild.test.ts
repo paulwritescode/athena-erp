@@ -78,6 +78,7 @@ describe('PageSwitch build chrome', () => {
       apiState: ref('connected'),
       canWriteRules: ref(false),
       canWriteFiles: ref(false),
+      canLedger: ref(false),
       canWriteLedger: ref(false),
     }
     const library = {
