@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"regexp"
 	"strconv"
+	"sync"
 
 	"athena-erp/internal/brand"
 	"athena-erp/internal/files"
@@ -16,13 +17,30 @@ import (
 // need the database (the identity) and the Workspace directory; the Athena
 // mark favicons need neither. Unknown hashes answer 404 without saying what
 // exists.
+// faviconKey names one rendered logo favicon: the logo's content hash and
+// the pixel size.
+type faviconKey struct {
+	hash string
+	size int
+}
+
+// faviconCache memoizes rendered logo favicons. Only hashes the identity
+// names reach it (unknown hashes answer 404 first), and hashed URLs are
+// immutable, so entries never go stale. It hangs off a pointer so
+// brandHandler keeps its value receivers.
+type faviconCache struct {
+	mu    sync.Mutex
+	byKey map[faviconKey][]byte
+}
+
 type brandHandler struct {
-	db    *sql.DB
-	files *files.Store
+	db       *sql.DB
+	files    *files.Store
+	favicons *faviconCache
 }
 
 func newBrandHandler(workspace *Workspace, db *sql.DB) brandHandler {
-	h := brandHandler{db: db}
+	h := brandHandler{db: db, favicons: &faviconCache{byKey: map[faviconKey][]byte{}}}
 	if workspace == nil || workspace.Root == "" || db == nil {
 		return h
 	}
@@ -120,12 +138,38 @@ func (h brandHandler) favicon(w http.ResponseWriter, r *http.Request, hash strin
 		http.NotFound(w, r)
 		return
 	}
+	if cached, ok := h.cachedFavicon(hash, size); ok {
+		serveBrand(w, r, cached, "image/png", false)
+		return
+	}
 	resized, err := brand.Favicon(content, size)
 	if err != nil {
 		http.NotFound(w, r)
 		return
 	}
+	h.storeFavicon(hash, size, resized)
 	serveBrand(w, r, resized, "image/png", false)
+}
+
+// cachedFavicon returns the memoized render for a validated hash and size.
+// A handler without a cache (never from newBrandHandler) renders every time.
+func (h brandHandler) cachedFavicon(hash string, size int) ([]byte, bool) {
+	if h.favicons == nil {
+		return nil, false
+	}
+	h.favicons.mu.Lock()
+	defer h.favicons.mu.Unlock()
+	out, ok := h.favicons.byKey[faviconKey{hash, size}]
+	return out, ok
+}
+
+func (h brandHandler) storeFavicon(hash string, size int, rendered []byte) {
+	if h.favicons == nil {
+		return
+	}
+	h.favicons.mu.Lock()
+	defer h.favicons.mu.Unlock()
+	h.favicons.byKey[faviconKey{hash, size}] = rendered
 }
 
 // serveBrand writes brand bytes with a year of immutable cache. SVG answers

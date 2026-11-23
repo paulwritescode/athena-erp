@@ -157,6 +157,16 @@ func TestBrandFavicons(t *testing.T) {
 	if err != nil || cfg.Width != brand.FaviconSmall || cfg.Height != brand.FaviconSmall {
 		t.Fatalf("favicon dims: %+v %v", cfg, err)
 	}
+	if n := len(h.favicons.byKey); n != 1 {
+		t.Fatalf("cached favicons = %d, want 1", n)
+	}
+	again := getBrand(t, h, brand.FaviconURL(logo.Hash, brand.FaviconSmall))
+	if again.Code != http.StatusOK || !bytes.Equal(again.Body.Bytes(), rec.Body.Bytes()) {
+		t.Fatal("repeat favicon differs")
+	}
+	if n := len(h.favicons.byKey); n != 1 {
+		t.Fatalf("cached favicons = %d, want 1", n)
+	}
 
 	svg, err := brand.ValidateLogo("logo.svg", []byte(testLogoSVG))
 	if err != nil {
