@@ -4,6 +4,7 @@
 - **Date:** 2026-11-22
 - **Decision owner:** not assigned (awaiting project owner review)
 - **Related decisions:** ADR-0023, ADR-0006, ADR-0012, Z4 (retention periods and key custody, open)
+- **Implementation notes (status only):** the event bus, job runner, workflows, invite/reset delivery and the Event/Job surface (`events.proto`, `athena jobs|events`, Jobs page) are implemented; secret references, field encryption and lifetimes stay deferred on open Z4. The decision stays Proposed until the sponsor accepts it.
 
 ## Context
 
