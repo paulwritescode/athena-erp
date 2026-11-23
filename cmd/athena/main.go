@@ -79,6 +79,10 @@ func run(args []string) error {
 		return ledgerCommand(args[1:], os.Stdout)
 	case "post":
 		return postCommand(args[1:], os.Stdout)
+	case "jobs":
+		return jobsCommand(args[1:], os.Stdout)
+	case "events":
+		return eventsCommand(args[1:], os.Stdout)
 	case "rules":
 		return rulesCommand(args[1:], os.Stdout)
 	case "version", "--version", "-v":
@@ -184,6 +188,15 @@ Usage:
       Preview the plans a submit would write, submit or cancel a voucher,
       and show its posting groups and attempts. submit takes --revision N
       and refuses when the plan changed since --preview-hash H.
+  athena jobs list|show|retry|occurrences [--workspace slug] [--json]
+      List jobs newest first, show one with its payload and result, run dead
+      work again as a new job (the dead row stays), and list schedule
+      occurrences in period order. list takes --status, --kind, --limit N
+      and --page token; occurrences takes --schedule, --scope and --status.
+  athena events list|show|outbox|requeue|subscriptions [--workspace slug] [--json]
+      List committed events newest first, show one envelope, list outbox
+      delivery rows, emit a dead delivery again as a fresh event (the dead
+      row stays), and list the declared consumer subscriptions.
   athena rules list|show|save|rm|versions|simulate|runs [key] [--workspace slug] [--json]
       Manage Starlark Rules (validation, derivation, guard, transform, posting). Rules run
       at document events inside the save, through Go host functions only, under
