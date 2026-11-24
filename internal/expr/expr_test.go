@@ -69,6 +69,9 @@ func TestEvaluate(t *testing.T) {
 		{"coalesce(doc.due, today())", time.Date(2026, 12, 1, 0, 0, 0, 0, time.UTC)},
 		{"add_days(today(), 30)", time.Date(2026, 12, 19, 0, 0, 0, 0, time.UTC)},
 		{"add_months(dec('1') == dec('1') ? add_days(today(), 72) : today(), 1)", time.Date(2027, 2, 28, 0, 0, 0, 0, time.UTC)},
+		{`date("2026-12-25")`, time.Date(2026, 12, 25, 0, 0, 0, 0, time.UTC)},
+		{`doc.due == date("2026-12-01")`, true},
+		{`doc.due < date("2026-01-01")`, false},
 		{"doc.due > today() && !doc.paid", false},
 		{"doc.paid ? 'yes' : 'no'", "yes"},
 		{"lower(doc.name)", "acme ltd"},
@@ -203,6 +206,7 @@ func TestEvaluationErrors(t *testing.T) {
 	for _, src := range []string{
 		"div(doc.qty, doc.rate, 2) > dec(0)", "doc.total + doc.fee > doc.total", "doc.total > doc.fee", "doc.count + 1 > 0",
 		"dec('abc') > dec(0)", "round(doc.qty, 99) > dec(0)", "money(dec('1.234'), 'USD', 2) == doc.total", "doc.name.matches('(') ",
+		`doc.due == date("2026-13-45")`, `doc.due == date("next friday")`,
 	} {
 		p, err := e.Compile(src)
 		if err != nil {
@@ -260,6 +264,13 @@ func TestTranslate(t *testing.T) {
 	want := "((COALESCE(((`qty` * `rate`) > DEC(?)), FALSE) AND COALESCE((SUBSTRING(`name` BIN, 1, 2) = ? BIN), FALSE)) AND COALESCE((`due` < DATE(?)), FALSE))"
 	if got.Where != want || len(got.Args) != 3 || got.Args[0] != "2" || got.Args[2] != "2026-11-22" {
 		t.Fatalf("where %s\nargs %v", got.Where, got.Args)
+	}
+	dated, err := mustCompile(t, e, `doc.due == date("2026-12-01")`).Translate(fakeDialect{}, columns, today)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if dated.Where != "(`due` <=> DATE(?))" || len(dated.Args) != 1 || dated.Args[0] != "2026-12-01" {
+		t.Fatalf("date where %s\nargs %v", dated.Where, dated.Args)
 	}
 	for _, src := range []string{"sum(doc.items.amount) > dec(1)", "lower(doc.name) == 'a'", "doc.name.matches('a')", "doc.total * dec('2') > doc.fee", "doc.name + 'x' == 'ax'", "div(doc.qty, doc.rate, 2) > dec(1)", "doc.total > money(dec('1'), 'USD', 3)", "add_days(doc.due, 1) > today()"} {
 		if _, err := mustCompile(t, e, src).Translate(fakeDialect{}, columns, today); !IsNotTranslatable(err) {

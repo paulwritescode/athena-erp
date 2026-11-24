@@ -157,6 +157,11 @@ func (t *translator) constant(e ast.Expr) (constant, error) {
 				m, err := makeMoney(d, code, exp)
 				return constant{m, err == nil}, err
 			}
+		case "date":
+			if text, ok := values[0].(string); ok {
+				day, err := time.Parse(time.DateOnly, text)
+				return constant{day, err == nil}, err
+			}
 		case "add_days", "add_months":
 			day, okd := values[0].(time.Time)
 			n, okn := values[1].(int64)

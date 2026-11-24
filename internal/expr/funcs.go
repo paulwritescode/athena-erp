@@ -449,6 +449,19 @@ func divide(args ...ref.Val) ref.Val {
 // ParseDecimalLiteral is dec("1.50"), shared with the SQL translator.
 func parseDecimal(text string) (types.Decimal, error) { return types.ParseDecimal(text) }
 
+func toDate(args ...ref.Val) ref.Val {
+	if s, ok := args[0].(celtypes.String); ok {
+		if day, err := time.Parse(time.DateOnly, string(s)); err == nil {
+			return celtypes.Timestamp{Time: day}
+		}
+		return errFn(`date needs "YYYY-MM-DD"`)
+	}
+	if isNull(args[0]) {
+		return celtypes.NullValue
+	}
+	return errFn(`date needs "YYYY-MM-DD"`)
+}
+
 func toDecimal(args ...ref.Val) ref.Val {
 	switch x := args[0].(type) {
 	case celtypes.Int:
@@ -603,6 +616,7 @@ func functionOptions() []cel.EnvOption {
 		cel.Overload("div_decimal_int", []*cel.Type{decimalT, intT, intT}, decimalT), cel.Overload("div_int_decimal", []*cel.Type{intT, decimalT, intT}, decimalT),
 		cel.Overload("div_int_int", []*cel.Type{intT, intT, intT}, decimalT))
 	fn("dec", cel.SingletonFunctionBinding(toDecimal), cel.Overload("dec_string", []*cel.Type{stringT}, decimalT), cel.Overload("dec_int", []*cel.Type{intT}, decimalT))
+	fn("date", cel.SingletonFunctionBinding(toDate), cel.Overload("date_string", []*cel.Type{stringT}, dateT))
 	fn("money", cel.SingletonFunctionBinding(toMoney), cel.Overload("money_decimal", []*cel.Type{decimalT, stringT, intT}, moneyT))
 	fn("amount", cel.SingletonUnaryBinding(amount), cel.Overload("amount_money", []*cel.Type{moneyT}, decimalT))
 	fn("currency", cel.SingletonUnaryBinding(currency), cel.Overload("currency_money", []*cel.Type{moneyT}, stringT))
