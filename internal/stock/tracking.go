@@ -257,11 +257,15 @@ func (s *Service) ReverseReceiptSerials(ctx context.Context, tx *sql.Tx, receipt
 }
 
 // ReverseIssueSerials restores the units a cancelled issue shipped to
-// toStatus (usually on hand): every unit the issue link names must still
-// be issued or on rent.
+// toStatus (usually on hand) at the issue's owner and location: every unit
+// the issue link names must still be issued or on rent.
 func (s *Service) ReverseIssueSerials(ctx context.Context, tx *sql.Tx, issueRowID, toStatus string) error {
 	if toStatus != SerialOnHand && toStatus != SerialReserved {
 		return fmt.Errorf("%w: restore status %q must be on_hand or reserved", ErrInvalid, toStatus)
+	}
+	issue, err := loadStockRow(ctx, tx, issueRowID)
+	if err != nil {
+		return err
 	}
 	var total, away int
 	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM athena_serials WHERE issue_row_id = ? FOR UPDATE`, issueRowID).Scan(&total); err != nil {
@@ -273,15 +277,17 @@ func (s *Service) ReverseIssueSerials(ctx context.Context, tx *sql.Tx, issueRowI
 	if away != total {
 		return fmt.Errorf("%w: %d of %d units moved on", ErrCancelBlocked, total-away, total)
 	}
-	_, err := tx.ExecContext(ctx, `UPDATE athena_serials SET status = ?, issue_row_id = NULL, revision = revision + 1 WHERE issue_row_id = ?`, toStatus, issueRowID)
+	_, err = tx.ExecContext(ctx, `UPDATE athena_serials SET status = ?, owner = ?, location_name = ?, issue_row_id = NULL, revision = revision + 1 WHERE issue_row_id = ?`,
+		toStatus, issue.Bin.Owner, issue.Bin.Location, issueRowID)
 	return err
 }
 
 // ReverseReturnSerials puts back the units a cancelled return brought home,
 // to the status the caller names (issued, or on_rent when the reversed
-// issue was a rental): the return row's units must be exactly attributable,
-// either by its serial or, for multi-unit returns, by matching the return
-// quantity against the on-hand units of the reversed issue.
+// issue was a rental) at the reversed issue's owner and location: the
+// return row's units must be exactly attributable, either by its serial or,
+// for multi-unit returns, by matching the return quantity against the
+// on-hand units of the reversed issue.
 func (s *Service) ReverseReturnSerials(ctx context.Context, tx *sql.Tx, returnRowID, toStatus string) error {
 	if toStatus != SerialIssued && toStatus != SerialOnRent {
 		return fmt.Errorf("%w: restore status %q must be issued or on_rent", ErrInvalid, toStatus)
@@ -290,67 +296,70 @@ func (s *Service) ReverseReturnSerials(ctx context.Context, tx *sql.Tx, returnRo
 	if err != nil {
 		return err
 	}
-	serials, err := s.returnSerials(ctx, tx, row)
+	serials, issue, err := s.returnSerials(ctx, tx, row)
 	if err != nil {
 		return err
 	}
 	for _, serial := range serials {
 		if _, err := tx.ExecContext(ctx, `UPDATE athena_serials SET status = ?, owner = ?, location_name = ?, revision = revision + 1 WHERE company_name = ? AND book = ? AND item_id = ? AND serial_no = ?`,
-			toStatus, row.Bin.Owner, row.Bin.Location, row.Bin.Company, row.Bin.Book, row.Bin.ItemID, serial); err != nil {
+			toStatus, issue.Bin.Owner, issue.Bin.Location, row.Bin.Company, row.Bin.Book, row.Bin.ItemID, serial); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-// returnSerials attributes on-hand units to a return row.
-func (s *Service) returnSerials(ctx context.Context, tx *sql.Tx, row *stockRow) ([]string, error) {
+// returnSerials attributes on-hand units to a return row, returning the
+// reversed issue row with them. Single-serial returns must still sit where
+// the return put them; units transferred away block the cancel instead of
+// being silently rewritten.
+func (s *Service) returnSerials(ctx context.Context, tx *sql.Tx, row *stockRow) ([]string, *stockRow, error) {
 	issue, err := loadStockRow(ctx, tx, row.Reversed)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if row.Bin.SerialNo != "" {
-		var status string
+		var status, owner, location string
 		var linkNull sql.NullString
-		err := tx.QueryRowContext(ctx, `SELECT status, issue_row_id FROM athena_serials WHERE company_name = ? AND book = ? AND item_id = ? AND serial_no = ? FOR UPDATE`,
-			row.Bin.Company, row.Bin.Book, row.Bin.ItemID, row.Bin.SerialNo).Scan(&status, &linkNull)
+		err := tx.QueryRowContext(ctx, `SELECT status, issue_row_id, owner, location_name FROM athena_serials WHERE company_name = ? AND book = ? AND item_id = ? AND serial_no = ? FOR UPDATE`,
+			row.Bin.Company, row.Bin.Book, row.Bin.ItemID, row.Bin.SerialNo).Scan(&status, &linkNull, &owner, &location)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
-				return nil, fmt.Errorf("%w: serial %q is gone", ErrCancelBlocked, row.Bin.SerialNo)
+				return nil, nil, fmt.Errorf("%w: serial %q is gone", ErrCancelBlocked, row.Bin.SerialNo)
 			}
-			return nil, err
+			return nil, nil, err
 		}
-		if !linkNull.Valid || linkNull.String != issue.ID || status != SerialOnHand {
-			return nil, fmt.Errorf("%w: serial %q moved on", ErrCancelBlocked, row.Bin.SerialNo)
+		if !linkNull.Valid || linkNull.String != issue.ID || status != SerialOnHand || owner != row.Bin.Owner || location != row.Bin.Location {
+			return nil, nil, fmt.Errorf("%w: serial %q moved on", ErrCancelBlocked, row.Bin.SerialNo)
 		}
-		return []string{row.Bin.SerialNo}, nil
+		return []string{row.Bin.SerialNo}, issue, nil
 	}
 	rows, err := tx.QueryContext(ctx, `SELECT serial_no FROM athena_serials WHERE company_name = ? AND book = ? AND item_id = ? AND issue_row_id = ? AND status = 'on_hand' AND owner = ? AND location_name = ? ORDER BY serial_no FOR UPDATE`,
 		row.Bin.Company, row.Bin.Book, row.Bin.ItemID, row.Reversed, row.Bin.Owner, row.Bin.Location)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	var serials []string
 	for rows.Next() {
 		var serial string
 		if err := rows.Scan(&serial); err != nil {
 			rows.Close()
-			return nil, err
+			return nil, nil, err
 		}
 		serials = append(serials, serial)
 	}
 	rows.Close()
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	count, err := integralCount(row.Qty)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if len(serials) != count {
-		return nil, fmt.Errorf("%w: %d units match a %d-unit return", ErrCancelBlocked, len(serials), count)
+		return nil, nil, fmt.Errorf("%w: %d units match a %d-unit return", ErrCancelBlocked, len(serials), count)
 	}
-	return serials, nil
+	return serials, issue, nil
 }
 
 // EnsureBatch records a lot's identity at receipt: one row per lot with

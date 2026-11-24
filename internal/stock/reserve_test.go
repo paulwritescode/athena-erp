@@ -241,6 +241,47 @@ func TestReleaseConsumeExpireLifecycle(t *testing.T) {
 	}
 }
 
+func TestReholdAfterReleaseReactivates(t *testing.T) {
+	stockSvc, engine, masters, db := setup(t)
+	seedStockBasics(t, masters)
+
+	receipt := testMovement()
+	postMovement(t, db, stockSvc, engine, receipt)
+
+	first := testReservation(receipt, "10")
+	held := hold(t, db, stockSvc, first)
+	tx, err := db.BeginTx(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := stockSvc.ReleaseReservation(context.Background(), tx, held.ID, types.Decimal{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatal(err)
+	}
+	again := first
+	again.Quantity = types.Quantity{Value: dec("15"), UoM: "each"}
+	again.ExpiresAt = "2027-06-01 00:00:00"
+	reheld := hold(t, db, stockSvc, again)
+	if reheld.ID != held.ID {
+		t.Fatalf("re-hold id is %s, want revived %s", reheld.ID, held.ID)
+	}
+	if reheld.Qty.String() != "15.000000" {
+		t.Fatalf("re-hold qty is %s, want 15.000000", reheld.Qty)
+	}
+	avail, err := stockSvc.Available(context.Background(), db, stock.BinKey{
+		Company: receipt.Company, Book: receipt.Book, Owner: receipt.Owner, ItemID: receipt.ItemID,
+		Location: receipt.Location,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := avail.Reserved.String(); got != "15.000000" {
+		t.Fatalf("reserved is %s after re-hold, want 15.000000", got)
+	}
+}
+
 func TestDuplicateHoldRejected(t *testing.T) {
 	stockSvc, engine, masters, db := setup(t)
 	seedStockBasics(t, masters)

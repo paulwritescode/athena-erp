@@ -338,6 +338,100 @@ func TestSerialCancelReversals(t *testing.T) {
 	}
 }
 
+func TestCrossLocationReturnCancelRestoresIssueBin(t *testing.T) {
+	stockSvc, engine, masters, db := setup(t)
+	seedStockBasics(t, masters)
+	ctx := context.Background()
+	serialTx := func(work func(*sql.Tx) error) {
+		t.Helper()
+		tx, err := db.BeginTx(ctx, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer tx.Rollback()
+		if err := work(tx); err != nil {
+			t.Fatal(err)
+		}
+		if err := tx.Commit(); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	receipt := testMovement()
+	receipt.Quantity = types.Quantity{Value: dec("1"), UoM: "each"}
+	receipt.SerialNo = "X1"
+	_, receiptApplied := postMovement(t, db, stockSvc, engine, receipt)
+	serialTx(func(tx *sql.Tx) error {
+		return stockSvc.RegisterSerials(ctx, tx, receiptApplied.RowID, []string{"X1"})
+	})
+	postTransfer(t, db, stockSvc, engine, testTransfer(receipt, "locB", "1"))
+
+	issued := issueOf(receipt, "1")
+	issued.Location = "locB"
+	_, issuedApplied := postMovement(t, db, stockSvc, engine, issued)
+	serialTx(func(tx *sql.Tx) error {
+		return stockSvc.IssueSerials(ctx, tx, issuedApplied.RowID, []stock.SerialOut{{SerialNo: "X1", Status: stock.SerialIssued}})
+	})
+	back := receipt
+	back.Location = "locB"
+	back.VoucherID = uuid.NewString()
+	back.VoucherType = "stock_return"
+	back.UnitCost = types.Decimal{}
+	back.ReversesRowID = issuedApplied.RowID
+	_, backApplied := postMovement(t, db, stockSvc, engine, back)
+	serialTx(func(tx *sql.Tx) error {
+		return stockSvc.ReturnSerials(ctx, tx, backApplied.RowID, []string{"X1"})
+	})
+
+	cancelVoucher(t, db, stockSvc, engine, back.VoucherType, back.VoucherID, true)
+	serialTx(func(tx *sql.Tx) error {
+		return stockSvc.ReverseReturnSerials(ctx, tx, backApplied.RowID, stock.SerialIssued)
+	})
+	if got := serialStatus(t, db, receipt.ItemID, "X1"); got != stock.SerialIssued {
+		t.Fatalf("X1 is %s after return cancel, want issued", got)
+	}
+	var location string
+	if err := db.QueryRow(`SELECT location_name FROM athena_serials WHERE item_id = ? AND serial_no = 'X1'`, receipt.ItemID).Scan(&location); err != nil {
+		t.Fatal(err)
+	}
+	if location != "locB" {
+		t.Fatalf("X1 location is %s after return cancel, want locB (the issue bin)", location)
+	}
+
+	// A unit transferred away after its return blocks the return cancel
+	// instead of being silently rewritten.
+	moved := testMovement()
+	moved.Quantity = types.Quantity{Value: dec("1"), UoM: "each"}
+	moved.SerialNo = "X2"
+	_, movedReceipt := postMovement(t, db, stockSvc, engine, moved)
+	serialTx(func(tx *sql.Tx) error {
+		return stockSvc.RegisterSerials(ctx, tx, movedReceipt.RowID, []string{"X2"})
+	})
+	movedIssue := issueOf(moved, "1")
+	_, movedIssued := postMovement(t, db, stockSvc, engine, movedIssue)
+	serialTx(func(tx *sql.Tx) error {
+		return stockSvc.IssueSerials(ctx, tx, movedIssued.RowID, []stock.SerialOut{{SerialNo: "X2", Status: stock.SerialIssued}})
+	})
+	movedBack := moved
+	movedBack.VoucherID = uuid.NewString()
+	movedBack.VoucherType = "stock_return"
+	movedBack.UnitCost = types.Decimal{}
+	movedBack.ReversesRowID = movedIssued.RowID
+	_, movedBackApplied := postMovement(t, db, stockSvc, engine, movedBack)
+	serialTx(func(tx *sql.Tx) error {
+		return stockSvc.ReturnSerials(ctx, tx, movedBackApplied.RowID, []string{"X2"})
+	})
+	postTransfer(t, db, stockSvc, engine, testTransfer(moved, "locC", "1"))
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback()
+	if err := stockSvc.ReverseReturnSerials(ctx, tx, movedBackApplied.RowID, stock.SerialIssued); !errors.Is(err, stock.ErrCancelBlocked) {
+		t.Fatalf("moved-unit return cancel error is %v, want ErrCancelBlocked", err)
+	}
+}
+
 func TestBatchFEFOPicksOldestExpiry(t *testing.T) {
 	stockSvc, engine, masters, db := setup(t)
 	seedStockBasics(t, masters)

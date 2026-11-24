@@ -29,8 +29,8 @@ var (
 	// ErrReservationState reports a release, consume or expiry against a
 	// reservation that is no longer active.
 	ErrReservationState = errors.New("stock: reservation is not active")
-	// ErrDuplicateHold reports a second active hold by one holder on one
-	// bin: release first, then hold again.
+	// ErrDuplicateHold reports a hold while the holder already actively
+	// holds the bin.
 	ErrDuplicateHold = errors.New("stock: holder already holds this bin")
 )
 
@@ -76,7 +76,9 @@ type Availability struct {
 // the grain's active holds, refuses when the hold exceeds availability,
 // and writes the hold with the bin's reserved total. Competing takes
 // serialize on the bin lock, so one holder wins the last unit. A hold on a
-// serial requires the unit to exist on hand and marks it reserved.
+// serial requires the unit to exist on hand and marks it reserved. A
+// repeat hold after the earlier hold ended reactivates its row; holding
+// twice while active stays a duplicate.
 func (s *Service) Reserve(ctx context.Context, tx *sql.Tx, r Reservation) (HeldReservation, error) {
 	if err := checkReservation(r); err != nil {
 		return HeldReservation{}, err
@@ -116,30 +118,57 @@ func (s *Service) Reserve(ctx context.Context, tx *sql.Tx, r Reservation) (HeldR
 			return HeldReservation{}, err
 		}
 	}
-	id, err := uuid.NewV7()
+	fresh, err := uuid.NewV7()
 	if err != nil {
 		return HeldReservation{}, err
 	}
+	heldID := fresh.String()
 	var expires any
 	if r.ExpiresAt != "" {
 		expires = r.ExpiresAt
 	}
 	if _, err := tx.ExecContext(ctx, `INSERT INTO athena_reservations (id, company_name, book, owner, item_type, item_id, location_name, lot_no, serial_no, base_uom, qty, status, holder_type, holder_id, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?)`,
-		id.String(), r.Company, r.Book, r.Owner, r.ItemType, r.ItemID, r.Location, r.LotNo, r.SerialNo,
+		heldID, r.Company, r.Book, r.Owner, r.ItemType, r.ItemID, r.Location, r.LotNo, r.SerialNo,
 		base.UoM, qty.String(), r.HolderType, r.HolderID, expires); err != nil {
-		if s.duplicate(err) {
+		if !s.duplicate(err) {
+			return HeldReservation{}, err
+		}
+		resurrected, err := s.resurrectHold(ctx, tx, key, r, base.UoM, qty, expires)
+		if err != nil {
 			if r.SerialNo != "" {
 				_ = unholdSerial(ctx, tx, key)
 			}
-			return HeldReservation{}, fmt.Errorf("%w: %s %s", ErrDuplicateHold, r.HolderType, r.HolderID)
+			return HeldReservation{}, err
 		}
-		return HeldReservation{}, err
+		heldID = resurrected
 	}
 	if _, err := tx.ExecContext(ctx, `UPDATE athena_stock_bins SET reserved_qty = reserved_qty + ?, revision = revision + 1 WHERE company_name = ? AND book = ? AND owner = ? AND item_id = ? AND location_name = ? AND lot_no = ? AND serial_no = ?`,
 		qty.String(), key.Company, key.Book, key.Owner, key.ItemID, key.Location, key.LotNo, key.SerialNo); err != nil {
 		return HeldReservation{}, err
 	}
-	return HeldReservation{ID: id.String(), Bin: key, UoM: base.UoM, Qty: qty, HolderType: r.HolderType, HolderID: r.HolderID, ExpiresAt: r.ExpiresAt}, nil
+	return HeldReservation{ID: heldID, Bin: key, UoM: base.UoM, Qty: qty, HolderType: r.HolderType, HolderID: r.HolderID, ExpiresAt: r.ExpiresAt}, nil
+}
+
+// resurrectHold reactivates a terminal hold row for a repeat hold by the
+// same holder on the same bin. An already active row stays a duplicate.
+func (s *Service) resurrectHold(ctx context.Context, tx *sql.Tx, key binKey, r Reservation, baseUoM string, qty types.Decimal, expires any) (string, error) {
+	var id, status string
+	err := tx.QueryRowContext(ctx, `SELECT id, status FROM athena_reservations WHERE holder_type = ? AND holder_id = ? AND item_id = ? AND location_name = ? AND lot_no = ? AND serial_no = ? FOR UPDATE`,
+		r.HolderType, r.HolderID, key.ItemID, key.Location, key.LotNo, key.SerialNo).Scan(&id, &status)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", fmt.Errorf("%w: %s %s", ErrDuplicateHold, r.HolderType, r.HolderID)
+		}
+		return "", err
+	}
+	if status == ReserveActive {
+		return "", fmt.Errorf("%w: %s %s", ErrDuplicateHold, r.HolderType, r.HolderID)
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE athena_reservations SET base_uom = ?, qty = ?, status = 'active', expires_at = ?, revision = revision + 1 WHERE id = ?`,
+		baseUoM, qty.String(), expires, id); err != nil {
+		return "", err
+	}
+	return id, nil
 }
 
 func checkReservation(r Reservation) error {
@@ -322,6 +351,7 @@ func (s *Service) ExpireReservations(ctx context.Context, tx *sql.Tx, company, b
 	if err := rows.Err(); err != nil {
 		return 0, err
 	}
+	flipped := 0
 	for _, id := range ids {
 		held, err := lockReservation(ctx, tx, id)
 		if err != nil {
@@ -342,6 +372,7 @@ func (s *Service) ExpireReservations(ctx context.Context, tx *sql.Tx, company, b
 				return 0, err
 			}
 		}
+		flipped++
 	}
-	return len(ids), nil
+	return flipped, nil
 }
