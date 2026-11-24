@@ -359,3 +359,103 @@ func TestQuantityConversionRoundTripProperty(t *testing.T) {
 		}
 	})
 }
+
+// TestAllocateProperty checks Property 11 at the splitter: for any total
+// and any weight set, the parts sum exactly to the total, a repeat call
+// returns the identical split, zero weights take zero, and equal weights
+// spread leftover units to the lowest indexes first.
+//
+// Feature: athena-batch-2, Property 11: Allocation sums.
+func TestAllocateProperty(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		n := rapid.IntRange(1, 6).Draw(t, "n")
+		weights := make([]int64, n)
+		var sum int64
+		for i := range weights {
+			weights[i] = int64(rapid.IntRange(0, 100).Draw(t, "weight"))
+			sum += weights[i]
+		}
+		if sum == 0 {
+			return
+		}
+		scale := rapid.IntRange(0, 6).Draw(t, "scale")
+		unscaled := int64(rapid.IntRange(-100000, 100000).Draw(t, "total"))
+		total, err := NewDecimal(unscaled, scale)
+		if err != nil {
+			t.Fatalf("total: %v", err)
+		}
+		parts, err := total.Allocate(weights, scale)
+		if err != nil {
+			t.Fatalf("allocate: %v", err)
+		}
+		acc := NewMoney(0, usd).Decimal()
+		for i, part := range parts {
+			acc = acc.Add(part)
+			if weights[i] == 0 && part.Sign() != 0 {
+				t.Fatalf("zero weight took %v", part)
+			}
+		}
+		if !acc.Equal(total) {
+			t.Fatalf("parts %v sum to %v, want %v", parts, acc, total)
+		}
+		again, err := total.Allocate(weights, scale)
+		if err != nil {
+			t.Fatalf("allocate again: %v", err)
+		}
+		for i := range parts {
+			if !again[i].Equal(parts[i]) {
+				t.Fatalf("repeat differs at %d: %v vs %v", i, again[i], parts[i])
+			}
+		}
+		even := true
+		for _, w := range weights {
+			if w != weights[0] {
+				even = false
+			}
+		}
+		if even && weights[0] > 0 {
+			// Equal weights split evenly; leftover units land on the
+			// lowest indexes first, so shares never differ by more than
+			// one unit and the head holds any extra.
+			units := make([]int64, n)
+			for i, part := range parts {
+				scaled, err := part.Rescale(scale)
+				if err != nil {
+					t.Fatalf("rescale: %v", err)
+				}
+				rest := scaled.String()
+				if dot := strings.Index(rest, "."); dot >= 0 {
+					rest = rest[:dot] + rest[dot+1:]
+				}
+				var parsed big.Int
+				if _, ok := parsed.SetString(rest, 10); !ok {
+					t.Fatalf("units of %v", part)
+				}
+				if !parsed.IsInt64() {
+					t.Fatalf("units of %v overflow", part)
+				}
+				units[i] = parsed.Int64()
+				if total.Sign() < 0 {
+					units[i] = -units[i]
+				}
+			}
+			lo, hi := units[0], units[0]
+			for _, u := range units[1:] {
+				if u < lo {
+					lo = u
+				}
+				if u > hi {
+					hi = u
+				}
+			}
+			if hi-lo > 1 {
+				t.Fatalf("even weights spread %v", units)
+			}
+			for i := 1; i < n; i++ {
+				if units[i] > units[0] {
+					t.Fatalf("leftover skipped the head: %v", units)
+				}
+			}
+		}
+	})
+}

@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"sort"
 	"sync"
 	"testing"
 
@@ -16,6 +17,9 @@ import (
 	"athena-erp/internal/store"
 	"athena-erp/internal/testdb"
 	"athena-erp/internal/types"
+
+	"github.com/google/uuid"
+	"pgregory.net/rapid"
 )
 
 func settleSetup(t *testing.T) (*posting.SettlementService, *sql.DB) {
@@ -358,4 +362,171 @@ func TestConcurrentAppliesNeverOverApply(t *testing.T) {
 	if applied != "100.000000" && applied != "100.00" && applied != "100" {
 		t.Fatalf("racing applies total %s, want 100", applied)
 	}
+}
+
+// TestSettlementAllocationProperty checks Property 11 at the settlement:
+// for any payment and any instalment set, the applied shares plus the
+// unapplied remainder sum exactly to the payment, and the per-instalment
+// shares match the id-ordered model whatever order the caller lists the
+// items in, with every share within its residual and every residual stored.
+//
+// Feature: athena-batch-2, Property 11: Allocation sums.
+//
+// One shared database serves all iterations; fresh uuids keep source and
+// settlement keys unique. Amounts stay small so proportional remainders and
+// tie-breaks occur often, which is exactly where listing order would leak.
+func TestSettlementAllocationProperty(t *testing.T) {
+	ctx := context.Background()
+	svc, db := settleSetup(t)
+	rapid.Check(t, func(t *rapid.T) {
+		n := rapid.IntRange(1, 4).Draw(t, "items")
+		minors := make([]int64, n)
+		for i := range minors {
+			minors[i] = int64(rapid.IntRange(1, 2000).Draw(t, "residual"))
+		}
+		side := posting.ItemSideDebit
+		control := "receivable"
+		if rapid.Bool().Draw(t, "payable") {
+			side = posting.ItemSideCredit
+			control = "payable"
+		}
+		sourceID := uuid.NewString()
+		partyID := uuid.NewString()
+		items := make([]posting.NewItem, n)
+		for i := range items {
+			amount, err := types.NewDecimal(minors[i], 2)
+			if err != nil {
+				t.Fatalf("residual: %v", err)
+			}
+			items[i] = posting.NewItem{
+				Company: "acme", Book: "main", PartyType: "customer", PartyID: partyID,
+				ControlAccount: control, SourceType: "invoice", SourceID: sourceID,
+				SourceRevision: 2, InstalmentNo: i + 1, Currency: "USD", Side: side, Amount: amount,
+			}
+		}
+		tx, err := db.Begin()
+		if err != nil {
+			t.Fatalf("begin: %v", err)
+		}
+		created, err := svc.CreateItemsInTx(ctx, tx, items)
+		if err != nil {
+			tx.Rollback()
+			t.Fatalf("create: %v", err)
+		}
+		if err := tx.Commit(); err != nil {
+			t.Fatalf("commit: %v", err)
+		}
+		payment, err := types.NewDecimal(int64(rapid.IntRange(1, 8000).Draw(t, "payment")), 2)
+		if err != nil {
+			t.Fatalf("payment: %v", err)
+		}
+		// A random listing order: shuffle by drawn keys.
+		keys := make([]int, n)
+		for i := range keys {
+			keys[i] = rapid.IntRange(0, 1000000).Draw(t, "order")
+		}
+		order := make([]int, n)
+		for i := range order {
+			order[i] = i
+		}
+		sort.Slice(order, func(a, b int) bool { return keys[order[a]] < keys[order[b]] })
+		targets := make([]posting.LineItem, n)
+		for i, at := range order {
+			targets[i] = posting.LineItem{ItemID: created[at].ID}
+		}
+		req := posting.SettleRequest{
+			Company: "acme", Book: "main", PartyType: "customer", PartyID: partyID,
+			ControlAccount: control, Side: side,
+			VoucherType: "receipt", VoucherID: uuid.NewString(),
+			Revision: 2, Event: posting.EventSubmit, PostingDate: "2026-06-20",
+			PostingGroupID: uuid.NewString(), PaymentCurrency: "USD",
+			Lines: []posting.SettleLine{{LineNo: 1, Amount: payment, Items: targets}},
+		}
+		result, err := svc.Apply(ctx, req)
+		if err != nil {
+			t.Fatalf("apply: %v", err)
+		}
+		// The model: residuals in stable id order through Allocate, each
+		// share capped at its residual.
+		byID := append([]posting.Item(nil), created...)
+		sort.Slice(byID, func(a, b int) bool { return byID[a].ID < byID[b].ID })
+		weights := make([]int64, n)
+		for i := range byID {
+			weights[i] = minors[indexOf(created, byID[i].ID)] * 10000
+		}
+		parts, err := payment.Allocate(weights, 6)
+		if err != nil {
+			t.Fatalf("model: %v", err)
+		}
+		want := map[string]types.Decimal{}
+		for i := range byID {
+			part := parts[i]
+			if part.Cmp(byID[i].Residual) > 0 {
+				part = byID[i].Residual
+			}
+			if part.Sign() > 0 {
+				want[byID[i].ID] = part
+			}
+		}
+		got := map[string]types.Decimal{}
+		for _, application := range result.Applications {
+			got[application.ItemID] = application.PaymentAmount
+		}
+		if len(got) != len(want) {
+			t.Fatalf("got %d applications, model has %d", len(got), len(want))
+		}
+		for id, amount := range want {
+			actual, ok := got[id]
+			if !ok || !actual.Equal(amount) {
+				t.Fatalf("item %s got %v, model has %v", id, actual, amount)
+			}
+		}
+		total := types.Decimal{}
+		for _, application := range result.Applications {
+			total = total.Add(application.PaymentAmount)
+			var residual string
+			if err := db.QueryRow(`SELECT residual_amount FROM athena_party_items WHERE id = ?`, application.ItemID).Scan(&residual); err != nil {
+				t.Fatalf("read residual: %v", err)
+			}
+			before := types.Decimal{}
+			for _, item := range created {
+				if item.ID == application.ItemID {
+					before = item.Residual
+				}
+			}
+			stored, err := types.ParseDecimal(residual)
+			if err != nil {
+				t.Fatalf("parse residual: %v", err)
+			}
+			if !stored.Equal(before.Sub(application.PaymentAmount)) {
+				t.Fatalf("stored residual %v, want %v", stored, before.Sub(application.PaymentAmount))
+			}
+			var debit, credit string
+			if err := db.QueryRow(`SELECT debit_base, credit_base FROM l_party WHERE application_id = ?`, application.ID).Scan(&debit, &credit); err != nil {
+				t.Fatalf("read party row: %v", err)
+			}
+			zero := debit == "0.000000" || debit == "0"
+			if side == posting.ItemSideDebit && !zero {
+				t.Fatalf("receivable application debits %s", debit)
+			}
+			if side == posting.ItemSideCredit && zero {
+				t.Fatalf("payable application misses its debit, got %s/%s", debit, credit)
+			}
+		}
+		for _, unapplied := range result.Unapplied {
+			total = total.Add(unapplied.Amount)
+		}
+		if !total.Equal(payment) {
+			t.Fatalf("applied plus unapplied is %v, want %v", total, payment)
+		}
+	})
+}
+
+func indexOf(items []posting.Item, id string) int {
+	for i := range items {
+		if items[i].ID == id {
+			return i
+		}
+	}
+	return -1
 }
