@@ -35,9 +35,9 @@ const ledgerUsage = `usage: athena ledger <noun> <verb> [--workspace slug] [--js
   account type-list
   account save --name key --label text --type key [--parent key] [--group] [--class text] [--control-role text] [--company key] [--disable] [--expected-revision N]
   account list [--company key]
-  determination save --label text --account key [--match k=v,...] [--disable] [--id uuid] [--expected-revision N]
+  determination save --label text --account key [--match k=v,...] [--start YYYY-MM-DD] [--end YYYY-MM-DD] [--disable] [--id uuid] [--expected-revision N]
   determination list
-  determination resolve --context k=v,...
+  determination resolve --context k=v,... [--as-of YYYY-MM-DD]
   setting save --pack key --type key --label text --kind scalar|list [--list-rule replace|append|intersect] [--expected-revision N]
   setting list
   setting save-value --pack key --type key [--scope dim:value/...] --effective-from RFC3339 --value-json JSON
@@ -45,7 +45,14 @@ const ledgerUsage = `usage: athena ledger <noun> <verb> [--workspace slug] [--js
   setting discard --pack key --type key [--scope dim:value/...] --effective-from RFC3339 --revision N
   setting list-values --pack key --type key [--published-only]
   setting resolve --pack key --type key [--scope k=v,...] --at RFC3339
-  setting preview --pack key --type key [--scope dim:value/...] --effective-from RFC3339 --value-json JSON [--at-scope k=v,...]`
+  setting preview --pack key --type key [--scope dim:value/...] --effective-from RFC3339 --value-json JSON [--at-scope k=v,...]
+  tree show --master account|branch|department|cost-centre [--company key] [--root key]
+  uom family-save --name key --label text --base-unit key [--disable] [--expected-revision N]
+  uom family-list
+  uom conversion-save --family key --unit key --factor decimal [--item key] [--scale N] [--disable] [--expected-revision N]
+  uom conversion-get --family key --unit key [--item key]
+  uom conversion-list --family key
+  uom convert --value decimal --from unit --to unit [--item key] [--mode half_up|half_even]`
 
 func ledgerCommand(args []string, out io.Writer) error {
 	if isHelp(args) {
@@ -93,6 +100,17 @@ func ledgerCommand(args []string, out io.Writer) error {
 	f.group = flags.Bool("group", false, "a group node")
 	f.hard = flags.Bool("hard", false, "hard close (period close)")
 	f.publishedOnly = flags.Bool("published-only", false, "published generations only")
+	f.master = str("master", "tree master: account, branch, department or cost-centre")
+	f.root = str("root", "subtree root key (tree show)")
+	f.baseUnit = str("base-unit", "family base unit")
+	f.family = str("family", "UoM family")
+	f.unit = str("unit", "UoM unit")
+	f.factor = str("factor", "base units per one unit, decimal")
+	f.item = str("item", "item key for a conversion override")
+	f.scale = flags.Int("scale", 6, "conversion fraction digits, 0 to 12")
+	f.value = str("value", "quantity value, decimal")
+	f.mode = str("mode", "half_up or half_even (default half_up)")
+	f.asOf = str("as-of", "date YYYY-MM-DD (default today)")
 	if ok, err := parse(flags, args); !ok {
 		return err
 	}
@@ -117,8 +135,12 @@ func ledgerCommand(args []string, out io.Writer) error {
 		return ledgerDetermination(ctx, svc, out, verb, f)
 	case "setting":
 		return ledgerSetting(ctx, svc, out, verb, f)
+	case "tree":
+		return ledgerTree(ctx, svc, out, verb, f)
+	case "uom":
+		return ledgerUoM(ctx, svc, out, verb, f)
 	default:
-		return fmt.Errorf("unknown ledger noun %q; use company, period, currency, account, determination or setting", noun)
+		return fmt.Errorf("unknown ledger noun %q; use company, period, currency, account, determination, setting, tree or uom", noun)
 	}
 }
 
@@ -140,6 +162,10 @@ type ledgerFlags struct {
 	scope, scopeMap, effective, valueJSON, id *string
 	revision                                  *int64
 	disable, group, hard, publishedOnly       *bool
+	master, root, baseUnit                    *string
+	family, unit, factor, item                *string
+	value, mode, asOf                         *string
+	scale                                     *int
 }
 
 // ledgerService opens the workspace database like the migrate command and
@@ -384,7 +410,7 @@ func ledgerDetermination(ctx context.Context, svc *ledger.Service, out io.Writer
 		if err != nil {
 			return err
 		}
-		saved, err := svc.SaveDetermination(ctx, ledger.Determination{ID: *f.id, Label: *f.label, Account: *f.account, Match: match, Disabled: *f.disable}, *f.revision)
+		saved, err := svc.SaveDetermination(ctx, ledger.Determination{ID: *f.id, Label: *f.label, Account: *f.account, Match: match, EffectiveFrom: *f.start, EffectiveTo: *f.end, Disabled: *f.disable}, *f.revision)
 		if err != nil {
 			return err
 		}
@@ -402,7 +428,7 @@ func ledgerDetermination(ctx context.Context, svc *ledger.Service, out io.Writer
 			return writeJSON(out, mappings)
 		}
 		for _, mapping := range mappings {
-			fmt.Fprintf(out, "%s\t%s\t-> %s\t%s\trevision %d%s\n", mapping.ID, mapping.Label, mapping.Account, pairsText(mapping.Match), mapping.Revision, disabledMark(mapping.Disabled))
+			fmt.Fprintf(out, "%s\t%s\t-> %s\t%s%s\trevision %d%s\n", mapping.ID, mapping.Label, mapping.Account, pairsText(mapping.Match), effectiveMark(mapping.EffectiveFrom, mapping.EffectiveTo), mapping.Revision, disabledMark(mapping.Disabled))
 		}
 		return nil
 	case "resolve":
@@ -410,7 +436,11 @@ func ledgerDetermination(ctx context.Context, svc *ledger.Service, out io.Writer
 		if err != nil {
 			return err
 		}
-		resolved, err := svc.ResolveAccount(ctx, context_, time.Now().UTC().Format(time.DateOnly))
+		asOf := *f.asOf
+		if asOf == "" {
+			asOf = time.Now().UTC().Format(time.DateOnly)
+		}
+		resolved, err := svc.ResolveAccount(ctx, context_, asOf)
 		if err != nil {
 			return err
 		}
@@ -606,4 +636,234 @@ func pairsText(pairs map[string]string) string {
 		parts[i] = key + "=" + pairs[key]
 	}
 	return strings.Join(parts, ",")
+}
+
+// effectiveMark shows a determination's end-exclusive range, or nothing
+// when the mapping is fully open.
+func effectiveMark(from, to string) string {
+	if from == "" && to == "" {
+		return ""
+	}
+	return fmt.Sprintf("\teffective %s..%s", from, to)
+}
+
+// treeNode is one master row placed in its hierarchy.
+type treeNode struct {
+	Name     string `json:"name"`
+	Label    string `json:"label"`
+	Parent   string `json:"parent"`
+	Depth    int    `json:"depth"`
+	Disabled bool   `json:"disabled"`
+}
+
+func ledgerTree(ctx context.Context, svc *ledger.Service, out io.Writer, verb string, f *ledgerFlags) error {
+	if verb != "show" {
+		return fmt.Errorf("unknown ledger tree command %q; use show", verb)
+	}
+	nodes, err := ledgerTreeNodes(ctx, svc, *f.master, *f.company)
+	if err != nil {
+		return err
+	}
+	ordered, err := orderTree(nodes, *f.root)
+	if err != nil {
+		return err
+	}
+	if *f.asJSON {
+		return writeJSON(out, ordered)
+	}
+	for _, node := range ordered {
+		fmt.Fprintf(out, "%s%s\t%s%s\n", strings.Repeat("  ", node.Depth), node.Name, node.Label, disabledMark(node.Disabled))
+	}
+	return nil
+}
+
+func ledgerTreeNodes(ctx context.Context, svc *ledger.Service, master, company string) ([]treeNode, error) {
+	switch master {
+	case "account":
+		accounts, err := svc.ListAccounts(ctx, company)
+		if err != nil {
+			return nil, err
+		}
+		nodes := make([]treeNode, len(accounts))
+		for i, account := range accounts {
+			nodes[i] = treeNode{Name: account.Name, Label: account.Label, Parent: account.Parent, Disabled: account.Disabled}
+		}
+		return nodes, nil
+	case "branch":
+		branches, err := svc.ListBranches(ctx, company)
+		if err != nil {
+			return nil, err
+		}
+		nodes := make([]treeNode, len(branches))
+		for i, branch := range branches {
+			nodes[i] = treeNode{Name: branch.Name, Label: branch.Label, Parent: branch.Parent, Disabled: branch.Disabled}
+		}
+		return nodes, nil
+	case "department":
+		departments, err := svc.ListDepartments(ctx, company)
+		if err != nil {
+			return nil, err
+		}
+		nodes := make([]treeNode, len(departments))
+		for i, department := range departments {
+			nodes[i] = treeNode{Name: department.Name, Label: department.Label, Parent: department.Parent, Disabled: department.Disabled}
+		}
+		return nodes, nil
+	case "cost-centre":
+		centres, err := svc.ListCostCentres(ctx, company)
+		if err != nil {
+			return nil, err
+		}
+		nodes := make([]treeNode, len(centres))
+		for i, centre := range centres {
+			nodes[i] = treeNode{Name: centre.Name, Label: centre.Label, Parent: centre.Parent, Disabled: centre.Disabled}
+		}
+		return nodes, nil
+	default:
+		return nil, fmt.Errorf("tree --master must be account, branch, department or cost-centre")
+	}
+}
+
+// orderTree lays master rows out depth-first from the roots (or from root
+// when set). Saves refuse cycles, but hand edits can corrupt the links, so
+// a revisit fails naming the node instead of looping.
+func orderTree(nodes []treeNode, root string) ([]treeNode, error) {
+	byName := make(map[string]treeNode, len(nodes))
+	children := make(map[string][]treeNode)
+	for _, node := range nodes {
+		byName[node.Name] = node
+		children[node.Parent] = append(children[node.Parent], node)
+	}
+	for _, siblings := range children {
+		sort.Slice(siblings, func(i, j int) bool { return siblings[i].Name < siblings[j].Name })
+	}
+	starts := children[""]
+	if root != "" {
+		top, ok := byName[root]
+		if !ok {
+			return nil, fmt.Errorf("unknown tree root %q", root)
+		}
+		starts = []treeNode{top}
+	}
+	var ordered []treeNode
+	visiting := map[string]bool{}
+	var visit func(node treeNode, depth int) error
+	visit = func(node treeNode, depth int) error {
+		if visiting[node.Name] {
+			return fmt.Errorf("cycle at %q: the parent links are corrupt", node.Name)
+		}
+		visiting[node.Name] = true
+		node.Depth = depth
+		ordered = append(ordered, node)
+		for _, child := range children[node.Name] {
+			if err := visit(child, depth+1); err != nil {
+				return err
+			}
+		}
+		delete(visiting, node.Name)
+		return nil
+	}
+	for _, start := range starts {
+		if err := visit(start, 0); err != nil {
+			return nil, err
+		}
+	}
+	return ordered, nil
+}
+
+func ledgerUoM(ctx context.Context, svc *ledger.Service, out io.Writer, verb string, f *ledgerFlags) error {
+	switch verb {
+	case "family-save":
+		saved, err := svc.SaveUoMFamily(ctx, ledger.UoMFamily{Name: *f.name, Label: *f.label, BaseUnit: *f.baseUnit, Disabled: *f.disable}, *f.revision)
+		if err != nil {
+			return err
+		}
+		if *f.asJSON {
+			return writeJSON(out, saved)
+		}
+		fmt.Fprintf(out, "Saved UoM family %s at revision %d.\n", saved.Name, saved.Revision)
+		return nil
+	case "family-list":
+		families, err := svc.ListUoMFamilies(ctx)
+		if err != nil {
+			return err
+		}
+		if *f.asJSON {
+			return writeJSON(out, families)
+		}
+		for _, family := range families {
+			fmt.Fprintf(out, "%s\t%s\tbase %s\trevision %d%s\n", family.Name, family.Label, family.BaseUnit, family.Revision, disabledMark(family.Disabled))
+		}
+		return nil
+	case "conversion-save":
+		factor, err := types.ParseDecimal(*f.factor)
+		if err != nil {
+			return fmt.Errorf("factor %q is not a decimal: %w", *f.factor, err)
+		}
+		saved, err := svc.SaveUoMConversion(ctx, ledger.UoMConversion{Family: *f.family, Unit: *f.unit, Item: *f.item, Factor: factor, Scale: *f.scale, Disabled: *f.disable}, *f.revision)
+		if err != nil {
+			return err
+		}
+		if *f.asJSON {
+			return writeJSON(out, saved)
+		}
+		fmt.Fprintf(out, "Saved UoM conversion %s/%s at revision %d.\n", saved.Family, saved.Unit, saved.Revision)
+		return nil
+	case "conversion-get":
+		conversion, err := svc.GetUoMConversion(ctx, *f.family, *f.unit, *f.item)
+		if err != nil {
+			return err
+		}
+		if *f.asJSON {
+			return writeJSON(out, conversion)
+		}
+		fmt.Fprintf(out, "%s\t%s\t%s\tfactor %s\tscale %d%s\n", conversion.Family, conversion.Unit, conversionItemText(conversion.Item), conversion.Factor.String(), conversion.Scale, disabledMark(conversion.Disabled))
+		return nil
+	case "conversion-list":
+		conversions, err := svc.ListUoMConversions(ctx, *f.family)
+		if err != nil {
+			return err
+		}
+		if *f.asJSON {
+			return writeJSON(out, conversions)
+		}
+		for _, conversion := range conversions {
+			fmt.Fprintf(out, "%s\t%s\t%s\tfactor %s\tscale %d%s\n", conversion.Family, conversion.Unit, conversionItemText(conversion.Item), conversion.Factor.String(), conversion.Scale, disabledMark(conversion.Disabled))
+		}
+		return nil
+	case "convert":
+		value, err := types.ParseDecimal(*f.value)
+		if err != nil {
+			return fmt.Errorf("value %q is not a decimal: %w", *f.value, err)
+		}
+		qty, err := types.NewQuantity(value, *f.from)
+		if err != nil {
+			return fmt.Errorf("unit %q is not a unit of measure", *f.from)
+		}
+		mode := types.RoundingMode(*f.mode)
+		if *f.mode == "" {
+			mode = types.HalfUp
+		}
+		if !mode.Valid() {
+			return fmt.Errorf("mode %q must be half_up or half_even", *f.mode)
+		}
+		converted, err := svc.ConvertQuantity(ctx, qty, *f.to, *f.item, mode)
+		if err != nil {
+			return err
+		}
+		if *f.asJSON {
+			return writeJSON(out, map[string]string{"value": converted.Value.String(), "unit": converted.UoM})
+		}
+		fmt.Fprintf(out, "%s %s = %s\n", value.String(), *f.from, converted.String())
+		return nil
+	default:
+		return fmt.Errorf("unknown ledger uom command %q; use family-save, family-list, conversion-save, conversion-get, conversion-list or convert", verb)
+	}
+}
+
+func conversionItemText(item string) string {
+	if item == "" {
+		return "default"
+	}
+	return "item " + item
 }

@@ -1,6 +1,6 @@
 # Record Type and Pack model
 
-**Last updated:** 2026-11-19  
+**Last updated:** 2026-11-24  
 **Status:** Product direction accepted; authoring synchronization and upgrade behavior remain open. Vocabulary follows ADR-0008 (Proposed): Record Type, Record Type, Pack, Workspace.
 
 ## Core concepts
@@ -54,6 +54,13 @@ Proposed answer (ADR-0015, not accepted): generated Go goes to `generated/<key>_
 - For many-to-many relationships, a Pack relationship will need a generated join table with foreign keys, uniqueness, timestamps, and explicit delete behavior.
 - Schema updates must be versioned. The initial implementation only provisions a table and adds missing columns; it does not safely handle renames, drops, type changes, or backfills.
 - Migration and Record Type metadata changes need an operator-visible plan and transaction/rollback story before production use. MariaDB DDL may commit independently of metadata writes, so error recovery must account for partially provisioned tables.
+
+### Tree and effective-dated attributes (ADR-0029, Proposed; implemented 2026-11-24)
+
+- A Record Type flagged `tree` (master and document kinds only; child and setting are refused) stores `tree_parent_id`, `tree_path` and `tree_depth` on its rows. The kernel refuses cycles and cross-company links. Enabling the flag backfills existing rows as top-level; disabling it is destructive-gated with counts, through the same plan-and-confirm flow as any schema change.
+- A Record Type flagged `effective_dated` (any kind, but never with amendable: amending copies values without splitting their range) stores an end-exclusive `[effective_from, effective_to)` range per row. Overlapping ranges for one entity are refused; lists resolve "as of" end-exclusive.
+- The desk exposes both flags as Record Type settings switches in plain words ("Arranged as a tree", "Valid between two dates"). There is no Desk as-of view yet (deferred follow-up).
+- The same slice family adds UoM families with exact factors and item overrides (`athena_uom_families`, `athena_uom_conversions`), end-exclusive ranges on account determinations resolved by specificity, and materialised path/depth on the four kernel tree masters (accounts, branches, departments, cost centres), recomputed inside the save transaction. Nothing is seeded. The CLI surface is `athena ledger tree|uom|determination`; Property 25 pins the range and round-trip behaviour.
 
 ### Pack composition
 

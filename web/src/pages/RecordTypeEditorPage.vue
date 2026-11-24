@@ -110,6 +110,7 @@ function chooseKind(kind: Kind) {
   else { delete recordType.class; delete recordType.submittable; delete recordType.amendable; delete recordType.naming_series; delete recordType.gap_free; delete recordType.allow_manual_name }
   if (kind === 'child') recordType.parent_record_type = recordType.parent_record_type ?? parentChoices.value[0]?.name
   else delete recordType.parent_record_type
+  if (kind === 'child' || kind === 'setting') delete recordType.tree
 }
 
 // Attributes belong to a type, so switching type drops the ones that no longer
@@ -128,7 +129,7 @@ function setNamingSeries(value: string) {
   if (value.trim()) recordType.naming_series = value
   else { delete recordType.naming_series; delete recordType.gap_free }
 }
-function setFlag(key: 'gap_free' | 'allow_manual_name', value: boolean) {
+function setFlag(key: 'gap_free' | 'allow_manual_name' | 'tree' | 'effective_dated', value: boolean) {
   if (value) props.currentRecordType[key] = true
   else delete props.currentRecordType[key]
 }
@@ -140,8 +141,12 @@ function setLabelField(value: string) {
 const labelFieldChoices = computed(() => props.currentRecordType.fields.filter((field) => ['Text', 'Long text', 'Email', 'Phone', 'Select', 'Enum', 'Date'].includes(field.type) && !isNewField(field)))
 const namingProblem = computed(() => validateNamingSeries(props.currentRecordType.naming_series ?? ''))
 function setAmendable(value: boolean) {
-  if (value) props.currentRecordType.amendable = true
-  else delete props.currentRecordType.amendable
+  if (value) {
+    props.currentRecordType.amendable = true
+    // Amending copies values without splitting their range, so an amendable
+    // document cannot track effective dates (the server refuses the pair).
+    delete props.currentRecordType.effective_dated
+  } else delete props.currentRecordType.amendable
 }
 const settingsField = ref<Field | null>(null)
 const confirmingTypeDelete = ref(false)
@@ -258,6 +263,8 @@ const kindBadge = computed(() => kinds.find((item) => item.value === props.curre
           <div class="record-meta record-kind">
             <label>Kind <HelpHint term="recordKind" /><select :value="currentRecordType.kind" disabled aria-label="Record Type kind" @change="chooseKind(($event.target as HTMLSelectElement).value as Kind)"><option v-for="kind in kinds" :key="kind.value" :value="kind.value">{{ kind.label }}</option></select><small>Fixed after the first save. {{ kindHint }}</small></label>
             <label v-if="currentRecordType.kind === 'document'">Class<select v-model="currentRecordType.class" aria-label="Document class" @change="chooseClass"><option v-for="item in documentClasses" :key="item[0]" :value="item[0]">{{ item[1] }}</option></select><small>Posting documents will write to ledgers; work and batch documents track work.</small></label>
+            <label v-if="currentRecordType.kind === 'master' || currentRecordType.kind === 'document'" class="switch-label"><span class="switch-line"><Checkbox :model-value="currentRecordType.tree ?? false" aria-label="Arranged as a tree" @update:model-value="setFlag('tree', $event === true)" />Arranged as a tree</span><small>Each record can have a parent.</small></label>
+            <label class="switch-label"><span class="switch-line"><Checkbox :model-value="currentRecordType.effective_dated ?? false" :disabled="currentRecordType.kind === 'document' && (currentRecordType.amendable ?? false)" aria-label="Valid between two dates" @update:model-value="setFlag('effective_dated', $event === true)" />Valid between two dates</span><small>{{ currentRecordType.kind === 'document' && currentRecordType.amendable ? 'Amendable documents cannot track effective dates.' : 'Each record is valid between two dates.' }}</small></label>
             <label v-if="currentRecordType.kind === 'document' && currentRecordType.class !== 'work'" class="switch-label"><span class="switch-line"><Checkbox :model-value="currentRecordType.submittable ?? false" aria-label="Submittable" @update:model-value="setSubmittable($event === true)" />Submittable</span><small>Records move from draft to submitted to cancelled. Submitted records stay fixed, apart from fields set to allow editing.</small></label>
             <label v-if="currentRecordType.kind === 'document' && currentRecordType.submittable" class="switch-label"><span class="switch-line"><Checkbox :model-value="currentRecordType.amendable ?? false" aria-label="Amendable" @update:model-value="setAmendable($event === true)" />Amendable</span><small>A cancelled record can be amended into a new draft that points back to it.</small></label>
             <label v-if="currentRecordType.kind === 'document' && currentRecordType.submittable" :class="{ 'is-invalid': namingProblem }">Naming series<Input :model-value="currentRecordType.naming_series ?? ''" placeholder="INV-{yyyy}-{#####}" aria-label="Naming series" :aria-invalid="namingProblem ? 'true' : undefined" @update:model-value="setNamingSeries(String($event))" /><small>{{ namingProblem || 'Numbers each document when it is submitted. Tokens: {yyyy}, {yy}, {mm} and one counter such as {#####}. Empty keeps the Record ID as the name.' }}</small></label>

@@ -151,6 +151,8 @@ function fromMessage(recordType: RecordTypeMessage): RecordType {
     ...(recordType.namingSeries ? { naming_series: recordType.namingSeries } : {}),
     ...(recordType.gapFree ? { gap_free: true } : {}),
     ...(recordType.allowManualName ? { allow_manual_name: true } : {}),
+    ...(recordType.tree ? { tree: true } : {}),
+    ...(recordType.effectiveDated ? { effective_dated: true } : {}),
     ...(recordType.labelField ? { label_field: recordType.labelField } : {}),
     fields: recordType.fields.map(fieldFromMessage),
     ...(layout ? { layout } : {}),
@@ -183,6 +185,8 @@ function toMessage(recordType: RecordType): RecordTypeMessage {
     namingSeries: recordType.kind === 'document' && (recordType.submittable ?? false) ? recordType.naming_series ?? '' : '',
     gapFree: recordType.kind === 'document' && (recordType.submittable ?? false) && (recordType.naming_series ?? '') !== '' && (recordType.gap_free ?? false),
     allowManualName: recordType.kind === 'document' && (recordType.submittable ?? false) && (recordType.allow_manual_name ?? false),
+    tree: (recordType.kind === 'master' || recordType.kind === 'document') && (recordType.tree ?? false),
+    effectiveDated: recordType.effective_dated ?? false,
     labelField: recordType.label_field ?? '',
     layout: layoutToMessage(recordType.layout),
     fields: recordType.fields.map((field) => ({
