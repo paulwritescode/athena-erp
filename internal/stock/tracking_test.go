@@ -338,6 +338,37 @@ func TestSerialCancelReversals(t *testing.T) {
 	}
 }
 
+func TestReturnRequiresIssueBin(t *testing.T) {
+	stockSvc, engine, masters, db := setup(t)
+	seedStockBasics(t, masters)
+
+	receipt := testMovement()
+	postMovement(t, db, stockSvc, engine, receipt)
+	_, issueApplied := postMovement(t, db, stockSvc, engine, issueOf(receipt, "10"))
+	// A return to another location or owner is a transfer, not a return:
+	// return there after returning here.
+	for name, mutate := range map[string]func(*stock.Movement){
+		"third location": func(m *stock.Movement) { m.Location = "locC" },
+		"other owner":    func(m *stock.Movement) { m.Owner = "consignment" },
+	} {
+		back := receipt
+		back.VoucherID = uuid.NewString()
+		back.VoucherType = "stock_return"
+		back.UnitCost = types.Decimal{}
+		back.ReversesRowID = issueApplied.RowID
+		mutate(&back)
+		tx, err := db.BeginTx(context.Background(), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = stockSvc.PlanMovement(context.Background(), tx, back)
+		tx.Rollback()
+		if !errors.Is(err, stock.ErrInvalid) {
+			t.Errorf("%s: error is %v, want ErrInvalid", name, err)
+		}
+	}
+}
+
 func TestCrossLocationReturnCancelRestoresIssueBin(t *testing.T) {
 	stockSvc, engine, masters, db := setup(t)
 	seedStockBasics(t, masters)
