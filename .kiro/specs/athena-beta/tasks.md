@@ -109,7 +109,7 @@ Order follows dependencies. Desk parts of each group follow the design system an
   - Slice 4 merged 2026-11-23 (8fd7bef): lifecycle hooks + Posting Rule type with activation gate (6.8); internal/lifecycle deviation accepted (registry suffices); records.proto +posting_preview_hash; fixture replay + plan diff + two-step named approval; Z2 sentinels byte-identical. Open: slices 5–6 (RPCs/CLI, voucher view + docs + checkpoint).
   - Slice 5 merged 2026-11-23 (cf2f674): posting RPCs + CLI (6.9); preview-hash loop closed; dryRun side-effect-free; gate policies + both-halves test; Z2 untouched. Open: slice 6 (6.10 voucher view + 6.11 docs + 6.12 checkpoint; 6.11 committed on the branch, Desk still gated).
   - Slice 6 merged 2026-11-23 in two parts (train1 919bab4): 6.11 docs (fdf98c7+d897d01) — G6.8–6.9 hooks/Rule-type/RPC/CLI docs, one review-found false mechanism claim fixed; 6.12 checkpoint verified on 919bab4 with no commit (r-c1 evidence review: merge-gate reuse valid, browser 22/22, 6/6 shots match). Z2 untouched. Open: 6.10 Desk voucher view only (GO given 2026-11-24, queued in L1 after C5 slice 1; worktree + brief ready).
-  - 6.10 merged 2026-11-24 (train4 bafe51d, 1 commit 9a299ca): Desk voucher view — preview dialog with hash-carrying submit, Books-entries sheet (status/lines/attempts), Recorded-in-the-books badge, blocked-post toasts; browser 25/26 + 15/15 shots (1 harness-class fail, gaps disclosed). Review PASS (5 follow-ups). Z2 untouched. C1 complete; L1 continues C5 slice 2.
+  - 6.10 merged 2026-11-24 (train4 bafe51d, 1 commit 9a299ca): Desk voucher view — preview dialog with hash-carrying submit, Books-entries sheet (status/lines/attempts), Recorded-in-the-books badge, blocked-post toasts; browser 25/26 + 15/15 shots (1 harness-class fail, gaps disclosed). Review PASS (5 follow-ups). Z2 untouched. Open: slice 7 (Z2 backdating/book policy, briefed, queued in L1 after C5 slice 2); C1 ticks when it merges.
   - Follow-up: Posting Rule activation — approver may be the author (four-eyes not enforced for beta, Stylus-accepted); approval record keeps author (v2 actor) and approver (v3 actor) so it can be audited (Z13).
 - [ ] **C2. G8 Jobs, outbox, events, workflows, secrets, lifetimes.** Invite delivery through the outbox. JobsPage and SettingsPage.
   - Slice 1 merged 2026-11-22 (5d1e55f): migration 17 (events/outbox/inbox + subscriptions + jobs/occurrences + workflows/tasks) + ADR-0028 (8.1 adjusted); Z4 secrets/lifetimes deferred. Open: slices 2+ (subscriptions, worker, jobs, workflows, secrets/lifetimes once Z4 is decided).
@@ -126,7 +126,8 @@ Order follows dependencies. Desk parts of each group follow the design system an
 - [ ] **C5. G7 Party ledger, settlements, realised FX.** "What customers owe" and "What we owe" in View vocabulary.
   - Slice 1 merged 2026-11-24 (f00fc58): migration 20 `party_ledger` (l_party, party items, settlement applications) + ADR-0031 (Proposed). Review PASS (1 wording follow-up). Open: slices 2–9 (settlement engine, properties, FX, RPCs/CLI/Desk, fixture, docs + checkpoint).
 - [ ] **C6. G9 Balances, Query compiler, Reports v1, Report Runs.** ReportsPage with charts using `--chart-*` only.
-- [ ] **C7. G11 Stock ledger, reservations, serial and batch, valuation.** (Needs valuation method, Z3.)
+- [ ] **C7. G11 Stock ledger, reservations, serial and batch, valuation.** (Z3 decided 2026-11-24: perpetual weighted average, FEFO, rentals tracked-not-consumed, no negative stock.)
+  - Slice 1 merged 2026-11-24 (6c99d3a, 1 commit): migration 21 (10 stock tables) + ADR-0032. Review PASS (cache-provenance crux cleared: uncached server green + migration tests rerun). Merge gate: real 1042s run (17 Go ok, 632 web). Open: slice 2 (stock core, in review), 3–10, 11 lifecycle wiring (Stylus-added: seam dead until wired).
 - [ ] **C8. G12 Remaining ledgers.**
 - [ ] **C9. G14 Report engine, work queues, Activity timeline, Explain this movement.**
 - [ ] **C10. G15 Integration surface.** Attachments reuse the B9 Image storage.
@@ -235,7 +236,7 @@ Gates per name: pattern, 1 to 2 syllables, clean as `athena-<noun>`, the user ca
 - FU batch 2: records-flow shots (records/dark/dialog-key) remain uncaptured; FU-H owns driver hardening.
 - FU-H: CDP close handler + fetch timeouts (F1); stale example comment (F2); README wording (F3); --db collision note (F4); B11 owner echo (F5); SIGINT/SIGTERM handlers (F6).
 
-## Z. Decisions the user must make (OPEN)
+## Z. User decisions (all Z0–Z13 decided; rows carry the dates)
 
 | # | Question | Blocks |
 | --- | --- | --- |

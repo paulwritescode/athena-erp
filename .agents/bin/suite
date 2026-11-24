@@ -95,6 +95,12 @@ def is_full(c, lab):
 
 
 FULL = is_full(" ".join(cmd), label)
+if FULL and not os.path.exists(os.path.join(os.getcwd(), ".env.local")) \
+        and not (os.environ.get("ATHENA_TEST_DATABASE_URL") or os.environ.get("ATHENA_DATABASE_URL")):
+    # MariaDB tests skip without a DSN, so a Go run here would be green without testing anything
+    sys.exit("suite: refusing a Go test run with no database: copy .env.local into this tree "
+             "(cp ../athena-erp/.env.local .) or set ATHENA_TEST_DATABASE_URL")
+
 json.dump({"pid": os.getpid(), "who": who, "label": label, "prio": prio, "t": time.time(), "full": FULL,
            "cmd": " ".join(cmd)}, open(ticket, "w"))
 for sig in (signal.SIGTERM, signal.SIGHUP):

@@ -11,3 +11,4 @@ Master reserves a number here before a worker writes the migration. Merged numbe
 | 20 | C5 (party ledger, ADR-0031) | merged 2026-11-24 (f00fc58) |
 | 21 | C7 (stock ledger, ADR-0032) | in progress (w-c7 slice 1) |
 | 22 | C2 secrets/retention (ADR-0033) | reserved 2026-11-24 |
+| 23 | F4 lists kernel table (ADR-0034) | reserved 2026-11-24 |
