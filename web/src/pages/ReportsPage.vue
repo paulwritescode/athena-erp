@@ -67,11 +67,6 @@ async function loadLists() {
   }
 }
 
-watch(selectedType, () => {
-  openListId.value = ''
-  void loadLists()
-})
-
 // The open list and its run.
 const openListId = ref('')
 const openList = computed(() => lists.value.find((l) => l.id === openListId.value) ?? null)
@@ -102,6 +97,14 @@ async function runMore() {
     runLoading.value = false
   }
 }
+
+// Runs immediately: when the Record Types arrive already loaded, the type
+// watcher above has nothing to change, so without this the lists would
+// never load. The first run is a no-op until a type is selected.
+watch(selectedType, () => {
+  openListId.value = ''
+  void loadLists()
+}, { immediate: true })
 
 const runColumns = computed(() => {
   const fields = currentType.value?.fields ?? []
