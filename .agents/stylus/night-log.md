@@ -729,3 +729,18 @@
 - 21:36 F7s3 committed 2ac54d1 (E2E 132/132 green on parseTime fix, generate stable); affected queued, full suite follows.
 - 21:43 TICK: main 787dc41. TS train gate RUNNING ~17m. Review-passed not on main: TS train (gating).
 - 21:50 TS train MERGED: gate green exit 0, 21m (20 Go ok — posting 32.7s in full run; 684/684 web, log 1124-212652). Rebased 0db0ca7->953c4d8 onto post-parseTime main conflict-free, 9/9 files identical, build+vet green; FF+pushed. Test-only: no server restart.
+- 21:54 CLOSED merge13 tree + branch merge/tsts23 (TS train merged).
+- 21:54 TS train docs pushed (f1fb4a0).
+- 21:54 TICK: main f1fb4a0 (parseTime + TS train + docs). Review-passed not on main: none.
+- 21:56 Stylus RESULT to w-ts: posting 853->33s; new poles auth 639/server 551/stock 408. Slice-4 order: stock shared-DB, auth wait cause, server 17 New calls, then -p shootout.
+- 22:02 TICK: main f1fb4a0. r-f4s1 full gate RUNNING (21:47). Review-passed not on main: none.
+- 22:08 TICK: main f1fb4a0. r-f4s1 full gate RUNNING ~20m. Review-passed not on main: none.
+- 22:12 TICK: main f1fb4a0. r-f4s1 full gate RUNNING ~24m. Review-passed not on main: none.
+- 22:14 F4s1 REVIEW PASS (r-f4s1, full suite green 1448s, engine/TS/golden/diligence/scope verified). Staging 16-commit merge. NOTE: F4s1 merge fires L4 respawn trigger 2 (F3s2).
+- 21:57 F4s1 staged 2a9c349 in merge14 (17 picks; main.go registry-resolved + lists table entry, log unions, server files union incl parseTime rename; generate stable); narrow OK, merge gate queued. C7s7 NEEDS_CHANGES relayed (LogID comment fix).
+- 22:24 C10s2 PASS (w-c2, 47dd6e4 on f1fb4a0, inbox HMAC/dedupe/OpID/evidence, affected green, disjoint-carry from 54430ee). Spawning r-c10s2.
+- 22:26 Disk cleared to 8.2GB (tmp browser debris + c5 per-tree cache). r-c10s2 spawn retried.
+- 22:24 TICK: main f1fb4a0. F4s1 gate RUNNING; r-c10s2 up; C7s7 fix relayed. Review-passed not on main: F4s1 (gating).
+- 22:32 TICK: main f1fb4a0. F4s1 gate RUNNING ~11m. Review-passed not on main: F4s1 (gating).
+- 22:42 TICK: main f1fb4a0. F4s1 gate RUNNING ~21m. Review-passed not on main: F4s1 (gating).
+- 22:49 F4s1 MERGED: gate green exit 0, 25m (21 Go ok incl new lists — posting 51s with shared DB; 717/717 web; log 1124-222112). FF 2a9c349+pushed. Server restarted healthy (t7f). L4 trigger 2 FIRED (builder merged) — respawning w-f2 for F3s2.
