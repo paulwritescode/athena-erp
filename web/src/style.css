@@ -501,3 +501,7 @@ table.datatable-stacked{display:block;width:100%;max-width:100%}
 /* List thumbnails (B9 follow-up 2.3): a quiet box in table and stacked rows. */
 .table-thumbnail{width:var(--space-12);height:var(--space-12)}
 .table-thumbnail .workspace-image-missing{padding:0;font-size:0}
+/* Select cells keep symmetric padding: the table primitive drops the right
+   padding on checkbox cells, which would wedge the box against the edge.
+   Unlayered, so it wins over the layered utility. */
+.datatable-select-cell{padding-right:var(--space-3)}
