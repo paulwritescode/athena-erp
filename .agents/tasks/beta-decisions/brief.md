@@ -3,7 +3,7 @@
 Worktree: /Users/iampaulking/projects/duchess/athena-erp-fu, branch `feat/fu-batch-2` (commit on top after the batch-2 work; this is a docs-only commit, no gate needed, but rebase on main before reporting).
 Read: `.agents/stylus/night-shift-orders.md` (Decisions table — the exact decision texts, with sources), `docs/decisions/adr-template.md`, `AGENTS.md` (Keep documentation current).
 
-Numbers reserved by the master: ADR-**0033** "Secrets and retention" (C2, Z4). No migration in this task. NOTE (2026-11-24): ADR-0032 moved to the C7 worker (it writes ADR-0032 as C7 slice 1 with migration 21) — do NOT write ADR-0032 here; still record the Z3 decision row (pointing at ADR-0032 as C7-owned).
+No ADR files in this task and no migration. NOTE (2026-11-24): ADR-0032 moved to the C7 worker and ADR-0033 moved to the C2 worker (each writes its ADR as its slice 1) — do NOT write either ADR here; still record the Z3 + Z4 decision rows (pointing at the worker-owned ADRs).
 
 Task (one docs commit; report with say master "DECISIONS DOCS: PASS or BLOCKED <one line>"):
 1. `tasks.md` section Z: rewrite rows Z1–Z7, Z10, Z11, Z13 as `DECIDED 2026-11-24: <decision>` (follow the Z0 row format; keep the Blocks column), using the exact decision texts from night-shift-orders.md. B7/B10 have no Z rows — note B7 descoped + B10 accepted in the rows/notes where they appear (B7 open question, B10 slice-1 follow-up).

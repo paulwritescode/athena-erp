@@ -10,5 +10,6 @@
   "updateEveryMinutes": 10,
   "suiteTimeoutMinutes": 30,
   "note": "8 CPUs / 8 GB RAM. Up to suiteSlots heavy runs at once through .agents/bin/suite (user approved more parallel tests 2026-11-24). spawn still refuses below minMemFreePct. Raise caps only with Stylus agreeing.",
-  "suiteSlots": 2
+  "suiteSlots": 2,
+  "browserTimeoutMinutes": 15
 }

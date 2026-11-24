@@ -266,3 +266,88 @@
 - 03:08 NOTE from Stylus: tooling uncommitted again (bin/suite,progress,ticker + dashboard pair + MASTER/lanes/limits + night-shift-orders.md); fold into slice-4 docs window as chore(agents); standing rule: docs commits sweep all record/tooling paths
 - 03:08 w-c2 UPDATE: split browser hung 31m on dark step (CDP/server down); sm-c2 ordered cancel + timeouts + one re-run, all else green
 - 03:12 MERGED C4 slice 4 (640bd5b -> 094610d, tests-only) gate green (Go ok, web 616/616); PUSHED
+- 03:15 w-c2 UPDATE: split steady f4e57fd, browser re-running; rebase after PASS (main 8f3bd9d noted)
+- 03:16 ORDERED FU-H to w-fu (after batch-2 PASS, fresh branch, brief ready) + interim harness-PASS rule to 5 browser lanes
+- 03:14 Removed athena-erp-c4 worktree (13.3b + slice 4 fully merged); branch feat/c4-trees kept
+- 03:17 w-d3 ANSWER: interim rule received, applies only if harness trips
+- 03:18 w-fu UPDATE: browser needs diagnostic run (editor shows no field rows though save lands; capturing text + JS errors), re-queuing; FU-H after PASS noted
+- 03:19 DECIDED (Stylus): batch-2 PASS now under interim rule, FU-H immediately after (priority over decisions-docs); ORDERED w-fu
+- 03:19 w-c2 ANSWER: interim rule relayed to sm-c2
+- 03:20 w-c2 UPDATE: split browser queued behind C1 + C7 (~11 min run when started); interim rule to sw-c2-2
+- 03:36 Watchdog first kill: w-f6 30m+ browser stopped at cap (stopped event); w-fu 92s run + re-queue, w-c1 + w-c7 (full, slot 0) running
+- 03:38 PASS FU batch 2 interim (58a8cf4): 9 fixes, full green pre-rebase + tip narrows, 3 shots; SPAWNED r-fu (t56, review, editor question is crux); w-fu to FU-H
+- 03:38 w-c1 UPDATE: retry 3: 21 passed, 5 failed all-harness (dialog race, format + cascades); 3 shots eye-checked correct; fixed, retry 4 queued
+- 03:39 w-fu UPDATE: FU-H started, feat/fu-harness fresh at 8f3bd9d, reading shape then implementing
+- 03:41 Triage sw-c2-2: settings-list assertions failed with zero page errors (all shots taken) — chain diagnoses (selector vs content)
+- 03:42 PASS D3 slice 5 (9a29fb7): docs + full/browser green on c0c34c8, Desk untouched; SPAWNED r-d3 (t57, review)
+- 03:43 CLOSED w-d3 (t45, D3s5 in review); d3 worktree kept (slice 5 unmerged)
+- 03:43 SPAWNED w-f1 (t58, F1 tables, recon-first on 6.10 overlap); L4 runs F1
+- 03:42 w-fu UPDATE: FU-H slice 1 committed 9f017ed (driver + example + README, self-test 15/15); proving with 2 green runs
+- 03:44 w-f6 UPDATE: root-caused stuck slot (backgrounded server held suite pipe; exec-detach + trap fix); RPC login verified, attempt 5 requeued
+- 03:47 w-c1 UPDATE: retry 5: 24/26 (light sheet-row timeouts x2 — dark loads same voucher fine — + 1 stall); diagnostics added, retry 6 for data
+- 03:48 w-f1 QUESTION: skills missing (verified absent); ANSWERED proceed with design system as authority
+- 03:48 w-c2 UPDATE: holding at f4e57fd for split review verdict (x2)
+- 03:48 r-d3 UPDATE: slice-5 review underway (docs-only delta confirmed, evidence logs green, gates next)
+- 03:49 PASS C2 split 4-6 (f4e57fd): 7 commits, full green, interim browser evidence; SPAWNED r-c2 (t59, review); w-c2 holds (secrets next)
+- 03:51 NUDGED w-c7 (55 min silent; rules require 10-min UPDATEs)
+- 03:51 w-c2 ANSWER: holding f4e57fd for r-c2 verdict; secrets queued after merge
+- 03:55 REVIEW PASS D3 slice 5 (9a29fb7, r-d3): docs-only, evidence chain intact, Desk untouched
+- 03:55 CLOSED r-d3 (t57, verdict delivered); removed athena-erp-d3-r
+- 03:57 w-fu UPDATE: FU-H sign-in redesigned (owner lacks build + 403s; root via CLI reset challenge instead, disclosed); committed ffeeba7, proving with 2 green runs
+- 05:10 ERROR Mac idle-slept 03:41 to 05:07 (pmset log): no updates, C7 Go run held slot 0 100 min. Stylus started caffeinate -i -s -m (hc name caffeinate) to keep the machine awake; stop it with hc kill caffeinate at clock-out.
+- 05:08 Mac idle-slept 03:41-05:07 (Stylus; explains silence + C7 100-min run, stopped by limit); caffeinate terminal runs — NEVER close until clock-out
+- 05:08 ORDERED C7 gate re-queue (w-c7) + interim PASS now for 6.10 (w-c1) and F6 (w-f6), retries over (Stylus order)
+- 05:10 r-c2 UPDATE: split review started (tree verified, workflows + delivery verified so far)
+- 05:11 r-c2 UPDATE: events surface verified (9 procedures + policies, CLI, no secrets CLI); Desk/docs/shots/gates next
+- 05:13 MERGED D3 slice 5 (8f3bd9d -> 9a29fb7, docs-only); PUSHED docs (D3 ticked complete); removed merge + d3 worktrees (branch kept); no restart (binary identical)
+- 05:13 w-c7 ANSWER: retry in flight on 1559078; falls back to affected + PASS-WITH-EVIDENCE if limited again
+- 05:16 w-f1 UPDATE: slice committed e259c59 (disjoint holds), narrow green (typecheck, 26/26, build); browser + suite + report next
+- 05:16 w-f1 QUESTION: browser pair; ANSWERED L4 = 3072/3792 + test_athena_f1_browser
+- 03:47 r-c2 UPDATE: 12/12 shots eyeballed, no breakage, browser log confirms harness-only; gates running
+- 05:20 w-c7 UPDATE: rebased on 4acb8d4 as 2625faf clean, queueing ordered uncached server gate
+- 05:22 PASS C1 6.10 (9a299ca): content identical on main, 25/26 (1 harness), 15 shots; briefs ready (6.10 + FU-H reviews queued for free slot); w-c1 holds + shot mapping requested
+- 05:24 SPAWNED r-c1 (6.10 review, -r tree at 9a299ca); reviewer cap 3/3 (r-fu, r-c2, r-c1)
+- 05:24 sm-c2 + sw-c2-2 self-closed after split PASS (chain complete); w-c4/w-c5/w-d3 closed at handoffs
+- 05:25 w-c1 INFO: 15-shot map sent (forwarded to r-c1); r-c2 UPDATE: all gates green, writing review file
+- 05:24 SPAWNED r-c1 (t5c, 6.10 review, -r tree at 9a299ca); reviewer cap 3/3 (r-fu, r-c2, r-c1)
+- 05:27 r-fu UPDATE: batch-2 review nearly done, editor crux RESOLVED (green on main/train2/tip = load flake); affected queued, verdict next
+- 05:30 REVIEW PASS C2 split (f4e57fd, r-c2): 7 commits clean, 6 follow-ups
+- 05:30 CLOSED r-c2 (t59, verdict delivered); removed athena-erp-c2-r
+- 05:33 MERGE STAGED C2 split (7 picks clean, tip 87db25e); narrow green; full gate queuing master-first
+- 05:33 r-c1 UPDATE: 6.10 review progressing (15/15 shots match disclosed gaps, no undisclosed breakage); gates next
+- 05:40 PASS F6 (3 commits): 32 shots, narrows green, full suite pending; review waits for green + slot
+- 05:40 w-f6 INFO: offline plug figure never paints offline (pre-existing lazy-chunk, not F6) — follow-up for merge docs
+- 05:41 PASS FU-H (1e1450f): 2 green runs + drills + 16/16, rebased 4acb8d4; SPAWNED r-fuh (t5d, review); w-fu holds (decisions after merge)
+- 05:42 w-fu ANSWER: FU-H holding at 1e1450f for verdict; decisions after merge
+- 05:43 w-c2 UPDATE: verdict seen (SPLIT PASS), holding f4e57fd for merge; secrets next
+- 05:44 w-f1 UPDATE: browser GREEN 15/15 (disjoint holds), 8 shots inspected, 3 commits; final suite + rebase + report next
+- 05:46 REVIEW PASS C1 6.10 (9a299ca, r-c1): no blockers, 5 follow-ups; merges after split gate
+- 05:47 r-fuh UPDATE: FU-H review underway (worker evidence checks out, queuing own example run)
+- 05:46 CLOSED r-c1 (t5c, verdict delivered); removed athena-erp-c1-r
+- 05:28 REVIEW PASS FU-H (1e1450f, r-fuh): proven on reviewer green run, 6 follow-ups
+- 05:26 REVIEW PASS FU batch 2 (58a8cf4, r-fu): editor load-flake proven, evidence identical, 9/9
+- 05:27 CLOSED r-fu (t56, verdict delivered); r-fu had already removed fu-r + ctrl trees itself
+- 05:29 CLOSED r-fuh (t5d, verdict delivered); removed athena-erp-fu-h-r
+- 05:35 w-f6 browser stopped 05:11 (3 min, by whom unclear), moved to full suite; ORDERED explanation + browser rerun on slot 1
+- 05:36 Stylus FYI: F6 stop was its dashboard-pane interrupt (not red); F6 reruns now, adopts FU-H browser post-merge
+- 05:37 w-f6 ANSWER: stop was deliberate post-success (32/32 + 8/8 green, freed slot); evidence accepted, no rerun; corrected Stylus record
+- 05:38 w-f6 ANSWER: no re-queue, full suite queued, PASS with evidence refs when green
+- 05:41 MERGED C2 split (4acb8d4 -> 87db25e, 7 commits) gate green (Go ok, web 624/624); PUSHED
+- 05:42 RESTARTED user server on 87db25e (athena-server t5f, healthz ok); PUSHED docs (split tasks line + summary); removed c2-core/c2-surface trees
+- 05:47 TRAIN4 stacked 6.10+FUb2+FU-H (12 commits, tip bafe51d) clean after stale-sequencer clear; narrow + generate green; tip gate queuing master-first
+- 05:54 PASS C7 slice 1 (2625faf): migration 21 + ADR-0032, uncached server green; SPAWNED r-c7 (t5g, review, cache provenance is crux); w-c7 to slice 2
+- 05:55 C2 SECRETS dispatched to w-c2 (migration 22 + ADR-0033, Z4 brief); ADR-0033 moved off decisions brief (w-fu told)
+- 05:56 w-fu ACK (ADR-0033 C2-owned, no ADR files from it); still holding for r-fuh
+- 05:56 w-c2 rebased empty on b0510f1; SECRETS slice 1 started (L2 moving)
+- 05:57 DECIDED (master): w-c2 holds migration-22 file until 21 (C7s1) merges; ADR-0033 + rows now, gate after rebase (contiguity rule; no cross-lane file copy)
+- 06:00 F6 PASS (09a5fe1, full suite green, 32/32 shots); evidence logged, review next
+- 06:01 w-c2 holding 22 file for 21's merge (docs clean 987261b); CLOSED w-f6 (F6 PASS delivered); SPAWNED r-f6 (t5h) + w-f7 (t5j, F7 slice 1)
+- 06:01 TICK: train4 gate running, C7s1 queued, F6 in review, F7 started
+- 06:03 w-f7 slice 1 started (dynamic menu; flags: no backup command on main, menu will omit it)
+- 06:04 TICK: train4 gate ~4m in, all holds correct, no one stuck
+- 06:05 w-c1 -> C5 slice 2 in recreated athena-erp-c5 tree (7.2, no RecordsPage); suite watchdog -> train4 docs commit
+- 06:06 w-c1 on C5 slice 2 (rebased clean on b0510f1, f00fc58 dropped)
+- 06:11 w-c2 still holding 22 for 21 (docs clean); no action
+- 06:12 w-f7 slice 1 code done (registry+menu+10 tests filtered green), awaiting affected
+- 06:15 TICK: train4 ~14m in, queue C7s1/F1-final/r-f6/w-f7, no one stuck
+- 06:17 w-c7 slice 2 core done (stock engine + 15 tests green); gating + stacked commit next

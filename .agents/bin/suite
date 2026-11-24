@@ -13,7 +13,7 @@ whose owner process is gone is taken over. Every run is logged with its exit
 status and duration in .agents/stylus/suite.jsonl; the output tail goes to
 .agents/stylus/suite-logs/<time>-<who>.log.
 """
-import glob, json, os, shutil, signal, subprocess, sys, time
+import glob, json, os, shutil, signal, subprocess, sys, threading, time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import _stylus as s
 
@@ -229,17 +229,26 @@ try:
                 log.write(f"suite: node not on PATH, using {nvm[-1]}\n")
         proc = subprocess.Popen(cmd, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
                                 start_new_session=True, env=env)
-        limit = s.limits().get("suiteTimeoutMinutes", 30) * 60
+        lim = s.limits()
+        limit = (lim.get("suiteTimeoutMinutes", 30) if FULL else lim.get("browserTimeoutMinutes", 15)) * 60
+
+        def watchdog():  # fires even when the run prints nothing (a hung browser driver used to hold a slot for an hour)
+            nonlocal_stop[0] = f"time limit {limit // 60} minutes"
+            kill_tree(proc)
+
+        nonlocal_stop = [None]
+        timer = threading.Timer(limit, watchdog)
+        timer.daemon = True
+        timer.start()
         try:
             for line in proc.stdout:
                 sys.stdout.write(line)
                 log.write(line)
-                if time.time() - start > limit:
-                    stopped = f"time limit {limit // 60} minutes"
-                    kill_tree(proc)
-                    log.write(f"\nsuite: stopped after {limit // 60} minutes\n")
-                    break
             code = proc.wait()
+            timer.cancel()
+            if nonlocal_stop[0]:
+                stopped = nonlocal_stop[0]
+                log.write(f"\nsuite: stopped after {limit // 60} minutes; test tree ended\n")
         except BaseException as e:  # SIGTERM/SIGHUP (sys.exit 143) or ctrl+c while the tests run
             stopped = "signal" if isinstance(e, SystemExit) else type(e).__name__
             log.write(f"\nsuite: stopped by {stopped}; test tree ended\n")
