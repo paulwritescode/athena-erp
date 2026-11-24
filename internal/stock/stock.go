@@ -42,6 +42,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"athena-erp/internal/ledger"
 	"athena-erp/internal/posting"
@@ -623,20 +624,21 @@ func (s *Service) claimGroup(ctx context.Context, tx *sql.Tx, voucherType, vouch
 
 // stockRow is a stored l_stock row with the fields costing and cancel need.
 type stockRow struct {
-	ID         string
-	Event      string
-	Bin        binKey
-	ItemType   string
-	Control    string
-	UoM        string
-	Currency   string
-	Qty        types.Decimal
-	Value      types.Decimal
-	Dimensions string
-	SourceLine int
-	Reversal   bool
-	GroupID    string
-	Reversed   string
+	ID           string
+	Event        string
+	Bin          binKey
+	ItemType     string
+	Control      string
+	UoM          string
+	Currency     string
+	Qty          types.Decimal
+	Value        types.Decimal
+	Dimensions   string
+	SourceLine   int
+	MovementDate string
+	Reversal     bool
+	GroupID      string
+	Reversed     string
 }
 
 func scanDecimal(value string) (types.Decimal, error) {
@@ -648,16 +650,18 @@ func scanDecimal(value string) (types.Decimal, error) {
 func loadStockRow(ctx context.Context, q ledger.DB, id string) (*stockRow, error) {
 	var row stockRow
 	var company, book, owner, itemID, location, lot, serial, qty, value string
+	var movementDate time.Time
 	var reversed sql.NullString
 	var reversal int
-	err := q.QueryRowContext(ctx, `SELECT id, event, company_name, book, owner, item_type, item_id, control_account_name, location_name, COALESCE(lot_no, ''), COALESCE(serial_no, ''), base_uom, qty_base, value_base, base_currency, dimensions, source_line_no, is_reversal, posting_group_id, reversed_row_id FROM l_stock WHERE id = ? FOR UPDATE`,
-		id).Scan(&row.ID, &row.Event, &company, &book, &owner, &row.ItemType, &itemID, &row.Control, &location, &lot, &serial, &row.UoM, &qty, &value, &row.Currency, &row.Dimensions, &row.SourceLine, &reversal, &row.GroupID, &reversed)
+	err := q.QueryRowContext(ctx, `SELECT id, event, company_name, book, owner, item_type, item_id, control_account_name, location_name, COALESCE(lot_no, ''), COALESCE(serial_no, ''), base_uom, qty_base, value_base, base_currency, dimensions, source_line_no, movement_date, is_reversal, posting_group_id, reversed_row_id FROM l_stock WHERE id = ? FOR UPDATE`,
+		id).Scan(&row.ID, &row.Event, &company, &book, &owner, &row.ItemType, &itemID, &row.Control, &location, &lot, &serial, &row.UoM, &qty, &value, &row.Currency, &row.Dimensions, &row.SourceLine, &movementDate, &reversal, &row.GroupID, &reversed)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("%w: stock row %q not found", ErrInvalid, id)
 		}
 		return nil, err
 	}
+	row.MovementDate = movementDate.Format("2006-01-02")
 	if row.Qty, err = scanDecimal(qty); err != nil {
 		return nil, err
 	}
@@ -727,6 +731,21 @@ func lockGroup(ctx context.Context, tx *sql.Tx, groupID string) error {
 	return nil
 }
 
+func replayCancel(ctx context.Context, tx *sql.Tx, rows []string) (AppliedCancel, error) {
+	groupID := ""
+	for _, id := range rows {
+		if row, err := loadStockRow(ctx, tx, id); err == nil {
+			groupID = row.GroupID
+			break
+		}
+		if row, err := loadDeltaRow(ctx, tx, id); err == nil {
+			groupID = row.GroupID
+			break
+		}
+	}
+	return AppliedCancel{RowIDs: rows, PostingGroupID: groupID, Replayed: true}, nil
+}
+
 func replayApplied(ctx context.Context, q ledger.DB, rowID string) (AppliedMovement, error) {
 	row, err := loadStockRow(ctx, q, rowID)
 	if err != nil {
@@ -771,6 +790,7 @@ func insertStockRow(ctx context.Context, tx *sql.Tx, m Movement, p PlannedMoveme
 
 // PlannedCancel mirrors every submit row of a voucher revision as flagged
 // reversals, unwinding layers and bins in reverse application order.
+// Deltas mirrors the voucher's cost delta rows, if any.
 type PlannedCancel struct {
 	VoucherType  string
 	VoucherID    string
@@ -779,8 +799,14 @@ type PlannedCancel struct {
 	MovementDate string
 	PostingDate  string
 	Mirrors      []cancelMirror
+	Deltas       []deltaMirror
 	Replayed     bool
 	ReplayRows   []string
+}
+
+// deltaMirror unwinds one submitted cost delta row with negated splits.
+type deltaMirror struct {
+	Orig *deltaRow
 }
 
 // cancelMirror unwinds one submit row. Qty and Value are the signed mirror
@@ -818,16 +844,26 @@ func (s *Service) PlanCancel(ctx context.Context, tx *sql.Tx, voucherType, vouch
 	if !validDate(movementDate) || !validDate(postingDate) {
 		return PlannedCancel{}, fmt.Errorf("%w: dates must be YYYY-MM-DD", ErrInvalid)
 	}
-	if rows, found, err := findCancelRows(ctx, tx, voucherType, voucherID, revision, book); err != nil {
+	rows, found, err := findCancelRows(ctx, tx, voucherType, voucherID, revision, book)
+	if err != nil {
 		return PlannedCancel{}, err
-	} else if found {
-		return PlannedCancel{Replayed: true, ReplayRows: rows}, nil
+	}
+	deltaRows, deltaFound, err := findCancelDeltaRows(ctx, tx, voucherType, voucherID, revision, book)
+	if err != nil {
+		return PlannedCancel{}, err
+	}
+	if found || deltaFound {
+		return PlannedCancel{Replayed: true, ReplayRows: append(rows, deltaRows...)}, nil
 	}
 	submits, err := submitRowsOf(ctx, tx, voucherType, voucherID, revision, book)
 	if err != nil {
 		return PlannedCancel{}, err
 	}
-	if len(submits) == 0 {
+	deltaSubmits, err := submitDeltaRowsOf(ctx, tx, voucherType, voucherID, revision, book)
+	if err != nil {
+		return PlannedCancel{}, err
+	}
+	if len(submits) == 0 && len(deltaSubmits) == 0 {
 		return PlannedCancel{}, fmt.Errorf("%w: voucher %s %s revision %d", ErrNoSubmit, voucherType, voucherID, revision)
 	}
 	planned := PlannedCancel{VoucherType: voucherType, VoucherID: voucherID, Revision: revision, Book: book, MovementDate: movementDate, PostingDate: postingDate}
@@ -873,6 +909,14 @@ func (s *Service) PlanCancel(ctx context.Context, tx *sql.Tx, voucherType, vouch
 			bins[orig.Bin] = state
 		}
 		planned.Mirrors = append(planned.Mirrors, mirror)
+	}
+	for _, delta := range deltaSubmits {
+		if _, found, err := lockBin(ctx, tx, delta.Bin); err != nil {
+			return PlannedCancel{}, err
+		} else if !found {
+			return PlannedCancel{}, fmt.Errorf("%w: cost delta has no bin", ErrIntegrity)
+		}
+		planned.Deltas = append(planned.Deltas, deltaMirror{Orig: delta})
 	}
 	return planned, nil
 }
@@ -948,13 +992,7 @@ func planReturnCancel(ctx context.Context, tx *sql.Tx, mirror *cancelMirror) err
 // key already has cancel rows ApplyCancel returns the first write.
 func (s *Service) ApplyCancel(ctx context.Context, tx *sql.Tx, p PlannedCancel, cancelGroupID string) (AppliedCancel, error) {
 	if p.Replayed {
-		groupID := ""
-		if len(p.ReplayRows) > 0 {
-			if row, err := loadStockRow(ctx, tx, p.ReplayRows[0]); err == nil {
-				groupID = row.GroupID
-			}
-		}
-		return AppliedCancel{RowIDs: p.ReplayRows, PostingGroupID: groupID, Replayed: true}, nil
+		return replayCancel(ctx, tx, p.ReplayRows)
 	}
 	// Claim the group before the replay check, as in ApplyMovement.
 	if cancelGroupID == "" {
@@ -966,16 +1004,39 @@ func (s *Service) ApplyCancel(ctx context.Context, tx *sql.Tx, p PlannedCancel, 
 	} else if err := lockGroup(ctx, tx, cancelGroupID); err != nil {
 		return AppliedCancel{}, err
 	}
-	if rows, found, err := findCancelRows(ctx, tx, p.VoucherType, p.VoucherID, p.Revision, p.Book); err != nil {
+	rows, found, err := findCancelRows(ctx, tx, p.VoucherType, p.VoucherID, p.Revision, p.Book)
+	if err != nil {
 		return AppliedCancel{}, err
-	} else if found {
-		groupID := ""
-		if row, err := loadStockRow(ctx, tx, rows[0]); err == nil {
-			groupID = row.GroupID
-		}
-		return AppliedCancel{RowIDs: rows, PostingGroupID: groupID, Replayed: true}, nil
+	}
+	deltaRows, deltaFound, err := findCancelDeltaRows(ctx, tx, p.VoucherType, p.VoucherID, p.Revision, p.Book)
+	if err != nil {
+		return AppliedCancel{}, err
+	}
+	if found || deltaFound {
+		return replayCancel(ctx, tx, append(rows, deltaRows...))
 	}
 	applied := AppliedCancel{PostingGroupID: cancelGroupID}
+	for _, delta := range p.Deltas {
+		rowID, err := uuid.NewV7()
+		if err != nil {
+			return AppliedCancel{}, err
+		}
+		if err := insertDeltaMirror(ctx, tx, p, delta, rowID.String(), cancelGroupID); err != nil {
+			return AppliedCancel{}, err
+		}
+		bin, found, err := lockBin(ctx, tx, delta.Orig.Bin)
+		if err != nil {
+			return AppliedCancel{}, err
+		}
+		if !found {
+			return AppliedCancel{}, fmt.Errorf("%w: cost delta has no bin", ErrIntegrity)
+		}
+		zero := types.Decimal{}
+		if err := s.applyBinDelta(ctx, tx, delta.Orig.Bin, delta.Orig.ItemType, bin.UoM, bin.Currency, zero, delta.Orig.OnHand.Neg(), bin, found); err != nil {
+			return AppliedCancel{}, err
+		}
+		applied.RowIDs = append(applied.RowIDs, rowID.String())
+	}
 	for _, mirror := range p.Mirrors {
 		rowID, err := uuid.NewV7()
 		if err != nil {
