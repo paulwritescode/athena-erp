@@ -122,10 +122,24 @@ receives). `gofmt` clean, `go vet` OK.
 | Run | Result |
 | --- | --- |
 | BEFORE posting-alone `-json` (scratch tree da178bb, suite, load 7→14) | GREEN 396.2s PASS. Top: TestPostValidation 171.7s (per-subtest setup), TestReverseClosedPeriods 29.5s, then ~6s/test migrate floor across 27 tests + subtests (81 nodes). Rapid bodies 6–10s. Full top-20 in `/tmp/ts-posting-before.json`. |
-| AFTER posting-alone (master-priority gate, suite log 1124-193523) | GREEN 13.7s PASS (~29x vs 396.2s before; shared migrated DB, zero keepers). |
+| AFTER posting-alone (master-priority gate, suite log 1124-193523) | GREEN 13.711s PASS, exit 0, 20s slot (~29x vs 396.2s before; shared migrated DB, zero keepers). |
+
+## Slice 4: ledger/jobs/events/stock + server shared-DB (IN PROGRESS)
+
+One commit: 4 new TestMains + `service()`/`setup()` conversions (zero
+keepers in the 4 packages — no parallel/DDL/migration-state tests;
+concurrent tests join; jobs disposal CREATE TABLE is Reset-dropped);
+server converts brand/shop/public/identity-x2, keeps `dead` handle, kinds
+legacy migration, sysmigrations x8, vocabulary rename (all with
+why-comments) + newIsolatedServices (already documented). gofmt+vet clean.
 - Slice 4 (ORDERED): ledger/jobs/events/stock in ONE commit, plus the 17
   testdb.New calls left in server (brand/identity/etc.). testdb.New kept
   ONLY for tests that change migration state, with a why-comment.
+  Survey: ledger/jobs/events/stock each have ONE setup fixture (same
+  mechanical conversion x4); server stragglers in brand/helpers/identity/
+  kinds/public_shop/public + sysmigrations x8 + vocabulary_rename (the
+  migration files stay keepers with why-comments; helpers/identity need
+  per-test reads). Starts after slice-3 merge.
   Rank from F7s1 full gate (-p 8, CONTAINS slice 1, verified by ancestry):
   posting FAIL 1201s (timeout), auth 1212s, server 917s, ledger 857s,
   cmd/athena 844s, events 655s, jobs 653s, stock 582s, files 414s,

@@ -12,8 +12,6 @@ import (
 
 	athenav1 "athena-erp/gen/athena/v1"
 	"athena-erp/internal/files"
-	"athena-erp/internal/store"
-	"athena-erp/internal/testdb"
 )
 
 type shopFixture struct {
@@ -26,10 +24,7 @@ type shopFixture struct {
 
 func newShopFixture(t *testing.T) *shopFixture {
 	t.Helper()
-	db := testdb.New(t)
-	if _, err := store.Up(context.Background(), db, dialect, SystemMigrations(), store.UpOptions{}); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
+	db := sharedDatabase(t)
 	root := t.TempDir()
 	st, err := files.Open(root, db, dialect)
 	if err != nil {

@@ -13,10 +13,8 @@ import (
 
 	"athena-erp/internal/ledger"
 	"athena-erp/internal/posting"
-	"athena-erp/internal/server"
 	"athena-erp/internal/stock"
 	"athena-erp/internal/store"
-	"athena-erp/internal/testdb"
 	"athena-erp/internal/types"
 
 	"github.com/google/uuid"
@@ -24,10 +22,7 @@ import (
 
 func setup(t *testing.T) (*stock.Service, *posting.Engine, *ledger.Service, *sql.DB) {
 	t.Helper()
-	db := testdb.New(t)
-	if _, err := store.Up(context.Background(), db, store.MariaDB{}, server.SystemMigrations(), store.UpOptions{}); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
+	db := sharedDatabase(t)
 	return &stock.Service{DB: db, Dialect: store.MariaDB{}},
 		&posting.Engine{DB: db, Dialect: store.MariaDB{}},
 		&ledger.Service{DB: db, Dialect: store.MariaDB{}}, db

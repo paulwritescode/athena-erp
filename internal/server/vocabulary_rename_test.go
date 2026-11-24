@@ -35,6 +35,8 @@ var renameCustomerWithEmail = `{"name":"customer","label":"Customer","descriptio
 // and history rows. Every name here is a pre-rename name.
 func preRenameDatabase(t *testing.T) *sql.DB {
 	t.Helper()
+	// Private database: this fixture recreates the pre-rename build
+	// (migrations 1-4) and replays the rename against it.
 	db := testdb.New(t)
 	ctx := context.Background()
 	if _, err := store.Up(ctx, db, dialect, SystemMigrations(), store.UpOptions{Target: 4}); err != nil {

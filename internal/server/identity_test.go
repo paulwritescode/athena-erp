@@ -15,7 +15,6 @@ import (
 	"athena-erp/internal/auth"
 	"athena-erp/internal/files"
 	"athena-erp/internal/ledger"
-	"athena-erp/internal/store"
 	"athena-erp/internal/testdb"
 	"connectrpc.com/connect/v2"
 )
@@ -214,17 +213,15 @@ func TestFileServiceRefusesBrandWrites(t *testing.T) {
 
 func TestSetIdentityPruneFailureKeepsTheSave(t *testing.T) {
 	ctx := context.Background()
-	db := testdb.New(t)
-	if _, err := store.Up(ctx, db, dialect, SystemMigrations(), store.UpOptions{}); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
+	db := sharedDatabase(t)
 	svc := &ledger.Service{DB: db, Dialect: dialect}
 	ref := ledger.LogoRef{Ext: "png", Hash: strings.Repeat("a", 64)}
 	if err := svc.SaveIdentityDoc(ctx, ledger.IdentityDoc{}, ledger.IdentityDoc{DisplayName: "Acme", Light: &ref}, "test"); err != nil {
 		t.Fatal(err)
 	}
 	// A files store on a closed database: every prune read fails, while the
-	// identity database stays healthy.
+	// identity database stays healthy. The dead handle needs its own
+	// unmigrated database; it must never be the shared one.
 	dead := testdb.New(t)
 	st, err := files.Open(t.TempDir(), dead, dialect)
 	if err != nil {
@@ -251,10 +248,7 @@ func TestSetIdentityPruneFailureKeepsTheSave(t *testing.T) {
 
 func TestSetIdentityUnchangedWritesNoGeneration(t *testing.T) {
 	ctx := context.Background()
-	db := testdb.New(t)
-	if _, err := store.Up(ctx, db, dialect, SystemMigrations(), store.UpOptions{}); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
+	db := sharedDatabase(t)
 	st, err := files.Open(t.TempDir(), db, dialect)
 	if err != nil {
 		t.Fatal(err)

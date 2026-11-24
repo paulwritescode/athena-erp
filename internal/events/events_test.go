@@ -13,20 +13,14 @@ import (
 	"time"
 
 	"athena-erp/internal/events"
-	"athena-erp/internal/server"
 	"athena-erp/internal/store"
-	"athena-erp/internal/testdb"
 
 	"pgregory.net/rapid"
 )
 
 func setup(t *testing.T) *sql.DB {
 	t.Helper()
-	db := testdb.New(t)
-	if _, err := store.Up(context.Background(), db, store.MariaDB{}, server.SystemMigrations(), store.UpOptions{}); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
-	return db
+	return sharedDatabase(t)
 }
 
 func emit(t *testing.T, db *sql.DB, envelope events.Envelope) string {

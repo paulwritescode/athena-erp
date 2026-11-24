@@ -12,16 +12,11 @@ import (
 	"athena-erp/internal/brand"
 	"athena-erp/internal/files"
 	"athena-erp/internal/ledger"
-	"athena-erp/internal/store"
-	"athena-erp/internal/testdb"
 )
 
 func brandFixture(t *testing.T) (*brandHandler, *ledger.Service, *files.Store) {
 	t.Helper()
-	db := testdb.New(t)
-	if _, err := store.Up(context.Background(), db, dialect, SystemMigrations(), store.UpOptions{}); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
+	db := sharedDatabase(t)
 	root := t.TempDir()
 	st, err := files.Open(root, db, dialect)
 	if err != nil {

@@ -391,6 +391,8 @@ func TestKindsAndSystemColumnsMatchTheDocumentedTable(t *testing.T) {
 
 func TestMigrationGivesLegacyRecordTypesTheMasterKind(t *testing.T) {
 	ctx := context.Background()
+	// Private database: this test migrates to an old target and replays
+	// later migrations against hand-built legacy state.
 	db := testdb.New(t)
 	if _, err := store.Up(ctx, db, dialect, SystemMigrations(), store.UpOptions{Target: 5}); err != nil {
 		t.Fatal(err)

@@ -11,18 +11,13 @@ import (
 	"time"
 
 	"athena-erp/internal/ledger"
-	"athena-erp/internal/server"
 	"athena-erp/internal/store"
-	"athena-erp/internal/testdb"
 	"athena-erp/internal/types"
 )
 
 func service(t *testing.T) *ledger.Service {
 	t.Helper()
-	db := testdb.New(t)
-	if _, err := store.Up(context.Background(), db, store.MariaDB{}, server.SystemMigrations(), store.UpOptions{}); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
+	db := sharedDatabase(t)
 	return &ledger.Service{DB: db, Dialect: store.MariaDB{}}
 }
 

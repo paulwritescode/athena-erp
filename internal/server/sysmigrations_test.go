@@ -13,6 +13,10 @@ import (
 	"athena-erp/internal/testdb"
 )
 
+// Every test in this file builds its own migration history (pre-P2 schemas,
+// partial targets), so they keep private databases instead of the shared
+// one.
+
 // preP2Schema is the system schema the build before versioned migrations
 // created, including a Record table saved before revisions existed.
 var preP2Schema = []string{
