@@ -24,9 +24,15 @@
 // run in the same transaction; Apply rechecks the refusal under the lock,
 // and both replay when the voucher key already has rows.
 //
+// Ordering contract for mixed vouchers: when one voucher key carries both
+// valued and quantity-only lines, the caller MUST post the G6 plan before
+// applying the quantity-only lines. A claimed group without an operation
+// row breaks the engine's group replay, so the order is always plan all
+// lines, post once, then apply all.
+//
 // The submit-path wiring that calls this seam from the document lifecycle
-// is not scheduled in any C7 slice yet; until it lands, the seam is driven
-// by tests and, from slice 9, by StockService.
+// is slice 11; until it lands, the seam is driven by tests and, from slice
+// 9, by StockService.
 package stock
 
 import (
@@ -86,6 +92,12 @@ func (s *Service) method() CostMethod {
 		return WeightedAverage{}
 	}
 	return s.Method
+}
+
+// duplicate reports a duplicate-key error. A nil Dialect degrades to raw
+// errors instead of panicking, as in the G6 engine.
+func (s *Service) duplicate(err error) bool {
+	return s.Dialect != nil && s.Dialect.Classify(err) == store.ErrDuplicateKey
 }
 
 // Movement is one stock receipt, issue or return on a voucher line. The
@@ -167,7 +179,7 @@ type AppliedMovement struct {
 // the caller's transaction and must be followed by ApplyMovement in the
 // same transaction once the caller has posted the legs. When the voucher
 // key already has submit rows the plan replays: it validates the shape of
-// the movement but skips costing and locking.
+// the movement and locks the first row, but skips costing.
 func (s *Service) PlanMovement(ctx context.Context, tx *sql.Tx, m Movement) (PlannedMovement, error) {
 	if err := checkMovement(m); err != nil {
 		return PlannedMovement{}, err
@@ -200,7 +212,7 @@ func (s *Service) PlanMovement(ctx context.Context, tx *sql.Tx, m Movement) (Pla
 	}
 	planned.BinFound, planned.BinBefore = found, bin
 	if found {
-		if err := checkBinMatch(planned.Bin, bin, base.UoM); err != nil {
+		if err := checkBinMatch(planned.Bin, bin, m.ItemType, base.UoM); err != nil {
 			return PlannedMovement{}, err
 		}
 	}
@@ -601,7 +613,7 @@ func (s *Service) claimGroup(ctx context.Context, tx *sql.Tx, voucherType, vouch
 	}
 	if _, err := tx.ExecContext(ctx, `INSERT INTO athena_posting_groups (id, voucher_type, voucher_id, voucher_revision, event, book, operation_id) VALUES (?, ?, ?, ?, ?, ?, ?)`,
 		groupID.String(), voucherType, voucherID, revision, event, book, operationID.String()); err != nil {
-		if s.Dialect.Classify(err) == store.ErrDuplicateKey {
+		if s.duplicate(err) {
 			return selectGroup()
 		}
 		return "", err
@@ -631,13 +643,14 @@ func scanDecimal(value string) (types.Decimal, error) {
 	return types.ParseDecimal(value)
 }
 
-// loadStockRow reads one l_stock row by id.
+// loadStockRow reads one l_stock row by id, locking it. The lock serializes
+// concurrent returns against one issue row across plan, apply and commit.
 func loadStockRow(ctx context.Context, q ledger.DB, id string) (*stockRow, error) {
 	var row stockRow
 	var company, book, owner, itemID, location, lot, serial, qty, value string
 	var reversed sql.NullString
 	var reversal int
-	err := q.QueryRowContext(ctx, `SELECT id, event, company_name, book, owner, item_type, item_id, control_account_name, location_name, COALESCE(lot_no, ''), COALESCE(serial_no, ''), base_uom, qty_base, value_base, base_currency, dimensions, source_line_no, is_reversal, posting_group_id, reversed_row_id FROM l_stock WHERE id = ?`,
+	err := q.QueryRowContext(ctx, `SELECT id, event, company_name, book, owner, item_type, item_id, control_account_name, location_name, COALESCE(lot_no, ''), COALESCE(serial_no, ''), base_uom, qty_base, value_base, base_currency, dimensions, source_line_no, is_reversal, posting_group_id, reversed_row_id FROM l_stock WHERE id = ? FOR UPDATE`,
 		id).Scan(&row.ID, &row.Event, &company, &book, &owner, &row.ItemType, &itemID, &row.Control, &location, &lot, &serial, &row.UoM, &qty, &value, &row.Currency, &row.Dimensions, &row.SourceLine, &reversal, &row.GroupID, &reversed)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -664,7 +677,7 @@ func loadStockRow(ctx context.Context, q ledger.DB, id string) (*stockRow, error
 // cancelled return frees its quantity for a fresh return.
 func sumPriorReturns(ctx context.Context, q ledger.DB, reversesID string) (types.Decimal, error) {
 	var total string
-	err := q.QueryRowContext(ctx, `SELECT COALESCE(SUM(qty_base), 0) FROM l_stock WHERE reversed_row_id = ? AND event = ? AND is_reversal = 0`,
+	err := q.QueryRowContext(ctx, `SELECT COALESCE(SUM(qty_base), 0) FROM l_stock WHERE reversed_row_id = ? AND event = ? AND is_reversal = 0 FOR UPDATE`,
 		reversesID, posting.EventSubmit).Scan(&total)
 	if err != nil {
 		return types.Decimal{}, err
@@ -674,7 +687,7 @@ func sumPriorReturns(ctx context.Context, q ledger.DB, reversesID string) (types
 		return types.Decimal{}, err
 	}
 	var mirrors string
-	err = q.QueryRowContext(ctx, `SELECT COALESCE(SUM(-c.qty_base), 0) FROM l_stock c JOIN l_stock r ON r.id = c.reversed_row_id WHERE r.reversed_row_id = ? AND r.event = ? AND r.is_reversal = 0 AND c.event = ? AND c.is_reversal = 1`,
+	err = q.QueryRowContext(ctx, `SELECT COALESCE(SUM(-c.qty_base), 0) FROM l_stock c JOIN l_stock r ON r.id = c.reversed_row_id WHERE r.reversed_row_id = ? AND r.event = ? AND r.is_reversal = 0 AND c.event = ? AND c.is_reversal = 1 FOR UPDATE`,
 		reversesID, posting.EventSubmit, posting.EventCancel).Scan(&mirrors)
 	if err != nil {
 		return types.Decimal{}, err
@@ -880,7 +893,7 @@ func planReceiptCancel(ctx context.Context, tx *sql.Tx, mirror *cancelMirror) er
 	if magnitude := mirror.Orig.Qty; layer.Residual.Cmp(magnitude) < 0 {
 		return fmt.Errorf("%w: layer holds %s of received %s", ErrCancelBlocked, layer.Residual.String(), magnitude.String())
 	}
-	mirror.consume = []layerOp{{LayerID: layer.ID, Qty: mirror.Orig.Qty, Value: mirror.Orig.Value.Abs()}}
+	mirror.consume = []layerOp{{LayerID: layer.ID, Qty: mirror.Orig.Qty, Value: mirror.Orig.Value.Abs(), Kind: "issue"}}
 	return nil
 }
 
@@ -898,7 +911,7 @@ func planIssueCancel(ctx context.Context, tx *sql.Tx, mirror *cancelMirror) erro
 		return nil
 	}
 	for _, edge := range edges {
-		mirror.restore = append(mirror.restore, layerOp{LayerID: edge.LayerID, Qty: edge.Qty, Value: edge.Value, ReversesEdge: edge.ID})
+		mirror.restore = append(mirror.restore, layerOp{LayerID: edge.LayerID, Qty: edge.Qty, Value: edge.Value, ReversesEdge: edge.ID, Kind: "issue"})
 	}
 	return nil
 }
@@ -924,7 +937,7 @@ func planReturnCancel(ctx context.Context, tx *sql.Tx, mirror *cancelMirror) err
 		if !found || layer.Residual.Cmp(edge.Qty) < 0 {
 			return fmt.Errorf("%w: layer %s is short for the return cancel", ErrCancelBlocked, edge.LayerID)
 		}
-		mirror.consume = append(mirror.consume, layerOp{LayerID: edge.LayerID, Qty: edge.Qty, Value: edge.Value, ReversesEdge: edge.ID})
+		mirror.consume = append(mirror.consume, layerOp{LayerID: edge.LayerID, Qty: edge.Qty, Value: edge.Value, ReversesEdge: edge.ID, Kind: "return"})
 	}
 	return nil
 }

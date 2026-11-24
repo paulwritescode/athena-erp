@@ -7,7 +7,6 @@ import (
 	"fmt"
 
 	"athena-erp/internal/ledger"
-	"athena-erp/internal/store"
 	"athena-erp/internal/types"
 )
 
@@ -74,9 +73,12 @@ func lockBin(ctx context.Context, tx *sql.Tx, key binKey) (binState, bool, error
 	return bin, true, nil
 }
 
-// checkBinMatch rejects a movement whose base unit differs from the bin's:
-// one bin holds one base unit, converted through the UoM masters.
-func checkBinMatch(key binKey, bin binState, baseUoM string) error {
+// checkBinMatch rejects a movement whose base unit or item type differs
+// from the bin's: one bin holds one base unit of one item type.
+func checkBinMatch(key binKey, bin binState, itemType, baseUoM string) error {
+	if bin.ItemType != "" && bin.ItemType != itemType {
+		return fmt.Errorf("%w: bin holds item type %s, movement names %s", ErrInvalid, bin.ItemType, itemType)
+	}
 	if bin.UoM != baseUoM {
 		return fmt.Errorf("%w: bin holds %s, movement converts to %s", ErrInvalid, bin.UoM, baseUoM)
 	}
@@ -100,7 +102,7 @@ func (s *Service) applyBinDelta(ctx context.Context, tx *sql.Tx, key binKey, ite
 	if err == nil {
 		return nil
 	}
-	if s.Dialect.Classify(err) != store.ErrDuplicateKey {
+	if !s.duplicate(err) {
 		return err
 	}
 	if _, _, err := lockBin(ctx, tx, key); err != nil {

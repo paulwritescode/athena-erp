@@ -8,6 +8,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 	"testing"
 
 	"athena-erp/internal/ledger"
@@ -210,6 +211,27 @@ func edgeCount(t *testing.T, db *sql.DB, rowID string) int {
 	return count
 }
 
+func cancelEdgeKinds(t *testing.T, db *sql.DB, rowID string) []string {
+	t.Helper()
+	rows, err := db.Query(`SELECT kind FROM athena_item_applications WHERE issue_row_id = ? AND is_reversal = 1 ORDER BY id`, rowID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	var kinds []string
+	for rows.Next() {
+		var kind string
+		if err := rows.Scan(&kind); err != nil {
+			t.Fatal(err)
+		}
+		kinds = append(kinds, kind)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	return kinds
+}
+
 func TestReceiptsBlendAndIssueTakesAverage(t *testing.T) {
 	stockSvc, engine, masters, db := setup(t)
 	seedStockBasics(t, masters)
@@ -376,6 +398,9 @@ func TestCancelMirrorsSubmit(t *testing.T) {
 	if mirrors != 1 {
 		t.Fatalf("cancel wrote %d flagged mirrors, want 1", mirrors)
 	}
+	if kinds := cancelEdgeKinds(t, db, applied.RowIDs[0]); len(kinds) != 1 || kinds[0] != "issue" {
+		t.Fatalf("issue-cancel edges have kinds %v, want [issue]", kinds)
+	}
 	if got := glStockBalance(t, db); got != "1000.000000" {
 		t.Fatalf("GL stock balance is %s after cancel, want 1000.000000", got)
 	}
@@ -541,5 +566,168 @@ func TestMovementValidation(t *testing.T) {
 		if !errors.Is(err, stock.ErrInvalid) {
 			t.Errorf("%s: error is %v, want ErrInvalid", name, err)
 		}
+	}
+}
+
+func TestQuantityOnlyCancelClaimsGroup(t *testing.T) {
+	stockSvc, engine, masters, db := setup(t)
+	seedStockBasics(t, masters)
+
+	movement := testMovement()
+	movement.Valued = false
+	movement.UnitCost = types.Decimal{}
+	postMovement(t, db, stockSvc, engine, movement)
+
+	applied := cancelVoucher(t, db, stockSvc, engine, movement.VoucherType, movement.VoucherID, false)
+	if len(applied.RowIDs) != 1 {
+		t.Fatalf("cancel wrote %d rows, want 1", len(applied.RowIDs))
+	}
+	bin, _ := binOf(t, stockSvc, db, movement)
+	if got := bin.Qty.String(); got != "0.000000" {
+		t.Fatalf("bin holds %s after cancel, want 0.000000", got)
+	}
+	var groups int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM athena_posting_groups WHERE voucher_id = ? AND event = 'cancel'`, movement.VoucherID).Scan(&groups); err != nil {
+		t.Fatal(err)
+	}
+	if groups != 1 {
+		t.Fatalf("quantity-only cancel claimed %d groups, want 1", groups)
+	}
+	var gl int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM l_gl WHERE posting_group_id = ?`, applied.PostingGroupID).Scan(&gl); err != nil {
+		t.Fatal(err)
+	}
+	if gl != 0 {
+		t.Fatalf("quantity-only cancel posted %d GL rows, want none", gl)
+	}
+}
+
+func TestReceiptCancelSuccess(t *testing.T) {
+	stockSvc, engine, masters, db := setup(t)
+	seedStockBasics(t, masters)
+
+	receipt := testMovement()
+	_, receiptApplied := postMovement(t, db, stockSvc, engine, receipt)
+
+	applied := cancelVoucher(t, db, stockSvc, engine, receipt.VoucherType, receipt.VoucherID, true)
+	if len(applied.RowIDs) != 1 {
+		t.Fatalf("cancel wrote %d rows, want 1", len(applied.RowIDs))
+	}
+	bin, _ := binOf(t, stockSvc, db, receipt)
+	if got := bin.Qty.String(); got != "0.000000" {
+		t.Fatalf("bin holds %s after cancel, want 0.000000", got)
+	}
+	if got := bin.Value.String(); got != "0.000000" {
+		t.Fatalf("bin value is %s after cancel, want 0.000000", got)
+	}
+	if got := layerResidual(t, db, receiptApplied.RowID); got != "0.000000" {
+		t.Fatalf("layer residual is %s after cancel, want 0.000000", got)
+	}
+	var status string
+	if err := db.QueryRow(`SELECT status FROM athena_stock_layers WHERE receipt_row_id = ?`, receiptApplied.RowID).Scan(&status); err != nil {
+		t.Fatal(err)
+	}
+	if status != "consumed" {
+		t.Fatalf("layer status is %s after cancel, want consumed", status)
+	}
+	if kinds := cancelEdgeKinds(t, db, applied.RowIDs[0]); len(kinds) != 1 || kinds[0] != "issue" {
+		t.Fatalf("receipt-cancel edges have kinds %v, want [issue]", kinds)
+	}
+	if got := glStockBalance(t, db); got != "0.000000" {
+		t.Fatalf("GL stock balance is %s after cancel, want 0.000000", got)
+	}
+}
+
+func TestReturnCancelSuccess(t *testing.T) {
+	stockSvc, engine, masters, db := setup(t)
+	seedStockBasics(t, masters)
+
+	receipt := testMovement()
+	_, receiptApplied := postMovement(t, db, stockSvc, engine, receipt)
+	issue := issueOf(receipt, "40")
+	_, issueApplied := postMovement(t, db, stockSvc, engine, issue)
+	back := receipt
+	back.VoucherID = uuid.NewString()
+	back.VoucherType = "stock_return"
+	back.Quantity = types.Quantity{Value: dec("10"), UoM: "each"}
+	back.UnitCost = types.Decimal{}
+	back.ReversesRowID = issueApplied.RowID
+	postMovement(t, db, stockSvc, engine, back)
+
+	applied := cancelVoucher(t, db, stockSvc, engine, back.VoucherType, back.VoucherID, true)
+	if len(applied.RowIDs) != 1 {
+		t.Fatalf("cancel wrote %d rows, want 1", len(applied.RowIDs))
+	}
+	bin, _ := binOf(t, stockSvc, db, receipt)
+	if got := bin.Qty.String(); got != "60.000000" {
+		t.Fatalf("bin holds %s after cancel, want 60.000000", got)
+	}
+	if got := bin.Value.String(); got != "600.000000" {
+		t.Fatalf("bin value is %s after cancel, want 600.000000", got)
+	}
+	if got := layerResidual(t, db, receiptApplied.RowID); got != "60.000000" {
+		t.Fatalf("layer residual is %s after cancel, want 60.000000", got)
+	}
+	if kinds := cancelEdgeKinds(t, db, applied.RowIDs[0]); len(kinds) != 1 || kinds[0] != "return" {
+		t.Fatalf("return-cancel edges have kinds %v, want [return]", kinds)
+	}
+	if got := glStockBalance(t, db); got != "600.000000" {
+		t.Fatalf("GL stock balance is %s after cancel, want 600.000000", got)
+	}
+}
+
+func TestConcurrentReturnsSerializeOnLocks(t *testing.T) {
+	stockSvc, engine, masters, db := setup(t)
+	seedStockBasics(t, masters)
+
+	receipt := testMovement()
+	postMovement(t, db, stockSvc, engine, receipt)
+	_, issueApplied := postMovement(t, db, stockSvc, engine, issueOf(receipt, "40"))
+	back := func() stock.Movement {
+		m := receipt
+		m.VoucherID = uuid.NewString()
+		m.VoucherType = "stock_return"
+		m.Quantity = types.Quantity{Value: dec("30"), UoM: "each"}
+		m.UnitCost = types.Decimal{}
+		m.ReversesRowID = issueApplied.RowID
+		return m
+	}
+
+	ctx := context.Background()
+	connA, err := db.Conn(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer connA.Close()
+	txA, err := connA.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer txA.Rollback()
+	// Each return is valid alone (30 of 40 unreturned). The first plan
+	// holds the bin and issue-row locks; the second must block, not plan
+	// against a stale prior total.
+	if _, err := stockSvc.PlanMovement(ctx, txA, back()); err != nil {
+		t.Fatal(err)
+	}
+	connB, err := db.Conn(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer connB.Close()
+	if _, err := connB.ExecContext(ctx, `SET SESSION innodb_lock_wait_timeout = 1`); err != nil {
+		t.Fatal(err)
+	}
+	txB, err := connB.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer txB.Rollback()
+	_, err = stockSvc.PlanMovement(ctx, txB, back())
+	if err == nil || errors.Is(err, stock.ErrOverReturn) {
+		t.Fatalf("second return error is %v, want a lock wait (not a plan decision)", err)
+	}
+	if !strings.Contains(err.Error(), "1205") {
+		t.Fatalf("second return error is %v, want lock wait timeout 1205", err)
 	}
 }
