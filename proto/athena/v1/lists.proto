@@ -29,6 +29,10 @@ service ListService {
   // ExportListPdf renders up to max_rows matching rows to PDF bytes.
   // Needs read on the Record Type.
   rpc ExportListPdf(ExportListPdfRequest) returns (ExportListPdfResponse);
+  // QueueMessages enqueues one message per matching row for later delivery
+  // (no provider in beta: rows stay pending and the Desk says Queued).
+  // Needs read on the Record Type plus lists:send.
+  rpc QueueMessages(QueueMessagesRequest) returns (QueueMessagesResponse);
 }
 
 // SavedList is one stored list: the tree the builder edits plus the
@@ -109,4 +113,27 @@ message ExportListPdfRequest {
 message ExportListPdfResponse {
   bytes pdf = 1;
   string filename = 2;
+}
+
+message QueueMessagesRequest {
+  string id = 1;
+  // email or message.
+  string channel = 2;
+  // Optional audience exclusion as canonical condition-tree JSON, ANDed
+  // into the list query and recorded on every envelope. F5 owns the
+  // sample "invited but not responded" rule.
+  string audience_tree = 3;
+  // Rows enqueued at most, 1 to 500. Defaults to 200.
+  int32 max_recipients = 4;
+}
+
+message QueueMessagesResponse {
+  int64 queued = 1;
+  // Matches the audience condition filtered out, within the first
+  // max_recipients list matches.
+  int64 excluded = 2;
+  // List matches counted, up to max_recipients.
+  int64 total = 3;
+  // The compiled query recorded on every envelope.
+  string query = 4;
 }

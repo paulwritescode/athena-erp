@@ -182,6 +182,7 @@ var procedurePolicies = map[string]policy{
 	athenav1connect.LedgerServiceApplySettlementProcedure:   {kind: policySystem, permission: auth.PermissionLedgerWrite},
 	athenav1connect.LedgerServiceReverseSettlementProcedure: {kind: policySystem, permission: auth.PermissionLedgerWrite},
 	athenav1connect.LedgerServiceListOpenItemsProcedure:     {kind: policySystem, permission: auth.PermissionLedgerRead},
+	athenav1connect.ListServiceQueueMessagesProcedure:       {kind: policySystem, permission: auth.PermissionListsSend},
 }
 
 // destructiveProcedures covers deletes, reversals, replacement of executable

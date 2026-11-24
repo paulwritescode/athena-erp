@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	athenav1 "athena-erp/gen/athena/v1"
+	"athena-erp/internal/auth"
 	"connectrpc.com/connect/v2"
 )
 
@@ -157,4 +158,42 @@ func TestListRunAndExport(t *testing.T) {
 	if !strings.Contains(string(out.GetPdf()), "0169") {
 		t.Fatal("export misses U+0169 (ũ)")
 	}
+}
+
+func TestQueueMessagesCountsAndEnvelopes(t *testing.T) {
+	types, records := newServices(t)
+	listTestType(t, types)
+	listTestRecord(t, records, "Ann", "2")
+	listTestRecord(t, records, "Bob", "0")
+	svc := listService{recordService: records}
+	ctx := context.Background()
+	saved, err := svc.SaveList(ctx, &athenav1.SaveListRequest{Name: "All", RecordTypeKey: "guest", ConditionTree: `{"root":{"all":true,"conditions":[{"field":"doc.name","op":"is_not_empty"}]}}`})
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := saved.GetList().GetId()
+	audience := `{"root":{"all":true,"conditions":[{"field":"doc.plus_ones","op":"more_than","values":["0"]}]}}`
+	res, err := svc.QueueMessages(ctx, &athenav1.QueueMessagesRequest{Id: id, Channel: "email", AudienceTree: audience})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.GetQueued() != 1 || res.GetExcluded() != 1 || res.GetTotal() != 2 {
+		t.Fatalf("counts = %+v", res)
+	}
+	if !strings.Contains(res.GetQuery(), "doc.plus_ones") || !strings.Contains(res.GetQuery(), "doc.name") {
+		t.Fatalf("query = %q", res.GetQuery())
+	}
+	var rows, withValues int
+	db := records.db
+	if err := db.QueryRowContext(ctx, `SELECT COUNT(*), COUNT(IF(payload LIKE '%Ann%' OR payload LIKE '%Bob%', 1, NULL)) FROM athena_outbox WHERE event_type = 'list.message.requested'`).Scan(&rows, &withValues); err != nil {
+		t.Fatal(err)
+	}
+	if rows != 1 || withValues != 0 {
+		t.Fatalf("outbox rows = %d, with values = %d", rows, withValues)
+	}
+	_, err = svc.QueueMessages(ctx, &athenav1.QueueMessagesRequest{Id: id, Channel: "smoke"})
+	requireCode(t, err, connect.CodeInvalidArgument)
+	denied := auth.WithPrincipal(ctx, &auth.Principal{UserID: "u", Username: "pleb"})
+	_, err = svc.QueueMessages(denied, &athenav1.QueueMessagesRequest{Id: id, Channel: "email"})
+	requireCode(t, err, connect.CodePermissionDenied)
 }

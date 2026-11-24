@@ -36,6 +36,8 @@ const (
 	ListServiceRunListProcedure = "/athena.v1.ListService/RunList"
 	// ListServiceExportListPdfProcedure is the procedure name of the ListService's ExportListPdf RPC.
 	ListServiceExportListPdfProcedure = "/athena.v1.ListService/ExportListPdf"
+	// ListServiceQueueMessagesProcedure is the procedure name of the ListService's QueueMessages RPC.
+	ListServiceQueueMessagesProcedure = "/athena.v1.ListService/QueueMessages"
 )
 
 var (
@@ -81,6 +83,13 @@ var (
 			Procedure:  ListServiceExportListPdfProcedure,
 		}
 	})
+	listServiceQueueMessagesSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_athena_v1_lists_proto.Services().ByName("ListService").Methods().ByName("QueueMessages"),
+			Procedure:  ListServiceQueueMessagesProcedure,
+		}
+	})
 )
 
 // ListServiceClient is a client for the athena.v1.ListService service.
@@ -101,6 +110,10 @@ type ListServiceClient interface {
 	// ExportListPdf renders up to max_rows matching rows to PDF bytes.
 	// Needs read on the Record Type.
 	ExportListPdf(context.Context, *v1.ExportListPdfRequest) (*v1.ExportListPdfResponse, error)
+	// QueueMessages enqueues one message per matching row for later delivery
+	// (no provider in beta: rows stay pending and the Desk says Queued).
+	// Needs read on the Record Type plus lists:send.
+	QueueMessages(context.Context, *v1.QueueMessagesRequest) (*v1.QueueMessagesResponse, error)
 }
 
 // NewListServiceClient constructs a client for the athena.v1.ListService service. Multiple service
@@ -127,6 +140,10 @@ type ListServiceHandler interface {
 	// ExportListPdf renders up to max_rows matching rows to PDF bytes.
 	// Needs read on the Record Type.
 	ExportListPdf(context.Context, *v1.ExportListPdfRequest) (*v1.ExportListPdfResponse, error)
+	// QueueMessages enqueues one message per matching row for later delivery
+	// (no provider in beta: rows stay pending and the Desk says Queued).
+	// Needs read on the Record Type plus lists:send.
+	QueueMessages(context.Context, *v1.QueueMessagesRequest) (*v1.QueueMessagesResponse, error)
 }
 
 // RegisterListServiceHandler registers svc as the athena.v1.ListService implementation on server.
@@ -139,6 +156,7 @@ func RegisterListServiceHandler(server *connect.Server, svc ListServiceHandler) 
 		connect.Method{Spec: listServiceDeleteListSpec(), Handler: adapter.deleteList},
 		connect.Method{Spec: listServiceRunListSpec(), Handler: adapter.runList},
 		connect.Method{Spec: listServiceExportListPdfSpec(), Handler: adapter.exportListPdf},
+		connect.Method{Spec: listServiceQueueMessagesSpec(), Handler: adapter.queueMessages},
 	)
 }
 
@@ -167,6 +185,10 @@ func (UnimplementedListServiceHandler) RunList(context.Context, *v1.RunListReque
 
 func (UnimplementedListServiceHandler) ExportListPdf(context.Context, *v1.ExportListPdfRequest) (*v1.ExportListPdfResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, "athena.v1.ListService.ExportListPdf is not implemented")
+}
+
+func (UnimplementedListServiceHandler) QueueMessages(context.Context, *v1.QueueMessagesRequest) (*v1.QueueMessagesResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "athena.v1.ListService.QueueMessages is not implemented")
 }
 
 type listServiceClient struct {
@@ -216,6 +238,14 @@ func (c *listServiceClient) RunList(ctx context.Context, req *v1.RunListRequest)
 func (c *listServiceClient) ExportListPdf(ctx context.Context, req *v1.ExportListPdfRequest) (*v1.ExportListPdfResponse, error) {
 	var res v1.ExportListPdfResponse
 	if err := c.client.CallUnary(ctx, listServiceExportListPdfSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *listServiceClient) QueueMessages(ctx context.Context, req *v1.QueueMessagesRequest) (*v1.QueueMessagesResponse, error) {
+	var res v1.QueueMessagesResponse
+	if err := c.client.CallUnary(ctx, listServiceQueueMessagesSpec(), req, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -289,6 +319,18 @@ func (h listServiceHandler) exportListPdf(ctx context.Context, _ connect.Spec, s
 		return err
 	}
 	res, err := h.svc.ExportListPdf(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h listServiceHandler) queueMessages(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.QueueMessagesRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.QueueMessages(ctx, &req)
 	if err != nil {
 		return err
 	}

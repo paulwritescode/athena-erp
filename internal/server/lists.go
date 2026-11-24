@@ -11,6 +11,7 @@ import (
 
 	v1 "athena-erp/gen/athena/v1"
 	"athena-erp/internal/auth"
+	"athena-erp/internal/events"
 	"athena-erp/internal/expr"
 	"athena-erp/internal/files"
 	"athena-erp/internal/ledger"
@@ -458,6 +459,128 @@ func slugFilename(name string) string {
 		slug = "list"
 	}
 	return slug + ".pdf"
+}
+
+// messageRequested is the outbox event type of one queued list message.
+// Its payload carries ids and counts only, never Record values.
+const messageRequested = "list.message.requested"
+
+const (
+	queueDefaultRecipients = 200
+	queueMaxRecipients     = 500
+)
+
+func (s listService) QueueMessages(ctx context.Context, req *v1.QueueMessagesRequest) (*v1.QueueMessagesResponse, error) {
+	if _, err := requireSystem(ctx, auth.PermissionListsSend); err != nil {
+		return nil, err
+	}
+	doc, err := s.loadList(ctx, req.GetId())
+	if err != nil {
+		return nil, err
+	}
+	if err := canRead(ctx, doc.GetRecordTypeKey()); err != nil {
+		return nil, err
+	}
+	if req.GetChannel() != "email" && req.GetChannel() != "message" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, "channel is email or message")
+	}
+	maxRecipients := int(req.GetMaxRecipients())
+	if maxRecipients <= 0 {
+		maxRecipients = queueDefaultRecipients
+	}
+	maxRecipients = min(maxRecipients, queueMaxRecipients)
+	query := doc.GetConditionExpr()
+	if strings.TrimSpace(req.GetAudienceTree()) != "" {
+		recordType, err := s.recordType(ctx, doc.GetRecordTypeKey())
+		if err != nil {
+			return nil, err
+		}
+		env, err := newExprEnvironment(ctx, s.db, recordType, nil)
+		if err != nil {
+			return nil, err
+		}
+		vars := make(map[string]expr.Variable, len(env.vars))
+		for _, v := range env.vars {
+			vars[v.Name] = v
+		}
+		var tree expr.Tree
+		if err := json.Unmarshal([]byte(req.GetAudienceTree()), &tree); err != nil {
+			return nil, connect.NewError(connect.CodeInvalidArgument, "the audience tree is not valid JSON")
+		}
+		audience, err := expr.CompileTree(tree, vars)
+		if err != nil {
+			return nil, connect.NewError(connect.CodeInvalidArgument, err.Error())
+		}
+		query = "(" + query + ") && (" + audience + ")"
+	}
+	recipients, err := s.collectIDs(ctx, doc.GetRecordTypeKey(), query, maxRecipients)
+	if err != nil {
+		return nil, err
+	}
+	total := int64(len(recipients))
+	excluded := int64(0)
+	if query != doc.GetConditionExpr() {
+		base, err := s.collectIDs(ctx, doc.GetRecordTypeKey(), doc.GetConditionExpr(), maxRecipients)
+		if err != nil {
+			return nil, err
+		}
+		total, excluded = int64(len(base)), int64(len(base)-len(recipients))
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, internalError("queue messages", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	for _, recipient := range recipients {
+		if _, err := events.Emit(ctx, tx, events.Envelope{
+			EventType:       messageRequested,
+			Workspace:       s.workspace,
+			Producer:        "lists",
+			SubjectType:     doc.GetRecordTypeKey(),
+			SubjectID:       recipient.id,
+			SubjectRevision: recipient.revision,
+			Actor:           actorName(ctx),
+			Payload:         map[string]any{"list_id": doc.GetId(), "channel": req.GetChannel(), "query": query},
+		}); err != nil {
+			return nil, internalError("queue messages", err)
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, internalError("queue messages", err)
+	}
+	return &v1.QueueMessagesResponse{Queued: int64(len(recipients)), Excluded: excluded, Total: total, Query: query}, nil
+}
+
+type recipient struct {
+	id       string
+	revision int64
+}
+
+func (s listService) collectIDs(ctx context.Context, recordTypeKey, filter string, max int) ([]recipient, error) {
+	var out []recipient
+	token := ""
+	for len(out) < max {
+		listed, err := s.recordService.ListRecords(ctx, &v1.ListRecordsRequest{
+			RecordTypeKey: recordTypeKey,
+			Filter:        filter,
+			PageSize:      int32(min(max-len(out), maxPageSize)),
+			PageToken:     token,
+		})
+		if err != nil {
+			return nil, err
+		}
+		for _, record := range listed.GetRecords() {
+			out = append(out, recipient{id: record.GetId(), revision: record.GetRevision()})
+			if len(out) >= max {
+				break
+			}
+		}
+		if listed.GetNextPageToken() == "" {
+			break
+		}
+		token = listed.GetNextPageToken()
+	}
+	return out, nil
 }
 
 // identityForExport reads the workspace display name and light PNG logo

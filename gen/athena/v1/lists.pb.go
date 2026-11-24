@@ -768,6 +768,151 @@ func (x *ExportListPdfResponse) GetFilename() string {
 	return ""
 }
 
+type QueueMessagesRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Id    string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// email or message.
+	Channel string `protobuf:"bytes,2,opt,name=channel,proto3" json:"channel,omitempty"`
+	// Optional audience exclusion as canonical condition-tree JSON, ANDed
+	// into the list query and recorded on every envelope. F5 owns the
+	// sample "invited but not responded" rule.
+	AudienceTree string `protobuf:"bytes,3,opt,name=audience_tree,json=audienceTree,proto3" json:"audience_tree,omitempty"`
+	// Rows enqueued at most, 1 to 500. Defaults to 200.
+	MaxRecipients int32 `protobuf:"varint,4,opt,name=max_recipients,json=maxRecipients,proto3" json:"max_recipients,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *QueueMessagesRequest) Reset() {
+	*x = QueueMessagesRequest{}
+	mi := &file_athena_v1_lists_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *QueueMessagesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*QueueMessagesRequest) ProtoMessage() {}
+
+func (x *QueueMessagesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_lists_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use QueueMessagesRequest.ProtoReflect.Descriptor instead.
+func (*QueueMessagesRequest) Descriptor() ([]byte, []int) {
+	return file_athena_v1_lists_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *QueueMessagesRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *QueueMessagesRequest) GetChannel() string {
+	if x != nil {
+		return x.Channel
+	}
+	return ""
+}
+
+func (x *QueueMessagesRequest) GetAudienceTree() string {
+	if x != nil {
+		return x.AudienceTree
+	}
+	return ""
+}
+
+func (x *QueueMessagesRequest) GetMaxRecipients() int32 {
+	if x != nil {
+		return x.MaxRecipients
+	}
+	return 0
+}
+
+type QueueMessagesResponse struct {
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	Queued int64                  `protobuf:"varint,1,opt,name=queued,proto3" json:"queued,omitempty"`
+	// Matches the audience condition filtered out, within the first
+	// max_recipients list matches.
+	Excluded int64 `protobuf:"varint,2,opt,name=excluded,proto3" json:"excluded,omitempty"`
+	// List matches counted, up to max_recipients.
+	Total int64 `protobuf:"varint,3,opt,name=total,proto3" json:"total,omitempty"`
+	// The compiled query recorded on every envelope.
+	Query         string `protobuf:"bytes,4,opt,name=query,proto3" json:"query,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *QueueMessagesResponse) Reset() {
+	*x = QueueMessagesResponse{}
+	mi := &file_athena_v1_lists_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *QueueMessagesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*QueueMessagesResponse) ProtoMessage() {}
+
+func (x *QueueMessagesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_lists_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use QueueMessagesResponse.ProtoReflect.Descriptor instead.
+func (*QueueMessagesResponse) Descriptor() ([]byte, []int) {
+	return file_athena_v1_lists_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *QueueMessagesResponse) GetQueued() int64 {
+	if x != nil {
+		return x.Queued
+	}
+	return 0
+}
+
+func (x *QueueMessagesResponse) GetExcluded() int64 {
+	if x != nil {
+		return x.Excluded
+	}
+	return 0
+}
+
+func (x *QueueMessagesResponse) GetTotal() int64 {
+	if x != nil {
+		return x.Total
+	}
+	return 0
+}
+
+func (x *QueueMessagesResponse) GetQuery() string {
+	if x != nil {
+		return x.Query
+	}
+	return ""
+}
+
 var File_athena_v1_lists_proto protoreflect.FileDescriptor
 
 const file_athena_v1_lists_proto_rawDesc = "" +
@@ -821,7 +966,17 @@ const file_athena_v1_lists_proto_rawDesc = "" +
 	"\bmax_rows\x18\x02 \x01(\x05R\amaxRows\"E\n" +
 	"\x15ExportListPdfResponse\x12\x10\n" +
 	"\x03pdf\x18\x01 \x01(\fR\x03pdf\x12\x1a\n" +
-	"\bfilename\x18\x02 \x01(\tR\bfilename2\xbd\x03\n" +
+	"\bfilename\x18\x02 \x01(\tR\bfilename\"\x8c\x01\n" +
+	"\x14QueueMessagesRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
+	"\achannel\x18\x02 \x01(\tR\achannel\x12#\n" +
+	"\raudience_tree\x18\x03 \x01(\tR\faudienceTree\x12%\n" +
+	"\x0emax_recipients\x18\x04 \x01(\x05R\rmaxRecipients\"w\n" +
+	"\x15QueueMessagesResponse\x12\x16\n" +
+	"\x06queued\x18\x01 \x01(\x03R\x06queued\x12\x1a\n" +
+	"\bexcluded\x18\x02 \x01(\x03R\bexcluded\x12\x14\n" +
+	"\x05total\x18\x03 \x01(\x03R\x05total\x12\x14\n" +
+	"\x05query\x18\x04 \x01(\tR\x05query2\x91\x04\n" +
 	"\vListService\x12C\n" +
 	"\bSaveList\x12\x1a.athena.v1.SaveListRequest\x1a\x1b.athena.v1.SaveListResponse\x12@\n" +
 	"\aGetList\x12\x19.athena.v1.GetListRequest\x1a\x1a.athena.v1.GetListResponse\x12F\n" +
@@ -829,7 +984,8 @@ const file_athena_v1_lists_proto_rawDesc = "" +
 	"\n" +
 	"DeleteList\x12\x1c.athena.v1.DeleteListRequest\x1a\x1d.athena.v1.DeleteListResponse\x12@\n" +
 	"\aRunList\x12\x19.athena.v1.RunListRequest\x1a\x1a.athena.v1.RunListResponse\x12R\n" +
-	"\rExportListPdf\x12\x1f.athena.v1.ExportListPdfRequest\x1a .athena.v1.ExportListPdfResponseB#Z!athena-erp/gen/athena/v1;athenav1b\x06proto3"
+	"\rExportListPdf\x12\x1f.athena.v1.ExportListPdfRequest\x1a .athena.v1.ExportListPdfResponse\x12R\n" +
+	"\rQueueMessages\x12\x1f.athena.v1.QueueMessagesRequest\x1a .athena.v1.QueueMessagesResponseB#Z!athena-erp/gen/athena/v1;athenav1b\x06proto3"
 
 var (
 	file_athena_v1_lists_proto_rawDescOnce sync.Once
@@ -843,7 +999,7 @@ func file_athena_v1_lists_proto_rawDescGZIP() []byte {
 	return file_athena_v1_lists_proto_rawDescData
 }
 
-var file_athena_v1_lists_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
+var file_athena_v1_lists_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
 var file_athena_v1_lists_proto_goTypes = []any{
 	(*SavedList)(nil),             // 0: athena.v1.SavedList
 	(*SaveListRequest)(nil),       // 1: athena.v1.SaveListRequest
@@ -858,28 +1014,32 @@ var file_athena_v1_lists_proto_goTypes = []any{
 	(*RunListResponse)(nil),       // 10: athena.v1.RunListResponse
 	(*ExportListPdfRequest)(nil),  // 11: athena.v1.ExportListPdfRequest
 	(*ExportListPdfResponse)(nil), // 12: athena.v1.ExportListPdfResponse
-	(*Record)(nil),                // 13: athena.v1.Record
+	(*QueueMessagesRequest)(nil),  // 13: athena.v1.QueueMessagesRequest
+	(*QueueMessagesResponse)(nil), // 14: athena.v1.QueueMessagesResponse
+	(*Record)(nil),                // 15: athena.v1.Record
 }
 var file_athena_v1_lists_proto_depIdxs = []int32{
 	0,  // 0: athena.v1.SaveListResponse.list:type_name -> athena.v1.SavedList
 	0,  // 1: athena.v1.GetListResponse.list:type_name -> athena.v1.SavedList
 	0,  // 2: athena.v1.ListListsResponse.lists:type_name -> athena.v1.SavedList
 	0,  // 3: athena.v1.RunListResponse.list:type_name -> athena.v1.SavedList
-	13, // 4: athena.v1.RunListResponse.records:type_name -> athena.v1.Record
+	15, // 4: athena.v1.RunListResponse.records:type_name -> athena.v1.Record
 	1,  // 5: athena.v1.ListService.SaveList:input_type -> athena.v1.SaveListRequest
 	3,  // 6: athena.v1.ListService.GetList:input_type -> athena.v1.GetListRequest
 	5,  // 7: athena.v1.ListService.ListLists:input_type -> athena.v1.ListListsRequest
 	7,  // 8: athena.v1.ListService.DeleteList:input_type -> athena.v1.DeleteListRequest
 	9,  // 9: athena.v1.ListService.RunList:input_type -> athena.v1.RunListRequest
 	11, // 10: athena.v1.ListService.ExportListPdf:input_type -> athena.v1.ExportListPdfRequest
-	2,  // 11: athena.v1.ListService.SaveList:output_type -> athena.v1.SaveListResponse
-	4,  // 12: athena.v1.ListService.GetList:output_type -> athena.v1.GetListResponse
-	6,  // 13: athena.v1.ListService.ListLists:output_type -> athena.v1.ListListsResponse
-	8,  // 14: athena.v1.ListService.DeleteList:output_type -> athena.v1.DeleteListResponse
-	10, // 15: athena.v1.ListService.RunList:output_type -> athena.v1.RunListResponse
-	12, // 16: athena.v1.ListService.ExportListPdf:output_type -> athena.v1.ExportListPdfResponse
-	11, // [11:17] is the sub-list for method output_type
-	5,  // [5:11] is the sub-list for method input_type
+	13, // 11: athena.v1.ListService.QueueMessages:input_type -> athena.v1.QueueMessagesRequest
+	2,  // 12: athena.v1.ListService.SaveList:output_type -> athena.v1.SaveListResponse
+	4,  // 13: athena.v1.ListService.GetList:output_type -> athena.v1.GetListResponse
+	6,  // 14: athena.v1.ListService.ListLists:output_type -> athena.v1.ListListsResponse
+	8,  // 15: athena.v1.ListService.DeleteList:output_type -> athena.v1.DeleteListResponse
+	10, // 16: athena.v1.ListService.RunList:output_type -> athena.v1.RunListResponse
+	12, // 17: athena.v1.ListService.ExportListPdf:output_type -> athena.v1.ExportListPdfResponse
+	14, // 18: athena.v1.ListService.QueueMessages:output_type -> athena.v1.QueueMessagesResponse
+	12, // [12:19] is the sub-list for method output_type
+	5,  // [5:12] is the sub-list for method input_type
 	5,  // [5:5] is the sub-list for extension type_name
 	5,  // [5:5] is the sub-list for extension extendee
 	0,  // [0:5] is the sub-list for field type_name
@@ -897,7 +1057,7 @@ func file_athena_v1_lists_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_athena_v1_lists_proto_rawDesc), len(file_athena_v1_lists_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   13,
+			NumMessages:   15,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

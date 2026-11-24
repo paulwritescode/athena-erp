@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file athena/v1/lists.proto.
  */
 export const file_athena_v1_lists: GenFile = /*@__PURE__*/
-  fileDesc("ChVhdGhlbmEvdjEvbGlzdHMucHJvdG8SCWF0aGVuYS52MSKgAQoJU2F2ZWRMaXN0EgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSFwoPcmVjb3JkX3R5cGVfa2V5GAMgASgJEhYKDmNvbmRpdGlvbl90cmVlGAQgASgJEhYKDmNvbmRpdGlvbl9leHByGAUgASgJEg8KB2NvbHVtbnMYBiADKAkSDQoFb3duZXIYByABKAkSEAoIcmV2aXNpb24YCCABKAMiiAEKD1NhdmVMaXN0UmVxdWVzdBIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEhcKD3JlY29yZF90eXBlX2tleRgDIAEoCRIWCg5jb25kaXRpb25fdHJlZRgEIAEoCRIPCgdjb2x1bW5zGAUgAygJEhkKEWV4cGVjdGVkX3JldmlzaW9uGAYgASgDIjYKEFNhdmVMaXN0UmVzcG9uc2USIgoEbGlzdBgBIAEoCzIULmF0aGVuYS52MS5TYXZlZExpc3QiHAoOR2V0TGlzdFJlcXVlc3QSCgoCaWQYASABKAkiNQoPR2V0TGlzdFJlc3BvbnNlEiIKBGxpc3QYASABKAsyFC5hdGhlbmEudjEuU2F2ZWRMaXN0IlIKEExpc3RMaXN0c1JlcXVlc3QSFwoPcmVjb3JkX3R5cGVfa2V5GAEgASgJEhEKCXBhZ2Vfc2l6ZRgCIAEoBRISCgpwYWdlX3Rva2VuGAMgASgJIlEKEUxpc3RMaXN0c1Jlc3BvbnNlEiMKBWxpc3RzGAEgAygLMhQuYXRoZW5hLnYxLlNhdmVkTGlzdBIXCg9uZXh0X3BhZ2VfdG9rZW4YAiABKAkiOgoRRGVsZXRlTGlzdFJlcXVlc3QSCgoCaWQYASABKAkSGQoRZXhwZWN0ZWRfcmV2aXNpb24YAiABKAMiFAoSRGVsZXRlTGlzdFJlc3BvbnNlIkMKDlJ1bkxpc3RSZXF1ZXN0EgoKAmlkGAEgASgJEhEKCXBhZ2Vfc2l6ZRgCIAEoBRISCgpwYWdlX3Rva2VuGAMgASgJInIKD1J1bkxpc3RSZXNwb25zZRIiCgRsaXN0GAEgASgLMhQuYXRoZW5hLnYxLlNhdmVkTGlzdBIiCgdyZWNvcmRzGAIgAygLMhEuYXRoZW5hLnYxLlJlY29yZBIXCg9uZXh0X3BhZ2VfdG9rZW4YAyABKAkiNAoURXhwb3J0TGlzdFBkZlJlcXVlc3QSCgoCaWQYASABKAkSEAoIbWF4X3Jvd3MYAiABKAUiNgoVRXhwb3J0TGlzdFBkZlJlc3BvbnNlEgsKA3BkZhgBIAEoDBIQCghmaWxlbmFtZRgCIAEoCTK9AwoLTGlzdFNlcnZpY2USQwoIU2F2ZUxpc3QSGi5hdGhlbmEudjEuU2F2ZUxpc3RSZXF1ZXN0GhsuYXRoZW5hLnYxLlNhdmVMaXN0UmVzcG9uc2USQAoHR2V0TGlzdBIZLmF0aGVuYS52MS5HZXRMaXN0UmVxdWVzdBoaLmF0aGVuYS52MS5HZXRMaXN0UmVzcG9uc2USRgoJTGlzdExpc3RzEhsuYXRoZW5hLnYxLkxpc3RMaXN0c1JlcXVlc3QaHC5hdGhlbmEudjEuTGlzdExpc3RzUmVzcG9uc2USSQoKRGVsZXRlTGlzdBIcLmF0aGVuYS52MS5EZWxldGVMaXN0UmVxdWVzdBodLmF0aGVuYS52MS5EZWxldGVMaXN0UmVzcG9uc2USQAoHUnVuTGlzdBIZLmF0aGVuYS52MS5SdW5MaXN0UmVxdWVzdBoaLmF0aGVuYS52MS5SdW5MaXN0UmVzcG9uc2USUgoNRXhwb3J0TGlzdFBkZhIfLmF0aGVuYS52MS5FeHBvcnRMaXN0UGRmUmVxdWVzdBogLmF0aGVuYS52MS5FeHBvcnRMaXN0UGRmUmVzcG9uc2VCI1ohYXRoZW5hLWVycC9nZW4vYXRoZW5hL3YxO2F0aGVuYXYxYgZwcm90bzM", [file_athena_v1_records]);
+  fileDesc("ChVhdGhlbmEvdjEvbGlzdHMucHJvdG8SCWF0aGVuYS52MSKgAQoJU2F2ZWRMaXN0EgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSFwoPcmVjb3JkX3R5cGVfa2V5GAMgASgJEhYKDmNvbmRpdGlvbl90cmVlGAQgASgJEhYKDmNvbmRpdGlvbl9leHByGAUgASgJEg8KB2NvbHVtbnMYBiADKAkSDQoFb3duZXIYByABKAkSEAoIcmV2aXNpb24YCCABKAMiiAEKD1NhdmVMaXN0UmVxdWVzdBIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEhcKD3JlY29yZF90eXBlX2tleRgDIAEoCRIWCg5jb25kaXRpb25fdHJlZRgEIAEoCRIPCgdjb2x1bW5zGAUgAygJEhkKEWV4cGVjdGVkX3JldmlzaW9uGAYgASgDIjYKEFNhdmVMaXN0UmVzcG9uc2USIgoEbGlzdBgBIAEoCzIULmF0aGVuYS52MS5TYXZlZExpc3QiHAoOR2V0TGlzdFJlcXVlc3QSCgoCaWQYASABKAkiNQoPR2V0TGlzdFJlc3BvbnNlEiIKBGxpc3QYASABKAsyFC5hdGhlbmEudjEuU2F2ZWRMaXN0IlIKEExpc3RMaXN0c1JlcXVlc3QSFwoPcmVjb3JkX3R5cGVfa2V5GAEgASgJEhEKCXBhZ2Vfc2l6ZRgCIAEoBRISCgpwYWdlX3Rva2VuGAMgASgJIlEKEUxpc3RMaXN0c1Jlc3BvbnNlEiMKBWxpc3RzGAEgAygLMhQuYXRoZW5hLnYxLlNhdmVkTGlzdBIXCg9uZXh0X3BhZ2VfdG9rZW4YAiABKAkiOgoRRGVsZXRlTGlzdFJlcXVlc3QSCgoCaWQYASABKAkSGQoRZXhwZWN0ZWRfcmV2aXNpb24YAiABKAMiFAoSRGVsZXRlTGlzdFJlc3BvbnNlIkMKDlJ1bkxpc3RSZXF1ZXN0EgoKAmlkGAEgASgJEhEKCXBhZ2Vfc2l6ZRgCIAEoBRISCgpwYWdlX3Rva2VuGAMgASgJInIKD1J1bkxpc3RSZXNwb25zZRIiCgRsaXN0GAEgASgLMhQuYXRoZW5hLnYxLlNhdmVkTGlzdBIiCgdyZWNvcmRzGAIgAygLMhEuYXRoZW5hLnYxLlJlY29yZBIXCg9uZXh0X3BhZ2VfdG9rZW4YAyABKAkiNAoURXhwb3J0TGlzdFBkZlJlcXVlc3QSCgoCaWQYASABKAkSEAoIbWF4X3Jvd3MYAiABKAUiNgoVRXhwb3J0TGlzdFBkZlJlc3BvbnNlEgsKA3BkZhgBIAEoDBIQCghmaWxlbmFtZRgCIAEoCSJiChRRdWV1ZU1lc3NhZ2VzUmVxdWVzdBIKCgJpZBgBIAEoCRIPCgdjaGFubmVsGAIgASgJEhUKDWF1ZGllbmNlX3RyZWUYAyABKAkSFgoObWF4X3JlY2lwaWVudHMYBCABKAUiVwoVUXVldWVNZXNzYWdlc1Jlc3BvbnNlEg4KBnF1ZXVlZBgBIAEoAxIQCghleGNsdWRlZBgCIAEoAxINCgV0b3RhbBgDIAEoAxINCgVxdWVyeRgEIAEoCTKRBAoLTGlzdFNlcnZpY2USQwoIU2F2ZUxpc3QSGi5hdGhlbmEudjEuU2F2ZUxpc3RSZXF1ZXN0GhsuYXRoZW5hLnYxLlNhdmVMaXN0UmVzcG9uc2USQAoHR2V0TGlzdBIZLmF0aGVuYS52MS5HZXRMaXN0UmVxdWVzdBoaLmF0aGVuYS52MS5HZXRMaXN0UmVzcG9uc2USRgoJTGlzdExpc3RzEhsuYXRoZW5hLnYxLkxpc3RMaXN0c1JlcXVlc3QaHC5hdGhlbmEudjEuTGlzdExpc3RzUmVzcG9uc2USSQoKRGVsZXRlTGlzdBIcLmF0aGVuYS52MS5EZWxldGVMaXN0UmVxdWVzdBodLmF0aGVuYS52MS5EZWxldGVMaXN0UmVzcG9uc2USQAoHUnVuTGlzdBIZLmF0aGVuYS52MS5SdW5MaXN0UmVxdWVzdBoaLmF0aGVuYS52MS5SdW5MaXN0UmVzcG9uc2USUgoNRXhwb3J0TGlzdFBkZhIfLmF0aGVuYS52MS5FeHBvcnRMaXN0UGRmUmVxdWVzdBogLmF0aGVuYS52MS5FeHBvcnRMaXN0UGRmUmVzcG9uc2USUgoNUXVldWVNZXNzYWdlcxIfLmF0aGVuYS52MS5RdWV1ZU1lc3NhZ2VzUmVxdWVzdBogLmF0aGVuYS52MS5RdWV1ZU1lc3NhZ2VzUmVzcG9uc2VCI1ohYXRoZW5hLWVycC9nZW4vYXRoZW5hL3YxO2F0aGVuYXYxYgZwcm90bzM", [file_athena_v1_records]);
 
 /**
  * SavedList is one stored list: the tree the builder edits plus the
@@ -355,6 +355,85 @@ export const ExportListPdfResponseSchema: GenMessage<ExportListPdfResponse> = /*
   messageDesc(file_athena_v1_lists, 12);
 
 /**
+ * @generated from message athena.v1.QueueMessagesRequest
+ */
+export type QueueMessagesRequest = Message<"athena.v1.QueueMessagesRequest"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * email or message.
+   *
+   * @generated from field: string channel = 2;
+   */
+  channel: string;
+
+  /**
+   * Optional audience exclusion as canonical condition-tree JSON, ANDed
+   * into the list query and recorded on every envelope. F5 owns the
+   * sample "invited but not responded" rule.
+   *
+   * @generated from field: string audience_tree = 3;
+   */
+  audienceTree: string;
+
+  /**
+   * Rows enqueued at most, 1 to 500. Defaults to 200.
+   *
+   * @generated from field: int32 max_recipients = 4;
+   */
+  maxRecipients: number;
+};
+
+/**
+ * Describes the message athena.v1.QueueMessagesRequest.
+ * Use `create(QueueMessagesRequestSchema)` to create a new message.
+ */
+export const QueueMessagesRequestSchema: GenMessage<QueueMessagesRequest> = /*@__PURE__*/
+  messageDesc(file_athena_v1_lists, 13);
+
+/**
+ * @generated from message athena.v1.QueueMessagesResponse
+ */
+export type QueueMessagesResponse = Message<"athena.v1.QueueMessagesResponse"> & {
+  /**
+   * @generated from field: int64 queued = 1;
+   */
+  queued: bigint;
+
+  /**
+   * Matches the audience condition filtered out, within the first
+   * max_recipients list matches.
+   *
+   * @generated from field: int64 excluded = 2;
+   */
+  excluded: bigint;
+
+  /**
+   * List matches counted, up to max_recipients.
+   *
+   * @generated from field: int64 total = 3;
+   */
+  total: bigint;
+
+  /**
+   * The compiled query recorded on every envelope.
+   *
+   * @generated from field: string query = 4;
+   */
+  query: string;
+};
+
+/**
+ * Describes the message athena.v1.QueueMessagesResponse.
+ * Use `create(QueueMessagesResponseSchema)` to create a new message.
+ */
+export const QueueMessagesResponseSchema: GenMessage<QueueMessagesResponse> = /*@__PURE__*/
+  messageDesc(file_athena_v1_lists, 14);
+
+/**
  * ListService manages saved lists (ADR-0034, Proposed): named condition
  * trees over one Record Type with a column choice. The Desk sends the
  * tree; the server compiles and validates it, stores both forms, and runs
@@ -428,6 +507,18 @@ export const ListService: GenService<{
     methodKind: "unary";
     input: typeof ExportListPdfRequestSchema;
     output: typeof ExportListPdfResponseSchema;
+  },
+  /**
+   * QueueMessages enqueues one message per matching row for later delivery
+   * (no provider in beta: rows stay pending and the Desk says Queued).
+   * Needs read on the Record Type plus lists:send.
+   *
+   * @generated from rpc athena.v1.ListService.QueueMessages
+   */
+  queueMessages: {
+    methodKind: "unary";
+    input: typeof QueueMessagesRequestSchema;
+    output: typeof QueueMessagesResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_athena_v1_lists, 0);
