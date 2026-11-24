@@ -102,3 +102,167 @@
 - 23:56 MERGED train2 D3s3+FU (13 commits, 919bab4 -> 2d9c17d) gate on tip green (Go ok, web 616/616)
 - 23:56 PUSHED main 2d9c17d to origin (during r-c4 pinned-tree verification per Stylus order)
 - 23:56 w-d3 UPDATE: slice 4 committed a064771 on 9cbe313, vitals LCP 28-52ms CLS 0 INP unmeasured (honest), gate queued
+- 23:57 PUSHED docs batch (docs-spec tasks.md + docs-agents record, 2d9c17d -> 46bf4fd); limits.json had no changes
+- 23:58 RESTARTED user server on 46bf4fd (athena-server t4t, healthz ok)
+- 23:59 w-c2 ANSWER: rebase+integrate forwarded to sm-c2
+- 23:59 w-fu ANSWER: branch emptied on 46bf4fd, holding for batch-2 brief
+- 00:00 ORDERED w-fu batch 2 (B2a-Desk + B5 + FU1 + C1-nit, fresh feat/fu-batch-2)
+- 00:01 w-c2 UPDATE: split integrated on 46bf4fd (7 commits incl. wiring e72ef79), awaiting gates + sm-c2 PASS
+- 00:02 w-fu UPDATE: batch 2 started, feat/fu-batch-2 fresh at 46bf4fd, clean
+- 00:04 REVIEW PASS C4 slice 3 + fix (ac31fc1, r-c4): picked files identical, gates 7/7
+- 00:04 CLOSED r-c4 (t4p, verdict delivered); removed athena-erp-c4-r; 13.3b gets a fresh reviewer
+- 00:06 MERGE STAGED C4s3+fix (21e5973+bc9b1e3 on 46bf4fd) clean; narrow green; full gate queuing master-first
+- 00:06 w-c2 UPDATE: split at e72ef79 on 46bf4fd (7 commits), B gate running, sm-c2 PASS pending
+- 00:08 w-c5 UPDATE: rebased clean on 46bf4fd (slice 1 now f466742), suite re-queued
+- 00:09 w-d3 UPDATE: stale gate cancelled, slice 3 confirmed upstream, rebased (slice 4 now ce7c6c1, patch identical), re-queued
+- 00:08 w-fu UPDATE: batch 2 B5 3/6 committed (role help, logo validation, SetIdentity conflict)
+- 00:12 w-c2 UPDATE: split holding at e72ef79, B gate running, sm-c2 PASS pending
+- 00:13 w-fu UPDATE: batch 2 B5 5/6 committed
+- 00:15 w-fu UPDATE: batch 2 B5 6/6 committed, next FU-1 + C1 nit + gates
+- 00:15 DECIDED (user GO via Stylus): C1 6.10 builds now; spawn refused (5/5 workers) so queued in L1 after C5 slice 1 merges (worktree feat/c1-voucher + brief ready); RecordsPage.vue reserved for 6.10, C5-Desk + FU wait
+- 00:17 INFO from Stylus: dashboard slice counting done (uncommitted dashboard_web.py + dashboard.html); include in next docs commit as chore(agents), keep '- Slice N merged' pattern
+- 00:18 w-fu UPDATE: batch 2 all bullets worked (8 commits), narrow checks then gates
+- 00:19 PASS C5 slice 1 (f466742): migration 20 + ADR-0031, full suite green; SPAWNED r-c5 (t4v, review); w-c5 holds (6.10 takes L1 next)
+- 00:20 w-c5 UPDATE: holding at f466742, slice 2 not started, ready to close out
+- 00:24 w-c2 UPDATE: nudging silent sm-c2 again; master peeked: sm-c2 mid-24m-turn (not stuck), sw-c2-2 holding; told w-c2 no action
+- 00:25 w-c2 ANSWER: split-watch noted, escalates if sm-c2 silent past 45m
+- 00:27 w-d3 UPDATE: slice-4 gate queued 30m+ behind the C4 merge gate (lock priority as designed)
+- 00:33 w-fu UPDATE: batch 2 all 8 commits, narrow green, full gate running, browser after
+- 00:36 MERGED C4s3+fix (46bf4fd -> bc9b1e3, 2 commits) gate green (Go ok, web 616/616); PUSHED
+- 00:37 RESTARTED user server on bc9b1e3 (athena-server t4w, healthz ok); PUSHED docs (C4s3 tasks line + summary)
+- 00:38 w-c2 UPDATE: split holding at e72ef79, B gate queued, sm-c2 mid-turn (rebase ORDER now in flight)
+- 00:39 w-fu ANSWER: gate finishes, then rebase on b9d08a2 before browser
+- 00:40 w-c2 ANSWER: rebase forwarded to sm-c2
+- 00:40 NOTE from Stylus: dashboard files missed b9d08a2; commit on next no-gate window as chore(agents) (plan: right after w-fu gate ends, all others mid-rebase)
+- 00:41 w-c4 UPDATE: rebased clean on b9d08a2 (13.3b now 312caf7), re-gating
+- 00:42 w-c5 UPDATE: rebased clean on b9d08a2 (now f00fc58), gate re-queued
+- 00:42 w-d3 UPDATE: rebased clean on b9d08a2 (slice 4 now 5c79ab0, patch identical), re-queued
+- 00:43 QUESTION to Stylus: dashboard commit missed its window (lock handoff same-second); recommend folding into next merge window vs push-during-run
+- 00:44 DECIDED (Stylus a): dashboard files ride the next merge push window (dashboard runs from working tree; no churn now)
+- 00:45 Stylus REPEAT (a) dashboard fold-in; ANSWERED confirmed (duplicate of 00:44)
+- 00:44 w-c2 UPDATE: sm-c2 at 44m; master peeked: gate started 00:33:52, likely still running (~11m); told w-c2 hold escalation to gate-end+5m
+- 00:45 w-c2 ANSWER: escalation held to gate-end+5m
+- 00:49 sm-c2 split gate GREEN (exit 0, 915s); r-c5 review gate running
+- 00:50 r-c5 UPDATE: slice-1 review near done (diff/ADR verified, one nit), affected holds lock running
+- 00:51 r-c5 lock went stale 76s into its run (cause unknown); r-c5 alive, writing findings on worker green log + narrows; verdict will judge evidence
+- 00:52 REVIEW PASS C5 slice 1 (f466742, r-c5)
+- 00:52 NOTE from Stylus: r-c5 run died by reviewer tool timeout (76s, empty log), not test failure; acceptable (merge gate covers); second such death -> background runs + ERROR
+- 00:53 CLOSED r-c5 (t4v, verdict delivered); removed athena-erp-c5-r
+- 00:54 w-fu UPDATE: batch-2 gate running (owns lock); CORRECTED stale belief (b9d08a2 landed 00:36) — rebase after gate, before browser
+- 00:55 MERGE STAGED C5s1 (f00fc58 on b9d08a2); narrow green; full gate queuing master-first
+- 00:55 w-c2 UPDATE: split rebased 94baf27 on b9d08a2, gate green, browser queued, sm-c2 PASS pending
+- 00:55 w-fu ANSWER: gate stands, then rebase on b9d08a2, then browser
+- 01:01 w-c2 UPDATE: split steady 94baf27, browser in progress, sm-c2 PASS pending
+- 01:05 w-d3 UPDATE: slice-4 gate queued 30m+ (lock long tonight)
+- 01:07 w-fu UPDATE: batch-2 full gate GREEN pre-rebase (17 Go ok, 616/616 Vitest), rebased clean on b9d08a2, browser queuing
+- 01:08 ERROR: hc send to Stylus t6 hangs (progress notification 4min+ killed, retry 25s timeout); progress.jsonl current, worker channel fine; workaround: timeout-guarded sends
+- 01:09 t6 busy: user composing a long Stylus message (dummy event-management company); hc send waits on the occupied terminal — not a fault. Holding notifications; progress.jsonl stays current.
+- 01:11 Tick recorded (progress.jsonl current); t6 notify hung again, timeout-guarded
+- 01:13 w-c2 UPDATE: split steady 94baf27, browser waiting on lock, sm-c2 PASS pending
+- 01:21 MERGED C5s1 (b9d08a2 -> f00fc58, 1 commit) gate green (Go ok, web 616/616); PUSHED
+- 01:22 RESTARTED user server on f00fc58 (athena-server t4x, healthz ok); PUSHED docs-spec + chore-agents dashboard (-> 58948de)
+- 01:23 CLOSED w-c5 (t4r, C5s1 merged); c5 worktree kept at f00fc58 for post-6.10 resume
+- 01:23 SPAWNED w-c1 (t4y, 6.10 voucher view, rebased worktree); L1 runs 6.10
+- 01:25 w-c4 UPDATE: holding for 13.3b gate, then rebase on 58948de + re-queue
+- 01:25 w-c2 ANSWER: rebase on 58948de forwarded to sm-c2
+- 01:26 w-fu UPDATE: browser cancelled clean, rebased on 58948de (8 commits, no C5s1 overlap), re-queuing
+- 01:27 w-c1 UPDATE: rebased feat/c1-voucher on 58948de clean (RecordsPage untouched), reading G6.10 spec
+- 01:22 DECIDED (user via Stylus) night shift: Z1 Circle Space Kenya, Z2-Z7, Z10, Z11, Z13, B7, B10; new tasks F1-F8; six lanes; suiteSlots 2; orders in night-shift-orders.md
+- 01:31 w-c2 UPDATE: rebase order with sm-c2 (~1 min), unconfirmed; branch 94baf27
+- 01:32 DECIDED 2026-11-24 Z1: pilot Circle Space (Kenya, KES, VAT 16%, FY Jan-Dec, IFRS-SME chart; M-Pesa/bank/cash recorded only; KRA eTIMS out as C10 follow-up)
+- 01:32 DECIDED 2026-11-24 Z2: open-periods-only posting; soft-close 10th (ledger:close adjustments with reason), hard-close after VAT return (20th, refuses all); reopen needs ledger:close + reason + later periods + audit; corrections as current-period reversals; one statutory KES book, others named (amend ADR-0023 O-011/O-012)
+- 01:32 DECIDED 2026-11-24 Z3: perpetual weighted-average valuation (IAS 2.25), FEFO picking for perishables, rentals tracked-not-consumed, negative stock refused (new C7 ADR)
+- 01:32 DECIDED 2026-11-24 Z4: 7yr ledger/invoice/stock/audit retention (no beta auto-delete); guest data anonymised 90d post-event (consent for dietary); Access Log 1yr, outbox/events 30d, job runs 90d; Workspace key env/keychain + athena secrets rotate (new C2 ADR)
+- 01:32 DECIDED 2026-11-24 Z5: Apache-2.0 (LICENSE, NOTICE, SPDX new files, README); C3 + E3 unblocked
+- 01:32 DECIDED 2026-11-24 Z6: vite-plugin-pwa default, loopback single-server profile, nightly mariadb-dump (RTO 4h, RPO 24h)
+- 01:32 DECIDED 2026-11-24 Z7: first industry Pack is Event Management (Circle Space)
+- 01:32 DECIDED 2026-11-24 Z10: Satori on public pages too, pending font-licence web-embedding check (WOFF2 + swap if allowed, else ask user)
+- 01:32 DECIDED 2026-11-24 Z11: product name Athena
+- 01:32 DECIDED 2026-11-24 Z13: Workspace setting second-approver for posting Rules, on by default at 2+ approvers
+- 01:32 DECIDED 2026-11-24 B7: Workspace-switch cache bullet descoped until a switch flow exists
+- 01:32 DECIDED 2026-11-24 B10: custom illustrations accepted (logo via F6)
+- 01:32 2-slot re-queue covered: sm-c2/w-d3/w-fu all hold cancel+rebase+requeue orders (fresh runs use new code); w-c4 runs old code to completion per orders
+- 01:36 CLOSED w-c5 (t4r, slice-1 work done); slot freed for L6
+- 01:36 SPAWNED w-f6 (t4z, L6 F6 logo); 6 workers live (w-c5 had already exited, reaped)
+- 01:37 ORDERED browser port/DB split (w-fu 3052/3771, split 3062/3781, F6 3120/3791) + w-d3 Satori licence check
+- 01:38 w-c1 UPDATE: 6.10 plan set (dialog + DetailSheet + badge + toasts), writing code (one-line PageSwitch prop flagged)
+- 01:39 w-d3 UPDATE: rebased on 58948de (slice 4 now c0c34c8, patch identical), re-queued; Satori check starting
+- 01:39 w-c2 ANSWER: split browser ports/DB forwarded to sm-c2
+- 01:40 w-fu UPDATE: ports/DB confirmed (3052/3771, test_athena_fu2), split ports hard-excluded before re-queue, browser in flight
+- 01:47 decisions-docs brief written (ADR-0032/0033 reserved); queued for w-fu after batch-2 PASS
+- 01:48 w-fu ANSWER: decisions-docs queued, finishing batch 2 first
+- 01:49 w-d3 UPDATE: Satori licence check done — no licence/binaries, Personal-Use trial only; ESCALATED to Stylus (Z10 ask-user path)
+- 01:51 DECIDED interim (Stylus): Z10 to user; system stack on public until answer, slice 4 as-is, ship no Satori file; Desk loads Satori via local() only (fallback otherwise)
+- 01:52 w-c4 UPDATE: 13.3b gate GREEN pre-C5s1 (312caf7), rebased clean on 58948de (now 3175005), re-queuing
+- 01:53 w-d3 UPDATE: Z10 interim (b) confirmed, slice 4 gates as-is, awaiting gate
+- 01:33 w-c1 UPDATE: 6.10 implemented (dialog + sheet + badge + toasts), typecheck + 8/8 green; affected/build/browser next
+- 01:34 w-f6 UPDATE: recon done (olive-tree mark, no letters); plan set (Go generator, AsciiLogo.vue, 4 placements, CLI banner)
+- 01:36 w-c2 UPDATE: split un-rebased, sm-c2 1h34m; master diagnosed suite-wait block (self-heals via affected refuse at slot start); told w-c2 no action
+- 01:37 w-c2 ANSWER: holding for sm-c2 recycle + confirmation
+- 01:39 w-f6 UPDATE: slice 1 committed 3e4aa34 (generator + frames + doc, deterministic); next registry + component + surfaces
+- 01:42 w-c2 UPDATE: split rebased clean on 58948de (f4e57fd), browser running on assigned ports/DB, affected + PASS to follow
+- 01:52 Stylus CHECK: 'C5 merge gate in flight' stale since the 01:21 merge (no second gate); ANSWERED + corrected (tick text now re-derived from main SHA + open merges each tick)
+- 01:54 w-fu UPDATE: batch-2 browser caught real latent bug (:model-value ignored on native inputs, batch-1 ramp never rendered); one-word fix 58a8cf4 (9th commit), browser re-queuing
+- 01:45 w-c2 UPDATE: split steady f4e57fd, browser running on 3062/3781, affected + PASS to follow
+- 01:45 w-f6 UPDATE: slice 3 ready (CLI banner, version untouched for F8, sync tests green, docs updated); build + shots + suite next
+- 01:46 w-c1 UPDATE: 6.10 narrow green, browser harness ready (/tmp/c610-pass, 5 scenarios, 4x2); commit + browser next
+- 01:48 w-c1 UPDATE: still queued for affected, no tree changes until green
+- 01:54 w-c2 UPDATE: split steady f4e57fd, browser queued/running, affected + PASS to follow
+- 01:55 w-c1 UPDATE: affected found real mock bug (canLedger missing, 1 fail + 4 load flakes); fixed, file 3/3, re-queuing
+- 01:56 w-f6 UPDATE: build + browser queued (3120, 32 shots); full suite after shots verify
+- 01:56 w-d3 BLOCKED+QUESTION: slice-4 gate 20m timeout (0 failures, 784s vs 160s baseline = load); ANSWERED re-queue now, bounded 2 attempts, then PASS-with-evidence + merge-gate backstop
+- 01:56 QUESTION to Stylus: 2-slot contention policy ((a) cap full suites at 1 concurrent [rec] vs (b) accept timeouts); corrected r-c5 death (deliberate redundancy kill)
+- 02:03 DECIDED (Stylus a): slot classes live (full suites slot 0 only, scoped/browser slot 1 + slot 0 when no full waits); w-d3 rerun queued, sm-c2 retry running slot 1
+- 02:03 ERROR: sm-c2 01:29 run exit 1 with 3-line log is not a result (probable OOM under 2-slot contention); retry in flight
+- 02:04 w-c2 UPDATE: split run died fast (probable OOM), retry running under slot classes
+- 02:05 Chrome audit: all 19 procs are the user's browsers (Chrome 15:00, Helium 15:55, pre-shift) — nothing stale, nothing killed; timeouts are genuine CPU/RAM contention
+- 02:06 w-c4 UPDATE: 13.3b re-gate 20m timeouts (load: green twice before, C5s1 disjoint, w-d3 same); re-queuing
+- 02:07 w-d3 UPDATE: narrow TestPublic inconclusive (15 PASS then packageless FAIL at 629s, likely OOM under load); waiting on full gate, reruns unfiltered if needed
+- 02:07 w-fu UPDATE: browser driver fix (Reka popovers ignore synthetic Escape, toggle trigger instead; no repo change), re-queuing
+- 02:08 w-c1 UPDATE: affected green (64 files, 624 tests), committed d13f4e0, 6.10 browser queuing
+- 02:09 w-f6 UPDATE: browser attempt 1 failed at seeding (DB needed migrate up; fixed, idempotent); build passed, attempt 2 running
+- 02:12 w-c2 UPDATE: split steady f4e57fd, browser queued, affected + PASS to follow
+- 02:15 ERROR: w-d3 01:50 + w-c4 02:03 20m timeouts in server/posting with 0 failures (2-slot contention, not code); slot classes now serialize Go
+- 02:15 Triage reds: sw-c2-2 desk-timeout WATCH (no page errors; retry discriminates load-vs-real); w-f6 seeding + w-fu Reka handled by workers; w-c1 mock FAIL fixed + green (CLOSED)
+- 02:15 Re-queue audit: no Go waiter needs it (sm-c2 full routes slot-0 under both code versions; browsers unaffected; w-c4/w-d3 running undisturbed)
+- 02:17 ERROR: sm-c2 full run 20m timeout in posting, 0 failures (contention); re-queued under slot classes
+- 02:20 PASS D3 slice 4 (c0c34c8): affected green, vitals in ADR-0030, Z10 verdict formal (trial only, no bundle)
+- 02:21 SPAWNED r-d3 (t50, D3 slice-4 review, -r tree at c0c34c8); reviewer cap 1/3
+- 02:26 ERROR (mine): SIGTERM on sm-c2 run logged misleading end-exit-1 + orphaned 4 test procs (reaped, verified); slot freed, sm-c2 re-queued; TOOL BUG filed (run-phase kill must killpg + gave-up)
+- 02:28 PASS C4 13.3b (3175005): affected green on retry; SPAWNED r-c4 (t51, review); w-c4 to slice 4
+- 02:28 FIXED (Stylus): suite run-phase stop now killpgs the group + logs stopped (never end); procedure: suite stop <who> for all stop orders
+- 02:29 w-c4 UPDATE: slice 4 (Property 25) started on 3175005 (new ledgers_test.go + types_test.go append)
+- 02:29 w-c1 UPDATE: browser seed harness bug fixed (note.json class), re-queuing (no app change)
+- 02:29 w-fu UPDATE: browser driver wait fixed (no repo change), re-queuing
+- 02:30 REVIEW PASS C4 13.3b (3175005, r-c4)
+- 02:31 REVIEW PASS D3 slice 4 (c0c34c8, r-d3, 3 follow-ups); train 13.3b+D3s4
+- 02:32 w-fu UPDATE: browser dialog-submit flake (driver asserts state now), re-queuing
+- 02:32 CLOSED r-c4 (t51) + r-d3 (t50, verdicts delivered); removed both -r trees
+- 02:34 TRAIN3 stacked 13.3b+D3s4 (2 commits, tip 2377cb7) clean; narrow + generate green; tip gate queuing master-first
+- 02:38 w-c2 UPDATE: split steady f4e57fd (affected green), browser re-run in progress
+- 02:37 w-c2 UPDATE: split full affected GREEN on f4e57fd, browser re-running after theme fix, PASS to follow
+- 02:37 Merge-as-you-go adopted (Stylus order): REVIEW PASS merges in next gate, no train-waiting; removed athena-erp-c5 (0 ahead); train3 ticket was already queued (generate delayed it past Stylus check)
+- 02:39 w-f6 UPDATE: attempt 2 hit install lock (dev server holds it); fake HOME now, attempt 3 on suite
+- 02:37 sm-c2 full retry GREEN (exit 0); split browser + PASS to follow
+- 02:41 PASS C4 slice 4 (f615096): Property 25 green; SPAWNED r-c4 (t52, review); w-c4 holds for C7 brief
+- 02:42 w-c4 UPDATE: holding after slice 4 (f615096), ready for C7 brief
+- 02:53 False alarm: r-c4 (t52) alive+working (plain hc ls omitted it; use hc ls --all in sweeps); -r tree clean at f615096
+- 02:55 w-c2 UPDATE: split steady f4e57fd (affected green), browser re-run in progress
+- 02:44 sm-c2 full retry GREEN (exit 0, 02:33); split browser + PASS pending
+- 02:46 CLOSED w-c4 (t44, C4 work complete, slice 4 in review); c4 worktree kept (13.3b + slice 4 unmerged)
+- 02:46 SPAWNED w-c7 (t53, C7 slice 1, migration 21 + ADR-0032); L3 runs C7
+- 02:46 ORDERED w-d3 slice 5 (docs + checkpoint, stacked); ADR-0032 moved to C7 (w-fu brief updated)
+- 02:47 w-fu ANSWER: ADR-0032 C7-owned noted, batch 2 first unchanged
+- 02:48 w-d3 UPDATE: slice 5 started on c0c34c8 (docs, then checkpoint + browser + commit + gate)
+- 02:49 REVIEW PASS C4 slice 4 (f615096, r-c4): real properties, half-ulp bound verified, 2 follow-ups
+- 02:49 CLOSED r-c4 (t52, verdict delivered); removed athena-erp-c4-r; slice 4 merges after train3 lands (parent 13.3b)
+- 02:54 w-d3 UPDATE: slice-5 docs written, generate stable, Desk untouched, full suite queued, browser script ready
+- 02:55 w-c2 UPDATE: split steady f4e57fd (affected green), browser re-run in progress
+- 02:56 w-c7 UPDATE: slice-1 code done (migration 21 + test + ADR-0032 + rows), narrow + migration tests green; full suite then commit + report
+- 03:01 MERGED train3 13.3b+D3s4 (58948de -> 2377cb7, 2 commits) gate green (Go ok, web 616/616); PUSHED
+- 03:02 PUSHED docs (13.3b+D3s4 tasks lines + summaries + follow-ups)
+- 03:05 w-fu UPDATE: batch-2 browser queued 30m+, 9 commits ready on 58948de
+- 03:07 w-c2 UPDATE: split steady f4e57fd (affected green), browser re-running (no rebase needed: evidence stands, merge rebases)
+- 03:08 NOTE from Stylus: tooling uncommitted again (bin/suite,progress,ticker + dashboard pair + MASTER/lanes/limits + night-shift-orders.md); fold into slice-4 docs window as chore(agents); standing rule: docs commits sweep all record/tooling paths
+- 03:08 w-c2 UPDATE: split browser hung 31m on dark step (CDP/server down); sm-c2 ordered cancel + timeouts + one re-run, all else green
+- 03:12 MERGED C4 slice 4 (640bd5b -> 094610d, tests-only) gate green (Go ok, web 616/616); PUSHED

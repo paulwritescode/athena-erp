@@ -1,0 +1,18 @@
+# Brief: L5 follow-ups batch 2, Desk + CLI + identity (Muse)
+
+Worktree: /Users/iampaulking/projects/duchess/athena-erp-fu. Cut a fresh branch `feat/fu-batch-2` from latest main (fetch first; `feat/fu-batch-1` is merged — do not reuse it).
+Read: tasks.md "Follow-ups from merged slices" (B2a slice 1, B5 slice 1, FU batch 1 follow-up 1, C1 6.11 nit); .kiro/steering/athena-design.md; docs/design/athena-design-system.md (the Desk rules that decide each fix).
+
+Scope: small fixes, one per commit. Work these bullets, in this order, skipping anything that grows past a small fix (report the skip):
+1. B2a slice 1 (Desk items only): toolbar search text starts under the icon (`pl-9` loses to Input `px-3`); dead `.entries-grid`/`.entries-resizer` CSS; hardcoded Draft/Submitted/Cancelled in table (use glossary); clearing filters fires a duplicate list request; search width 448 px vs 480 px in §21. (`pressTimer` already cleared pre-batch — verify, do not re-fix.) The API gaps (totals, free-text search, sort params, bulk-delete RPC) are server work — do NOT build them.
+2. B5 slice 1: `athena role` help omits `settings:*` permissions; `new --logo` validates content only after creating the Workspace; concurrent SetIdentity last-writer-wins (old generations kept — preserve that); prune error surfaces after the save committed; favicons re-render per request; `identity set` with no flags writes an identical generation.
+3. FU batch 1 follow-up 1: Accent-row indicator still shows the ink `accentHex` when preset is Custom but nothing picked (AppearanceSection.vue:283) — consider the wheel there too.
+4. C1 6.11 nit: overview.md:101 log-write timing wording ("after rollback" implies post-rollback; code writes on a separate connection during Post).
+
+NOT in this batch: B3 (server RuleRun diff field), Security RPC (server), B9 form 1, B2a slice 2/3, B8, B10, B11, C-slice follow-ups (they ride with their lanes), FU follow-ups 2–3 (browser-driver/test hygiene — apply them in your next browser pass instead, no repo commit).
+
+Files allowed: web/src/** EXCEPT `web/src/pages/RecordTypesPage.vue`, `web/src/components/FieldSettingsDialog.vue`, `web/src/fieldRules.ts` (lane L3 owns these — do not touch), `web/src/App.vue` (ask master first), `web/src/api.ts` (append-only; you should not need it); `web/src/pages/RecordsPage.vue` only with a master GO (lanes L1/L4 work nearby — ask first); `cmd/athena/*` (B5 CLI items); `internal/identity`-adjacent server code ONLY for the B5 bullets (no new RPCs, no proto, no migrations); `docs/architecture/overview.md` one line only (the C1 nit). No migrations, no proto, no gate.go.
+
+Rules: one fix per commit with a message naming the bullet; restore internal/webui/dist/.gitkeep before committing. Screenshot each changed screen at 1280 px in both themes into /tmp (paths in your report); full 4-width matrix only if a layout shifts. Reuse the hardened browser driver patterns from batch 1 (fresh navigation over toggle-waits). Use throwaway Workspaces/test_athena_* databases only, never the dev database; fake HOME for any server. Full suites and browser passes only through .agents/bin/suite (it queues; never bypass the lock). Package tests (one Vitest file) may run directly. Commit on your own branch feat/fu-batch-2; you never merge, push or start agents. Rebase on main before reporting PASS and say if the rebase changed anything.
+Checks: `CI=true pnpm --dir web run typecheck`, the touched Vitest files, `vite build`, narrow Go tests for B5 server touches; one full `make test` through suite at the end.
+Report: say master "FU BATCH 2: PASS or BLOCKED <one line, fixes done + skipped>" + the list of commits + screenshot paths. Then wait for instructions.

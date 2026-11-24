@@ -1,28 +1,27 @@
 # Review: C4 slice 3 — UoM families + determination effective ranges (13.3)
 
-Verdict: NEEDS_CHANGES
+Verdict: PASS
 
-Commit: 8df6b0c, tree clean on arrival and at every gate. Diff is the
-briefed 8 files; no proto, gate.go, migration, web, or slice-2 file
-touched. Slice-2 files (attributes/records/record_types/migrations.go,
-store.go, record_types.proto) untouched; server/CLI caller tweaks are the
+Commit: 8df6b0c + fix ac31fc1 (cherry-picked onto the review tree as
+abbf6e8; picked files byte-identical to the branch). Tree clean at
+every gate. Diff is the briefed 8 files plus the 2-file fix; no
+proto, gate.go, migration, web, or slice-2 file touched. Slice-2
+files (attributes/records/record_types/migrations.go, store.go,
+record_types.proto) untouched; server/CLI caller tweaks are the
 required as-of threading.
 
 ## Blockers
 
-1. Conversion factors with more than 12 fraction digits are silently
-   corrupted at rest (R13.4 "exact factors").
-   `internal/ledger/uom.go:107-109` checks the factor is positive and
-   `uom.go:110-112` bounds the rounding scale, but nothing checks the
-   factor's own decimal scale against the `DECIMAL(30,12)` column from
-   migration 18. Probed with a throwaway test (removed after): saving
-   factor `0.0000000000001` (13 dp) succeeds, then
-   `GetUoMConversion` returns `0.000000000000` — silently zero, and 0
-   is not even a legal factor. Fix: reject `Factor.Scale() > 12` with
-   an input error at save (factors at/above 1e18 already fail loudly
-   under strict mode, but a clean input error there is nicer too),
-   plus a save/load round-trip test for a 12-dp factor and rejection
-   of a 13-dp one.
+1. FIXED in ac31fc1 (verified): conversion factors with more than 12
+   fraction digits were silently corrupted at rest (R13.4 "exact
+   factors") — saving `0.0000000000001` (13 dp) succeeded, then
+   `GetUoMConversion` returned `0.000000000000`. The fix rejects
+   `Factor.Scale() > 12` with an input error in `SaveUoMConversion`
+   (`internal/ledger/uom.go:110-112`), covering insert and update,
+   and adds `TestUoMConversionFactorPrecision` (12-dp round-trip +
+   13-dp rejection). The 13-dp case fails pre-fix (proven by the
+   earlier probe with the same value), so it is a valid regression
+   test. Re-reviewed the delta, re-ran gates on abbf6e8 (below).
 
 ## Follow-ups (do not block)
 
@@ -80,3 +79,10 @@ required as-of threading.
    (types) green; `make generate` twice with no diff (needed node
    from the suite toolchain path on PATH); tree clean throughout.
    No browser pass (no Desk in slice).
+   Fix re-gates on abbf6e8: `gofmt -l cmd internal` empty;
+   `go build ./...` ok; `go vet` on ledger+types ok;
+   `TestUoMConversionFactorPrecision` green direct;
+   full `affected` green 7/7 (cmd/athena 303s, expr, ledger 253s,
+   posting 566s, rules, server 485s, types), no FAIL. Generate not
+   re-run on the fix (no proto/gen inputs in a 3-line + test delta;
+   stable on the parent).

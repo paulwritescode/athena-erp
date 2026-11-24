@@ -95,7 +95,7 @@ Tools in `.agents/bin/` (call by absolute path from any worktree):
 - **B10:** custom Athena figures need the `hairline-create` skill (not installed). Install it, or accept the stock figures.
 - **Notifications full-list page:** route, nav entry and permission need design first.
 - **Z13 (new):** segregation of duties for posting Rule activation (the author may approve today; audit rows record both). Recommended: a Workspace setting, on by default when two or more users hold the approve permission.
-- **C1 6.10:** the Desk voucher view waits for a GO.
+- **C1 6.10:** GO GIVEN 2026-11-24 — queued in L1 after C5 slice 1 merges (worker cap 5/5 refused a parallel w-c1; worktree `../athena-erp-c1-610`, branch `feat/c1-voucher`, brief `.agents/tasks/beta-c1-hooks/brief.md` slice 3).
 - **Second suite slot (offered, not decided):** allow scoped runs in parallel with full suites to cut queue waits (30 to 50 minutes tonight). Risk: contention timeouts; would be monitored.
 - Section Z still open: Z1 to Z7, Z10, Z11, Z13 (Z2 blocks parts of C1, Z3 C7, Z4 C2 secrets, Z5 C3 licence text).
 
