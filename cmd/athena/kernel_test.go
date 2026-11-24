@@ -8,14 +8,10 @@ import (
 	"regexp"
 	"strings"
 	"testing"
-
-	"athena-erp/internal/testdb"
 )
 
 func TestRecordTypesAndRecordsCommands(t *testing.T) {
-	_, cfg := testdb.NewWithConfig(t)
-	t.Setenv("ATHENA_DATABASE_URL", cfg.FormatDSN())
-	t.Chdir(t.TempDir()) // no home here, so the DSN fallback applies
+	sharedDSNEnv(t)
 	run := func(command func([]string, *bytes.Buffer) error, args ...string) (string, error) {
 		var out bytes.Buffer
 		err := command(args, &out)
@@ -94,9 +90,7 @@ func TestRecordTypesAndRecordsCommands(t *testing.T) {
 }
 
 func TestRecordsLifecycleCommands(t *testing.T) {
-	_, cfg := testdb.NewWithConfig(t)
-	t.Setenv("ATHENA_DATABASE_URL", cfg.FormatDSN())
-	t.Chdir(t.TempDir())
+	sharedDSNEnv(t)
 	run := func(command func([]string, io.Writer) error, args ...string) (string, error) {
 		var out bytes.Buffer
 		err := command(args, &out)
@@ -139,9 +133,7 @@ func TestRecordsLifecycleCommands(t *testing.T) {
 }
 
 func TestNumberingLookupAndAuditCommands(t *testing.T) {
-	db, cfg := testdb.NewWithConfig(t)
-	t.Setenv("ATHENA_DATABASE_URL", cfg.FormatDSN())
-	t.Chdir(t.TempDir())
+	db := sharedDSNEnv(t)
 	run := func(command func([]string, io.Writer) error, args ...string) (string, error) {
 		var out bytes.Buffer
 		err := command(args, &out)
@@ -216,9 +208,7 @@ func TestNumberingLookupAndAuditCommands(t *testing.T) {
 }
 
 func TestExpressionsCommand(t *testing.T) {
-	_, cfg := testdb.NewWithConfig(t)
-	t.Setenv("ATHENA_DATABASE_URL", cfg.FormatDSN())
-	t.Chdir(t.TempDir())
+	sharedDSNEnv(t)
 	run := func(command func([]string, io.Writer) error, args ...string) (string, error) {
 		var out bytes.Buffer
 		err := command(args, &out)
@@ -266,9 +256,7 @@ func TestExpressionsCommand(t *testing.T) {
 }
 
 func TestRecordTypesShowReportsLocalAdministrator(t *testing.T) {
-	_, cfg := testdb.NewWithConfig(t)
-	t.Setenv("ATHENA_DATABASE_URL", cfg.FormatDSN())
-	t.Chdir(t.TempDir()) // no home here, so the DSN fallback applies
+	sharedDSNEnv(t)
 	run := func(args ...string) (string, error) {
 		var out bytes.Buffer
 		err := recordTypesCommand(args, &out)
@@ -294,9 +282,7 @@ func TestRecordTypesShowReportsLocalAdministrator(t *testing.T) {
 }
 
 func TestRecordTypesSaveLayoutJSON(t *testing.T) {
-	_, cfg := testdb.NewWithConfig(t)
-	t.Setenv("ATHENA_DATABASE_URL", cfg.FormatDSN())
-	t.Chdir(t.TempDir()) // no home here, so the DSN fallback applies
+	sharedDSNEnv(t)
 	run := func(args ...string) (string, error) {
 		var out bytes.Buffer
 		err := recordTypesCommand(args, &out)
@@ -326,9 +312,7 @@ func TestRecordTypesSaveLayoutJSON(t *testing.T) {
 }
 
 func TestRecordsCreateImageValue(t *testing.T) {
-	_, cfg := testdb.NewWithConfig(t)
-	t.Setenv("ATHENA_DATABASE_URL", cfg.FormatDSN())
-	t.Chdir(t.TempDir()) // no home here, so the DSN fallback applies
+	sharedDSNEnv(t)
 	run := func(command func([]string, *bytes.Buffer) error, args ...string) (string, error) {
 		var out bytes.Buffer
 		err := command(args, &out)

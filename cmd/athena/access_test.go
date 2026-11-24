@@ -10,15 +10,12 @@ import (
 	"testing"
 
 	"athena-erp/internal/auth"
-	"athena-erp/internal/testdb"
 
 	_ "github.com/go-sql-driver/mysql"
 )
 
 func TestUserRoleAndAccessLogCommands(t *testing.T) {
-	_, cfg := testdb.NewWithConfig(t)
-	t.Setenv("ATHENA_DATABASE_URL", cfg.FormatDSN())
-	t.Chdir(t.TempDir())
+	sharedDSNEnv(t)
 	run := func(command func([]string, *bytes.Buffer) error, args ...string) (string, error) {
 		var out bytes.Buffer
 		err := command(args, &out)
@@ -71,7 +68,7 @@ func TestUserRoleAndAccessLogCommands(t *testing.T) {
 	}
 	complete := func(username, token, password string) {
 		t.Helper()
-		db, err := sql.Open("mysql", cfg.FormatDSN())
+		db, err := sql.Open("mysql", os.Getenv("ATHENA_DATABASE_URL"))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -111,9 +108,7 @@ func TestUserRoleAndAccessLogCommands(t *testing.T) {
 
 func accessCommands(t *testing.T) (func(...string) (string, error), func(...string) (string, error)) {
 	t.Helper()
-	_, cfg := testdb.NewWithConfig(t)
-	t.Setenv("ATHENA_DATABASE_URL", cfg.FormatDSN())
-	t.Chdir(t.TempDir())
+	sharedDSNEnv(t)
 	run := func(command func([]string, *bytes.Buffer) error, args ...string) (string, error) {
 		var out bytes.Buffer
 		err := command(args, &out)

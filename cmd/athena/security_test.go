@@ -7,15 +7,12 @@ import (
 	"testing"
 
 	"athena-erp/internal/auth"
-	"athena-erp/internal/testdb"
 
 	_ "github.com/go-sql-driver/mysql"
 )
 
 func TestSecurityShowAndSetCommands(t *testing.T) {
-	db, cfg := testdb.NewWithConfig(t)
-	t.Setenv("ATHENA_DATABASE_URL", cfg.FormatDSN())
-	t.Chdir(t.TempDir())
+	db := sharedDSNEnv(t)
 	security := func(args ...string) (string, error) {
 		var out bytes.Buffer
 		err := securityCommand(args, &out)

@@ -15,6 +15,8 @@ import (
 // type []uint8 into type *time.Time" (found by the F7 E2E script on a real
 // workspace; unit tests never saw it because test databases set parseTime).
 func TestLedgerServiceReadsDatesWithoutParseTime(t *testing.T) {
+	// Private database: this test pins NewWithConfig's DSN shape (no
+	// parseTime), so it must use the helper itself.
 	_, cfg := testdb.NewWithConfig(t)
 	cfg.ParseTime = false
 	if strings.Contains(cfg.FormatDSN(), "parseTime=true") {

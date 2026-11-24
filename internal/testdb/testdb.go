@@ -346,6 +346,7 @@ type Shared struct {
 	db    *sql.DB
 	admin *sql.DB
 	name  string
+	cfg   mysql.Config
 	base  map[string]struct{}
 	// counters holds the post-migration AUTO_INCREMENT value of tables that
 	// have one; Reset restores them so counters restart like TRUNCATE would.
@@ -369,16 +370,22 @@ func OpenShared() (*Shared, error) {
 	if dsn == "" {
 		return nil, nil
 	}
-	db, _, adminDB, name, err := createDatabase(dsn)
+	db, cfg, adminDB, name, err := createDatabase(dsn)
 	if err != nil {
 		return nil, err
 	}
-	return &Shared{db: db, admin: adminDB, name: name}, nil
+	return &Shared{db: db, admin: adminDB, name: name, cfg: *cfg.Clone()}, nil
 }
 
 // DB returns the shared connection.
 func (s *Shared) DB() *sql.DB {
 	return s.db
+}
+
+// Config returns the driver config for the shared database, so tests that
+// address the database by DSN (the CLI tests) can point at it.
+func (s *Shared) Config() mysql.Config {
+	return *s.cfg.Clone()
 }
 
 // Freeze snapshots the migrated schema, its counters and its seed rows; call

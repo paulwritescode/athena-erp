@@ -11,6 +11,8 @@ import (
 )
 
 func TestMigrateCommand(t *testing.T) {
+	// Private database: this test walks migrations from status through
+	// partial targets on a fresh database.
 	_, cfg := testdb.NewWithConfig(t)
 	t.Setenv("ATHENA_DATABASE_URL", cfg.FormatDSN())
 	t.Chdir(t.TempDir()) // no home here, so the DSN fallback applies

@@ -6,13 +6,10 @@ import (
 	"testing"
 
 	v1 "athena-erp/gen/athena/v1"
-	"athena-erp/internal/testdb"
 )
 
 func TestAppearanceAndInboxOperatorCommands(t *testing.T) {
-	db, cfg := testdb.NewWithConfig(t)
-	t.Setenv("ATHENA_DATABASE_URL", cfg.FormatDSN())
-	t.Chdir(t.TempDir())
+	db := sharedDSNEnv(t)
 	var out bytes.Buffer
 	if err := workspaceCommand([]string{"appearance", "set", "--accent", "oklch(0.4 0.05 50)", "--chart5", "oklch(0.65 0.03 130)"}, &out); err != nil {
 		t.Fatal(err)

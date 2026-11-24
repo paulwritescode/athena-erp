@@ -11,13 +11,10 @@ import (
 	"testing"
 
 	"athena-erp/internal/secrets"
-	"athena-erp/internal/testdb"
 )
 
 func TestSecretsCommands(t *testing.T) {
-	db, cfg := testdb.NewWithConfig(t)
-	t.Setenv("ATHENA_DATABASE_URL", cfg.FormatDSN())
-	t.Chdir(t.TempDir())
+	db := sharedDSNEnv(t)
 	run := func(command func([]string, io.Writer) error, args ...string) (string, error) {
 		var out bytes.Buffer
 		err := command(args, &out)

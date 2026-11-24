@@ -10,6 +10,8 @@ import (
 	"athena-erp/internal/testdb"
 )
 
+// doctorTestEnv stages a fresh unmigrated database: the checks test keeps
+// its own because it asserts the pending-migration warnings.
 func doctorTestEnv(t *testing.T) {
 	t.Helper()
 	_, cfg := testdb.NewWithConfig(t)
@@ -55,7 +57,7 @@ func TestDoctorRunsFiveChecks(t *testing.T) {
 
 // --json prints the same report as parseable JSON with consistent counts.
 func TestDoctorJSONParses(t *testing.T) {
-	doctorTestEnv(t)
+	sharedDSNEnv(t)
 	out, err := runDoctor(t, "--json", "--addr", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("doctor --json = %v\n%s", err, out)
@@ -109,9 +111,8 @@ func TestDoctorUnreachableDatabaseFailsWithoutSecrets(t *testing.T) {
 // The live-database output carries no password either (migrate_test.go
 // asserts the same for its command).
 func TestDoctorLiveOutputHasNoPassword(t *testing.T) {
-	_, cfg := testdb.NewWithConfig(t)
-	t.Setenv("ATHENA_DATABASE_URL", cfg.FormatDSN())
-	t.Chdir(t.TempDir())
+	sharedDSNEnv(t)
+	cfg := sharedDB.Config()
 	out, _ := runDoctor(t, "--addr", "127.0.0.1:0")
 	if cfg.Passwd != "" && strings.Contains(out, cfg.Passwd) {
 		t.Fatal("doctor output contains the password")

@@ -10,7 +10,6 @@ import (
 
 	"athena-erp/internal/ledger"
 	"athena-erp/internal/store"
-	"athena-erp/internal/testdb"
 )
 
 func ledgerRun(t *testing.T, args ...string) string {
@@ -24,9 +23,7 @@ func ledgerRun(t *testing.T, args ...string) string {
 
 func ledgerMigrate(t *testing.T) {
 	t.Helper()
-	_, cfg := testdb.NewWithConfig(t)
-	t.Setenv("ATHENA_DATABASE_URL", cfg.FormatDSN())
-	t.Chdir(t.TempDir()) // no home here, so the DSN fallback applies
+	sharedDSNEnv(t)
 	if err := migrateCommand([]string{"up"}, &bytes.Buffer{}); err != nil {
 		t.Fatalf("migrate up: %v", err)
 	}
@@ -157,9 +154,7 @@ func TestLedgerCLITreeShow(t *testing.T) {
 // database back through the DSN fallback.
 func ledgerDirectService(t *testing.T) (*ledger.Service, context.Context) {
 	t.Helper()
-	db, cfg := testdb.NewWithConfig(t)
-	t.Setenv("ATHENA_DATABASE_URL", cfg.FormatDSN())
-	t.Chdir(t.TempDir())
+	db := sharedDSNEnv(t)
 	if err := migrateCommand([]string{"up"}, &bytes.Buffer{}); err != nil {
 		t.Fatalf("migrate up: %v", err)
 	}

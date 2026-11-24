@@ -37,6 +37,8 @@ func testImageFile(t *testing.T, w, h int) []byte {
 // drops the database when the test ends.
 func newTestWorkspace(t *testing.T) (slug string) {
 	t.Helper()
+	// Private database: this helper provisions a real workspace database
+	// (dropped in cleanup); the main database is only its admin handle.
 	db, cfg := testdb.NewWithConfig(t)
 	server := cfg.Clone()
 	server.DBName = ""

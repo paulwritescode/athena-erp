@@ -88,6 +88,8 @@ func TestWorkspaceIdentityCommands(t *testing.T) {
 }
 
 func TestNewLogoFlag(t *testing.T) {
+	// Private database: this test provisions a real workspace database
+	// (dropped in cleanup); the main database is only its admin handle.
 	db, cfg := testdb.NewWithConfig(t)
 	server := cfg.Clone()
 	server.DBName = ""

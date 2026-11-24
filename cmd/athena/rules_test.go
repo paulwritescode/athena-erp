@@ -8,14 +8,10 @@ import (
 	"regexp"
 	"strings"
 	"testing"
-
-	"athena-erp/internal/testdb"
 )
 
 func TestRulesCommands(t *testing.T) {
-	_, cfg := testdb.NewWithConfig(t)
-	t.Setenv("ATHENA_DATABASE_URL", cfg.FormatDSN())
-	t.Chdir(t.TempDir())
+	sharedDSNEnv(t)
 	run := func(command func([]string, io.Writer) error, args ...string) (string, error) {
 		var out bytes.Buffer
 		err := command(args, &out)
