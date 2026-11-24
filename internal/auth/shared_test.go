@@ -9,6 +9,7 @@ import (
 	"os"
 	"testing"
 
+	"athena-erp/internal/auth"
 	"athena-erp/internal/server"
 	"athena-erp/internal/store"
 	"athena-erp/internal/testdb"
@@ -20,9 +21,11 @@ import (
 var sharedDB *testdb.Shared
 
 func TestMain(m *testing.M) {
-	// No hashing-cost override here: this binary also runs package auth's
-	// password tests, which pin the production Argon2id cost. The property
-	// tests lower it locally for themselves.
+	// Cheap Argon2id cost for every test in this binary: hashing at the
+	// production cost here starves the parallel packages in a full run.
+	// The two password tests below pin the production cost explicitly for
+	// themselves, so the shipped default stays tested.
+	auth.DefaultParams = auth.Params{MemoryKiB: 8 * 1024, Time: 1, Threads: 1}
 	shared, err := testdb.OpenShared()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "shared test database:", err)

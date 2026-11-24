@@ -9,6 +9,10 @@ import (
 )
 
 func TestPasswordHashRoundTrip(t *testing.T) {
+	// This test pins the production cost; TestMain lowers it for the rest.
+	previous := DefaultParams
+	DefaultParams = Params{MemoryKiB: 64 * 1024, Time: 3, Threads: 4}
+	t.Cleanup(func() { DefaultParams = previous })
 	const password = "correct horse battery"
 	hash, err := HashPassword(password)
 	if err != nil {
@@ -30,6 +34,10 @@ func TestPasswordHashRoundTrip(t *testing.T) {
 }
 
 func TestWeakerHashMatchesAndAsksForRehash(t *testing.T) {
+	// The rehash oracle needs the production default; TestMain lowers it.
+	previous := DefaultParams
+	DefaultParams = Params{MemoryKiB: 64 * 1024, Time: 3, Threads: 4}
+	t.Cleanup(func() { DefaultParams = previous })
 	hash, err := hashWith("correct horse battery", Params{MemoryKiB: 8 * 1024, Time: 1, Threads: 1})
 	if err != nil {
 		t.Fatal(err)
