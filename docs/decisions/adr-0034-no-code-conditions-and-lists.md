@@ -55,8 +55,8 @@ spec are in `.agents/tasks/beta-f4/design.md` (draft).
   (MIT, released 2026-11-21; TTF embedding, images, manual layout) plus
   a CLI `athena lists export --pdf`. Every page carries Workspace
   name/logo, list title, applied filter and render time; headers and
-  page breaks are hand-rolled (gopdf has no auto-layout). PDF wiring
-  waits for Stylus library clearance before any `go.mod` change. Slice 1
+  page breaks are hand-rolled (gopdf has no auto-layout). Stylus cleared
+  gopdf and `go.mod` carries it. Slice 1
   is literals-only; field compare plus one Link hop follows before F5.
 - Dependency diligence (2026-11-24, in-branch): maroto v2.4.4 (MIT,
   Oct 2026) was evaluated first and REJECTED on size — +14.9 MB
@@ -83,7 +83,7 @@ spec are in `.agents/tasks/beta-f4/design.md` (draft).
 
 ## Revisit when
 
-Stylus clears or rejects the maroto library (PDF approach), implementation
-finds a canonical-subset gap that breaks round-trip, or a delivery
-provider arrives (queue → send semantics, address resolution, consent
-receipts).
+Implementation finds a canonical-subset gap that breaks round-trip, or a
+delivery provider arrives (queue → send semantics, address resolution,
+consent receipts). (The PDF-library trigger fired 2026-11-24: Stylus
+rejected maroto on size and cleared gopdf v0.38.6, now wired.)

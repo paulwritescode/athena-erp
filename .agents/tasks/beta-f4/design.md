@@ -138,8 +138,8 @@ choice, owner, revisions (exact DDL at implementation).
   (hand-rolled layout: gopdf has no auto page-break tables); body text
   embeds Inter TTF. Maroto was rejected on binary size (+14.9 MB over a
   ~5 MB budget) and the print-stylesheet fallback is rejected: "export
-  now" means bytes. PDF wiring waits for Stylus library clearance
-  before any `go.mod` change.
+  now" means bytes. Stylus cleared gopdf v0.38.6 and `go.mod`
+  carries it.
 - **"Email them" / "Message them"**: queue, not send. One click writes one
   outbox envelope per recipient row (`list.message.requested`, payload of
   IDs + the list ID only — never names, addresses or message text, per the
@@ -196,13 +196,13 @@ fields (derivation sets stored fields only), a delivery provider, static
    derivation; Starlark untouched otherwise.
 4. Lists: live list + `lists:send` + F2/F3 embeds; field compare + one Link
    hop before F5.
-5. PDF export via maroto (after Stylus library clearance) + `athena lists
+5. PDF export via gopdf (Stylus-cleared) + `athena lists
    export --pdf` + queue RPC + audience rule.
 
 ## 8. Answered by Stylus (2026-11-24 order; folded in above)
 
 1. PDF: server-rendered gopdf v0.38.6 (MIT, +1.2 MB) + `athena lists export --pdf`;
-   wiring waits for Stylus library clearance before any `go.mod` change.
+   Stylus cleared gopdf; `go.mod` carries it.
    Maroto v2.4.4 evaluated and rejected on size (+14.9 MB).
 2. `lists:send` is a new system permission (+ `procedurePolicies` + Roles UI).
 3. Slice 1 literals-only; field compare + one Link hop next, before F5.
