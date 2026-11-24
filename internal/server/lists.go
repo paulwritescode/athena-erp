@@ -526,6 +526,9 @@ func (s listService) QueueMessages(ctx context.Context, req *v1.QueueMessagesReq
 		}
 		total, excluded = int64(len(base)), int64(len(base)-len(recipients))
 	}
+	if req.GetDryRun() {
+		return &v1.QueueMessagesResponse{Queued: int64(len(recipients)), Excluded: excluded, Total: total, Query: query}, nil
+	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, internalError("queue messages", err)

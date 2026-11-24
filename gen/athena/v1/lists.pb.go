@@ -779,6 +779,8 @@ type QueueMessagesRequest struct {
 	AudienceTree string `protobuf:"bytes,3,opt,name=audience_tree,json=audienceTree,proto3" json:"audience_tree,omitempty"`
 	// Rows enqueued at most, 1 to 500. Defaults to 200.
 	MaxRecipients int32 `protobuf:"varint,4,opt,name=max_recipients,json=maxRecipients,proto3" json:"max_recipients,omitempty"`
+	// Preview only: report the counts without writing envelopes.
+	DryRun        bool `protobuf:"varint,5,opt,name=dry_run,json=dryRun,proto3" json:"dry_run,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -839,6 +841,13 @@ func (x *QueueMessagesRequest) GetMaxRecipients() int32 {
 		return x.MaxRecipients
 	}
 	return 0
+}
+
+func (x *QueueMessagesRequest) GetDryRun() bool {
+	if x != nil {
+		return x.DryRun
+	}
+	return false
 }
 
 type QueueMessagesResponse struct {
@@ -966,12 +975,13 @@ const file_athena_v1_lists_proto_rawDesc = "" +
 	"\bmax_rows\x18\x02 \x01(\x05R\amaxRows\"E\n" +
 	"\x15ExportListPdfResponse\x12\x10\n" +
 	"\x03pdf\x18\x01 \x01(\fR\x03pdf\x12\x1a\n" +
-	"\bfilename\x18\x02 \x01(\tR\bfilename\"\x8c\x01\n" +
+	"\bfilename\x18\x02 \x01(\tR\bfilename\"\xa5\x01\n" +
 	"\x14QueueMessagesRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
 	"\achannel\x18\x02 \x01(\tR\achannel\x12#\n" +
 	"\raudience_tree\x18\x03 \x01(\tR\faudienceTree\x12%\n" +
-	"\x0emax_recipients\x18\x04 \x01(\x05R\rmaxRecipients\"w\n" +
+	"\x0emax_recipients\x18\x04 \x01(\x05R\rmaxRecipients\x12\x17\n" +
+	"\adry_run\x18\x05 \x01(\bR\x06dryRun\"w\n" +
 	"\x15QueueMessagesResponse\x12\x16\n" +
 	"\x06queued\x18\x01 \x01(\x03R\x06queued\x12\x1a\n" +
 	"\bexcluded\x18\x02 \x01(\x03R\bexcluded\x12\x14\n" +

@@ -191,6 +191,16 @@ func TestQueueMessagesCountsAndEnvelopes(t *testing.T) {
 	if rows != 1 || withValues != 0 {
 		t.Fatalf("outbox rows = %d, with values = %d", rows, withValues)
 	}
+	preview, err := svc.QueueMessages(ctx, &athenav1.QueueMessagesRequest{Id: id, Channel: "email", AudienceTree: audience, DryRun: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if preview.GetQueued() != 1 || preview.GetExcluded() != 1 || preview.GetTotal() != 2 {
+		t.Fatalf("preview = %+v", preview)
+	}
+	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM athena_outbox WHERE event_type = 'list.message.requested'`).Scan(&rows); err != nil || rows != 1 {
+		t.Fatalf("preview wrote: rows = %d, %v", rows, err)
+	}
 	_, err = svc.QueueMessages(ctx, &athenav1.QueueMessagesRequest{Id: id, Channel: "smoke"})
 	requireCode(t, err, connect.CodeInvalidArgument)
 	denied := auth.WithPrincipal(ctx, &auth.Principal{UserID: "u", Username: "pleb"})

@@ -125,6 +125,8 @@ message QueueMessagesRequest {
   string audience_tree = 3;
   // Rows enqueued at most, 1 to 500. Defaults to 200.
   int32 max_recipients = 4;
+  // Preview only: report the counts without writing envelopes.
+  bool dry_run = 5;
 }
 
 message QueueMessagesResponse {
