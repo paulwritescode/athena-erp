@@ -77,7 +77,10 @@ Auth 188s vs 1178s log baseline (master's master-priority run). Fix is live.
 | Run | Result |
 | --- | --- |
 | Focused `./internal/testdb` (master-priority, suite log 1124-155131) | GREEN `ok testdb 7.618s`, exit 0, 8s slot time |
-| `affected` (likely full fallback — testdb is widely imported) via suite | PENDING |
+| `affected` 7 pkgs (suite log 1124-170036, `-p 2` default), commit 68b9a97 | GREEN exit 0, 1103s slot: cmd/athena 139s, auth 657s, ledger 152s, posting 451s, server 435s, stock 202s, testdb 1s |
+
+Slice-2 commits on `feat/test-speed`: 68b9a97 (code+docs+tests) + measure
+bookkeeping. Full-suite confirmation rides master's merge gate.
 
 ## Stylus waiting-not-CPU data (F7s1 gate, carries slice 1)
 
@@ -101,16 +104,19 @@ holds real Workspace data) — TS will not set it.
   `go test -p $(GO_TEST_P)` with `GO_TEST_P ?= winner` (suite/dev override).
   Stylus ruling: migrate-once (slice 3, posting first) outranks everything
   else in L7; its gate goes master-priority like slice 1.
-- Slice 3+: migrate-once-per-package, slowest first, one package per slice.
+- Slice 3 (ORDERED): posting migrate-once — `setup()` = testdb.New +
+  full migrations, 27 tests incl settlement_test.go (largest). Same
+  TestMain + sharedDatabase pattern as server/auth. Posting-alone
+  before/after runs. Master-priority gate.
+- Slice 4 (ORDERED): ledger/jobs/events/stock in ONE commit, plus the 17
+  testdb.New calls left in server (brand/identity/etc.). testdb.New kept
+  ONLY for tests that change migration state, with a why-comment.
   Rank from F7s1 full gate (-p 8, CONTAINS slice 1, verified by ancestry):
   posting FAIL 1201s (timeout), auth 1212s, server 917s, ledger 857s,
   cmd/athena 844s, events 655s, jobs 653s, stock 582s, files 414s,
   secrets 364s, store 8.6s, rest <1s. Auth at 1212s WITH cheap hashing
   (188s alone) proves the wait is the shared DDL storm, not auth itself:
-  auth is the canary, not a target (already shared+cheap). Posting first.
-  Per-test DB call sites on main: cmd/athena 19, server 17 (mostly
-  intentional isolated), posting 5, store 5, events/files/jobs/ledger/
-  secrets/stock 1 each (single shared fixtures = per-test churn).
+  auth is the canary, not a target (already shared+cheap).
 - Later: lock-wait investigation (GET_LOCK 10s schema/owner locks,
   per-session timeout precedent in `stock/movements_test.go:718`, workers
   5s poll), sleep/clock injection, `-p 4` before/after numbers from gate
