@@ -58,6 +58,15 @@ service LedgerService {
   rpc ListPostingLog(ListPostingLogRequest) returns (ListPostingLogResponse);
   // ListLedgerRows returns one voucher's ledger rows in posting order.
   rpc ListLedgerRows(ListLedgerRowsRequest) returns (ListLedgerRowsResponse);
+  // ApplySettlement applies one settlement voucher's lines to open items
+  // (R7.2). Realised gains and losses post through the posting engine; the
+  // response carries their group, empty when nothing posted.
+  rpc ApplySettlement(ApplySettlementRequest) returns (ApplySettlementResponse);
+  // ReverseSettlement unwinds one settlement voucher: every unreversed
+  // application gains its cancel mirror in the current period (R7.6).
+  rpc ReverseSettlement(ReverseSettlementRequest) returns (ReverseSettlementResponse);
+  // ListOpenItems returns a party's open items in stable id order.
+  rpc ListOpenItems(ListOpenItemsRequest) returns (ListOpenItemsResponse);
 }
 
 // Company tops one organisation tree.
@@ -672,4 +681,131 @@ message LedgerRow {
 message ListLedgerRowsResponse {
   repeated LedgerRow rows = 1;
   string next_page_token = 2;
+}
+
+// SettlementLineItem names one application target of a settlement line. An
+// empty amount takes an automatic proportional share of the line remainder;
+// a set amount applies exactly that much.
+message SettlementLineItem {
+  string item_id = 1;
+  // Decimal in the payment currency; empty means automatic.
+  string amount = 2;
+}
+
+// SettlementLine is one payment line with its target items in any order;
+// items settle in stable id order.
+message SettlementLine {
+  int32 line_no = 1;
+  // Decimal in the payment currency, above zero.
+  string amount = 2;
+  repeated SettlementLineItem items = 3;
+}
+
+// SettlementFX carries what a foreign-currency settlement needs: the
+// exchange-rate type (and optional source) and the resolved gain and loss
+// accounts. Absent means a base-currency settlement.
+message SettlementFX {
+  string rate_type = 1;
+  string rate_source = 2;
+  string gain_account = 3;
+  string loss_account = 4;
+}
+
+message ApplySettlementRequest {
+  string company = 1;
+  string book = 2;
+  string party_type = 3;
+  string party_id = 4;
+  string control_account = 5;
+  // debit (receivable) or credit (payable).
+  string side = 6;
+  string voucher_type = 7;
+  string voucher_id = 8;
+  int64 revision = 9;
+  // YYYY-MM-DD.
+  string posting_date = 10;
+  string payment_currency = 11;
+  SettlementFX fx = 12;
+  // Reason for a soft-closed adjustment; needs the ledger:close grant.
+  string close_reason = 13;
+  repeated SettlementLine lines = 14;
+}
+
+// SettlementApplication is one written settlement edge.
+message SettlementApplication {
+  string id = 1;
+  int32 line_no = 2;
+  string item_id = 3;
+  // Decimals: the payment-currency share, the item-currency share and the
+  // base value at the settlement rate.
+  string payment_amount = 4;
+  string item_amount = 5;
+  string base_amount = 6;
+}
+
+// SettlementUnapplied is one line remainder recorded as unapplied cash.
+message SettlementUnapplied {
+  int32 line_no = 1;
+  string amount = 2;
+  string base_amount = 3;
+  string party_row_id = 4;
+}
+
+message ApplySettlementResponse {
+  repeated SettlementApplication applications = 1;
+  repeated SettlementUnapplied unapplied = 2;
+  // The realised-FX engine group, empty when nothing posted.
+  string fx_group_id = 3;
+}
+
+message ReverseSettlementRequest {
+  string company = 1;
+  string book = 2;
+  string party_type = 3;
+  string party_id = 4;
+  string control_account = 5;
+  string side = 6;
+  string voucher_type = 7;
+  string voucher_id = 8;
+  // The cancel revision to record.
+  int64 revision = 9;
+  // YYYY-MM-DD, the current date the mirrors land on.
+  string posting_date = 10;
+}
+
+message ReverseSettlementResponse {
+  repeated SettlementApplication applications = 1;
+  repeated string fx_cancel_groups = 2;
+}
+
+// OpenItem is one open instalment row.
+message OpenItem {
+  string id = 1;
+  string company = 2;
+  string book = 3;
+  string party_type = 4;
+  string party_id = 5;
+  string control_account = 6;
+  string source_voucher_type = 7;
+  string source_voucher_id = 8;
+  int64 source_voucher_revision = 9;
+  int32 instalment_no = 10;
+  string due_date = 11;
+  string currency = 12;
+  string side = 13;
+  string original_amount = 14;
+  string residual_amount = 15;
+  string status = 16;
+  int64 revision = 17;
+}
+
+message ListOpenItemsRequest {
+  string company = 1;
+  string book = 2;
+  string party_type = 3;
+  string party_id = 4;
+}
+
+message ListOpenItemsResponse {
+  repeated OpenItem items = 1;
 }

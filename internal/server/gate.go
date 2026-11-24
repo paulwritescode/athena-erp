@@ -164,21 +164,24 @@ var procedurePolicies = map[string]policy{
 	athenav1connect.LedgerServiceListPostingLogProcedure:       {kind: policySystem, permission: auth.PermissionLedgerRead},
 	athenav1connect.LedgerServiceListLedgerRowsProcedure:       {kind: policySystem, permission: auth.PermissionLedgerRead},
 
-	athenav1connect.EventServiceListEventsProcedure:        {kind: policySystem, permission: auth.PermissionBuild},
-	athenav1connect.EventServiceGetEventProcedure:          {kind: policySystem, permission: auth.PermissionBuild},
-	athenav1connect.EventServiceListOutboxProcedure:        {kind: policySystem, permission: auth.PermissionBuild},
-	athenav1connect.EventServiceRequeueOutboxProcedure:     {kind: policySystem, permission: auth.PermissionBuild},
-	athenav1connect.EventServiceListSubscriptionsProcedure: {kind: policySystem, permission: auth.PermissionBuild},
-	athenav1connect.JobServiceListJobsProcedure:            {kind: policySystem, permission: auth.PermissionBuild},
-	athenav1connect.JobServiceGetJobProcedure:              {kind: policySystem, permission: auth.PermissionBuild},
-	athenav1connect.JobServiceRetryJobProcedure:            {kind: policySystem, permission: auth.PermissionBuild},
-	athenav1connect.JobServiceListOccurrencesProcedure:     {kind: policySystem, permission: auth.PermissionBuild},
-	athenav1connect.ListServiceSaveListProcedure:           {kind: policySystem, permission: auth.PermissionBuild},
-	athenav1connect.ListServiceGetListProcedure:            {kind: policySession},
-	athenav1connect.ListServiceListListsProcedure:          {kind: policySession},
-	athenav1connect.ListServiceDeleteListProcedure:         {kind: policySystem, permission: auth.PermissionBuild},
-	athenav1connect.ListServiceRunListProcedure:            {kind: policySession},
-	athenav1connect.ListServiceExportListPdfProcedure:      {kind: policySession},
+	athenav1connect.EventServiceListEventsProcedure:         {kind: policySystem, permission: auth.PermissionBuild},
+	athenav1connect.EventServiceGetEventProcedure:           {kind: policySystem, permission: auth.PermissionBuild},
+	athenav1connect.EventServiceListOutboxProcedure:         {kind: policySystem, permission: auth.PermissionBuild},
+	athenav1connect.EventServiceRequeueOutboxProcedure:      {kind: policySystem, permission: auth.PermissionBuild},
+	athenav1connect.EventServiceListSubscriptionsProcedure:  {kind: policySystem, permission: auth.PermissionBuild},
+	athenav1connect.JobServiceListJobsProcedure:             {kind: policySystem, permission: auth.PermissionBuild},
+	athenav1connect.JobServiceGetJobProcedure:               {kind: policySystem, permission: auth.PermissionBuild},
+	athenav1connect.JobServiceRetryJobProcedure:             {kind: policySystem, permission: auth.PermissionBuild},
+	athenav1connect.JobServiceListOccurrencesProcedure:      {kind: policySystem, permission: auth.PermissionBuild},
+	athenav1connect.ListServiceSaveListProcedure:            {kind: policySystem, permission: auth.PermissionBuild},
+	athenav1connect.ListServiceGetListProcedure:             {kind: policySession},
+	athenav1connect.ListServiceListListsProcedure:           {kind: policySession},
+	athenav1connect.ListServiceDeleteListProcedure:          {kind: policySystem, permission: auth.PermissionBuild},
+	athenav1connect.ListServiceRunListProcedure:             {kind: policySession},
+	athenav1connect.ListServiceExportListPdfProcedure:       {kind: policySession},
+	athenav1connect.LedgerServiceApplySettlementProcedure:   {kind: policySystem, permission: auth.PermissionLedgerWrite},
+	athenav1connect.LedgerServiceReverseSettlementProcedure: {kind: policySystem, permission: auth.PermissionLedgerWrite},
+	athenav1connect.LedgerServiceListOpenItemsProcedure:     {kind: policySystem, permission: auth.PermissionLedgerRead},
 }
 
 // destructiveProcedures covers deletes, reversals, replacement of executable
@@ -212,6 +215,7 @@ var destructiveProcedures = map[string]bool{
 	athenav1connect.LedgerServicePublishSettingValueProcedure:  true,
 	athenav1connect.LedgerServiceSetPeriodStatusProcedure:      true,
 	athenav1connect.ListServiceDeleteListProcedure:             true,
+	athenav1connect.LedgerServiceReverseSettlementProcedure:    true,
 }
 
 // passiveProcedures are background reads the desk makes without the user:

@@ -388,14 +388,15 @@ const txAttempts = 3
 // locking failures (deadlock, or a row changed under a locking read after a
 // concurrent commit): both clear when the transaction runs again.
 func (s *SettlementService) Apply(ctx context.Context, req SettleRequest) (ApplyResult, error) {
-	return runTx(ctx, s.DB, s.Dialect, func(tx *sql.Tx) (ApplyResult, error) {
+	return RunTx(ctx, s.DB, s.Dialect, func(tx *sql.Tx) (ApplyResult, error) {
 		return s.ApplyInTx(ctx, tx, req)
 	})
 }
 
-// runTx runs fn in one READ COMMITTED transaction, retrying transient
+// RunTx runs fn in one READ COMMITTED transaction, retrying transient
 // locking failures. A failed attempt rolls back whole before the next run.
-func runTx[T any](ctx context.Context, db *sql.DB, dialect store.Dialect, fn func(tx *sql.Tx) (T, error)) (T, error) {
+// Server handlers compose settlement calls with audit rows through it.
+func RunTx[T any](ctx context.Context, db *sql.DB, dialect store.Dialect, fn func(tx *sql.Tx) (T, error)) (T, error) {
 	var zero T
 	var err error
 	for attempt := 0; attempt < txAttempts; attempt++ {
@@ -924,9 +925,12 @@ func roundLedger(amount types.Decimal) (types.Decimal, error) {
 // netting away: a gain debits the control account and credits the gain
 // account, a loss debits the loss account and credits the control account.
 // Each control leg sources its locked item, satisfying the engine's control
-// check with rows known to exist. Realised FX posts only into open periods:
-// the engine does not take adjustments yet, so a soft-closed date refuses
-// here with the decided wording instead of surfacing the engine's stale one.
+// check with rows known to exist. One FX post per voucher revision: a repeat
+// refuses upfront, and a concurrent winner surfaces as a replay, which also
+// refuses instead of returning stale gain. Realised FX posts only into open
+// periods: the engine does not take adjustments yet, so a soft-closed date
+// refuses here with the decided wording instead of surfacing the engine's
+// stale one.
 func (s *SettlementService) postFX(ctx context.Context, tx *sql.Tx, req SettleRequest, applications []Application, gains map[string]types.Decimal, status string) (string, error) {
 	var lines []Line
 	for i := range applications {
@@ -955,6 +959,16 @@ func (s *SettlementService) postFX(ctx context.Context, tx *sql.Tx, req SettleRe
 	if len(lines) == 0 {
 		return "", nil
 	}
+	var posted string
+	err := tx.QueryRowContext(ctx, `SELECT id FROM athena_posting_groups
+		WHERE voucher_type = ? AND voucher_id = ? AND voucher_revision = ? AND event = ? AND book = ?`,
+		FXVoucherType, req.VoucherID, req.Revision, EventSubmit, req.Book).Scan(&posted)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return "", err
+	}
+	if posted != "" {
+		return "", fmt.Errorf("%w: realised FX for this voucher revision is already posted; amend the voucher to apply again", ErrInvalid)
+	}
 	plan := Plan{
 		VoucherType: FXVoucherType, VoucherID: req.VoucherID, Revision: req.Revision,
 		Event: EventSubmit, Book: req.Book, PostingDate: req.PostingDate,
@@ -964,6 +978,9 @@ func (s *SettlementService) postFX(ctx context.Context, tx *sql.Tx, req SettleRe
 	result, err := engine.PostInTx(ctx, tx, plan, PostOptions{Actor: req.Actor, Source: req.Source, RequestID: req.RequestID})
 	if err != nil {
 		return "", err
+	}
+	if result.Replayed {
+		return "", fmt.Errorf("%w: realised FX for this revision posted concurrently; amend the voucher to apply again", ErrInvalid)
 	}
 	return result.PostingGroupID, nil
 }
@@ -1149,7 +1166,7 @@ type ReverseResult struct {
 // Reverse unwinds a settlement inside its own transaction, with the same
 // isolation and lock-failure retries as Apply.
 func (s *SettlementService) Reverse(ctx context.Context, req ReverseRequest) (ReverseResult, error) {
-	return runTx(ctx, s.DB, s.Dialect, func(tx *sql.Tx) (ReverseResult, error) {
+	return RunTx(ctx, s.DB, s.Dialect, func(tx *sql.Tx) (ReverseResult, error) {
 		return s.ReverseInTx(ctx, tx, req)
 	})
 }

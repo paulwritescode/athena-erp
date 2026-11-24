@@ -66,6 +66,7 @@ var commands = []cliCommand{
 	{name: "notifications", short: "Read an inbox as the operator.", run: func(args []string, out io.Writer) error { return notificationsCommand(args, out) }},
 	{name: "ledger", short: "Manage the kernel's ledger masters.", run: func(args []string, out io.Writer) error { return ledgerCommand(args, out) }},
 	{name: "post", short: "Preview, submit and cancel voucher postings.", run: func(args []string, out io.Writer) error { return postCommand(args, out) }},
+	{name: "settle", short: "Apply and reverse settlements; list open items.", run: func(args []string, out io.Writer) error { return settleCommand(args, out) }},
 	{name: "jobs", short: "List jobs and schedule occurrences; run dead work again.", run: func(args []string, out io.Writer) error { return jobsCommand(args, out) }},
 	{name: "events", short: "List events and outbox deliveries; emit dead work again.", run: func(args []string, out io.Writer) error { return eventsCommand(args, out) }},
 	{name: "secrets", short: "Register secret references and rotate keys.", run: func(args []string, out io.Writer) error { return secretsCommand(args, out) }},
@@ -183,7 +184,7 @@ Usage:
       --unlock and --display-name.
   athena role list|show|save|delete|assign|revoke|explain [name] [--workspace slug] [--json]
       Manage Roles and their Grants. "save --file role.json" takes a JSON
-      Role: system permissions (build, audit, files:read, files:write, rules:read, rules:write, ledger:read, ledger:write, settings:appearance, settings:workspace, settings:security, access:ownership, access:users, access:roles, access:assign, access:recover, access:sessions, access:explore) and Grants of actions
+      Role: system permissions (build, audit, files:read, files:write, rules:read, rules:write, ledger:read, ledger:write, ledger:close, settings:appearance, settings:workspace, settings:security, access:ownership, access:users, access:roles, access:assign, access:recover, access:sessions, access:explore) and Grants of actions
       on a Record Type with a permission level and an optional row condition.
   athena access-log [--event name] [--limit N] [--workspace slug] [--json]
       Print sign-ins, failures, lockouts, denials and access changes.
@@ -212,6 +213,11 @@ Usage:
       Preview the plans a submit would write, submit or cancel a voucher,
       and show its posting groups and attempts. submit takes --revision N
       and refuses when the plan changed since --preview-hash H.
+  athena settle apply|reverse|open-items [--workspace slug] [--json]
+      Apply a settlement voucher's lines to open items (realised gains and
+      losses post through the posting engine), unwind one in the current
+      period, and list a party's open items. Run "athena settle" with no
+      subcommand for every flag.
   athena jobs list|show|retry|occurrences [--workspace slug] [--json]
       List jobs newest first, show one with its payload and result, run dead
       work again as a new job (the dead row stays), and list schedule

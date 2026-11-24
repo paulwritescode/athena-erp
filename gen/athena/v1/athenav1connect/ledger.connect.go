@@ -128,6 +128,15 @@ const (
 	// LedgerServiceListLedgerRowsProcedure is the procedure name of the LedgerService's ListLedgerRows
 	// RPC.
 	LedgerServiceListLedgerRowsProcedure = "/athena.v1.LedgerService/ListLedgerRows"
+	// LedgerServiceApplySettlementProcedure is the procedure name of the LedgerService's
+	// ApplySettlement RPC.
+	LedgerServiceApplySettlementProcedure = "/athena.v1.LedgerService/ApplySettlement"
+	// LedgerServiceReverseSettlementProcedure is the procedure name of the LedgerService's
+	// ReverseSettlement RPC.
+	LedgerServiceReverseSettlementProcedure = "/athena.v1.LedgerService/ReverseSettlement"
+	// LedgerServiceListOpenItemsProcedure is the procedure name of the LedgerService's ListOpenItems
+	// RPC.
+	LedgerServiceListOpenItemsProcedure = "/athena.v1.LedgerService/ListOpenItems"
 )
 
 var (
@@ -404,6 +413,27 @@ var (
 			Procedure:  LedgerServiceListLedgerRowsProcedure,
 		}
 	})
+	ledgerServiceApplySettlementSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_athena_v1_ledger_proto.Services().ByName("LedgerService").Methods().ByName("ApplySettlement"),
+			Procedure:  LedgerServiceApplySettlementProcedure,
+		}
+	})
+	ledgerServiceReverseSettlementSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_athena_v1_ledger_proto.Services().ByName("LedgerService").Methods().ByName("ReverseSettlement"),
+			Procedure:  LedgerServiceReverseSettlementProcedure,
+		}
+	})
+	ledgerServiceListOpenItemsSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_athena_v1_ledger_proto.Services().ByName("LedgerService").Methods().ByName("ListOpenItems"),
+			Procedure:  LedgerServiceListOpenItemsProcedure,
+		}
+	})
 )
 
 // LedgerServiceClient is a client for the athena.v1.LedgerService service.
@@ -455,6 +485,15 @@ type LedgerServiceClient interface {
 	ListPostingLog(context.Context, *v1.ListPostingLogRequest) (*v1.ListPostingLogResponse, error)
 	// ListLedgerRows returns one voucher's ledger rows in posting order.
 	ListLedgerRows(context.Context, *v1.ListLedgerRowsRequest) (*v1.ListLedgerRowsResponse, error)
+	// ApplySettlement applies one settlement voucher's lines to open items
+	// (R7.2). Realised gains and losses post through the posting engine; the
+	// response carries their group, empty when nothing posted.
+	ApplySettlement(context.Context, *v1.ApplySettlementRequest) (*v1.ApplySettlementResponse, error)
+	// ReverseSettlement unwinds one settlement voucher: every unreversed
+	// application gains its cancel mirror in the current period (R7.6).
+	ReverseSettlement(context.Context, *v1.ReverseSettlementRequest) (*v1.ReverseSettlementResponse, error)
+	// ListOpenItems returns a party's open items in stable id order.
+	ListOpenItems(context.Context, *v1.ListOpenItemsRequest) (*v1.ListOpenItemsResponse, error)
 }
 
 // NewLedgerServiceClient constructs a client for the athena.v1.LedgerService service. Multiple
@@ -512,6 +551,15 @@ type LedgerServiceHandler interface {
 	ListPostingLog(context.Context, *v1.ListPostingLogRequest) (*v1.ListPostingLogResponse, error)
 	// ListLedgerRows returns one voucher's ledger rows in posting order.
 	ListLedgerRows(context.Context, *v1.ListLedgerRowsRequest) (*v1.ListLedgerRowsResponse, error)
+	// ApplySettlement applies one settlement voucher's lines to open items
+	// (R7.2). Realised gains and losses post through the posting engine; the
+	// response carries their group, empty when nothing posted.
+	ApplySettlement(context.Context, *v1.ApplySettlementRequest) (*v1.ApplySettlementResponse, error)
+	// ReverseSettlement unwinds one settlement voucher: every unreversed
+	// application gains its cancel mirror in the current period (R7.6).
+	ReverseSettlement(context.Context, *v1.ReverseSettlementRequest) (*v1.ReverseSettlementResponse, error)
+	// ListOpenItems returns a party's open items in stable id order.
+	ListOpenItems(context.Context, *v1.ListOpenItemsRequest) (*v1.ListOpenItemsResponse, error)
 }
 
 // RegisterLedgerServiceHandler registers svc as the athena.v1.LedgerService implementation on
@@ -558,6 +606,9 @@ func RegisterLedgerServiceHandler(server *connect.Server, svc LedgerServiceHandl
 		connect.Method{Spec: ledgerServiceGetPostingStatusSpec(), Handler: adapter.getPostingStatus},
 		connect.Method{Spec: ledgerServiceListPostingLogSpec(), Handler: adapter.listPostingLog},
 		connect.Method{Spec: ledgerServiceListLedgerRowsSpec(), Handler: adapter.listLedgerRows},
+		connect.Method{Spec: ledgerServiceApplySettlementSpec(), Handler: adapter.applySettlement},
+		connect.Method{Spec: ledgerServiceReverseSettlementSpec(), Handler: adapter.reverseSettlement},
+		connect.Method{Spec: ledgerServiceListOpenItemsSpec(), Handler: adapter.listOpenItems},
 	)
 }
 
@@ -718,6 +769,18 @@ func (UnimplementedLedgerServiceHandler) ListPostingLog(context.Context, *v1.Lis
 
 func (UnimplementedLedgerServiceHandler) ListLedgerRows(context.Context, *v1.ListLedgerRowsRequest) (*v1.ListLedgerRowsResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, "athena.v1.LedgerService.ListLedgerRows is not implemented")
+}
+
+func (UnimplementedLedgerServiceHandler) ApplySettlement(context.Context, *v1.ApplySettlementRequest) (*v1.ApplySettlementResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "athena.v1.LedgerService.ApplySettlement is not implemented")
+}
+
+func (UnimplementedLedgerServiceHandler) ReverseSettlement(context.Context, *v1.ReverseSettlementRequest) (*v1.ReverseSettlementResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "athena.v1.LedgerService.ReverseSettlement is not implemented")
+}
+
+func (UnimplementedLedgerServiceHandler) ListOpenItems(context.Context, *v1.ListOpenItemsRequest) (*v1.ListOpenItemsResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "athena.v1.LedgerService.ListOpenItems is not implemented")
 }
 
 type ledgerServiceClient struct {
@@ -1031,6 +1094,30 @@ func (c *ledgerServiceClient) ListPostingLog(ctx context.Context, req *v1.ListPo
 func (c *ledgerServiceClient) ListLedgerRows(ctx context.Context, req *v1.ListLedgerRowsRequest) (*v1.ListLedgerRowsResponse, error) {
 	var res v1.ListLedgerRowsResponse
 	if err := c.client.CallUnary(ctx, ledgerServiceListLedgerRowsSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *ledgerServiceClient) ApplySettlement(ctx context.Context, req *v1.ApplySettlementRequest) (*v1.ApplySettlementResponse, error) {
+	var res v1.ApplySettlementResponse
+	if err := c.client.CallUnary(ctx, ledgerServiceApplySettlementSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *ledgerServiceClient) ReverseSettlement(ctx context.Context, req *v1.ReverseSettlementRequest) (*v1.ReverseSettlementResponse, error) {
+	var res v1.ReverseSettlementResponse
+	if err := c.client.CallUnary(ctx, ledgerServiceReverseSettlementSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *ledgerServiceClient) ListOpenItems(ctx context.Context, req *v1.ListOpenItemsRequest) (*v1.ListOpenItemsResponse, error) {
+	var res v1.ListOpenItemsResponse
+	if err := c.client.CallUnary(ctx, ledgerServiceListOpenItemsSpec(), req, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -1500,6 +1587,42 @@ func (h ledgerServiceHandler) listLedgerRows(ctx context.Context, _ connect.Spec
 		return err
 	}
 	res, err := h.svc.ListLedgerRows(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h ledgerServiceHandler) applySettlement(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.ApplySettlementRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.ApplySettlement(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h ledgerServiceHandler) reverseSettlement(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.ReverseSettlementRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.ReverseSettlement(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h ledgerServiceHandler) listOpenItems(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.ListOpenItemsRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.ListOpenItems(ctx, &req)
 	if err != nil {
 		return err
 	}

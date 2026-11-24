@@ -71,6 +71,9 @@ const (
 	// PermissionLedgerWrite saves ledger masters, periods, rates, accounts,
 	// determination mappings and Settings. Treat it like build.
 	PermissionLedgerWrite = "ledger:write"
+	// PermissionLedgerClose posts adjustments into soft-closed periods with
+	// a reason, and reopens closed periods (decided Z2, ADR-0023).
+	PermissionLedgerClose = "ledger:close"
 	PermissionAppearance  = "settings:appearance"
 	// PermissionWorkspace edits the Workspace display name and logo.
 	PermissionWorkspace = "settings:workspace"
@@ -82,7 +85,7 @@ const (
 
 // SystemPermissions lists every system permission.
 var SystemPermissions = []string{PermissionBuild, PermissionAudit, PermissionFilesRead, PermissionFilesWrite, PermissionRulesRead, PermissionRulesWrite,
-	PermissionLedgerRead, PermissionLedgerWrite, PermissionAppearance, PermissionWorkspace, PermissionSecurity,
+	PermissionLedgerRead, PermissionLedgerWrite, PermissionLedgerClose, PermissionAppearance, PermissionWorkspace, PermissionSecurity,
 	PermissionAccessOwnership, PermissionAccessUsers, PermissionAccessRoles, PermissionAccessAssign, PermissionAccessRecover, PermissionAccessSessions, PermissionAccessExplore}
 
 // AllRecordTypes is the Grant target that covers every Record Type.

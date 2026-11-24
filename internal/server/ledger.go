@@ -10,12 +10,14 @@ import (
 	"time"
 
 	athenav1 "athena-erp/gen/athena/v1"
+	"athena-erp/internal/audit"
 	"athena-erp/internal/auth"
 	"athena-erp/internal/ledger"
 	"athena-erp/internal/posting"
 	"athena-erp/internal/types"
 
 	"connectrpc.com/connect/v2"
+	"github.com/google/uuid"
 )
 
 // ledgerService implements athena.v1.LedgerService over internal/ledger. The
@@ -1092,6 +1094,228 @@ func (s ledgerService) ListLedgerRows(ctx context.Context, req *athenav1.ListLed
 	if len(res.GetRows()) > size {
 		res.NextPageToken = encodeCursor("ledger_rows", res.GetRows()[size-1].GetId())
 		res.Rows = res.GetRows()[:size]
+	}
+	return res, nil
+}
+
+// settlementError maps settlement failures to the caller's error: refused
+// settlements read as failed preconditions (like refused posts), replays as
+// aborted reloads, and unknown masters as not found.
+func settlementError(err error) error {
+	var input *ledger.InputError
+	switch {
+	case err == nil:
+		return nil
+	case errors.Is(err, ledger.ErrNotFound):
+		return connect.NewError(connect.CodeNotFound, err.Error())
+	case errors.Is(err, ledger.ErrAmbiguous):
+		return connect.NewError(connect.CodeFailedPrecondition, err.Error())
+	case errors.As(err, &input):
+		return connect.NewError(connect.CodeInvalidArgument, err.Error())
+	case errors.Is(err, posting.ErrAlreadyApplied), errors.Is(err, posting.ErrAlreadyReversed):
+		return connect.NewError(connect.CodeAborted, err.Error())
+	case errors.Is(err, posting.ErrItemExists):
+		return connect.NewError(connect.CodeAlreadyExists, err.Error())
+	case errors.Is(err, posting.ErrInvalid):
+		return connect.NewError(connect.CodeFailedPrecondition, err.Error())
+	}
+	return internalError("settlement", err)
+}
+
+func settlementLines(in []*athenav1.SettlementLine) ([]posting.SettleLine, error) {
+	lines := make([]posting.SettleLine, 0, len(in))
+	for _, line := range in {
+		amount, err := types.ParseDecimal(line.GetAmount())
+		if err != nil {
+			return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Sprintf("line %d amount %q is not a decimal", line.GetLineNo(), line.GetAmount()))
+		}
+		items := make([]posting.LineItem, 0, len(line.GetItems()))
+		for _, item := range line.GetItems() {
+			var explicit types.Decimal
+			if item.GetAmount() != "" {
+				explicit, err = types.ParseDecimal(item.GetAmount())
+				if err != nil {
+					return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Sprintf("line %d amount %q is not a decimal", line.GetLineNo(), item.GetAmount()))
+				}
+			}
+			items = append(items, posting.LineItem{ItemID: item.GetItemId(), Amount: explicit})
+		}
+		lines = append(lines, posting.SettleLine{LineNo: int(line.GetLineNo()), Amount: amount, Items: items})
+	}
+	return lines, nil
+}
+
+// ApplySettlement applies one settlement voucher's lines to open items
+// (R7.2). It needs ledger:write plus the payment voucher's read Grant; a
+// close reason additionally needs ledger:close, and the adjustment is
+// audited on the voucher. The caller posts no G6 group of its own (Pack
+// payment rules own their legs), so the server assigns the subledger link.
+func (s ledgerService) ApplySettlement(ctx context.Context, req *athenav1.ApplySettlementRequest) (*athenav1.ApplySettlementResponse, error) {
+	if err := s.ready(); err != nil {
+		return nil, err
+	}
+	p, err := requireSystem(ctx, auth.PermissionLedgerWrite)
+	if err != nil {
+		return nil, err
+	}
+	def, err := loadRecordTypeFrom(ctx, s.db, req.GetVoucherType())
+	if err != nil {
+		return nil, err
+	}
+	if err := authorizeRecord(ctx, s.db, p, def, req.GetVoucherId(), auth.ActionRead); err != nil {
+		return nil, err
+	}
+	lines, err := settlementLines(req.GetLines())
+	if err != nil {
+		return nil, err
+	}
+	var fx *posting.FXConfig
+	if in := req.GetFx(); in != nil {
+		fx = &posting.FXConfig{RateType: in.GetRateType(), RateSource: in.GetRateSource(), GainAccount: in.GetGainAccount(), LossAccount: in.GetLossAccount()}
+	}
+	var authority *posting.CloseAuthority
+	if reason := req.GetCloseReason(); reason != "" {
+		if _, err := requireSystem(ctx, auth.PermissionLedgerClose); err != nil {
+			return nil, err
+		}
+		authority = &posting.CloseAuthority{Allowed: true, Reason: reason}
+	}
+	link, err := uuid.NewV7()
+	if err != nil {
+		return nil, internalError("settlement link", err)
+	}
+	requestID, source := requestFrom(ctx)
+	settle := posting.SettleRequest{
+		Company: req.GetCompany(), Book: req.GetBook(), PartyType: req.GetPartyType(), PartyID: req.GetPartyId(),
+		ControlAccount: req.GetControlAccount(), Side: req.GetSide(),
+		VoucherType: req.GetVoucherType(), VoucherID: req.GetVoucherId(), Revision: req.GetRevision(),
+		Event: posting.EventSubmit, PostingDate: req.GetPostingDate(), PostingGroupID: link.String(),
+		PaymentCurrency: req.GetPaymentCurrency(), Actor: actorName(ctx), Source: source, RequestID: requestID,
+		FX: fx, Authority: authority, Lines: lines,
+	}
+	svc := &posting.SettlementService{DB: s.db, Dialect: dialect}
+	result, err := posting.RunTx(ctx, s.db, dialect, func(tx *sql.Tx) (posting.ApplyResult, error) {
+		applied, err := svc.ApplyInTx(ctx, tx, settle)
+		if err != nil {
+			return posting.ApplyResult{}, err
+		}
+		if authority != nil {
+			if _, err := audit.Append(ctx, tx, dialect, audit.Entry{
+				RecordType: req.GetVoucherType(), RecordID: req.GetVoucherId(), Revision: req.GetRevision(),
+				Action: "settlement_adjustment", Changes: []audit.Change{{Field: "close_reason", New: &authority.Reason}},
+				Actor: actorName(ctx), Source: source, RequestID: requestID,
+			}); err != nil {
+				return posting.ApplyResult{}, err
+			}
+		}
+		return applied, nil
+	})
+	if err != nil {
+		return nil, settlementError(err)
+	}
+	res := &athenav1.ApplySettlementResponse{FxGroupId: result.FXGroupID}
+	for _, application := range result.Applications {
+		res.Applications = append(res.Applications, &athenav1.SettlementApplication{
+			Id: application.ID, LineNo: int32(application.LineNo), ItemId: application.ItemID,
+			PaymentAmount: application.PaymentAmount.String(), ItemAmount: application.ItemAmount.String(), BaseAmount: application.BaseAmount.String(),
+		})
+	}
+	for _, unapplied := range result.Unapplied {
+		res.Unapplied = append(res.Unapplied, &athenav1.SettlementUnapplied{
+			LineNo: int32(unapplied.LineNo), Amount: unapplied.Amount.String(), BaseAmount: unapplied.BaseAmount.String(), PartyRowId: unapplied.PartyRowID,
+		})
+	}
+	return res, nil
+}
+
+// ReverseSettlement unwinds one settlement voucher in the current period
+// (R7.6): mirrors for every unreversed application, restored residuals, and
+// unwound FX posts. It needs ledger:write plus the voucher's read Grant,
+// and is audited on the voucher.
+func (s ledgerService) ReverseSettlement(ctx context.Context, req *athenav1.ReverseSettlementRequest) (*athenav1.ReverseSettlementResponse, error) {
+	if err := s.ready(); err != nil {
+		return nil, err
+	}
+	p, err := requireSystem(ctx, auth.PermissionLedgerWrite)
+	if err != nil {
+		return nil, err
+	}
+	def, err := loadRecordTypeFrom(ctx, s.db, req.GetVoucherType())
+	if err != nil {
+		return nil, err
+	}
+	if err := authorizeRecord(ctx, s.db, p, def, req.GetVoucherId(), auth.ActionRead); err != nil {
+		return nil, err
+	}
+	requestID, source := requestFrom(ctx)
+	reverse := posting.ReverseRequest{
+		Company: req.GetCompany(), Book: req.GetBook(), PartyType: req.GetPartyType(), PartyID: req.GetPartyId(),
+		ControlAccount: req.GetControlAccount(), Side: req.GetSide(),
+		VoucherType: req.GetVoucherType(), VoucherID: req.GetVoucherId(), Revision: req.GetRevision(),
+		PostingDate: req.GetPostingDate(), Actor: actorName(ctx), Source: source, RequestID: requestID,
+	}
+	svc := &posting.SettlementService{DB: s.db, Dialect: dialect}
+	result, err := posting.RunTx(ctx, s.db, dialect, func(tx *sql.Tx) (posting.ReverseResult, error) {
+		reversed, err := svc.ReverseInTx(ctx, tx, reverse)
+		if err != nil {
+			return posting.ReverseResult{}, err
+		}
+		mirrored := strconv.Itoa(len(reversed.Applications))
+		if _, err := audit.Append(ctx, tx, dialect, audit.Entry{
+			RecordType: req.GetVoucherType(), RecordID: req.GetVoucherId(), Revision: req.GetRevision(),
+			Action: "settlement_reversed", Changes: []audit.Change{{Field: "applications", New: &mirrored}},
+			Actor: actorName(ctx), Source: source, RequestID: requestID,
+		}); err != nil {
+			return posting.ReverseResult{}, err
+		}
+		return reversed, nil
+	})
+	if err != nil {
+		return nil, settlementError(err)
+	}
+	res := &athenav1.ReverseSettlementResponse{FxCancelGroups: result.FXCancelGroups}
+	for _, application := range result.Applications {
+		res.Applications = append(res.Applications, &athenav1.SettlementApplication{
+			Id: application.ID, LineNo: int32(application.LineNo), ItemId: application.ItemID,
+			PaymentAmount: application.PaymentAmount.String(), ItemAmount: application.ItemAmount.String(), BaseAmount: application.BaseAmount.String(),
+		})
+	}
+	return res, nil
+}
+
+// ListOpenItems returns a party's open items. It needs ledger:read plus the
+// party record's read Grant.
+func (s ledgerService) ListOpenItems(ctx context.Context, req *athenav1.ListOpenItemsRequest) (*athenav1.ListOpenItemsResponse, error) {
+	if err := s.ready(); err != nil {
+		return nil, err
+	}
+	p, err := requireSystem(ctx, auth.PermissionLedgerRead)
+	if err != nil {
+		return nil, err
+	}
+	def, err := loadRecordTypeFrom(ctx, s.db, req.GetPartyType())
+	if err != nil {
+		return nil, err
+	}
+	if err := authorizeRecord(ctx, s.db, p, def, req.GetPartyId(), auth.ActionRead); err != nil {
+		return nil, err
+	}
+	svc := &posting.SettlementService{DB: s.db, Dialect: dialect}
+	items, err := svc.ListOpenItems(ctx, s.db, req.GetCompany(), req.GetBook(), req.GetPartyType(), req.GetPartyId())
+	if err != nil {
+		return nil, settlementError(err)
+	}
+	res := &athenav1.ListOpenItemsResponse{}
+	for _, item := range items {
+		res.Items = append(res.Items, &athenav1.OpenItem{
+			Id: item.ID, Company: item.Company, Book: item.Book,
+			PartyType: item.PartyType, PartyId: item.PartyID, ControlAccount: item.ControlAccount,
+			SourceVoucherType: item.SourceType, SourceVoucherId: item.SourceID,
+			SourceVoucherRevision: item.SourceRevision, InstalmentNo: int32(item.InstalmentNo),
+			DueDate: item.DueDate, Currency: item.Currency, Side: item.Side,
+			OriginalAmount: item.Original.String(), ResidualAmount: item.Residual.String(),
+			Status: item.Status, Revision: item.Revision,
+		})
 	}
 	return res, nil
 }
