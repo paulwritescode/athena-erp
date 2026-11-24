@@ -1,4 +1,4 @@
-# Stylus night report — night shift, 2026-11-24 (main a82d934)
+# Stylus night report — night shift, 2026-11-24 (main 4616729)
 
 ## Summary
 
@@ -25,6 +25,7 @@ Shift 3 + night shift have merged 48 code commits plus docs batches: train1, tra
 - **C2 secrets slice 1** (`baf6a8b` → `65e59cc`, 2 commits): migration 22 (secret refs, key versions, disposal, holds) + ADR-0033 (Z4 exact). Review PASS. Merge gate 1150s (17 Go ok, 646 web). Unblocks F4's DB gates. Also: B7 ticked (verified + descope), C4 slice 5 briefed (L6 after F7s2), F3 briefed (L4 after F2s2).
 - **C7 train s2+fix+s3** (`96acb15` → `3272765`, 3 commits): stock core + 4-finding fix + cost deltas. Reviews PASS (re-review for the fix). Gate 703s (18 Go ok, 646 web) after a contention red (rogue run killed, DB fix halved times).
 - **F3 slice 1** (`8b0efdf` → `a82d934`, 1 commit): field sheet + sections + Basics move + selects + glossary (3 variances disclosed). Browser caught 1 real state bug (fixed). Review PASS. Merge gate 1223s (17 Go ok, 670 web; auth/posting/server finished together — the Argon2-starvation evidence).
+- **C2 secrets slice 2** (`276130a` → `4616729`, 1 commit): internal/secrets core (refs, file provider, versions, bound envelopes, redaction). Review PASS (4 advisories). Gate 32s (cached Go + fresh web 646) after a registry-flake red. Disjoint-additive merge per Stylus ruling.
 
 ## In progress (by lane, main 72caec6)
 
