@@ -733,3 +733,61 @@ func TestSecretsRetentionMigrationCreatesTheSecretsTables(t *testing.T) {
 		}
 	}
 }
+
+// Migrations 23 (saved lists) and 24 (Rule builder columns) apply on top
+// of the ledger reservations 21 and 22.
+func TestSavedListsAndBuilderColumnsMigrations(t *testing.T) {
+	ctx := context.Background()
+	db := testdb.New(t)
+	if _, err := store.Up(ctx, db, dialect, SystemMigrations(), store.UpOptions{Target: 20}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Up(ctx, db, dialect, SystemMigrations(), store.UpOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	columnsOf := func(table string) map[string]bool {
+		t.Helper()
+		rows, err := db.QueryContext(ctx, `SELECT column_name FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ?`, table)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer rows.Close()
+		got := map[string]bool{}
+		for rows.Next() {
+			var column string
+			if err := rows.Scan(&column); err != nil {
+				t.Fatal(err)
+			}
+			got[column] = true
+		}
+		return got
+	}
+	lists := columnsOf("athena_lists")
+	if len(lists) == 0 {
+		t.Fatal("table athena_lists missing after migration 23")
+	}
+	for _, column := range []string{"id", "name", "record_type_key", "condition_tree", "condition_expr", "columns", "owner", "revision", "created_at", "updated_at"} {
+		if !lists[column] {
+			t.Errorf("table athena_lists misses column %s after migration 23", column)
+		}
+	}
+	var key string
+	if err := db.QueryRowContext(ctx, `SELECT index_name FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = 'athena_lists' AND index_name = 'uq_lists_name' LIMIT 1`).Scan(&key); err != nil {
+		t.Errorf("unique key uq_lists_name missing after migration 23: %v", err)
+	}
+	var count int
+	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM athena_lists`).Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != 0 {
+		t.Errorf("athena_lists holds %d rows, want it empty: migration 23 seeds nothing", count)
+	}
+	for _, table := range []string{"athena_rules", "athena_rule_versions"} {
+		got := columnsOf(table)
+		for _, column := range []string{"condition_tree", "condition_expr", "message", "sets"} {
+			if !got[column] {
+				t.Errorf("table %s misses column %s after migration 24", table, column)
+			}
+		}
+	}
+}
