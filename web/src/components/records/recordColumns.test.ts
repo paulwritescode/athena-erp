@@ -109,6 +109,26 @@ describe('buildRecordColumns', () => {
     expect(metas[1]?.center).toBe(true)
   })
 
+  it('right-aligns money, leaves text dates and images left', () => {
+    const columns = buildRecordColumns({ ...base, fields: [
+      field({ name: 'price', type: 'Money' }),
+      field({ name: 'title', type: 'Text' }),
+      field({ name: 'due', type: 'Date' }),
+      field({ name: 'photo', type: 'Image' }),
+    ] })
+    const metas = columns.map((column) => column.meta as { numeric?: boolean; center?: boolean })
+    expect(metas[0]).toMatchObject({ numeric: true })
+    for (const meta of metas.slice(1)) expect(meta).toMatchObject({ numeric: false, center: false })
+  })
+
+  it('heads every column with its field label', () => {
+    const columns = buildRecordColumns({ ...base, fields: [
+      field({ name: 'photo', label: 'Image', type: 'Image' }),
+      field({ name: 'title', label: 'Title' }),
+    ] })
+    expect(columns.map((column) => column.header)).toEqual(['Image', 'Title'])
+  })
+
   it('picks the label field as primary, else the first field', () => {
     const render = (columns: ReturnType<typeof buildRecordColumns>, id: string) => {
       const column = columns.find((item) => item.id === id)

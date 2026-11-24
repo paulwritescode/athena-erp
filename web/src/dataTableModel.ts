@@ -55,3 +55,10 @@ export function selectionText(selected: number, total: number | null): string {
   if (total === null) return `${selected} selected`
   return `${selected} of ${total} selected`
 }
+
+// The footer's left side: tables with selection always show the count ("0
+// of 5 selected" at rest, §21); tables without it show the range.
+export function footerLeftText(hasBulk: boolean, selected: number, range: RangeInput): string {
+  if (hasBulk) return selectionText(selected, range.total)
+  return rangeText(range)
+}

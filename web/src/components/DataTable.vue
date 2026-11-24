@@ -1,8 +1,9 @@
 // DataTable is the one shared grid (§21): a bordered full-width frame with
 // padding, a select column with bulk actions, row numbers across pages, a
 // toolbar (search, filter popovers with value chips, Clear filters, Columns
-// saved per user), a selection bar, and a footer (range, rows per page saved
-// per user, Page x of y, Previous and Next). Client tables page in memory;
+// saved per user), a selection bar, and a footer (selection count when the
+// table selects, else the range; rows per page saved per user, Page x of y,
+// Previous and Next). Client tables page in memory;
 // server tables pass serverPaging and answer prevPage/nextPage with keyset
 // tokens. Rows stack into labelled cards below 640 px, where filters,
 // sorting and columns move into one drawer and selection is a long-press
@@ -45,7 +46,7 @@ import { chunkByKind, type ActionItem } from './actions'
 import { dataTableFeatures, type DataTableColumn } from './dataTableFeatures'
 import HelpHint from '@/copy/HelpHint.vue'
 import type { GlossaryKey } from '@/copy/glossary'
-import { pageText, rangeText, rowNumber, selectionText } from '@/dataTableModel'
+import { footerLeftText, pageText, rowNumber, selectionText } from '@/dataTableModel'
 import { PAGE_SIZE_OPTIONS, loadHiddenColumns, loadPageSize, saveHiddenColumns, savePageSize } from '@/tablePrefs'
 import type { Component } from 'vue'
 
@@ -269,9 +270,9 @@ const hasNext = computed(() => serverMode.value
   : clientPage.value * pageSize.value < sortedRows.value.length)
 const hasPrev = computed(() => page.value > 1)
 const rangeInput = computed(() => ({ pageRowCount: pageRows.value.length, page: page.value, pageSize: pageSize.value, total: total.value, hasNext: hasNext.value }))
-const rangeLabel = computed(() => rangeText(rangeInput.value))
 const pageLabel = computed(() => pageText(rangeInput.value))
 const selectionLabel = computed(() => selectionText(selected.value.size, total.value))
+const footerLeft = computed(() => footerLeftText(hasBulk.value, selected.value.size, rangeInput.value))
 
 watch(() => sortedRows.value.length, () => {
   if (serverMode.value) return
@@ -534,7 +535,7 @@ const activeFilterCount = computed(() => props.filters.reduce((count, filter) =>
         </colgroup>
         <TableHeader>
           <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id" class="hover:bg-transparent">
-            <TableHead v-if="hasBulk" class="datatable-select-cell w-10 px-0 text-center" aria-label="Select rows on this page">
+            <TableHead v-if="hasBulk" class="datatable-select-cell w-10 px-3 text-center" aria-label="Select rows on this page">
               <Checkbox
                 :model-value="allPageSelected ? true : somePageSelected ? 'indeterminate' : false"
                 :aria-label="allPageSelected ? 'Clear the page selection' : 'Select every row on this page'"
@@ -546,7 +547,7 @@ const activeFilterCount = computed(() => props.filters.reduce((count, filter) =>
                 <Check v-else aria-hidden="true" />
               </Checkbox>
             </TableHead>
-            <TableHead v-if="showRowNumbers" class="datatable-rownum-cell text-muted-foreground w-12 pr-4 text-right font-medium tabular-nums" aria-label="Row number">#</TableHead>
+            <TableHead v-if="showRowNumbers" class="datatable-rownum-cell text-muted-foreground w-12 px-4 text-right font-medium tabular-nums" aria-label="Row number">#</TableHead>
             <TableHead
               v-for="header in headerGroup.headers"
               :key="header.id"
@@ -581,18 +582,18 @@ const activeFilterCount = computed(() => props.filters.reduce((count, filter) =>
                 @click.stop
               />
             </TableHead>
-            <TableHead v-if="hasRowActions" class="datatable-actions-cell w-12 px-0" aria-label="Row actions" />
+            <TableHead v-if="hasRowActions" class="datatable-actions-cell w-12 pr-4 text-right" aria-label="Row actions" />
           </TableRow>
         </TableHeader>
         <TableBody>
           <template v-if="loading">
             <TableRow v-for="index in 5" :key="index" class="hover:bg-transparent">
-              <TableCell v-if="hasBulk" class="datatable-select-cell px-0 text-center"><Skeleton class="mx-auto size-4" /></TableCell>
+              <TableCell v-if="hasBulk" class="datatable-select-cell px-3 text-center"><Skeleton class="mx-auto size-4" /></TableCell>
               <TableCell v-if="showRowNumbers" class="datatable-rownum-cell"><Skeleton class="ml-auto h-4 w-6" /></TableCell>
               <TableCell v-for="column in table.getAllColumns()" :key="column.id" class="pt-3 pr-4 pb-3 pl-4">
                 <Skeleton class="h-5 w-full" />
               </TableCell>
-              <TableCell v-if="hasRowActions" class="datatable-actions-cell px-0"><Skeleton class="mx-auto size-6" /></TableCell>
+              <TableCell v-if="hasRowActions" class="datatable-actions-cell pr-4 text-right"><Skeleton class="ml-auto size-6" /></TableCell>
             </TableRow>
           </template>
           <TableEmpty v-else-if="error" :colspan="bodyColumnCount">
@@ -616,7 +617,7 @@ const activeFilterCount = computed(() => props.filters.reduce((count, filter) =>
               @touchmove="cancelPress"
               @contextmenu="isPhone && hasBulk ? $event.preventDefault() : undefined"
             >
-              <TableCell v-if="hasBulk" data-label="" class="datatable-select-cell px-0 text-center" @click.stop>
+              <TableCell v-if="hasBulk" data-label="" class="datatable-select-cell px-3 text-center" @click.stop>
                 <Checkbox
                   :model-value="isSelected(row.id)"
                   :aria-label="`Select row ${rowNumberOnPage(index)}`"
@@ -625,7 +626,7 @@ const activeFilterCount = computed(() => props.filters.reduce((count, filter) =>
                   @click.stop
                 />
               </TableCell>
-              <TableCell v-if="showRowNumbers" data-label="" class="datatable-rownum-cell text-muted-foreground pr-4 text-right text-caption tabular-nums">
+              <TableCell v-if="showRowNumbers" data-label="" class="datatable-rownum-cell text-muted-foreground px-4 text-right text-caption tabular-nums">
                 <span class="datatable-rownum-full">{{ rowNumberOnPage(index) }}</span><span class="datatable-rownum-stacked" aria-hidden="true">#{{ rowNumberOnPage(index) }}</span>
               </TableCell>
               <TableCell
@@ -636,7 +637,7 @@ const activeFilterCount = computed(() => props.filters.reduce((count, filter) =>
               >
                 <FlexRender :cell="cell" />
               </TableCell>
-              <TableCell v-if="hasRowActions" data-label="" class="datatable-actions-cell px-0 text-center" @click.stop>
+              <TableCell v-if="hasRowActions" data-label="" class="datatable-actions-cell py-3 pr-4 pl-0 text-right" @click.stop>
                 <DropdownMenu v-if="actionsFor(row.original as TData).length > 0">
                   <DropdownMenuTrigger as-child>
                     <Button variant="ghost" size="icon" class="size-8" :aria-label="`Actions for row ${rowNumberOnPage(index)}`" title="Row actions">
@@ -682,7 +683,7 @@ const activeFilterCount = computed(() => props.filters.reduce((count, filter) =>
     </div>
     <div class="mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
       <p class="text-muted-foreground text-sm tabular-nums" aria-live="polite">
-        {{ selected.size > 0 ? selectionLabel : rangeLabel }}
+        {{ footerLeft }}
       </p>
       <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
         <label class="text-muted-foreground flex items-center gap-2 text-sm">
