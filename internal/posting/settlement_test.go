@@ -15,9 +15,7 @@ import (
 
 	"athena-erp/internal/ledger"
 	"athena-erp/internal/posting"
-	"athena-erp/internal/server"
 	"athena-erp/internal/store"
-	"athena-erp/internal/testdb"
 	"athena-erp/internal/types"
 
 	"github.com/google/uuid"
@@ -26,10 +24,7 @@ import (
 
 func settleSetup(t *testing.T) (*posting.SettlementService, *sql.DB) {
 	t.Helper()
-	db := testdb.New(t)
-	if _, err := store.Up(context.Background(), db, store.MariaDB{}, server.SystemMigrations(), store.UpOptions{}); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
+	db := sharedDatabase(t)
 	masters := &ledger.Service{DB: db, Dialect: store.MariaDB{}}
 	ctx := context.Background()
 	for _, currency := range []ledger.Currency{

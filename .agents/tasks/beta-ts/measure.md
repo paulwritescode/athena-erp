@@ -108,6 +108,21 @@ holds real Workspace data) — TS will not set it.
   full migrations, 27 tests incl settlement_test.go (largest). Same
   TestMain + sharedDatabase pattern as server/auth. Posting-alone
   before/after runs. Master-priority gate.
+
+## Slice 3: posting shared-DB (IN PROGRESS)
+
+Conversion (uncommitted): new `internal/posting/shared_test.go` (TestMain:
+sweep + OpenShared + migrate + Freeze; `sharedDatabase` helper);
+`setup()` + `settleSetup()` + 3 rapid properties converted (all 5
+`store.Up` sites, all outside `rapid.Check`); `server`+`testdb` imports
+dropped from both test files. Zero keepers: no `t.Parallel`, no DDL, no
+migration-state tests; concurrent tests join workers (`wg.Wait`, channel
+receives). `gofmt` clean, `go vet` OK.
+
+| Run | Result |
+| --- | --- |
+| BEFORE posting-alone `-json` (scratch tree da178bb, suite) | PENDING |
+| AFTER posting-alone (master-priority gate) | PENDING |
 - Slice 4 (ORDERED): ledger/jobs/events/stock in ONE commit, plus the 17
   testdb.New calls left in server (brand/identity/etc.). testdb.New kept
   ONLY for tests that change migration state, with a why-comment.

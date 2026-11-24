@@ -16,9 +16,7 @@ import (
 	"athena-erp/internal/audit"
 	"athena-erp/internal/ledger"
 	"athena-erp/internal/posting"
-	"athena-erp/internal/server"
 	"athena-erp/internal/store"
-	"athena-erp/internal/testdb"
 	"athena-erp/internal/types"
 
 	"github.com/google/uuid"
@@ -27,10 +25,7 @@ import (
 
 func setup(t *testing.T) (*posting.Engine, *ledger.Service, *sql.DB) {
 	t.Helper()
-	db := testdb.New(t)
-	if _, err := store.Up(context.Background(), db, store.MariaDB{}, server.SystemMigrations(), store.UpOptions{}); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
+	db := sharedDatabase(t)
 	return &posting.Engine{DB: db, Dialect: store.MariaDB{}},
 		&ledger.Service{DB: db, Dialect: store.MariaDB{}}, db
 }
@@ -441,10 +436,7 @@ func drawBalancedLines(t *rapid.T, accounts []string) []posting.Line {
 // writer stored.
 func TestBalancedPostingsProperty(t *testing.T) {
 	ctx := context.Background()
-	db := testdb.New(t)
-	if _, err := store.Up(ctx, db, store.MariaDB{}, server.SystemMigrations(), store.UpOptions{}); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
+	db := sharedDatabase(t)
 	engine := &posting.Engine{DB: db, Dialect: store.MariaDB{}}
 	masters := &ledger.Service{DB: db, Dialect: store.MariaDB{}}
 	seedBasics(t, masters)
@@ -941,10 +933,7 @@ type replayOutcome struct {
 // return the single winner's result.
 func TestIdempotentReplayProperty(t *testing.T) {
 	ctx := context.Background()
-	db := testdb.New(t)
-	if _, err := store.Up(ctx, db, store.MariaDB{}, server.SystemMigrations(), store.UpOptions{}); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
+	db := sharedDatabase(t)
 	engine := &posting.Engine{DB: db, Dialect: store.MariaDB{}}
 	masters := &ledger.Service{DB: db, Dialect: store.MariaDB{}}
 	seedBasics(t, masters)
@@ -1597,10 +1586,7 @@ func TestReverseInTxJoinsCallerTransaction(t *testing.T) {
 // mirrors.
 func TestReversalMirrorsProperty(t *testing.T) {
 	ctx := context.Background()
-	db := testdb.New(t)
-	if _, err := store.Up(ctx, db, store.MariaDB{}, server.SystemMigrations(), store.UpOptions{}); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
+	db := sharedDatabase(t)
 	engine := &posting.Engine{DB: db, Dialect: store.MariaDB{}}
 	masters := &ledger.Service{DB: db, Dialect: store.MariaDB{}}
 	seedBasics(t, masters)
