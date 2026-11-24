@@ -1,7 +1,7 @@
 {
   "stylus": "t6",
-  "maxAgents": 12,
-  "maxWorkers": 5,
+  "maxAgents": 14,
+  "maxWorkers": 6,
   "maxReviewers": 3,
   "maxSubmasters": 2,
   "maxSubworkersPerSubmaster": 2,
@@ -9,5 +9,6 @@
   "minDiskFreeGB": 8,
   "updateEveryMinutes": 10,
   "suiteTimeoutMinutes": 30,
-  "note": "8 CPUs / 8 GB RAM. Full suites and browser passes run one at a time through .agents/bin/suite. Raise caps only with Stylus agreeing."
+  "note": "8 CPUs / 8 GB RAM. Up to suiteSlots heavy runs at once through .agents/bin/suite (user approved more parallel tests 2026-11-24). spawn still refuses below minMemFreePct. Raise caps only with Stylus agreeing.",
+  "suiteSlots": 2
 }

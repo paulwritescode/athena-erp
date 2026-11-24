@@ -8,7 +8,7 @@ holds or waits for no suite run, and either its task is ticked in tasks.md or
 (reviewers, subworkers, thinkers only) its last message was a final one (PASS,
 DONE, a review verdict). A worker's PASS ends a slice, not the task. Exited terminals are removed from the list.
 """
-import json, os, re, subprocess, sys, time
+import glob, json, os, re, subprocess, sys, time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import _stylus as s
 
@@ -28,7 +28,9 @@ def in_suite():
     """Agents holding or waiting for the suite lock (still busy, never close)."""
     busy = set()
     try:
-        busy.add(json.load(open(s.path("locks/suite/owner.json"))).get("who"))
+        for d in glob.glob(s.path("locks/suite*")):
+            if os.path.exists(os.path.join(d, "owner.json")):
+                busy.add(json.load(open(os.path.join(d, "owner.json"))).get("who"))
     except (OSError, ValueError):
         pass
     qdir = s.path("locks/queue")

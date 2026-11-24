@@ -77,6 +77,13 @@ Write plainly. No claims you did not check.
 - MariaDB: `brew services start mariadb@11.8` on "connection refused".
 - Leave stale `test_athena_*` databases alone unless one blocks a test; then drop only the named one and log it.
 
+## Merge as you go (user order, 2026-11-24 02:33)
+
+- A branch with REVIEW PASS is merged to `main` in the next merge gate; no review-passed work waits in a worktree for a bigger train. Queue the merge gate (`suite --label "<task> merge"`) the moment the verdict lands; master's ticket goes first.
+- Trains only bundle branches that already have REVIEW PASS at the same moment; never wait for a third car.
+- After every merge: push, `tasks.md` line within 10 minutes, `git worktree remove` for merged trees with no next slice, close their panes.
+- Each update names any branch that has REVIEW PASS but is not on `main` yet, and why.
+
 ## Queue now (2026-11-23 evening, shift 3)
 
 Main is `f02a4b7`. All five worktrees are clean; every branch is behind main and must rebase before any gate. Details: `.agents/tasks/RESUME.md` (lanes table, Muse sessions).

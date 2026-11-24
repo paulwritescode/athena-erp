@@ -1,9 +1,14 @@
 #!/usr/bin/env python3
-"""Run a heavy command (full suite, browser pass) one at a time across all agents.
+"""Run a heavy command (full suite, browser pass) at most `suiteSlots` at a time across all agents.
 
   suite [--label "C1 merge"] [--] make test        (default command: make test)
+  suite stop <who>                                  end that agent's run (whole test tree) or wait
 
-Waits for .agents/stylus/locks/suite, which holds one owner at a time. A lock
+Waits for a free slot: .agents/stylus/locks/suite, then suite-1, suite-2 ... up to
+`suiteSlots` in limits.json (default 1). Each slot holds one owner. Go test runs
+(`make test`, `go test`, affected runs with Go packages) use only the first slot, so
+one runs at a time; web-only and browser runs use the other slots, and the first
+slot only when no Go run waits. A lock
 whose owner process is gone is taken over. Every run is logged with its exit
 status and duration in .agents/stylus/suite.jsonl; the output tail goes to
 .agents/stylus/suite-logs/<time>-<who>.log.
@@ -17,6 +22,26 @@ if any(a in ("-h", "--help", "help") for a in sys.argv[1:2]):  # HELP_GUARD: nev
     sys.exit(0)
 
 args = sys.argv[1:]
+if args[:1] == ["stop"]:  # suite stop <who> : cleanly end that agent's run or queued wait
+    if len(args) < 2:
+        sys.exit("usage: suite stop <who>")
+    target, hits = args[1], 0
+    for d in sorted(glob.glob(s.path("locks/suite*"))) + [os.path.join(s.path("locks/queue"), f)
+                                                       for f in os.listdir(s.path("locks/queue"))] \
+            if os.path.isdir(s.path("locks/queue")) else sorted(glob.glob(s.path("locks/suite*"))):
+        f = os.path.join(d, "owner.json") if os.path.isdir(d) else d
+        try:
+            o = json.load(open(f))
+        except (FileNotFoundError, ValueError, OSError):
+            continue
+        if o.get("who") == target:
+            try:
+                os.kill(o["pid"], signal.SIGTERM)
+                hits += 1
+                print(f"suite: stopped {target} pid {o['pid']} ({o.get('label', '')})")
+            except OSError:
+                pass
+    sys.exit(0 if hits else f"suite: nothing running or queued for {target}")
 label = ""
 if args[:1] == ["--label"]:
     label, args = args[1], args[2:]
@@ -61,7 +86,17 @@ qdir = s.path("locks/queue")
 os.makedirs(qdir, exist_ok=True)
 ticket = os.path.join(qdir, f"{os.getpid()}.json")
 prio = 0 if who == "master" else 1
-json.dump({"pid": os.getpid(), "who": who, "label": label, "prio": prio, "t": time.time()}, open(ticket, "w"))
+def is_full(c, lab):
+    # Go test runs (full `make test` or scoped `go test` of the big packages) each use most of the
+    # machine: two at once pushed internal/server and internal/posting past their 20 minute timeout.
+    lab = lab or ""
+    return "make test" in c or "go test" in c or lab.startswith("affected: full") or \
+        (lab.startswith("affected: Go:") and not lab.startswith("affected: Go: none"))
+
+
+FULL = is_full(" ".join(cmd), label)
+json.dump({"pid": os.getpid(), "who": who, "label": label, "prio": prio, "t": time.time(), "full": FULL,
+           "cmd": " ".join(cmd)}, open(ticket, "w"))
 for sig in (signal.SIGTERM, signal.SIGHUP):
     signal.signal(sig, lambda *_: sys.exit(143))
 
@@ -81,7 +116,31 @@ def first_in_line():
             except OSError:
                 pass
     tickets.sort(key=lambda t: (t["prio"], t["t"]))
-    return not tickets or tickets[0]["pid"] == os.getpid()
+    full = lambda t: t.get("full", is_full(t.get("cmd", ""), t.get("label")))
+    if FULL:  # one full run at a time, on the first slot only
+        mine = [t for t in tickets if full(t)]
+        if any(heavy_owner(d) for d in slot_dirs):  # a Go run already holds some slot
+            return False
+        return (not mine or mine[0]["pid"] == os.getpid()) and not os.path.isdir(slot_dirs[0])
+    mine = [t for t in tickets if not full(t)]
+    ahead = next((i for i, t in enumerate(mine) if t["pid"] == os.getpid()), 0)
+    return ahead < free_slots()
+
+
+SLOTS = max(1, int(s.limits().get("suiteSlots", 1)))
+slot_dirs = [lock] + [s.path(f"locks/suite-{i}") for i in range(1, SLOTS)]
+
+
+def heavy_owner(d):
+    try:
+        o = json.load(open(os.path.join(d, "owner.json")))
+    except (FileNotFoundError, ValueError, OSError):
+        return False
+    return alive(o.get("pid", 0)) and is_full(o.get("cmd", ""), o.get("label"))
+
+
+def free_slots():
+    return sum(not os.path.isdir(d) for d in slot_dirs)
 
 
 waited = time.time()
@@ -89,25 +148,41 @@ s.append("suite.jsonl", {"event": "queued", "who": who, "cwd": cwd, "cmd": " ".j
                          "pid": os.getpid()})
 try:
     while True:
+        got = None
         if first_in_line():
+            full_waiting = False
+            for f in os.listdir(qdir):
+                try:
+                    t = json.load(open(os.path.join(qdir, f)))
+                except (ValueError, OSError):
+                    continue
+                if f != os.path.basename(ticket) and alive(t.get("pid", 0)) and \
+                        t.get("full", is_full(t.get("cmd", ""), t.get("label"))):
+                    full_waiting = True
+            order = slot_dirs[:1] if FULL else (slot_dirs[1:] + ([] if full_waiting else slot_dirs[:1]))
+            for d in order:
+                try:
+                    os.mkdir(d)
+                    got = d
+                    break
+                except FileExistsError:
+                    pass
+        if got:
+            lock = got
+            break
+        for d in slot_dirs:
             try:
-                os.mkdir(lock)
-                break
-            except FileExistsError:
-                pass
-        try:
-            owner = json.load(open(os.path.join(lock, "owner.json")))
-            if not alive(owner["pid"]):
-                os.remove(os.path.join(lock, "owner.json"))
-                os.rmdir(lock)
-                s.append("suite.jsonl", {"event": "stale", "who": owner.get("who"), "pid": owner["pid"]})
-                continue
-        except (FileNotFoundError, ValueError, KeyError):
-            try:
-                if time.time() - os.path.getmtime(lock) > 60:
-                    os.rmdir(lock)
-            except OSError:
-                pass
+                owner = json.load(open(os.path.join(d, "owner.json")))
+                if not alive(owner["pid"]):
+                    os.remove(os.path.join(d, "owner.json"))
+                    os.rmdir(d)
+                    s.append("suite.jsonl", {"event": "stale", "who": owner.get("who"), "pid": owner["pid"]})
+            except (FileNotFoundError, ValueError, KeyError):
+                try:
+                    if time.time() - os.path.getmtime(d) > 60:
+                        os.rmdir(d)
+                except OSError:
+                    pass
         time.sleep(3)
 except BaseException:
     s.append("suite.jsonl", {"event": "gave-up", "who": who, "cwd": cwd, "cmd": " ".join(cmd), "label": label})
@@ -119,12 +194,31 @@ finally:
         pass
 
 json.dump({"pid": os.getpid(), "who": who, "cwd": cwd, "cmd": " ".join(cmd), "label": label,
-           "since": s.now()}, open(os.path.join(lock, "owner.json"), "w"))
+           "slot": os.path.basename(lock), "since": s.now()}, open(os.path.join(lock, "owner.json"), "w"))
 start = time.time()
 s.append("suite.jsonl", {"event": "start", "who": who, "cwd": cwd, "cmd": " ".join(cmd), "label": label,
                          "waited_s": int(start - waited)})
 logf = s.path(f"suite-logs/{time.strftime('%m%d-%H%M%S')}-{who}.log")
 code = 1
+proc = None
+stopped = None  # set when a signal or the time limit ends the run
+
+
+def kill_tree(p):
+    """End the whole test tree: the child runs in its own session, so killing only suite would orphan it."""
+    try:
+        os.killpg(p.pid, signal.SIGTERM)
+    except OSError:
+        return
+    try:
+        p.wait(timeout=15)
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(p.pid, signal.SIGKILL)
+        except OSError:
+            pass
+
+
 try:
     with open(logf, "w") as log:
         env = dict(os.environ)
@@ -136,21 +230,33 @@ try:
         proc = subprocess.Popen(cmd, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
                                 start_new_session=True, env=env)
         limit = s.limits().get("suiteTimeoutMinutes", 30) * 60
-        for line in proc.stdout:
-            sys.stdout.write(line)
-            log.write(line)
-            if time.time() - start > limit:
-                os.killpg(proc.pid, signal.SIGTERM)
-                log.write(f"\nsuite: stopped after {limit // 60} minutes\n")
-                break
-        code = proc.wait()
+        try:
+            for line in proc.stdout:
+                sys.stdout.write(line)
+                log.write(line)
+                if time.time() - start > limit:
+                    stopped = f"time limit {limit // 60} minutes"
+                    kill_tree(proc)
+                    log.write(f"\nsuite: stopped after {limit // 60} minutes\n")
+                    break
+            code = proc.wait()
+        except BaseException as e:  # SIGTERM/SIGHUP (sys.exit 143) or ctrl+c while the tests run
+            stopped = "signal" if isinstance(e, SystemExit) else type(e).__name__
+            log.write(f"\nsuite: stopped by {stopped}; test tree ended\n")
+            kill_tree(proc)
+            code = 143
 finally:
+    if proc is not None and proc.poll() is None:
+        kill_tree(proc)
     try:
         os.remove(os.path.join(lock, "owner.json"))
         os.rmdir(lock)
     except OSError:
         pass
-    s.append("suite.jsonl", {"event": "end", "who": who, "cwd": cwd, "cmd": " ".join(cmd), "label": label,
-                             "exit": code, "secs": int(time.time() - start), "log": os.path.basename(logf),
-                             "head": head, "clean": clean and tree_state(cwd) == (head, True)})
+    rec = {"who": who, "cwd": cwd, "cmd": " ".join(cmd), "label": label, "secs": int(time.time() - start),
+           "log": os.path.basename(logf), "head": head}
+    if stopped:  # not a test result: never reusable, never read as red
+        s.append("suite.jsonl", {"event": "stopped", "reason": stopped, **rec})
+    else:
+        s.append("suite.jsonl", {"event": "end", "exit": code, "clean": clean and tree_state(cwd) == (head, True), **rec})
 sys.exit(code)

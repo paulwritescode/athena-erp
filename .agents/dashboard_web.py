@@ -20,9 +20,10 @@ PAGE = os.path.join(HERE, "dashboard.html")
 STY = os.path.join(HERE, "stylus")
 ICONS = os.path.expanduser("~/.config/herdr-app/icons")  # Herdr's bundled agent logos (LobeHub, MIT)
 PORT = 8765
-SECTIONS = {"A": "Foundation", "B": "Platform", "C": "Kernel", "D": "Product", "E": "Beta release"}
+SECTIONS = {"A": "Foundation", "B": "Platform", "C": "Kernel", "D": "Product", "E": "Beta release", "F": "Night shift asks"}
 EDGES = [  # design.md section 6, plus the B-group order in tasks.md
     ("B1", "B2"), ("B2", "B3"), ("B3", "B3a"), ("B3", "B4"), ("B3", "B12"), ("B2", "B6"), ("B3", "B9a"),
+    ("F4", "F5"), ("C7", "F5"), ("F1", "F2"), ("F4", "F3"),
     ("B2", "B5"), ("B2", "B8"), ("B2", "B10"), ("B2", "B7"), ("B3", "B2a"),
     ("B4", "B4a"), ("B4", "B4b"), ("B7", "B4b"), ("B9a", "B9b"), ("B9b", "B9"), ("B5", "B11"),
     ("C1", "C5"), ("C5", "C6"), ("C6", "C9"), ("C2", "C6"), ("C2", "C10"), ("B9", "C10"),
@@ -59,7 +60,7 @@ def read_tasks():
         return out
     for ln in lines:
         if ln.startswith("## "):
-            m = re.match(r"## ([A-E])\.", ln)
+            m = re.match(r"## ([A-F])\.", ln)
             section, cur = (m.group(1) if m else ""), None
             continue
         m = re.match(r"- \[( |x)\] \*\*([A-Z]+\d+[a-z]?)\. ([^*]+?)\*\*\s*(.*)", ln)
@@ -213,7 +214,7 @@ def ops(wout, tasks):
         k = (r.get("who"), r.get("label"), r.get("cwd"))
         if r.get("event") == "queued":
             queue = [q for q in queue if (q.get("who"), q.get("label"), q.get("cwd")) != k] + [r]
-        elif r.get("event") in ("start", "end", "gave-up", "reused"):
+        elif r.get("event") in ("start", "end", "gave-up", "reused", "stopped"):
             queue = [q for q in queue if (q.get("who"), q.get("label"), q.get("cwd")) != k]
     ps = run(["ps", "-axo", "pid=,command="])
     live_pids = {int(l.split(None, 1)[0]) for l in ps.splitlines() if l.strip()}
