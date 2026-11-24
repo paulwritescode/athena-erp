@@ -534,3 +534,9 @@
 - 12:07 MERGED F3s1 (a82d934, 1223s gate); Stylus Argon2 finding -> w-ts (slice 1 first)
 - 12:08 w-ts acked reorder (slice 1 = Argon2 with parallel before/after)
 - 12:10 MERGED C2s2 (4616729, disjoint ruling) + server t6g healthy
+- 12:15 train staging vitest healthy (probe green); C7s4 gate safe to run
+- 12:15 TICK: F2s2 RED corrupt-store, repaired + re-queued
+- 12:16 w-fu web green (686/686, rebase fallout fixed, setupPage flake); Go gates queued
+- 12:19 w-c7 slice-5 gate queued 30m+ (slot busy); tip unchanged
+- 12:25 TICK: C7s4 ~14m in
+- 12:28 MERGED C7s4 (2630dd3, 843s gate) + server t6h healthy (slow build, cold cache)
