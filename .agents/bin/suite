@@ -48,6 +48,9 @@ if args[:1] == ["--label"]:
 if args[:1] == ["--"]:
     args = args[1:]
 cmd = args or ["make", "test"]
+if args and args[0] not in ("make", "sh", "go", "env", "pnpm", "node", "bash", "python3") and not os.path.isfile(args[0]) \
+        and not shutil.which(args[0]):
+    sys.exit(f"suite: unknown command {args[0]!r}; usage: suite [--label L] -- <command>")
 def tree_state(where):
     head = subprocess.run(["git", "--no-optional-locks", "rev-parse", "--short", "HEAD"], cwd=where, capture_output=True, text=True).stdout.strip()
     dirty = subprocess.run(["git", "--no-optional-locks", "status", "--porcelain", "--untracked-files=no"], cwd=where,
