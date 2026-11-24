@@ -612,3 +612,29 @@
 - 15:45 TICK: main 89cf82d. r-c5s4 affected RUNNING ~12m; F7s2 retry-p2 queued. Review-passed not on main: F7s2 (retry queued).
 - 15:47 TS testdb re-queued as master-priority (tests w-ts working tree as-is); w-ts ordered to stop its own waiter and freeze slice-2 edits until it lands.
 - 15:53 F7s2 MERGED: retry-p2 green exit 0, ~2m (auth 83s fresh, 684/684 web, zero FAIL, log 1124-154943; combined with -p 4 run's green packages on identical content). FF af1f891+pushed. Server restarted healthy (t6s). TS testdb master-priority GREEN (7.6s); w-ts unfrozen (commit + affected + PASS next).
+- 15:55 F7s2 docs pushed (eb04345, bin/suite -p 2 included); merge6 + branch removed (f7-s2-r already self-removed by reviewer, pruned). w-f7 notified.
+- 15:56 feat/f7-cli rebased empty on eb04345 (verified identical); C4s5 gate unaffected.
+- 15:55 TICK: main eb04345. F4 full gate RUNNING (15:51). Review-passed not on main: none.
+- 15:58 F7 slice 3 BRIEFED (single: completions + help + E2E + README agreement, acceptance-mapped). L6 order: C4s5 -> F7s3 -> C4s5 docs -> F8. F7 ticks on slice-3 merge.
+- 16:05 TICK: main eb04345. F4 full gate RUNNING ~13m. Review-passed not on main: none.
+- 16:07 F4 full gate RED on posting 20m timeout (-p 8 run, queued pre-rule; branch never touches posting). w-fu taking one retry (targeted posting + full re-run).
+- 16:15 TICK: main eb04345. C2s5 gate RUNNING (16:12). Review-passed not on main: none.
+- 16:17 Stylus ORDER: absolute main-repo paths for all tool scripts (worktree copies stale; F4 ran -p 8). Broadcast to 7 + w-fu re-queue order.
+- 16:18 absolute-path ACK from r-c5s4 (already compliant).
+- 16:19 absolute-path ACKs from r-c7s5, w-ts (both already compliant).
+- 16:20 absolute-path ACK from w-f7 (already compliant).
+- 16:21 absolute-path ACK from w-c2 (already compliant).
+- 16:22 absolute-path ACK from w-c7 (already compliant; pending w-c1, w-fu).
+- 16:20 w-fu confirmed: stale retry stopped, re-queued via main-repo suite, absolute paths from now (pending w-c1 ACK).
+- 16:24 C7s5 FIX PASS (w-c7, both blockers, stock 194s green). r-c7s5 re-review ordered (fix delta only); w-c7 rebasing + reporting slice 6.
+- 16:26 C7s6 PASS (w-c7, e5007d4 on eb04345, Property 23, rebase byte-identical so no re-gate, evidence carried + 100/100 direct). Spawning r-c7s6; w-c7 to slice 7.
+- 16:25 TICK: main eb04345. C4s5 retry RUNNING; C7s5-fix re-review queued. Review-passed not on main: none.
+- 16:28 w-c2 rebased slice 5 onto eb04345 (now 518be6e): main.go had a REAL conflict (F7 registry refactor; secrets registered in new table, build-verified). Disjoint-carry void; fresh affected re-queued.
+- 16:30 C7s6 REVIEW PASS (r-c7s6, genuine Property 23, 100/100 rerun, carry verified). STACKED on C7s5-fix re-review (pending) — merges after the fix. r-c7s6 CLOSED.
+- 16:29 C7s7 committed b14dcbf (CheckStockToGL + 6 tests, singles green); affected gate running.
+- 16:30 C5s4 REVIEW PASS (r-c5s4, FX/reversals/closes verified, affected 8/8, no sentinels). Staging merge.
+- 16:37 C4s5 PASS (w-f7, 8c68dd3 on eb04345, CLI+asof+flags+docs, full suite + 26/26 browser green). Spawning r-c4s5.
+- 16:35 TICK: main eb04345. C5s4 gate RUNNING (16:34). r-c4s5 up; w-f7 holding for verdict. Review-passed not on main: C5s4 (gating), C7s6 (stacked on fix).
+- 16:45 TICK: main eb04345. C5s4 gate RUNNING ~10m. Review-passed not on main: C5s4 (gating), C7s6 (stacked on fix).
+- 16:55 TICK: main eb04345. C5s4 gate RUNNING ~20m (near watch limit; -p 2 default in effect). Review-passed not on main: C5s4 (gating), C7s6 (stacked on fix).
+- 17:02 C5s4 MERGED: gate green exit 0, 26m (19 Go ok all fresh under -p 2, 684/684 web, log 1124-163438). FF 9d0ad48+pushed. Server restarted healthy (t6w).
