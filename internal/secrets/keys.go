@@ -108,6 +108,15 @@ func SetVersionStatus(ctx context.Context, q Querier, keyName string, version in
 	return nil
 }
 
+// countVersions counts every version row of a key.
+func countVersions(ctx context.Context, q Querier, keyName string) (int, error) {
+	var n int
+	if err := q.QueryRowContext(ctx, `SELECT COUNT(*) FROM athena_key_versions WHERE key_name = ?`, keyName).Scan(&n); err != nil {
+		return 0, fmt.Errorf("secrets: count versions of %q: %w", keyName, err)
+	}
+	return n, nil
+}
+
 // versionStatus loads the status of one key version.
 func versionStatus(ctx context.Context, q Querier, keyName string, version int64) (string, error) {
 	var status string
@@ -118,6 +127,60 @@ func versionStatus(ctx context.Context, q Querier, keyName string, version int64
 		return "", fmt.Errorf("secrets: load version %d of %q: %w", version, keyName, err)
 	}
 	return status, nil
+}
+
+// RotateResponse reports a rotation: the new active version and the
+// retired one, or zero retired when the rotation bootstraps version 1.
+type RotateResponse struct {
+	Version int64
+	Retired int64
+}
+
+// Rotate moves a key to a new version holding material: it stores the
+// material under the reference, records the version active and retires
+// the previous one. A key with no versions bootstraps at version 1
+// with nothing retired. The caller passes a transaction so the two
+// version rows commit together; the key file lands first because an
+// orphan file retries cleanly while a version row without its file
+// would break encryption. Old versions stay readable until revoked.
+func Rotate(ctx context.Context, q Querier, p *FileProvider, keyName string, material []byte) (RotateResponse, error) {
+	if err := validateName("key", keyName); err != nil {
+		return RotateResponse{}, err
+	}
+	if len(material) != keyLen {
+		return RotateResponse{}, fmt.Errorf("secrets: key %q must hold %d bytes for AES-256", keyName, keyLen)
+	}
+	ref, err := GetRef(ctx, q, keyName)
+	if err != nil {
+		return RotateResponse{}, err
+	}
+	if ref.Provider != p.Name() {
+		return RotateResponse{}, fmt.Errorf("secrets: reference %q needs provider %q", keyName, ref.Provider)
+	}
+	current, err := ActiveVersion(ctx, q, keyName)
+	if err != nil {
+		any, countErr := countVersions(ctx, q, keyName)
+		if countErr != nil {
+			return RotateResponse{}, err
+		}
+		if any > 0 {
+			return RotateResponse{}, err
+		}
+		current = 0
+	}
+	next := current + 1
+	if err := p.WriteKey(ref.ProviderRef+"/v"+strconv.FormatInt(next, 10), material); err != nil {
+		return RotateResponse{}, err
+	}
+	if err := AddVersion(ctx, q, keyName, next); err != nil {
+		return RotateResponse{}, err
+	}
+	if current > 0 {
+		if err := SetVersionStatus(ctx, q, keyName, current, VersionRetired); err != nil {
+			return RotateResponse{}, err
+		}
+	}
+	return RotateResponse{Version: next, Retired: current}, nil
 }
 
 // Encrypt seals plaintext for a bound context under the key's active

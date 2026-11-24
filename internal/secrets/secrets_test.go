@@ -287,6 +287,102 @@ func TestEncryptNeedsARegisteredRefAndProvider(t *testing.T) {
 	}
 }
 
+func TestRotate(t *testing.T) {
+	ctx := context.Background()
+	db := migrate(t)
+	root := t.TempDir()
+	p := secrets.NewFileProvider(root)
+	if _, err := secrets.SaveRef(ctx, db, "workspace", p.Name(), "workspace"); err != nil {
+		t.Fatalf("save ref: %v", err)
+	}
+	first := make([]byte, 32)
+	if _, err := rand.Read(first); err != nil {
+		t.Fatal(err)
+	}
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := secrets.Rotate(ctx, tx, p, "workspace", first)
+	if err != nil {
+		tx.Rollback()
+		t.Fatalf("bootstrap rotate: %v", err)
+	}
+	if res.Version != 1 || res.Retired != 0 {
+		tx.Rollback()
+		t.Fatalf("bootstrap response is %+v, want version 1, retired 0", res)
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatal(err)
+	}
+	c := secrets.Context{Workspace: "acme", RecordType: "invoice", RecordID: "r1", Field: "iban", KeyName: "workspace"}
+	old, err := secrets.Encrypt(ctx, db, p, c, []byte("before"))
+	if err != nil {
+		t.Fatalf("encrypt v1: %v", err)
+	}
+	second := make([]byte, 32)
+	if _, err := rand.Read(second); err != nil {
+		t.Fatal(err)
+	}
+	tx, err = db.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err = secrets.Rotate(ctx, tx, p, "workspace", second)
+	if err != nil {
+		tx.Rollback()
+		t.Fatalf("rotate: %v", err)
+	}
+	if res.Version != 2 || res.Retired != 1 {
+		tx.Rollback()
+		t.Fatalf("rotate response is %+v, want version 2, retired 1", res)
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatal(err)
+	}
+	active, err := secrets.ActiveVersion(ctx, db, "workspace")
+	if err != nil || active != 2 {
+		t.Fatalf("active version is %d, %v, want 2, nil", active, err)
+	}
+	fresh, err := secrets.Encrypt(ctx, db, p, c, []byte("after"))
+	if err != nil {
+		t.Fatalf("encrypt v2: %v", err)
+	}
+	if !strings.HasPrefix(fresh, "athsec1:workspace:2:") {
+		t.Fatalf("fresh envelope %q is not bound to version 2", fresh)
+	}
+	open := secrets.Context{Workspace: "acme", RecordType: "invoice", RecordID: "r1", Field: "iban"}
+	if back, err := secrets.Decrypt(ctx, db, p, open, old); err != nil || string(back) != "before" {
+		t.Fatalf("old envelope after rotation decrypts to %q, %v, want before, nil", back, err)
+	}
+	if _, err := secrets.Rotate(ctx, db, p, "ghost", first); err == nil {
+		t.Fatal("rotate of an unregistered key succeeded, want an error")
+	}
+	if _, err := secrets.Rotate(ctx, db, p, "workspace", make([]byte, 16)); err == nil {
+		t.Fatal("rotate with 16 bytes succeeded, want a length error")
+	}
+}
+
+func TestWriteKeyRefusesClobber(t *testing.T) {
+	root := t.TempDir()
+	p := secrets.NewFileProvider(root)
+	first := make([]byte, 32)
+	second := make([]byte, 32)
+	second[0] = 1
+	if err := p.WriteKey("k/v1", first); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	if err := p.WriteKey("k/v1", first); err != nil {
+		t.Fatalf("rewrite of identical bytes: %v", err)
+	}
+	if err := p.WriteKey("k/v1", second); err == nil {
+		t.Fatal("overwrite with different bytes succeeded, want a refusal")
+	}
+	if err := p.WriteKey("../escape", first); err == nil {
+		t.Fatal("escaping write succeeded, want a refusal")
+	}
+}
+
 func TestSecretsErrorsCarryNoSecretMaterial(t *testing.T) {
 	ctx := context.Background()
 	db := migrate(t)

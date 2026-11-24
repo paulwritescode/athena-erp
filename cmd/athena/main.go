@@ -68,6 +68,7 @@ var commands = []cliCommand{
 	{name: "post", short: "Preview, submit and cancel voucher postings.", run: func(args []string, out io.Writer) error { return postCommand(args, out) }},
 	{name: "jobs", short: "List jobs and schedule occurrences; run dead work again.", run: func(args []string, out io.Writer) error { return jobsCommand(args, out) }},
 	{name: "events", short: "List events and outbox deliveries; emit dead work again.", run: func(args []string, out io.Writer) error { return eventsCommand(args, out) }},
+	{name: "secrets", short: "Register secret references and rotate keys.", run: func(args []string, out io.Writer) error { return secretsCommand(args, out) }},
 	{name: "rules", short: "Manage Starlark Rules.", run: func(args []string, out io.Writer) error { return rulesCommand(args, out) }},
 	{name: "doctor", short: "Check the database, migrations, disk, ports and UI.", run: func(args []string, out io.Writer) error { return doctorCommand(args, out) }},
 	{name: "version", short: "Print the version.", run: func(_ []string, out io.Writer) error { _, err := fmt.Fprintln(out, versionBanner()); return err }},
@@ -219,6 +220,10 @@ Usage:
       List committed events newest first, show one envelope, list outbox
       delivery rows, emit a dead delivery again as a fresh event (the dead
       row stays), and list the declared consumer subscriptions.
+  athena secrets save|rotate [--workspace slug] [--json]
+      Register a secret reference (never a value) and rotate a key to a
+      new active version from a 32-byte file, retiring the old one.
+      rotate takes --key, --from and --key-dir ($ATHENA_SECRETS_DIR).
   athena rules list|show|save|rm|versions|simulate|runs [key] [--workspace slug] [--json]
       Manage Starlark Rules (validation, derivation, guard, transform, posting). Rules run
       at document events inside the save, through Go host functions only, under

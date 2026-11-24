@@ -53,6 +53,33 @@ func (p *FileProvider) Key(_ context.Context, locator string) ([]byte, error) {
 	return data, nil
 }
 
+// WriteKey stores material at locator, creating parent directories.
+// It refuses to overwrite different bytes but accepts identical
+// bytes, so a crashed rotation retries cleanly. Files land 0600.
+func (p *FileProvider) WriteKey(locator string, material []byte) error {
+	clean, err := cleanLocator(locator)
+	if err != nil {
+		return err
+	}
+	if len(material) != keyLen {
+		return fmt.Errorf("secrets: key %q must hold %d bytes for AES-256", locator, keyLen)
+	}
+	full := filepath.Join(p.root, filepath.FromSlash(clean))
+	if err := os.MkdirAll(filepath.Dir(full), 0o700); err != nil {
+		return fmt.Errorf("secrets: store key %q: %w", locator, err)
+	}
+	if existing, err := os.ReadFile(full); err == nil {
+		if string(existing) == string(material) {
+			return nil
+		}
+		return fmt.Errorf("secrets: key %q already exists with different bytes", locator)
+	}
+	if err := os.WriteFile(full, material, 0o600); err != nil {
+		return fmt.Errorf("secrets: store key %q: %w", locator, err)
+	}
+	return nil
+}
+
 // cleanLocator rejects empty, absolute and escaping locators and
 // returns the cleaned relative path.
 func cleanLocator(locator string) (string, error) {
