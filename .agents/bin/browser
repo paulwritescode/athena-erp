@@ -1,0 +1,675 @@
+#!/usr/bin/env node
+'use strict';
+// Shared browser harness: every lane's Desk screenshots through one
+// dependency-free Node CDP driver (stdlib only: no npm packages).
+//
+//   suite -- /path/to/.agents/bin/browser <script.js> --shots DIR [opts]
+//
+// The driver builds the checkout in the current directory, starts
+// `athena serve` on a probed-free port with its own test_athena_* database
+// and fake HOME, invites the first owner through the CLI, completes first
+// login in the Desk, then runs <script> (a Node module exporting one async
+// function over the scenario helpers). It screenshots to --shots, collects
+// console/page errors throughout, and always closes Chrome and the server.
+//
+// Exit codes: 0 pass, 1 app failure (assertions, app errors, unbuildable
+// tree), 3 harness failure (timeouts with no app error, CDP drops, missing
+// prerequisites, port/DB setup failures). Never 0 on an inconclusive run.
+//
+// Reads: ATHENA_TEST_DATABASE_URL (else .env.local ATHENA_DATABASE_URL),
+// CHROME_PATH (override), KEEP=1 (keep the database and temp dirs).
+// See .agents/bin/browser-README.md for the scenario API and the
+// per-lane port/DB convention.
+const { spawn, spawnSync } = require('node:child_process');
+const crypto = require('node:crypto');
+const fs = require('node:fs');
+const net = require('node:net');
+const os = require('node:os');
+const path = require('node:path');
+
+const EXIT_PASS = 0;
+const EXIT_APP = 1;
+const EXIT_HARNESS = 3;
+
+class AppError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'AppError';
+    this.exitCode = EXIT_APP;
+  }
+}
+
+class HarnessError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'HarnessError';
+    this.exitCode = EXIT_HARNESS;
+  }
+}
+
+// Ports other lanes pin (night-shift order): the prober never takes these,
+// even when they look free.
+const SERVER_EXCLUDE = new Set([3062, 3120]);
+const CDP_EXCLUDE = new Set([3781, 3791]);
+const SERVER_RANGE = [3052, 3079];
+const CDP_RANGE = [3771, 3799];
+const CHROME_MAC = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+const OWNER = 'browserowner';
+const THEME_KEY = 'athena-theme';
+
+// parseArgs is pure (argv without node and script) for --self-test.
+function parseArgs(argv) {
+  const out = { script: null, shots: null, theme: 'light', port: null, db: null, selfTest: false, help: false };
+  const rest = [...argv];
+  while (rest.length > 0) {
+    const arg = rest.shift();
+    if (arg === '--self-test') out.selfTest = true;
+    else if (arg === '--help' || arg === '-h') out.help = true;
+    else if (arg === '--shots') out.shots = takeValue(rest, arg);
+    else if (arg === '--theme') out.theme = takeValue(rest, arg);
+    else if (arg === '--port') out.port = takeValue(rest, arg);
+    else if (arg === '--db') out.db = takeValue(rest, arg);
+    else if (arg.startsWith('--')) throw new HarnessError(`unknown flag ${arg} (see --help)`);
+    else if (out.script) throw new HarnessError(`unexpected argument ${arg}: one script only`);
+    else out.script = arg;
+  }
+  if (out.theme !== 'light' && out.theme !== 'dark') {
+    throw new HarnessError(`--theme must be light or dark, got ${out.theme}`);
+  }
+  if (out.port !== null && !/^\d+$/.test(out.port)) throw new HarnessError(`--port must be numeric, got ${out.port}`);
+  if (!out.selfTest && !out.help && !out.script) throw new HarnessError('usage: browser <script.js> --shots DIR [--theme light|dark] [--port N] [--db NAME]');
+  return out;
+}
+
+function takeValue(rest, flag) {
+  const value = rest.shift();
+  if (value === undefined || value.startsWith('--')) throw new HarnessError(`${flag} needs a value`);
+  return value;
+}
+
+// parseDSN reads user:pass@tcp(host:port)/db (the MariaDB form
+// e2e-install.sh uses); anything else is a harness failure.
+function parseDSN(dsn) {
+  const m = /^([^:@/]+):([^@/]*)@tcp\(([^:)]+):(\d+)\)\/([^/]*)$/.exec(dsn || '');
+  if (!m) throw new HarnessError('need a MariaDB DSN of the form user:pass@tcp(host:port)/db');
+  return { user: m[1], pass: m[2], host: m[3], port: m[4] };
+}
+
+function challengeFromInvite(output) {
+  const m = /Invite challenge, shown once: (\S+)/.exec(output || '');
+  if (!m) throw new HarnessError('invite output carried no challenge');
+  return m[1];
+}
+
+function checkDbName(name) {
+  if (!/^test_athena_[a-z0-9_]{1,47}$/.test(name || '')) {
+    throw new HarnessError(`refusing database ${name}: must match test_athena_[a-z0-9_]+`);
+  }
+  return name;
+}
+
+function usage() {
+  return `usage: browser <script.js> --shots DIR [--theme light|dark] [--port N] [--db NAME]
+  --shots DIR   screenshot folder (created; default: a fresh temp dir, printed)
+  --theme MODE  Desk theme before the script runs: light or dark (default light)
+  --port N      pin the server port (must be free; default: first free 3052-3079
+                outside the per-lane exclusion list)
+  --db NAME     database name (default test_athena_browser_<port>; must start
+                with test_athena_)
+  --self-test   run the driver's unit checks (no Chrome, server or database)
+  --help        this text
+
+The scenario script exports one async function over the helpers:
+  module.exports = async ({ goto, shot, waitFor, setTheme }) => { ... };
+See browser-README.md. Exit codes: 0 pass, 1 app failure, 3 harness failure.`;
+}
+
+function selfTest() {
+  const cases = [];
+  const eq = (got, want, what) => cases.push([JSON.stringify(got) === JSON.stringify(want), `${what}: got ${JSON.stringify(got)} want ${JSON.stringify(want)}`]);
+  const throws = (fn, code, what) => {
+    try {
+      fn();
+      cases.push([false, `${what}: no throw`]);
+    } catch (err) {
+      cases.push([err.exitCode === code, `${what}: exit ${err.exitCode}, want ${code} (${err.message})`]);
+    }
+  };
+  const a = parseArgs(['s.js', '--shots', '/tmp/x', '--theme', 'dark', '--port', '3055', '--db', 'test_athena_q']);
+  eq([a.script, a.shots, a.theme, a.port, a.db], ['s.js', '/tmp/x', 'dark', '3055', 'test_athena_q'], 'full args');
+  eq(parseArgs(['--self-test']).selfTest, true, 'self-test flag');
+  throws(() => parseArgs(['s.js', '--nope']), EXIT_HARNESS, 'unknown flag');
+  throws(() => parseArgs(['s.js', '--theme', 'blue']), EXIT_HARNESS, 'bad theme');
+  throws(() => parseArgs(['s.js', '--port', 'x']), EXIT_HARNESS, 'bad port');
+  throws(() => parseArgs([]), EXIT_HARNESS, 'missing script');
+  throws(() => parseArgs(['a.js', 'b.js']), EXIT_HARNESS, 'two scripts');
+  const d = parseDSN('u:p@tcp(127.0.0.1:3306)/db');
+  eq([d.user, d.pass, d.host, d.port], ['u', 'p', '127.0.0.1', '3306'], 'dsn parse');
+  throws(() => parseDSN('postgres://x'), EXIT_HARNESS, 'non-mysql dsn');
+  eq(challengeFromInvite('Created owner x.\nInvite challenge, shown once: abc-123\nDone\n'), 'abc-123', 'challenge parse');
+  throws(() => challengeFromInvite('nope'), EXIT_HARNESS, 'challenge missing');
+  eq(checkDbName('test_athena_ok_1'), 'test_athena_ok_1', 'db name ok');
+  throws(() => checkDbName('athena_dev'), EXIT_HARNESS, 'dev db refused');
+  throws(() => checkDbName('test_athena_UPPER'), EXIT_HARNESS, 'upper db refused');
+  eq(portCandidates(3052, 3054, new Set([3053])), [3052, 3054], 'exclusion filter');
+  let failed = 0;
+  for (const [ok, what] of cases) {
+    console.log(`${ok ? 'ok  ' : 'FAIL'} ${what}`);
+    if (!ok) failed += 1;
+  }
+  if (failed > 0) throw new HarnessError(`${failed} self-test checks failed`);
+  console.log(`self-test: ${cases.length} checks passed`);
+}
+
+function portCandidates(from, to, exclude) {
+  const out = [];
+  for (let p = from; p <= to; p += 1) if (!exclude.has(p)) out.push(p);
+  return out;
+}
+
+function which(binary) {
+  for (const dir of String(process.env.PATH || '').split(path.delimiter)) {
+    const full = path.join(dir, binary);
+    try {
+      fs.accessSync(full, fs.constants.X_OK);
+      return full;
+    } catch { /* next */ }
+  }
+  return null;
+}
+
+function findChrome() {
+  if (process.env.CHROME_PATH) {
+    if (fs.existsSync(process.env.CHROME_PATH)) return process.env.CHROME_PATH;
+    throw new HarnessError(`CHROME_PATH ${process.env.CHROME_PATH} does not exist`);
+  }
+  if (fs.existsSync(CHROME_MAC)) return CHROME_MAC;
+  for (const name of ['google-chrome', 'chromium', 'chromium-browser']) {
+    const found = which(name);
+    if (found) return found;
+  }
+  throw new HarnessError('no Chrome found (set CHROME_PATH)');
+}
+
+function loadDSN(target) {
+  if (process.env.ATHENA_TEST_DATABASE_URL) return parseDSN(process.env.ATHENA_TEST_DATABASE_URL);
+  const envFile = path.join(target, '.env.local');
+  if (fs.existsSync(envFile)) {
+    for (const line of fs.readFileSync(envFile, 'utf8').split('\n')) {
+      const m = /^\s*(?:export\s+)?ATHENA_DATABASE_URL=(.*)$/.exec(line.trim());
+      if (m) return parseDSN(m[1].trim().replace(/^["']|["']$/g, ''));
+    }
+  }
+  throw new HarnessError('set ATHENA_TEST_DATABASE_URL or ATHENA_DATABASE_URL in .env.local');
+}
+
+function tryBind(port) {
+  return new Promise((resolve) => {
+    const server = net.createServer();
+    server.once('error', () => resolve(false));
+    server.listen(port, '127.0.0.1', () => server.close(() => resolve(true)));
+  });
+}
+
+async function freePort(from, to, exclude, what) {
+  for (const port of portCandidates(from, to, exclude)) {
+    if (await tryBind(port)) return port;
+  }
+  throw new HarnessError(`no free ${what} port in ${from}-${to} outside the exclusion list`);
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function runCmd(cmd, args, opts = {}) {
+  const proc = spawnSync(cmd, args, { encoding: 'utf8', ...opts });
+  return { code: proc.status ?? 1, out: `${proc.stdout || ''}${proc.stderr || ''}` };
+}
+
+function alive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function killNicely(child, what) {
+  if (!child || child.exitCode !== null) return;
+  child.kill('SIGTERM');
+  for (let i = 0; i < 50 && child.exitCode === null; i += 1) await sleep(100);
+  if (child.exitCode === null) child.kill('SIGKILL');
+  for (let i = 0; i < 20 && child.exitCode === null; i += 1) await sleep(100);
+  if (child.exitCode === null && child.pid && alive(child.pid)) {
+    console.error(`warn: ${what} (pid ${child.pid}) survived SIGKILL`);
+  }
+}
+
+function connectCDP(wsUrl) {
+  return new Promise((resolve, reject) => {
+    const ws = new WebSocket(wsUrl);
+    const pending = new Map();
+    const events = [];
+    let id = 0;
+    ws.addEventListener('message', (ev) => {
+      let msg;
+      try {
+        msg = JSON.parse(String(ev.data));
+      } catch {
+        return;
+      }
+      if (msg.id && pending.has(msg.id)) {
+        const call = pending.get(msg.id);
+        pending.delete(msg.id);
+        if (msg.error) call.reject(new HarnessError(`CDP ${call.method}: ${JSON.stringify(msg.error)}`));
+        else call.resolve(msg.result);
+      } else {
+        events.push(msg);
+        if (events.length > 500) events.shift();
+      }
+    });
+    ws.addEventListener('open', () => {
+      const cdp = (method, params = {}) => new Promise((resolveCall, rejectCall) => {
+        id += 1;
+        pending.set(id, { resolve: resolveCall, reject: rejectCall, method });
+        ws.send(JSON.stringify({ id, method, params }));
+      });
+      cdp.events = events;
+      cdp.close = () => {
+        for (const call of pending.values()) call.reject(new HarnessError('CDP connection closed'));
+        pending.clear();
+        ws.close();
+      };
+      resolve(cdp);
+    });
+    ws.addEventListener('error', (ev) => reject(new HarnessError(`CDP socket error: ${ev.message || 'unknown'}`)));
+  });
+}
+
+async function evaluate(cdp, expression) {
+  const { result, exceptionDetails } = await cdp('Runtime.evaluate', { expression, returnByValue: true });
+  if (exceptionDetails) throw new HarnessError(`page script failed: ${JSON.stringify(exceptionDetails).slice(0, 300)}`);
+  return result.value;
+}
+
+function pageErrors(events) {
+  const out = [];
+  for (const ev of events) {
+    const method = ev.method || '';
+    if (method === 'Log.entryAdded' && ev.params?.entry?.level === 'error') {
+      out.push(String(ev.params.entry.text || '').slice(0, 200));
+    } else if (method === 'Runtime.exceptionThrown') {
+      const d = ev.params?.exceptionDetails || {};
+      out.push(String(d.exception?.description || d.text || '').slice(0, 200));
+    } else if (method === 'Runtime.consoleAPICalled' && ev.params?.type === 'error') {
+      out.push('console.error fired');
+    }
+  }
+  return out;
+}
+
+// waitFor polls a page predicate; on timeout it classifies: app errors
+// seen so far mean an app failure (1), otherwise a harness failure (3).
+// Diagnostics (URL, page text, errors) always ride along.
+async function waitFor(cdp, expression, what, timeoutMs = 20000) {
+  const start = Date.now();
+  const probe = `(() => { try { return !!(${expression}); } catch (_) { return false; } })()`;
+  for (;;) {
+    if (await evaluate(cdp, probe)) {
+      console.log(`ok   ${what}`);
+      return;
+    }
+    if (Date.now() - start > timeoutMs) {
+      const diag = await diagnose(cdp);
+      const detail = `timeout waiting for ${what} at ${diag.url} :: ${diag.snippet}`;
+      if (diag.errors.length > 0) {
+        throw new AppError(`${detail} :: page errors: ${diag.errors.slice(0, 3).join(' | ')}`);
+      }
+      throw new HarnessError(detail);
+    }
+    await sleep(250);
+  }
+}
+
+async function diagnose(cdp) {
+  const out = { url: '?', snippet: '', errors: [] };
+  try {
+    out.url = await evaluate(cdp, 'window.location.href');
+  } catch { /* unreachable page */ }
+  try {
+    out.snippet = String(await evaluate(cdp, '(document.body.innerText || "").slice(0, 300)')).replace(/\s+/g, ' ');
+  } catch { /* unreachable page */ }
+  try {
+    out.errors = pageErrors(cdp.events || []);
+  } catch { /* no events */ }
+  return out;
+}
+
+function checkTarget(target) {
+  for (const file of ['Makefile', 'cmd/athena/main.go', 'web/package.json']) {
+    if (!fs.existsSync(path.join(target, file))) {
+      throw new HarnessError(`not an athena checkout (missing ${file}): ${target}`);
+    }
+  }
+}
+
+function buildTarget(target, logFile) {
+  if (!which('pnpm')) throw new HarnessError('pnpm is not on PATH (the web build needs it)');
+  const env = { ...process.env, PATH: `${path.dirname(process.execPath)}${path.delimiter}${process.env.PATH || ''}` };
+  console.log('build: make build');
+  const proc = spawnSync('make', ['build'], { cwd: target, encoding: 'utf8', env, maxBuffer: 64 * 1024 * 1024 });
+  fs.appendFileSync(logFile, `\n=== make build (exit ${proc.status}) ===\n${proc.stdout || ''}${proc.stderr || ''}`);
+  runCmd('git', ['checkout', '--', 'internal/webui/dist/.gitkeep'], { cwd: target });
+  if (proc.status !== 0) {
+    const tail = `${proc.stdout || ''}${proc.stderr || ''}`.trim().split('\n').slice(-8).join('\n');
+    throw new AppError(`make build failed:\n${tail}`);
+  }
+  console.log('ok   make build');
+}
+
+function setupDatabase(dbCli, dsn, name) {
+  const args = ['--protocol=TCP', '-h', dsn.host, '-P', dsn.port, '-u', dsn.user, `-p${dsn.pass}`,
+    '-e', `DROP DATABASE IF EXISTS \`${name}\`; CREATE DATABASE \`${name}\``];
+  const proc = runCmd(dbCli, args);
+  if (proc.code !== 0) throw new HarnessError(`cannot create database ${name} (is MariaDB up?): ${proc.out.slice(0, 300)}`);
+}
+
+function dropDatabase(dbCli, dsn, name) {
+  runCmd(dbCli, ['--protocol=TCP', '-h', dsn.host, '-P', dsn.port, '-u', dsn.user, `-p${dsn.pass}`,
+    '-e', `DROP DATABASE IF EXISTS \`${name}\``]);
+}
+
+function athena(target, env, args, what, notFoundCode) {
+  const bin = path.join(target, 'bin', 'athena');
+  const proc = runCmd(bin, args, { cwd: target, env });
+  if (proc.code !== 0) {
+    const Err = notFoundCode || AppError;
+    throw new Err(`${what} failed: ${proc.out.slice(0, 500)}`);
+  }
+  return proc.out;
+}
+
+async function waitForHealth(base, timeoutMs) {
+  const start = Date.now();
+  for (;;) {
+    try {
+      const res = await fetch(`${base}/healthz`);
+      const body = await res.json();
+      if (body && body.database === 'Connected') return;
+    } catch { /* not up yet */ }
+    if (Date.now() - start > timeoutMs) throw new HarnessError(`server never healthy at ${base}/healthz`);
+    await sleep(1000);
+  }
+}
+
+async function waitForDebugger(cdpPort, timeoutMs) {
+  const start = Date.now();
+  for (;;) {
+    try {
+      const res = await fetch(`http://127.0.0.1:${cdpPort}/json/list`);
+      const targets = await res.json();
+      const page = targets.find((t) => t.type === 'page' && t.webSocketDebuggerUrl);
+      if (page) return page.webSocketDebuggerUrl;
+    } catch { /* not up yet */ }
+    if (Date.now() - start > timeoutMs) throw new HarnessError(`chrome debugger never came up on ${cdpPort}`);
+    await sleep(300);
+  }
+}
+
+async function firstLogin(cdp, base, username, challenge, password) {
+  await cdp('Page.navigate', { url: `${base}/` });
+  await waitFor(cdp, `!!document.querySelector('.sign-in')`, 'sign-in page');
+  await evaluate(cdp, `[...document.querySelectorAll('button')].find((b) => (b.textContent || '').includes('First login')).click()`);
+  await waitFor(cdp, `!!document.querySelector('#complete-username')`, 'first-login form');
+  const set = (id, value) => `(document.querySelector('${id}') && (() => {
+    const el = document.querySelector('${id}');
+    el.focus(); el.value = ${JSON.stringify(value)};
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    return true;
+  })())`;
+  for (const [id, value] of [['#complete-username', username], ['#complete-challenge', challenge],
+      ['#complete-password', password], ['#complete-confirm', password]]) {
+    if (!await evaluate(cdp, set(id, value))) throw new HarnessError(`first-login field ${id} missing`);
+  }
+  await evaluate(cdp, `document.querySelector('form button[type="submit"]').click()`);
+  await waitFor(cdp, `!document.querySelector('.sign-in')`, 'login to complete');
+}
+
+// setTheme pins the stored mode and reloads so the app resolves it;
+// the class check verifies it applied (AppError when it does not).
+async function setTheme(cdp, base, mode) {
+  if (mode !== 'light' && mode !== 'dark') throw new HarnessError(`bad theme ${mode}`);
+  const wantDark = mode === 'dark';
+  await cdp('Page.navigate', { url: `${base}/` });
+  await waitFor(cdp, `!!document.documentElement`, 'page for theme set');
+  await evaluate(cdp, `localStorage.setItem('${THEME_KEY}', '${mode}')`);
+  await cdp('Page.navigate', { url: `${base}/` });
+  try {
+    await waitFor(cdp, `document.documentElement.classList.contains('dark') === ${wantDark}`, `theme ${mode} applied`, 10000);
+  } catch (err) {
+    if (err instanceof HarnessError) throw new AppError(`theme ${mode} did not apply: ${err.message}`);
+    throw err;
+  }
+}
+
+function scenarioHelpers(cdp, base, shotsDir) {
+  const shot = async (name) => {
+    const file = path.join(shotsDir, `${name}.png`);
+    const { data } = await cdp('Page.captureScreenshot', { format: 'png' });
+    fs.writeFileSync(file, Buffer.from(data, 'base64'));
+    console.log(`shot ${file}`);
+    return file;
+  };
+  return {
+    BASE: base,
+    DIR: shotsDir,
+    cdp,
+    evaluate: (expression) => evaluate(cdp, expression),
+    waitFor: (expression, what, timeoutMs) => waitFor(cdp, expression, what, timeoutMs),
+    goto: async (target) => {
+      await cdp('Page.navigate', { url: target.startsWith('http') ? target : `${base}${target}` });
+    },
+    shot,
+    setViewport: (width, height) => cdp('Emulation.setDeviceMetricsOverride',
+      { width, height, deviceScaleFactor: 1, mobile: false }),
+    setTheme: (mode) => setTheme(cdp, base, mode),
+    fill: async (sel, value) => {
+      const filled = await evaluate(cdp, `((sel, value) => {
+        const el = document.querySelector(sel);
+        if (!el) return false;
+        el.focus(); el.value = value;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+        return true;
+      })(${JSON.stringify(sel)}, ${JSON.stringify(value)})`);
+      if (!filled) throw new HarnessError(`fill: ${sel} missing`);
+    },
+    click: async (sel) => {
+      const clicked = await evaluate(cdp, `(() => {
+        const el = document.querySelector(${JSON.stringify(sel)});
+        if (!el) return false;
+        el.click();
+        return true;
+      })()`);
+      if (!clicked) throw new HarnessError(`click: ${sel} missing`);
+    },
+    clickText: async (tag, text) => {
+      const clicked = await evaluate(cdp, `(() => {
+        const el = Array.from(document.querySelectorAll(${JSON.stringify(tag)}))
+          .find((b) => (b.textContent || '').trim() === ${JSON.stringify(text)});
+        if (!el) return false;
+        el.click();
+        return true;
+      })()`);
+      if (!clicked) throw new HarnessError(`clickText: ${tag} ${JSON.stringify(text)} missing`);
+    },
+    key: async (key, code, keyCode) => {
+      for (const type of ['keyDown', 'keyUp']) {
+        await cdp('Input.dispatchKeyEvent', { type, key, code, windowsVirtualKeyCode: keyCode, nativeVirtualKeyCode: keyCode });
+      }
+    },
+    assertVisible: async (sel, what) => {
+      const visible = await evaluate(cdp, `(() => {
+        const el = document.querySelector(${JSON.stringify(sel)});
+        return !!el && el.offsetParent !== null;
+      })()`);
+      if (!visible) {
+        const diag = await diagnose(cdp);
+        throw new AppError(`not visible: ${what || sel} at ${diag.url} :: ${diag.snippet}`);
+      }
+      console.log(`ok   visible: ${what || sel}`);
+    },
+    assert: (cond, message) => {
+      if (!cond) throw new AppError(`assert failed: ${message}`);
+      console.log(`ok   ${message}`);
+    },
+    expectNoErrors: async () => {
+      const found = pageErrors(cdp.events || []);
+      if (found.length > 0) throw new AppError(`page errors: ${found.slice(0, 5).join(' | ')}`);
+      console.log('ok   no page errors');
+    },
+  };
+}
+
+async function main() {
+  const args = parseArgs(process.argv.slice(2));
+  if (args.help) {
+    console.log(usage());
+    return EXIT_PASS;
+  }
+  if (args.selfTest) {
+    selfTest();
+    return EXIT_PASS;
+  }
+  const target = process.cwd();
+  checkTarget(target);
+  const chrome = findChrome();
+  const dbCli = which('mariadb') || which('mysql');
+  if (!dbCli) throw new HarnessError('neither mariadb nor mysql is on PATH');
+  const dsn = loadDSN(target);
+  let port = args.port ? Number(args.port) : null;
+  if (port !== null) {
+    if (SERVER_EXCLUDE.has(port)) throw new HarnessError(`port ${port} belongs to another lane (see the exclusion list)`);
+    if (!await tryBind(port)) throw new HarnessError(`port ${port} is held; drop --port to probe`);
+  } else {
+    port = await freePort(SERVER_RANGE[0], SERVER_RANGE[1], SERVER_EXCLUDE, 'server');
+  }
+  const cdpPort = await freePort(CDP_RANGE[0], CDP_RANGE[1], CDP_EXCLUDE, 'CDP');
+  const dbName = args.db ? checkDbName(args.db) : `test_athena_browser_${port}`;
+  checkDbName(dbName);
+  const shotsDir = args.shots ? path.resolve(args.shots) : fs.mkdtempSync(path.join(os.tmpdir(), 'browser-shots-'));
+  fs.mkdirSync(shotsDir, { recursive: true });
+  const runLog = path.join(shotsDir, 'run.log');
+  const logLine = (line) => fs.appendFileSync(runLog, `${line}\n`);
+  logLine(`target=${target} base=http://127.0.0.1:${port} db=${dbName} shots=${shotsDir}`);
+  console.log(`ports: server ${port}, cdp ${cdpPort}\nshots: ${shotsDir}\ndb: ${dbName}`);
+
+  const scriptPath = path.resolve(args.script);
+  if (!fs.existsSync(scriptPath)) throw new HarnessError(`script not found: ${scriptPath}`);
+  let scenario;
+  try {
+    scenario = require(scriptPath); // eslint-disable-line
+  } catch (err) {
+    throw new HarnessError(`script failed to load: ${err.message}`);
+  }
+  if (typeof scenario !== 'function') throw new HarnessError('script must export one async function: module.exports = async (h) => {...}');
+
+  buildTarget(target, runLog);
+  setupDatabase(dbCli, dsn, dbName);
+  console.log('ok   throwaway database created');
+  const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'browser-run-'));
+  const fakeHome = path.join(scratch, 'home');
+  const filesDir = path.join(scratch, 'files');
+  fs.mkdirSync(fakeHome, { recursive: true });
+  fs.mkdirSync(filesDir, { recursive: true });
+  const childEnv = {
+    ...process.env,
+    ATHENA_DATABASE_URL: `${dsn.user}:${dsn.pass}@tcp(${dsn.host}:${dsn.port})/${dbName}`,
+    ATHENA_FILES_DIR: filesDir,
+    HOME: fakeHome,
+    XDG_CONFIG_HOME: path.join(fakeHome, '.config'),
+  };
+  let server = null;
+  let chromeProc = null;
+  let cdp = null;
+  const keep = process.env.KEEP === '1';
+  try {
+    athena(target, childEnv, ['migrate', 'up'], 'migrate up');
+    athena(target, childEnv, ['user', 'list'], 'ensure root');
+    const password = crypto.randomBytes(15).toString('base64url');
+    const inviteOut = athena(target, childEnv, ['user', 'invite', OWNER, '--owner'], 'invite owner');
+    const challenge = challengeFromInvite(inviteOut);
+    console.log('ok   owner invited (challenge captured, never printed)');
+
+    const base = `http://127.0.0.1:${port}`;
+    const serveLog = fs.openSync(path.join(shotsDir, 'serve.log'), 'w');
+    server = spawn(path.join(target, 'bin', 'athena'), ['serve', '--addr', `127.0.0.1:${port}`],
+      { cwd: target, env: childEnv, stdio: ['ignore', serveLog, serveLog] });
+    await waitForHealth(base, 90000);
+    console.log('ok   server healthy');
+
+    const profile = path.join(scratch, 'chrome');
+    chromeProc = spawn(chrome, ['--headless=new', '--disable-gpu', '--no-sandbox', '--no-first-run',
+      '--disable-default-apps', `--remote-debugging-port=${cdpPort}`, `--user-data-dir=${profile}`,
+      '--window-size=1280,900', '--hide-scrollbars', 'about:blank'], { stdio: 'ignore' });
+    const wsUrl = await waitForDebugger(cdpPort, 30000);
+    console.log('ok   chrome up');
+    cdp = await connectCDP(wsUrl);
+    await cdp('Page.enable');
+    await cdp('Runtime.enable');
+    await cdp('Log.enable');
+    await cdp('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
+
+    await firstLogin(cdp, base, OWNER, challenge, password);
+    console.log(`ok   signed in as ${OWNER} through the invite challenge`);
+    await setTheme(cdp, base, args.theme);
+    await cdp('Page.navigate', { url: `${base}/` });
+    await waitFor(cdp, `!document.querySelector('.sign-in')`, 'desk ready for the script');
+
+    const helpers = scenarioHelpers(cdp, base, shotsDir);
+    await scenario(helpers);
+    const errors = pageErrors(cdp.events || []);
+    console.log(`PAGE_ERRORS: ${errors.length}`);
+    if (errors.length > 0) throw new AppError(`page errors: ${errors.slice(0, 5).join(' | ')}`);
+    console.log(`BROWSER PASS: shots in ${shotsDir}`);
+    return EXIT_PASS;
+  } finally {
+    if (cdp) {
+      try { cdp.close(); } catch { /* already down */ }
+    }
+    await killNicely(chromeProc, 'chrome');
+    await killNicely(server, 'athena serve');
+    if (chromeProc && chromeProc.exitCode === null && chromeProc.pid && alive(chromeProc.pid)) {
+      console.error(`warn: chrome pid ${chromeProc.pid} still alive after cleanup`);
+    }
+    if (server && server.exitCode === null && server.pid && alive(server.pid)) {
+      console.error(`warn: server pid ${server.pid} still alive after cleanup`);
+    }
+    if (keep) {
+      console.log(`KEEP=1: database ${dbName}, scratch ${scratch}`);
+    } else {
+      try { dropDatabase(dbCli, dsn, dbName); } catch { /* best effort */ }
+      fs.rmSync(scratch, { recursive: true, force: true });
+    }
+  }
+}
+
+process.on('unhandledRejection', (err) => {
+  console.error(`BROWSER FAIL (harness): ${err && err.stack ? err.stack : err}`);
+  process.exit(EXIT_HARNESS);
+});
+
+(async () => {
+  try {
+    process.exit(await main());
+  } catch (err) {
+    if (err && (err.exitCode === EXIT_APP || err.exitCode === EXIT_HARNESS)) {
+      console.error(`BROWSER FAIL (${err.exitCode === EXIT_APP ? 'app' : 'harness'}): ${err.message}`);
+      process.exit(err.exitCode);
+    }
+    console.error(`BROWSER FAIL (harness): ${err && err.stack ? err.stack : err}`);
+    process.exit(EXIT_HARNESS);
+  }
+})();
