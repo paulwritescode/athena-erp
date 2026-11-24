@@ -69,6 +69,7 @@ var commands = []cliCommand{
 	{name: "jobs", short: "List jobs and schedule occurrences; run dead work again.", run: func(args []string, out io.Writer) error { return jobsCommand(args, out) }},
 	{name: "events", short: "List events and outbox deliveries; emit dead work again.", run: func(args []string, out io.Writer) error { return eventsCommand(args, out) }},
 	{name: "rules", short: "Manage Starlark Rules.", run: func(args []string, out io.Writer) error { return rulesCommand(args, out) }},
+	{name: "doctor", short: "Check the database, migrations, disk, ports and UI.", run: func(args []string, out io.Writer) error { return doctorCommand(args, out) }},
 	{name: "version", short: "Print the version.", run: func(_ []string, out io.Writer) error { _, err := fmt.Fprintln(out, versionBanner()); return err }},
 	{name: "help", short: "Show every command with its flags.", run: func(_ []string, out io.Writer) error { printUsageTo(out); return nil }},
 }
@@ -230,6 +231,12 @@ Usage:
       daily job to store outside the database. Both exit with an error when the
       chain is broken.
       These commands apply pending migrations first, as the server does.
+  athena doctor [--workspace slug] [--addr 127.0.0.1:3000] [--json]
+      Check that this machine can run Athena: MariaDB reachable, system
+      migrations applied, local disk room, the HTTP address free and the
+      UI built into the binary (node is only needed to build it). Exits 0
+      when no check fails, 1 when any fails; the last line is a
+      machine-readable doctor status= line.
   athena version
 `, defaultAddr, defaultAddr)
 }
