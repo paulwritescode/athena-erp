@@ -122,7 +122,7 @@ receives). `gofmt` clean, `go vet` OK.
 | Run | Result |
 | --- | --- |
 | BEFORE posting-alone `-json` (scratch tree da178bb, suite, load 7→14) | GREEN 396.2s PASS. Top: TestPostValidation 171.7s (per-subtest setup), TestReverseClosedPeriods 29.5s, then ~6s/test migrate floor across 27 tests + subtests (81 nodes). Rapid bodies 6–10s. Full top-20 in `/tmp/ts-posting-before.json`. |
-| AFTER posting-alone (master-priority gate) | PENDING |
+| AFTER posting-alone (master-priority gate, suite log 1124-193523) | GREEN 13.7s PASS (~29x vs 396.2s before; shared migrated DB, zero keepers). |
 - Slice 4 (ORDERED): ledger/jobs/events/stock in ONE commit, plus the 17
   testdb.New calls left in server (brand/identity/etc.). testdb.New kept
   ONLY for tests that change migration state, with a why-comment.
