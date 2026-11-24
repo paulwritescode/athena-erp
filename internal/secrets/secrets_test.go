@@ -412,3 +412,58 @@ func TestSecretsErrorsCarryNoSecretMaterial(t *testing.T) {
 		t.Errorf("RedactString returned %q, want %q", got, secrets.Redacted)
 	}
 }
+
+func TestActiveVersionInfo(t *testing.T) {
+	ctx := context.Background()
+	db := migrate(t)
+	root := t.TempDir()
+	p := secrets.NewFileProvider(root)
+	fixtureKey(t, db, p, root, "hmac")
+	info, err := secrets.ActiveVersionInfo(ctx, db, "hmac")
+	if err != nil {
+		t.Fatalf("active info: %v", err)
+	}
+	if info.Version != 1 || info.Status != secrets.VersionActive || info.CreatedAt.IsZero() {
+		t.Fatalf("active info is %+v, want version 1 active with a creation time", info)
+	}
+	if _, err := secrets.ActiveVersionInfo(ctx, db, "ghost"); err == nil {
+		t.Fatal("active info of a missing key succeeded, want an error")
+	}
+}
+
+func TestKeyForVersion(t *testing.T) {
+	ctx := context.Background()
+	db := migrate(t)
+	root := t.TempDir()
+	p := secrets.NewFileProvider(root)
+	fixtureKey(t, db, p, root, "hmac")
+	direct, err := p.Key(ctx, "hmac/v1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := secrets.KeyForVersion(ctx, db, p, "hmac", 1)
+	if err != nil {
+		t.Fatalf("key for v1: %v", err)
+	}
+	if string(got) != string(direct) {
+		t.Fatal("key for v1 differs from the stored material")
+	}
+	if err := secrets.SetVersionStatus(ctx, db, "hmac", 1, secrets.VersionRetired); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := secrets.KeyForVersion(ctx, db, p, "hmac", 1); err != nil {
+		t.Fatalf("key for a retired version: %v", err)
+	}
+	if err := secrets.SetVersionStatus(ctx, db, "hmac", 1, secrets.VersionRevoked); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := secrets.KeyForVersion(ctx, db, p, "hmac", 1); err == nil {
+		t.Fatal("key for a revoked version succeeded, want a refusal")
+	}
+	if _, err := secrets.KeyForVersion(ctx, db, p, "hmac", 9); err == nil {
+		t.Fatal("key for a missing version succeeded, want an error")
+	}
+	if _, err := secrets.KeyForVersion(ctx, db, p, "hmac", 0); err == nil {
+		t.Fatal("key for version 0 succeeded, want an error")
+	}
+}

@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -115,6 +116,58 @@ func countVersions(ctx context.Context, q Querier, keyName string) (int, error) 
 		return 0, fmt.Errorf("secrets: count versions of %q: %w", keyName, err)
 	}
 	return n, nil
+}
+
+// VersionInfo is one key version row: its number, status and creation
+// time. Rotation windows read the active row's creation time as the
+// rotation moment.
+type VersionInfo struct {
+	Version   int64
+	Status    string
+	CreatedAt time.Time
+}
+
+// ActiveVersionInfo returns the active version row of a key.
+func ActiveVersionInfo(ctx context.Context, q Querier, keyName string) (VersionInfo, error) {
+	if err := validateName("key", keyName); err != nil {
+		return VersionInfo{}, err
+	}
+	var info VersionInfo
+	if err := q.QueryRowContext(ctx, `SELECT version, status, created_at FROM athena_key_versions WHERE key_name = ? AND status = ? ORDER BY version DESC LIMIT 1`, keyName, VersionActive).Scan(&info.Version, &info.Status, &info.CreatedAt); err != nil {
+		if err == sql.ErrNoRows {
+			return VersionInfo{}, fmt.Errorf("secrets: key %q has no active version", keyName)
+		}
+		return VersionInfo{}, fmt.Errorf("secrets: active version for %q: %w", keyName, err)
+	}
+	return info, nil
+}
+
+// KeyForVersion returns the key material for one recorded version of a
+// key: it resolves the reference, refuses revoked versions and reads
+// the version's locator from the provider. Retired versions stay
+// readable so old data and in-flight signatures verify.
+func KeyForVersion(ctx context.Context, q Querier, p Provider, keyName string, version int64) ([]byte, error) {
+	if err := validateName("key", keyName); err != nil {
+		return nil, err
+	}
+	if version <= 0 {
+		return nil, fmt.Errorf("secrets: version for %q must be positive", keyName)
+	}
+	ref, err := GetRef(ctx, q, keyName)
+	if err != nil {
+		return nil, err
+	}
+	if ref.Provider != p.Name() {
+		return nil, fmt.Errorf("secrets: reference %q needs provider %q", keyName, ref.Provider)
+	}
+	status, err := versionStatus(ctx, q, keyName, version)
+	if err != nil {
+		return nil, err
+	}
+	if status == VersionRevoked {
+		return nil, fmt.Errorf("secrets: version %d of %q is revoked", version, keyName)
+	}
+	return p.Key(ctx, ref.ProviderRef+"/v"+strconv.FormatInt(version, 10))
 }
 
 // versionStatus loads the status of one key version.
