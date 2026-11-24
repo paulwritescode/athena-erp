@@ -3,7 +3,7 @@
 // Settings, Rules, History) and the full editing behaviour moved unchanged
 // from the old inline form.
 <script setup lang="ts">
-import { computed, nextTick, onMounted, reactive, ref, type ComponentPublicInstance } from 'vue'
+import { computed, nextTick, onMounted, ref, type ComponentPublicInstance } from 'vue'
 import { useMediaQuery } from '@vueuse/core'
 import { ConnectError } from '@connectrpc/connect'
 import { ruleClient } from '@/api'
@@ -18,7 +18,7 @@ import HelpHint from '@/copy/HelpHint.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
-import { snakeKey } from '@/components/record-types/recordTypeKeys'
+import { forgetSavedFields, isNewField, normalizeNewFieldName, trackNewField, updateFieldName } from '@/components/fieldSettings'
 import { Badge } from '@/components/ui/badge'
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb'
 import { Button } from '@/components/ui/button'
@@ -49,8 +49,6 @@ const waiting = computed(() => !edited.value && !unknown.value)
 const tab = ref('fields')
 const isPhone = useMediaQuery('(max-width: 639px)')
 
-const newFields = reactive(new Set<Field>())
-const manuallyNamedFields = new WeakSet<Field>()
 const fieldKeys = new WeakMap<Field, number>()
 let nextFieldKey = 0
 
@@ -63,10 +61,6 @@ function fieldKey(field: Field) {
   return key
 }
 
-function fieldNameFromLabel(label: string, field: Field) {
-  const taken = new Set(props.currentRecordType.fields.filter((item) => item !== field).map((item) => item.name.toLowerCase()))
-  return snakeKey(label, 'field', taken, ['id', 'revision', 'created_at', 'updated_at', 'created_by', 'modified_by', 'owner', 'deleted_at', 'def_version', 'request_id', 'parent_id', 'idx'])
-}
 // The title edits in place (§20): click it, or Rename in the header menu.
 // A blank commit keeps the old name; a rename saves with the next Save.
 const titleEditing = ref(false)
@@ -90,25 +84,11 @@ function commitTitleEdit() {
 function cancelTitleEdit() {
   titleEditing.value = false
 }
-function updateFieldLabel(field: Field, label: string | number) {
-  field.label = String(label)
-  if (newFields.has(field) && !manuallyNamedFields.has(field)) field.name = fieldNameFromLabel(field.label, field)
-}
-
-function updateFieldName(field: Field, name: string | number) {
-  field.name = String(name)
-  manuallyNamedFields.add(field)
-}
-
-function normalizeNewFieldName(field: Field) {
-  if (newFields.has(field)) field.name = fieldNameFromLabel(field.name, field)
-}
-
 function addField() {
   emit('addField')
   void nextTick(() => {
     const field = props.currentRecordType.fields.at(-1)
-    if (field) newFields.add(field)
+    if (field) trackNewField(field)
   })
 }
 
@@ -134,15 +114,6 @@ function chooseKind(kind: Kind) {
 
 // Attributes belong to a type, so switching type drops the ones that no longer
 // apply and fills in the settings Money and Quantity cannot save without.
-function changeType(field: Field) {
-  const keep = new Set(['name', 'label', 'type', 'required', 'unique', 'index', 'read_only', 'set_once', 'no_copy'])
-  for (const key of Object.keys(field)) if (!keep.has(key)) delete (field as Record<string, unknown>)[key]
-  if (field.type === 'Money') { field.currency = 'USD'; field.scale = 2 }
-  if (field.type === 'Quantity') field.uom = 'unit'
-  if (field.type === 'Enum') field.values = [{ value: 'option_1', label: 'Option 1' }]
-  if (field.type === 'Long text' || field.type === 'Checkbox' || field.type === 'Image') { delete field.unique; delete field.index }
-}
-
 // Work documents have no submit step, so the server refuses the combination.
 function chooseClass() {
   if (props.currentRecordType.class === 'work') setSubmittable(false)
@@ -174,17 +145,11 @@ function setAmendable(value: boolean) {
 }
 const settingsField = ref<Field | null>(null)
 const confirmingTypeDelete = ref(false)
-const fieldTypes = ['Text', 'Long text', 'Email', 'Phone', 'Number', 'Currency', 'Money', 'Quantity', 'Date', 'Select', 'Enum', 'Link', 'Checkbox', 'Image']
-
 function save() {
-  for (const field of props.currentRecordType.fields) normalizeNewFieldName(field)
+  for (const field of props.currentRecordType.fields) normalizeNewFieldName(field, props.currentRecordType.fields)
   emit('save', (saved) => {
-    if (saved) for (const field of props.currentRecordType.fields) newFields.delete(field)
+    if (saved) forgetSavedFields(props.currentRecordType.fields)
   })
-}
-
-function isNewField(field: Field) {
-  return newFields.has(field)
 }
 
 // Rules attached to the edited type, for the Rules tab.
@@ -282,7 +247,7 @@ const kindBadge = computed(() => kinds.find((item) => item.value === props.curre
           <FormBuilder :record-type="currentRecordType" />
         </TabsContent>
         <TabsContent value="fields">
-          <div class="overflow-x-auto"><div class="field-table min-w-[540px]"><div class="field-head"><span>Label</span><span>Key</span><span>Type</span><span>Required</span><span></span></div><div v-for="(field, index) in currentRecordType.fields" :key="fieldKey(field)" class="field-row"><span><Input :model-value="field.label" :aria-label="`Field ${index + 1} label`" @update:model-value="updateFieldLabel(field, $event)" /></span><span><Input :model-value="field.name" :readonly="!isNewField(field)" :aria-label="`Field ${index + 1} database name`" @update:model-value="updateFieldName(field, $event)" @blur="normalizeNewFieldName(field)" /></span><span><select v-model="field.type" aria-label="Field type" @change="changeType(field)"><option v-for="type in fieldTypes" :key="type">{{ type }}</option></select></span><span><input v-model="field.required" type="checkbox" :aria-label="`${field.label} required`" /></span><span class="field-actions"><ActionButton kind="quiet" density="inline" icon-only :label="`Settings for ${field.label}`" icon="sliders-horizontal" @press="settingsField = field" /><ActionButton kind="quiet" density="inline" icon-only :label="`Remove ${field.label}`" icon="x" @press="currentRecordType.fields.splice(index, 1)" /></span><div v-if="field.type === 'Link'" class="relationship-editor"><label>Links to<select v-model="field.target_record_type"><option :value="undefined" disabled>Select a Record Type</option><option v-for="target in recordTypes.filter((item) => item.name !== currentRecordType.name)" :key="target.name" :value="target.name">{{ target.label }}</option></select></label></div></div></div></div>
+          <div class="overflow-x-auto"><div class="field-table min-w-[540px]"><div class="field-head"><span>Label</span><span>Key</span><span>Type</span><span>Required</span><span></span></div><div v-for="(field, index) in currentRecordType.fields" :key="fieldKey(field)" class="field-row"><span>{{ field.label || '—' }}</span><span><Input :model-value="field.name" :readonly="!isNewField(field)" :aria-label="`Field ${index + 1} database name`" @update:model-value="updateFieldName(field, $event)" @blur="normalizeNewFieldName(field, currentRecordType.fields)" /></span><span>{{ field.type }}</span><span>{{ field.required ? 'Yes' : '—' }}</span><span class="field-actions"><ActionButton kind="quiet" density="inline" icon-only :label="`Settings for ${field.label}`" icon="sliders-horizontal" @press="settingsField = field" /><ActionButton kind="quiet" density="inline" icon-only :label="`Remove ${field.label}`" icon="x" @press="currentRecordType.fields.splice(index, 1)" /></span></div></div></div>
           <ActionButton kind="quiet" label="Add field" icon="plus" @press="addField" />
         </TabsContent>
         <TabsContent value="settings">
@@ -356,7 +321,7 @@ const kindBadge = computed(() => kinds.find((item) => item.value === props.curre
         danger
         @confirm="confirmingTypeDelete = false; emit('delete', currentRecordType)"
       />
-      <FieldSettingsDialog :field="settingsField" :lifecycle="(currentRecordType.kind === 'document' && currentRecordType.submittable === true) || currentRecordType.kind === 'child'" @close="settingsField = null" />
+      <FieldSettingsDialog :field="settingsField" :lifecycle="(currentRecordType.kind === 'document' && currentRecordType.submittable === true) || currentRecordType.kind === 'child'" :record-types="recordTypes" :current-type-name="currentRecordType.name" @close="settingsField = null" />
     </template>
   </section>
 </template>

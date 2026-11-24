@@ -76,6 +76,18 @@ export const glossary = {
   // View-mode record details.
   history: { label: 'History', explanation: 'Every change to this record, who made it and when.' },
   formVersion: { label: 'Form version', explanation: 'Which version of the form this record was saved with.' },
+  // Fields: the words on the field settings sheet.
+  unique: { label: 'Unique', explanation: 'No two records share a value. A deleted master keeps its value.' },
+  indexed: { label: 'Indexed', explanation: 'The workspace keeps a lookup so finding by this field is faster.' },
+  readOnly: { label: 'Read only', explanation: 'People cannot change the value; only the default sets it.' },
+  setOnce: { label: 'Set once', explanation: 'Cannot change after it has a value.' },
+  noCopy: { label: 'Do not copy', explanation: 'Left empty when a document is amended.' },
+  allowOnSubmit: { label: 'Allow on submit', explanation: 'Still editable after the document is submitted. Every change is audited.' },
+  permissionLevel: { label: 'Permission level', explanation: 'Only people whose access reaches this level see or change the field. Level 0 is everyone.' },
+  fieldFormula: { label: 'Formula', explanation: 'Calculated by the server on every save from the other fields. People cannot edit it.' },
+  fieldPattern: { label: 'Pattern', explanation: 'A regular expression the whole value must match.' },
+  linkTarget: { label: 'Links to', explanation: 'The kind of record this field points to.' },
+  fieldChoices: { label: 'Choices', explanation: 'Fixed options people pick from; a value is permanent once saved.' },
 } satisfies Record<string, GlossaryEntry>
 
 export type GlossaryKey = keyof typeof glossary
