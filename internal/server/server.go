@@ -232,6 +232,7 @@ func mountRPC(mux *http.ServeMux, config Config, db *sql.DB, telemetry bool, int
 	athenav1connect.RegisterLedgerServiceHandler(rpcServer, newLedgerService(db))
 	athenav1connect.RegisterEventServiceHandler(rpcServer, NewEventService(db))
 	athenav1connect.RegisterJobServiceHandler(rpcServer, NewJobService(db))
+	athenav1connect.RegisterListServiceHandler(rpcServer, newListService(filesWorkspace(config), db, hooks, configWorkspaceSlug(config)))
 	connecthttp.Mount(mux, rpcServer)
 }
 

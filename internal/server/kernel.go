@@ -35,6 +35,8 @@ type Kernel struct {
 	// Ledger is the LedgerService handler: masters, posting preview, status,
 	// log and rows.
 	Ledger athenav1connect.LedgerServiceHandler
+	// Lists is the ListService handler: saved lists, runs and PDF export.
+	Lists athenav1connect.ListServiceHandler
 	// Hooks takes Go hooks for the lifecycle events (spec 5.2).
 	Hooks *lifecycle.Registry
 	db    *sql.DB
@@ -77,7 +79,7 @@ func OpenKernel(ctx context.Context, endpoint *workspace.DBEndpoint, svc *Worksp
 	if svc != nil {
 		slug = svc.Slug
 	}
-	return &Kernel{Workspace: newWorkspaceService(svc, db), RecordTypes: recordTypeService{db: db}, Records: recordService{db: db, hooks: hooks, workspace: slug}, System: systemService{db: db}, Auth: authService{auth: users}, Users: users, Files: files, Rules: newRuleService(db), Ledger: newLedgerService(db), Hooks: hooks, db: db}, nil
+	return &Kernel{Workspace: newWorkspaceService(svc, db), RecordTypes: recordTypeService{db: db}, Records: recordService{db: db, hooks: hooks, workspace: slug}, System: systemService{db: db}, Auth: authService{auth: users}, Users: users, Files: files, Rules: newRuleService(db), Ledger: newLedgerService(db), Lists: newListService(svc, db, hooks, slug), Hooks: hooks, db: db}, nil
 }
 
 // Close releases the database connection.
@@ -87,6 +89,9 @@ func (k *Kernel) Close() error {
 	}
 	if w, ok := k.Workspace.(workspaceService); ok && w.files != nil {
 		_ = w.files.Close()
+	}
+	if l, ok := k.Lists.(listService); ok && l.files != nil {
+		_ = l.files.Close()
 	}
 	return k.db.Close()
 }

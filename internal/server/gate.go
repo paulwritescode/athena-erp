@@ -173,6 +173,12 @@ var procedurePolicies = map[string]policy{
 	athenav1connect.JobServiceGetJobProcedure:              {kind: policySystem, permission: auth.PermissionBuild},
 	athenav1connect.JobServiceRetryJobProcedure:            {kind: policySystem, permission: auth.PermissionBuild},
 	athenav1connect.JobServiceListOccurrencesProcedure:     {kind: policySystem, permission: auth.PermissionBuild},
+	athenav1connect.ListServiceSaveListProcedure:           {kind: policySystem, permission: auth.PermissionBuild},
+	athenav1connect.ListServiceGetListProcedure:            {kind: policySession},
+	athenav1connect.ListServiceListListsProcedure:          {kind: policySession},
+	athenav1connect.ListServiceDeleteListProcedure:         {kind: policySystem, permission: auth.PermissionBuild},
+	athenav1connect.ListServiceRunListProcedure:            {kind: policySession},
+	athenav1connect.ListServiceExportListPdfProcedure:      {kind: policySession},
 }
 
 // destructiveProcedures covers deletes, reversals, replacement of executable
@@ -205,6 +211,7 @@ var destructiveProcedures = map[string]bool{
 	athenav1connect.LedgerServiceDiscardSettingValueProcedure:  true,
 	athenav1connect.LedgerServicePublishSettingValueProcedure:  true,
 	athenav1connect.LedgerServiceSetPeriodStatusProcedure:      true,
+	athenav1connect.ListServiceDeleteListProcedure:             true,
 }
 
 // passiveProcedures are background reads the desk makes without the user:
