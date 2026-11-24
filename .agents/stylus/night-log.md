@@ -443,3 +443,22 @@
 - 08:45 TICK: C5s2 ~14m in, KEEP r-c7s2
 - 08:50 w-f2 slice 2 browser PASS (Records E2E, 4 shots, 0 errors); committed 8b09cfe, final affected running
 - 08:52 MERGED C5s2 (929d3dd, 1124s gate) + server t60 healthy
+- 08:53 C7s2 FIX PASS (325cca0, all 4 + 3 nits); r-c7s2 re-reviewing at fix tip
+- 08:53 C7 slice 3 PASS (110d9d8); w-c7 -> slice 4; s3 review waits for free slot; f6-r empty corpse removed; LESSON: absolute paths for worktrees (cwd drift broke git -C)
+- 08:54 f6-r held only my .env.local seed; removed
+- 08:55 TICK: w-f7 running, r-c7s2 re-review gating, C7s3 brief ready
+- 08:57 F7 slice 1 PASS (4be81da); w-f7 -> slice 2 (doctor); backups ruled dynamic-correct (D4 owns the command)
+- 08:58 w-f7 slice 2 started (doctor, 5 checks + json + leak test)
+- 08:58 w-c7 slice 4 committed (1034daa, Property 21 100/100); affected next
+- 09:05 TICK: r-f2s1 ~9m in; w-c1 C5s4 committed (s2 dropped)
+- 09:06 w-f7 slice 2 committed (15925e5, doctor, 8 tests); affected queued
+- 09:15 TICK: r-f2s1 ~19m in, all queued correctly
+- 09:19 F2s1 REVIEW PASS; CLOSED r-f2s1; staged 22e0593 + gate queued; SPAWNED r-c7s3
+- 09:21 disk 14GB (go clean -cache 7.5GB + 2 dead trees); SPAWNED r-c7s3
+- 09:23 C2s1 REVIEW PASS; CLOSED r-c2s1; staged 0f855ed + gate queued; SPAWNED r-f7s1
+- 09:25 TICK: F2s1 ~4m in, C2s1 queued, 4/4 reviewing
+- 09:28 w-c7 slice-4 gate queued 30m+ (slot busy); tip unchanged
+- 09:31 C7s3 REVIEW PASS; CLOSED r-c7s3; merges after s2+fix (dependency)
+- 09:35 TICK: F2s1 ~14m in, 3/4 reviewers live
+- 09:35 ACK Stylus: C7s3 listed as PASS-blocked-on-s2; train order (s2fix+s3, one gate) on r-c7s2 PASS
+- 09:41 MERGED F2s1 (57e04c4, 1151s gate) + server t63 healthy

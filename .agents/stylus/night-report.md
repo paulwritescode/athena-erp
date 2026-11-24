@@ -1,4 +1,4 @@
-# Stylus night report — night shift, 2026-11-24 (main 929d3dd)
+# Stylus night report — night shift, 2026-11-24 (main 57e04c4)
 
 ## Summary
 
@@ -21,12 +21,13 @@ Shift 3 + night shift have merged 48 code commits plus docs batches: train1, tra
 - **F1 tables** (`16cea19` → `6ecf06d`, 3 commits): footer count, right actions, explicit padding/left cells/select symmetry; browser 15/15 + 8/8 shots; DISJOINT from 6.10. Review PASS. Merge gate 424s (server re-ran fresh 411s DB-backed, 636 web).
 - **F6 logo** (`2954bce` → `bcd2913`, 4 commits): generator + frames, draw-in on 4 surfaces, CLI banner; 32/32 shots, 23/23 art tests. Review PASS after one NEEDS_CHANGES (step-ms, fixed). Merge gate 507s (server fresh 489s, 646 web).
 - **C5 slice 2** (`6c871c9` → `929d3dd`, 1 commit): settlement open items + applications (locks, ceiling, unapplied cash). Review PASS. Merge gate 1124s (17 Go ok, 646 web).
+- **F2 slice 1** (`3e1bc9d` → `57e04c4`, 1 commit): server free-text match on ListRecords (hidden-safe, paged, escaped). Review PASS (disjoint-rule carry). Merge gate 1151s (17 Go ok, 646 web).
 
 ## In progress (by lane, main 72caec6)
 
 - **L1 Books and posting:** w-c1 on C5 slice 2 (settlement.go, gating); C1 slice 7 (Z2 policy) briefed, queued after C5s2, C1 ticks on its merge.
 - **L2 Jobs, events, integration:** 21 landed — w-c2 adding migration 22 + gating secrets slice 1. C10 after secrets.
-- **L3 Masters and Packs:** C7 slice 2 in review (r-c7s2, delta-only on rebased a69d8b3); w-c7 on slice 3; slice 11 lifecycle wiring briefed (after slice-2 merge).
+- **L3 Masters and Packs:** C7 slice 2 + fix in re-review (r-c7s2 at fix tip 325cca0); slice 3 REVIEW PASS (merges after slice 2); w-c7 on slice 4 (Property 21 committed, gating); slice 11 wiring briefed.
 - **L4 Desk, first run, access:** F1 MERGED; w-f2 starting F2 type-to-filter (server free-text match + Desk search; Advanced-filter via F4 deferred).
 - **L5 Quality:** w-fu on F4 slice 1 (design committed 8651183; maroto v2.4.4 conditionally cleared with licence/size diligence; migration-23 DB gates held for 22).
 - **L6 Night asks:** F6 NEEDS_CHANGES (one-line step-ms) fixed, r-f6 re-reviewing; w-f7 on F7 slice 1 (gating). F8 waits for the tap-owner answer.
