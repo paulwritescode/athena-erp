@@ -134,7 +134,9 @@ func TestSystemMigrationsAreValid(t *testing.T) {
 // migration 17 and checks the row survives with its id, event type and
 // payload intact, the dispatch columns default to pending, and the new
 // events, inbox, subscription, job, occurrence, workflow and task tables
-// exist with no secret or disposal tables.
+// exist with no secret or disposal tables (Z4 still open at 17). It then
+// upgrades fully and checks the secret, key-version, disposal and hold
+// tables exist (Z4 decided 2026-11-24, migration 22).
 func TestEventsJobsWorkflowsMigrationExtendsTheOutbox(t *testing.T) {
 	ctx := context.Background()
 	db := testdb.New(t)
@@ -145,7 +147,7 @@ func TestEventsJobsWorkflowsMigrationExtendsTheOutbox(t *testing.T) {
 	if _, err := db.ExecContext(ctx, `INSERT INTO athena_outbox (id, event_type, payload) VALUES (?, 'posting.posted', '{"row_count":2}')`, rowID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Up(ctx, db, dialect, SystemMigrations(), store.UpOptions{}); err != nil {
+	if _, err := store.Up(ctx, db, dialect, SystemMigrations(), store.UpOptions{Target: 17}); err != nil {
 		t.Fatal(err)
 	}
 	var id, eventType, payload, status string
@@ -167,13 +169,22 @@ func TestEventsJobsWorkflowsMigrationExtendsTheOutbox(t *testing.T) {
 			t.Errorf("table %s missing after migration 17: %v", table, err)
 		}
 	}
-	for _, table := range []string{"athena_secret_refs", "athena_disposal_register", "athena_holds"} {
+	for _, table := range []string{"athena_secret_refs", "athena_key_versions", "athena_disposal_register", "athena_holds"} {
 		var count int
 		if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ?`, table).Scan(&count); err != nil {
 			t.Fatal(err)
 		}
 		if count != 0 {
-			t.Errorf("table %s exists, want it deferred until Z4 rules on retention and custody", table)
+			t.Errorf("table %s exists at migration 17, want it deferred until Z4 rules on retention and custody", table)
+		}
+	}
+	if _, err := store.Up(ctx, db, dialect, SystemMigrations(), store.UpOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	for _, table := range []string{"athena_secret_refs", "athena_key_versions", "athena_disposal_register", "athena_holds"} {
+		var name string
+		if err := db.QueryRowContext(ctx, `SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ?`, table).Scan(&name); err != nil {
+			t.Errorf("table %s missing after migration 22: %v", table, err)
 		}
 	}
 }
@@ -642,6 +653,79 @@ func TestStockLedgerMigrationCreatesTheStockTables(t *testing.T) {
 		var name string
 		if err := db.QueryRowContext(ctx, `SELECT index_name FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = ? AND index_name = ? LIMIT 1`, table, key).Scan(&name); err != nil {
 			t.Errorf("unique key %s on %s missing after migration 21: %v", key, table, err)
+		}
+	}
+}
+
+// TestSecretsRetentionMigrationCreatesTheSecretsTables upgrades a database
+// left at migration 21 to the latest and checks migration 22 creates the
+// secret-reference, key-version, disposal-register and hold tables with
+// their columns and unique keys, and seeds nothing.
+func TestSecretsRetentionMigrationCreatesTheSecretsTables(t *testing.T) {
+	ctx := context.Background()
+	db := testdb.New(t)
+	if _, err := store.Up(ctx, db, dialect, SystemMigrations(), store.UpOptions{Target: 21}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Up(ctx, db, dialect, SystemMigrations(), store.UpOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	tables := map[string][]string{
+		"athena_secret_refs": {
+			"id", "name", "provider", "provider_ref",
+			"created_at", "updated_at",
+		},
+		"athena_key_versions": {
+			"id", "key_name", "version", "status", "created_at",
+		},
+		"athena_disposal_register": {
+			"id", "record_type", "record_id", "action", "outcome",
+			"detail", "actor", "created_at",
+		},
+		"athena_holds": {
+			"id", "record_type", "record_id", "reason", "placed_by",
+			"released_at", "created_at",
+		},
+	}
+	for table, columns := range tables {
+		rows, err := db.QueryContext(ctx, `SELECT column_name FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ?`, table)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := map[string]bool{}
+		for rows.Next() {
+			var column string
+			if err := rows.Scan(&column); err != nil {
+				rows.Close()
+				t.Fatal(err)
+			}
+			got[column] = true
+		}
+		rows.Close()
+		if len(got) == 0 {
+			t.Errorf("table %s missing after migration 22", table)
+			continue
+		}
+		for _, column := range columns {
+			if !got[column] {
+				t.Errorf("table %s misses column %s after migration 22", table, column)
+			}
+		}
+		var count int
+		if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM `+table).Scan(&count); err != nil {
+			t.Fatal(err)
+		}
+		if count != 0 {
+			t.Errorf("table %s holds %d rows, want it empty: migration 22 seeds nothing", table, count)
+		}
+	}
+	for table, key := range map[string]string{
+		"athena_secret_refs":  "uq_secret_refs_name",
+		"athena_key_versions": "uq_key_versions_name_version",
+	} {
+		var name string
+		if err := db.QueryRowContext(ctx, `SELECT index_name FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = ? AND index_name = ? LIMIT 1`, table, key).Scan(&name); err != nil {
+			t.Errorf("unique key %s on %s missing after migration 22: %v", key, table, err)
 		}
 	}
 }

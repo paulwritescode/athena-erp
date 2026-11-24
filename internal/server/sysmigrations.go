@@ -971,6 +971,52 @@ func SystemMigrations() []store.Migration {
 				KEY idx_stock_rebuilds_state (company_name, book, state)
 			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 		)},
+		// Secrets and retention (ADR-0033, Z4 decided 2026-11-24):
+		// references (never values), key versions for rotation, the
+		// disposal register and holds. Nothing is seeded: references,
+		// versions, register rows and holds are Workspace data written
+		// by the secrets service (8.8/8.9) and the disposal job (8.10)
+		// only. Key material never lands in these tables.
+		{Version: 22, Name: "secrets_retention", Up: execAll(
+			`CREATE TABLE IF NOT EXISTS athena_secret_refs (
+				id CHAR(36) NOT NULL PRIMARY KEY,
+				name VARCHAR(140) NOT NULL,
+				provider VARCHAR(40) NOT NULL,
+				provider_ref VARCHAR(600) NOT NULL,
+				created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+				UNIQUE KEY uq_secret_refs_name (name)
+			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+			`CREATE TABLE IF NOT EXISTS athena_key_versions (
+				id CHAR(36) NOT NULL PRIMARY KEY,
+				key_name VARCHAR(140) NOT NULL,
+				version BIGINT NOT NULL,
+				status VARCHAR(20) NOT NULL DEFAULT 'active',
+				created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				UNIQUE KEY uq_key_versions_name_version (key_name, version)
+			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+			`CREATE TABLE IF NOT EXISTS athena_disposal_register (
+				id CHAR(36) NOT NULL PRIMARY KEY,
+				record_type VARCHAR(140) NOT NULL,
+				record_id CHAR(36) NOT NULL,
+				action VARCHAR(40) NOT NULL,
+				outcome VARCHAR(20) NOT NULL,
+				detail VARCHAR(600) NOT NULL DEFAULT '',
+				actor VARCHAR(255) NOT NULL DEFAULT '',
+				created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				KEY idx_disposal_register_record (record_type, record_id)
+			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+			`CREATE TABLE IF NOT EXISTS athena_holds (
+				id CHAR(36) NOT NULL PRIMARY KEY,
+				record_type VARCHAR(140) NOT NULL,
+				record_id CHAR(36) NOT NULL,
+				reason VARCHAR(600) NOT NULL DEFAULT '',
+				placed_by VARCHAR(255) NOT NULL DEFAULT '',
+				released_at TIMESTAMP NULL,
+				created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				KEY idx_holds_record (record_type, record_id)
+			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+		)},
 	}
 }
 
