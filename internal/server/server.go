@@ -85,7 +85,7 @@ func Serve(ctx context.Context, config Config) error {
 			driverName = "PostgreSQL"
 			dbAttrs = otelsql.WithAttributes(semconv.DBSystemNamePostgreSQL)
 		}
-		connector, err := endpointConnector(endpoint)
+		connector, err := EndpointConnector(endpoint)
 		if err != nil {
 			return err
 		}
@@ -244,10 +244,11 @@ func dialectFor(driver string) store.Dialect {
 	return store.MariaDB{}
 }
 
-// endpointConnector returns a database/sql connector for the endpoint,
+// EndpointConnector returns a database/sql connector for the endpoint,
 // pinning the MariaDB session to UTC. The PostgreSQL branch pins its session
-// at parse time (timezone=UTC in the connection config).
-func endpointConnector(endpoint *workspace.DBEndpoint) (driver.Connector, error) {
+// at parse time (timezone=UTC in the connection config). Exported for the
+// CLI ledger service, which opens the same endpoint outside the server.
+func EndpointConnector(endpoint *workspace.DBEndpoint) (driver.Connector, error) {
 	if endpoint.Driver == workspace.DriverPostgres {
 		connector, err := endpoint.Connector()
 		if err != nil {

@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"athena-erp/internal/ledger"
+	"athena-erp/internal/server"
 	"athena-erp/internal/store"
 	"athena-erp/internal/types"
 	"athena-erp/internal/workspace"
@@ -175,7 +176,9 @@ func ledgerService(slug string) (*ledger.Service, context.Context, context.Cance
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	connector, err := endpoint.Connector()
+	// The UTC connector, as the server opens it: driver defaults leave
+	// DATE columns unscannable on workspace DSNs without parseTime.
+	connector, err := server.EndpointConnector(endpoint)
 	if err != nil {
 		return nil, nil, nil, err
 	}

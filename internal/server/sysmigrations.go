@@ -1203,7 +1203,7 @@ func openMigrationDB(ctx context.Context, endpoint *workspace.DBEndpoint, svc *W
 	if endpoint.Driver == workspace.DriverPostgres {
 		driverName = "PostgreSQL"
 	}
-	connector, err := endpointConnector(endpoint)
+	connector, err := EndpointConnector(endpoint)
 	if err != nil {
 		return nil, err
 	}
