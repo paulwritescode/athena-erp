@@ -42,13 +42,13 @@ const siblings = computed(() => props.recordTypes.find((item) => item.name === p
 
 // The four boolean conditions each offer the F4 builder beside a written
 // input, like the Rules page modes. The field holds the stored
-// expression; the builder compiles live into it, and an empty or
-// unfinished builder stores nothing. Written text is kept while the
-// builder is open: leaving Written with text the tree cannot show drops
-// the stale tree, and coming back with an empty builder restores the
-// kept text — so a peek never loses it. A finished build supersedes the
-// kept text. The formula stays written-only: the builder emits
-// true-or-false conditions, which a formula cannot hold.
+// expression; the builder compiles live into it. Written text stays
+// stored while the builder is open: leaving Written with text the tree
+// cannot show drops the stale tree but keeps the field, so a peek —
+// even one ended by closing the sheet — never loses it. A finished
+// build supersedes the kept text, and an empty builder with nothing
+// kept clears the field. The formula stays written-only: the builder
+// emits true-or-false conditions, which a formula cannot hold.
 const conditionInputs = [
   { name: 'required_if', label: 'Required when', id: 'fs-required-if', placeholder: 'doc.is_credit', help: 'Must be filled in while this is true.' },
   { name: 'read_only_if', label: 'Read only when', id: 'fs-read-only-if', placeholder: 'doc.paid', help: 'Cannot be changed while this is true.' },
@@ -77,8 +77,11 @@ function mirrorCondition(name: ConditionName) {
   if (!props.field) return
   const compiled = compiledTree(name)
   if (condMode[name] === 'builder') {
-    if (compiled === '') delete props.field[name]
-    else props.field[name] = compiled
+    if (compiled !== '') props.field[name] = compiled
+    // An empty builder never drops written text: peeking at the builder
+    // (or closing the sheet mid-peek) keeps the stored expression. Only a
+    // genuinely empty condition — nothing built, nothing kept — clears it.
+    else if ((condTexts[name] ?? '').trim() === '') delete props.field[name]
   } else if (compiled === '') {
     setExpression(name, condTexts[name] ?? '')
   } else {
@@ -358,7 +361,7 @@ function onOpenChange(open: boolean) {
               <Input v-else :id="input.id" :model-value="field[input.name] ?? ''" class="font-mono" :placeholder="input.placeholder" spellcheck="false" autocomplete="off" autocapitalize="off" :aria-invalid="expressionProblem(input.name) ? 'true' : undefined" @update:model-value="setConditionText(input.name, $event)" />
               <p v-if="condMode[input.name] === 'text' && expressionProblem(input.name)" class="field-error">{{ expressionProblem(input.name) }}</p>
               <p v-else class="settings-note">{{ input.help }}</p>
-              <p v-if="condMode[input.name] === 'builder' && keptText(input.name)" class="settings-note">A written version is kept — switch back to Written to keep it.</p>
+              <p v-if="condMode[input.name] === 'builder' && keptText(input.name)" class="settings-note">A written version is stored — switch back to Written to see it.</p>
             </div>
           </div>
         </CollapsibleContent>

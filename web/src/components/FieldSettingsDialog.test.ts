@@ -283,13 +283,29 @@ describe('field settings sheet', () => {
     await switchEditor('required_if', 'Written')
     expect((document.querySelector('#fs-required-if') as HTMLInputElement).value).toBe(`doc.qty == dec('2')`)
     expect(state.required_if).toBe(`doc.qty == dec('2')`)
-    // Written text survives a builder peek untouched.
+    // Written text survives a builder peek untouched — the peek itself
+    // must not delete the stored expression.
     await setInput(document.querySelector('#fs-required-if') as HTMLInputElement, 'doc.paid')
     expect(state.required_if).toBe('doc.paid')
     await switchEditor('required_if', 'Builder')
-    expect(conditionBlock('required_if').textContent).toContain('A written version is kept')
+    expect(state.required_if).toBe('doc.paid')
+    expect(conditionBlock('required_if').textContent).toContain('A written version is stored')
     await switchEditor('required_if', 'Written')
     expect((document.querySelector('#fs-required-if') as HTMLInputElement).value).toBe('doc.paid')
+    expect(state.required_if).toBe('doc.paid')
+  })
+
+  it('keeps the stored expression when the sheet closes mid-peek', async () => {
+    stubMatchMedia(false)
+    const { state, closed } = await mountSheet(testField({ name: 'qty', label: 'Qty', type: 'Number', required_if: 'doc.paid' }), { currentTypeName: 'line' })
+    click(sectionTrigger('Rules for this field'))
+    await flush()
+    await switchEditor('required_if', 'Builder')
+    expect(state.required_if).toBe('doc.paid')
+    const done = [...document.querySelectorAll('button')].find((button) => button.textContent === 'Done') as HTMLElement
+    click(done)
+    await flush()
+    expect(closed).toEqual(['close'])
     expect(state.required_if).toBe('doc.paid')
   })
 
@@ -304,6 +320,7 @@ describe('field settings sheet', () => {
     await switchEditor('required_if', 'Builder')
     await flush()
     expect(conditionBlock('required_if').querySelector('[data-testid="condition-builder"]')).not.toBeNull()
+    expect(state.required_if).toBe('doc.paid')
     await switchEditor('required_if', 'Written')
     expect(state.required_if).toBe('doc.paid')
     // Build one condition, then remove it: the attribute clears.
