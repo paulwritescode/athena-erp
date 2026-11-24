@@ -1,18 +1,22 @@
 // Settlement keeps the party subledger behind control accounts (batch-2 G7,
 // ADR-0031, Proposed): open items per instalment, line-level settlement
-// applications, both-residual locks with an aggregate ceiling, and unapplied
-// cash kept separate from open items. The SettlementService is the only
-// writer of l_party, athena_party_items and athena_settlement_applications.
+// applications, both-residual locks with an aggregate ceiling, unapplied
+// cash kept separate from open items, realised foreign-exchange gains and
+// losses posted as plans through the G6 engine, and mirror reversals that
+// land in the current period. The SettlementService is the only writer of
+// l_party, athena_party_items and athena_settlement_applications.
 //
-// One Apply covers one company, book, party, control account and side in one
-// currency: the payment, every item and the company base must match. The
-// amounts on an application and a party row are therefore equal in 7.2; the
-// columns already exist for the divergent currencies of 7.4, which converts
-// through exchange rates and posts realised gain or loss through the G6
-// engine. Reversal mirrors and the control-account source existence check
-// also arrive in 7.4. This file posts nothing to l_gl: the payment voucher's
-// own posting Rule owns its general-ledger legs, and Apply takes the G6
-// posting group id from its caller to link the subledger rows to them.
+// One Apply covers one company, book, party, control account and side, with
+// the payment in the items' currency; items may be foreign to the company
+// base, and the base amounts convert through exchange rates. The payment
+// voucher's own posting Rule owns its general-ledger legs; the service
+// posts only the realised FX top-up, under its own voucher identity so the
+// group keys never collide with the payment's own post.
+//
+// Periods follow the decided Z2 policy (ADR-0023, O-011/O-012): subledger
+// rows land in open periods, or in soft-closed periods with close authority;
+// hard-closed periods refuse everything; corrections land in the current
+// period as reversals, never edits and never backdated.
 package posting
 
 import (
@@ -23,6 +27,7 @@ import (
 	"math/big"
 	"sort"
 	"strings"
+	"time"
 
 	"athena-erp/internal/ledger"
 	"athena-erp/internal/store"
@@ -54,7 +59,41 @@ var (
 	// ErrAlreadyApplied reports a settlement line already applied to its
 	// item: the unique application key refuses the replay.
 	ErrAlreadyApplied = errors.New("posting: the settlement line is already applied to the item")
+	// ErrAlreadyReversed reports a settlement with no unreversed
+	// application left: every line already has its cancel mirror.
+	ErrAlreadyReversed = errors.New("posting: the settlement is already reversed")
 )
+
+// FXVoucherType is the voucher identity realised-FX plans post under. The
+// gain or loss belongs to the settlement economically, but posting it under
+// the payment's own (voucher, revision, submit, book) key would collide
+// with the payment's own general-ledger group and silently replay instead
+// of posting. The fx_settlement identity (with the settlement's voucher id
+// and revision) keeps its own submit and cancel groups, so the engine's
+// replay and reverse paths work on it unchanged.
+const FXVoucherType = "fx_settlement"
+
+// FXConfig carries what a foreign-currency settlement needs beyond the
+// request: the exchange-rate type (and optional source, empty for the
+// all-sources-agree lookup) and the resolved gain and loss accounts. A nil
+// config means a base-currency settlement: any foreign item refuses. The
+// caller resolves the accounts (determinations live workspace-side); the
+// service only checks they are named and lets the engine validate them.
+type FXConfig struct {
+	RateType    string
+	RateSource  string
+	GainAccount string
+	LossAccount string
+}
+
+// CloseAuthority asserts the caller may post an adjustment into a
+// soft-closed period: the service layer verified the ledger:close grant and
+// passes the reason through. Settlement records nothing itself; the server
+// writes the audit row with its full identity beside the call.
+type CloseAuthority struct {
+	Allowed bool
+	Reason  string
+}
 
 // SettlementService applies payments to open items. DB is the workspace
 // database; Dialect classifies unique-key collisions into ErrItemExists and
@@ -83,7 +122,9 @@ type NewItem struct {
 	Amount         types.Decimal
 }
 
-// Item is one stored open-item row.
+// Item is one stored open-item row. CreatedAt is the booking instant items
+// are recorded at invoice submit; realised FX reads the invoice rate in
+// force then.
 type Item struct {
 	ID             string
 	Company        string
@@ -102,6 +143,7 @@ type Item struct {
 	Residual       types.Decimal
 	Status         string
 	Revision       int64
+	CreatedAt      time.Time
 }
 
 // LineItem names one application target of a settlement line. A zero Amount
@@ -122,9 +164,12 @@ type SettleLine struct {
 }
 
 // SettleRequest applies one settlement voucher to open items. The event is
-// always submit here; cancel mirrors arrive in 7.4. PostingGroupID is the
-// G6 group the caller posted the settlement under, linking the subledger
-// rows to the general-ledger legs.
+// always submit here; Reverse owns cancel. PostingGroupID is the G6 group
+// the caller posted the settlement under, linking the subledger rows to the
+// general-ledger legs. Actor and Source identify the engine call behind a
+// realised-FX post. FX carries the rate type and gain/loss accounts when
+// items are foreign to the base; nil means a base-currency settlement.
+// Authority asserts close authority for a soft-closed posting date.
 type SettleRequest struct {
 	Company         string
 	Book            string
@@ -139,12 +184,18 @@ type SettleRequest struct {
 	PostingDate     string // YYYY-MM-DD
 	PostingGroupID  string
 	PaymentCurrency string
+	Actor           string
+	Source          string // api, cli, rule, import or job
+	RequestID       string
+	FX              *FXConfig
+	Authority       *CloseAuthority
 	Lines           []SettleLine
 }
 
-// Application is one written settlement edge between a line and an item.
-// The three amounts agree in 7.2 (one currency); 7.4 fills divergent
-// payment, item and base amounts through exchange rates.
+// Application is one written settlement edge between a line and an item:
+// the payment-currency share, the item-currency share (equal in 7.4: one
+// settlement covers one transaction currency) and the base value at the
+// settlement rate.
 type Application struct {
 	ID            string
 	LineNo        int
@@ -155,20 +206,25 @@ type Application struct {
 }
 
 // UnappliedCash is one line's remainder that matched no residual, recorded
-// as an l_party row with no item rather than forced onto an item.
+// as an l_party row with no item rather than forced onto an item. Amount is
+// the payment-currency remainder; BaseAmount its value at the settlement
+// rate.
 type UnappliedCash struct {
 	LineNo     int
 	Amount     types.Decimal
+	BaseAmount types.Decimal
 	PartyRowID string
 }
 
 // ApplyResult is one committed Apply. Per line, the applications plus the
 // unapplied remainder sum exactly to the line amount (R7.3); Items holds
-// every touched item at its post-state.
+// every touched item at its post-state; FXGroupID is the realised-FX engine
+// group, empty when the settlement carried no gain or loss.
 type ApplyResult struct {
 	Applications []Application
 	Unapplied    []UnappliedCash
 	Items        []Item
+	FXGroupID    string
 }
 
 // CreateItemsInTx records open items inside the caller's transaction. Each
@@ -278,7 +334,7 @@ func (s *SettlementService) isDuplicate(err error) bool {
 func (s *SettlementService) ListOpenItems(ctx context.Context, q ledger.DB, company, book, partyType, partyID string) ([]Item, error) {
 	rows, err := q.QueryContext(ctx, `SELECT id, company_name, book, party_type, party_id, control_account_name,
 		source_voucher_type, source_voucher_id, source_voucher_revision, instalment_no, due_date,
-		currency, side, original_amount, residual_amount, status, revision
+		currency, side, original_amount, residual_amount, status, revision, created_at
 		FROM athena_party_items
 		WHERE company_name = ? AND book = ? AND party_type = ? AND party_id = ? AND status = ?
 		ORDER BY id`, company, book, partyType, partyID, ItemOpen)
@@ -308,7 +364,7 @@ func scanItem(rows itemRows) (Item, error) {
 	if err := rows.Scan(&item.ID, &item.Company, &item.Book, &item.PartyType, &item.PartyID,
 		&item.ControlAccount, &item.SourceType, &item.SourceID, &item.SourceRevision,
 		&item.InstalmentNo, &due, &item.Currency, &item.Side, &original, &residual,
-		&item.Status, &item.Revision); err != nil {
+		&item.Status, &item.Revision, &item.CreatedAt); err != nil {
 		return Item{}, err
 	}
 	if due.Valid {
@@ -324,38 +380,49 @@ func scanItem(rows itemRows) (Item, error) {
 	return item, nil
 }
 
-// applyAttempts bounds Apply's retries after transient lock failures.
-const applyAttempts = 3
+// txAttempts bounds settlement retries after transient lock failures.
+const txAttempts = 3
 
 // Apply settles a payment inside its own transaction at READ COMMITTED, so
 // locking reads see the latest committed residuals, and retries transient
 // locking failures (deadlock, or a row changed under a locking read after a
 // concurrent commit): both clear when the transaction runs again.
 func (s *SettlementService) Apply(ctx context.Context, req SettleRequest) (ApplyResult, error) {
-	var result ApplyResult
-	var err error
-	for attempt := 0; attempt < applyAttempts; attempt++ {
-		if result, err = s.applyOnce(ctx, req); err == nil || !isLockRetryable(s.Dialect, err) {
-			return result, err
-		}
-	}
-	return ApplyResult{}, err
+	return runTx(ctx, s.DB, s.Dialect, func(tx *sql.Tx) (ApplyResult, error) {
+		return s.ApplyInTx(ctx, tx, req)
+	})
 }
 
-func (s *SettlementService) applyOnce(ctx context.Context, req SettleRequest) (ApplyResult, error) {
-	tx, err := s.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
-	if err != nil {
-		return ApplyResult{}, err
+// runTx runs fn in one READ COMMITTED transaction, retrying transient
+// locking failures. A failed attempt rolls back whole before the next run.
+func runTx[T any](ctx context.Context, db *sql.DB, dialect store.Dialect, fn func(tx *sql.Tx) (T, error)) (T, error) {
+	var zero T
+	var err error
+	for attempt := 0; attempt < txAttempts; attempt++ {
+		var tx *sql.Tx
+		tx, err = db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
+		if err != nil {
+			return zero, err
+		}
+		var result T
+		result, err = fn(tx)
+		if err != nil {
+			tx.Rollback()
+			if !isLockRetryable(dialect, err) {
+				return zero, err
+			}
+			continue
+		}
+		if err = tx.Commit(); err != nil {
+			tx.Rollback()
+			if !isLockRetryable(dialect, err) {
+				return zero, err
+			}
+			continue
+		}
+		return result, nil
 	}
-	defer tx.Rollback()
-	result, err := s.ApplyInTx(ctx, tx, req)
-	if err != nil {
-		return ApplyResult{}, err
-	}
-	if err := tx.Commit(); err != nil {
-		return ApplyResult{}, err
-	}
-	return result, nil
+	return zero, err
 }
 
 // isLockRetryable reports a transient locking failure: a deadlock, or
@@ -391,10 +458,14 @@ func (s *SettlementService) ApplyInTx(ctx context.Context, tx *sql.Tx, req Settl
 	if err != nil {
 		return ApplyResult{}, err
 	}
-	if req.PaymentCurrency != company.BaseCurrency {
-		return ApplyResult{}, fmt.Errorf("%w: payment currency %s is not the company base %s; one settlement covers the base currency", ErrInvalid, req.PaymentCurrency, company.BaseCurrency)
+	if err := checkControlAccount(ctx, masters, req.ControlAccount); err != nil {
+		return ApplyResult{}, err
 	}
-	locked, err := lockItems(ctx, tx, req)
+	period, err := checkPostingPeriod(ctx, masters, req.Company, req.Book, req.PostingDate, req.Authority, false)
+	if err != nil {
+		return ApplyResult{}, err
+	}
+	locked, err := lockItems(ctx, tx, req.Company, req.Book, req.PartyType, req.PartyID, req.ControlAccount, req.Side, req.PaymentCurrency, lockRequestItems(req), true)
 	if err != nil {
 		return ApplyResult{}, err
 	}
@@ -426,6 +497,10 @@ func (s *SettlementService) ApplyInTx(ctx context.Context, tx *sql.Tx, req Settl
 			result.Unapplied = append(result.Unapplied, UnappliedCash{LineNo: line.LineNo, Amount: unapplied})
 		}
 	}
+	gains, err := priceFX(ctx, masters, req, &result, running, company.BaseCurrency)
+	if err != nil {
+		return ApplyResult{}, err
+	}
 	if err := insertApplications(ctx, tx, s, req, result.Applications); err != nil {
 		return ApplyResult{}, err
 	}
@@ -433,6 +508,9 @@ func (s *SettlementService) ApplyInTx(ctx context.Context, tx *sql.Tx, req Settl
 		return ApplyResult{}, err
 	}
 	if err := updateResiduals(ctx, tx, running, touched); err != nil {
+		return ApplyResult{}, err
+	}
+	if result.FXGroupID, err = s.postFX(ctx, tx, req, result.Applications, gains, period.Status); err != nil {
 		return ApplyResult{}, err
 	}
 	for id := range touched {
@@ -447,10 +525,19 @@ func checkSettleRequest(req SettleRequest) error {
 		"company": req.Company, "book": req.Book, "party type": req.PartyType,
 		"party id": req.PartyID, "control account": req.ControlAccount,
 		"voucher type": req.VoucherType, "voucher id": req.VoucherID,
-		"posting group id": req.PostingGroupID,
+		"posting group id": req.PostingGroupID, "actor": req.Actor, "source": req.Source,
 	} {
 		if value == "" {
 			return fmt.Errorf("%w: a settlement must name its %s", ErrInvalid, name)
+		}
+	}
+	if req.FX != nil {
+		for name, value := range map[string]string{
+			"rate type": req.FX.RateType, "gain account": req.FX.GainAccount, "loss account": req.FX.LossAccount,
+		} {
+			if value == "" {
+				return fmt.Errorf("%w: foreign-currency settlement must name its %s", ErrInvalid, name)
+			}
 		}
 	}
 	if req.Side != ItemSideDebit && req.Side != ItemSideCredit {
@@ -507,21 +594,13 @@ func checkSettleRequest(req SettleRequest) error {
 	return nil
 }
 
-// lockItems reads every item the request names with a write lock, in id
-// order so concurrent settlements cannot deadlock. Each item must belong to
-// the request's company, book, party, control account, side and currency,
-// and must still be open.
-func lockItems(ctx context.Context, tx *sql.Tx, req SettleRequest) (map[string]Item, error) {
-	ids := map[string]bool{}
-	for i := range req.Lines {
-		for _, target := range req.Lines[i].Items {
-			ids[target.ItemID] = true
-		}
-	}
-	ordered := make([]string, 0, len(ids))
-	for id := range ids {
-		ordered = append(ordered, id)
-	}
+// lockItems reads every named item with a write lock, in id order so
+// concurrent settlements cannot deadlock. Each item must belong to the
+// given company, book, party, control account, side and currency. requireOpen
+// refuses settled rows; reversals pass false because restoring settles in
+// reverse.
+func lockItems(ctx context.Context, tx *sql.Tx, company, book, partyType, partyID, controlAccount, side, currency string, ids []string, requireOpen bool) (map[string]Item, error) {
+	ordered := append([]string(nil), ids...)
 	sort.Strings(ordered)
 	locked := make(map[string]Item, len(ordered))
 	for _, id := range ordered {
@@ -530,12 +609,12 @@ func lockItems(ctx context.Context, tx *sql.Tx, req SettleRequest) (map[string]I
 		var original, residual string
 		err := tx.QueryRowContext(ctx, `SELECT id, company_name, book, party_type, party_id, control_account_name,
 			source_voucher_type, source_voucher_id, source_voucher_revision, instalment_no, due_date,
-			currency, side, original_amount, residual_amount, status, revision
+			currency, side, original_amount, residual_amount, status, revision, created_at
 			FROM athena_party_items WHERE id = ? FOR UPDATE`, id).Scan(
 			&item.ID, &item.Company, &item.Book, &item.PartyType, &item.PartyID,
 			&item.ControlAccount, &item.SourceType, &item.SourceID, &item.SourceRevision,
 			&item.InstalmentNo, &due, &item.Currency, &item.Side, &original, &residual,
-			&item.Status, &item.Revision)
+			&item.Status, &item.Revision, &item.CreatedAt)
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("%w: item %s does not exist", ErrInvalid, id)
 		}
@@ -552,22 +631,90 @@ func lockItems(ctx context.Context, tx *sql.Tx, req SettleRequest) (map[string]I
 			}
 			*target = amount
 		}
-		if item.Company != req.Company || item.Book != req.Book || item.PartyType != req.PartyType ||
-			item.PartyID != req.PartyID || item.ControlAccount != req.ControlAccount {
+		if item.Company != company || item.Book != book || item.PartyType != partyType ||
+			item.PartyID != partyID || item.ControlAccount != controlAccount {
 			return nil, fmt.Errorf("%w: item %s belongs to another party or account", ErrInvalid, id)
 		}
-		if item.Side != req.Side {
-			return nil, fmt.Errorf("%w: item %s is on the %s side, the settlement is %s", ErrInvalid, id, item.Side, req.Side)
+		if item.Side != side {
+			return nil, fmt.Errorf("%w: item %s is on the %s side, the settlement is %s", ErrInvalid, id, item.Side, side)
 		}
-		if item.Currency != req.PaymentCurrency {
-			return nil, fmt.Errorf("%w: item %s is in %s, the payment is in %s: one settlement covers one currency", ErrInvalid, id, item.Currency, req.PaymentCurrency)
+		if item.Currency != currency {
+			return nil, fmt.Errorf("%w: item %s is in %s, the payment is in %s: one settlement covers one currency", ErrInvalid, id, item.Currency, currency)
 		}
-		if item.Status != ItemOpen {
+		if requireOpen && item.Status != ItemOpen {
 			return nil, fmt.Errorf("%w: item %s is already settled", ErrInvalid, id)
 		}
 		locked[id] = item
 	}
 	return locked, nil
+}
+
+// checkControlAccount requires the named control account to exist and carry
+// a control role: only control accounts may anchor items.
+func checkControlAccount(ctx context.Context, masters *ledger.Service, name string) error {
+	account, err := masters.GetAccount(ctx, name)
+	if err != nil {
+		return err
+	}
+	if account.ControlRole == "" {
+		return fmt.Errorf("%w: account %q carries no control role", ErrInvalid, name)
+	}
+	return nil
+}
+
+// checkPostingPeriod enforces the decided book and period policy (Z2): the
+// book must be defined for the company (periods exist under it), a period
+// must cover the posting date, open periods proceed, soft-closed periods
+// need close authority, and hard-closed periods refuse everything. Reversals
+// pass strictOpen: corrections land in the current period, which is open,
+// never in a closed one.
+func checkPostingPeriod(ctx context.Context, masters *ledger.Service, company, book, date string, authority *CloseAuthority, strictOpen bool) (ledger.Period, error) {
+	periods, err := masters.ListPeriods(ctx, company, book)
+	if err != nil {
+		return ledger.Period{}, err
+	}
+	if len(periods) == 0 {
+		return ledger.Period{}, fmt.Errorf("%w: book %q is not defined for company %q", ErrInvalid, book, company)
+	}
+	period, err := masters.PeriodFor(ctx, company, book, date)
+	if err != nil {
+		if errors.Is(err, ledger.ErrNotFound) {
+			return ledger.Period{}, fmt.Errorf("%w: no period covers %s for company %q in book %q", ErrInvalid, date, company, book)
+		}
+		return ledger.Period{}, err
+	}
+	switch period.Status {
+	case ledger.PeriodOpen:
+		return period, nil
+	case ledger.PeriodSoftClosed:
+		if strictOpen {
+			return ledger.Period{}, fmt.Errorf("%w: reversals land in the current open period, not in soft-closed %q", ErrInvalid, period.Name)
+		}
+		if authority == nil || !authority.Allowed || authority.Reason == "" {
+			return ledger.Period{}, fmt.Errorf("%w: period %q is soft-closed: adjustments need the ledger:close grant and a reason", ErrInvalid, period.Name)
+		}
+		return period, nil
+	case ledger.PeriodHardClosed:
+		return ledger.Period{}, fmt.Errorf("%w: period %q is hard-closed and refuses everything; post into the current open period", ErrInvalid, period.Name)
+	default:
+		return ledger.Period{}, fmt.Errorf("%w: period %q has status %q", ErrInvalid, period.Name, period.Status)
+	}
+}
+
+// lockRequestItems collects the distinct item ids of a settle request for
+// locking.
+func lockRequestItems(req SettleRequest) []string {
+	seen := map[string]bool{}
+	var ids []string
+	for i := range req.Lines {
+		for _, target := range req.Lines[i].Items {
+			if !seen[target.ItemID] {
+				seen[target.ItemID] = true
+				ids = append(ids, target.ItemID)
+			}
+		}
+	}
+	return ids
 }
 
 // share is one line's application to one item, decided before anything
@@ -681,6 +828,146 @@ func sharesToApplications(lineNo int, applied []share) ([]Application, error) {
 	return out, nil
 }
 
+// priceFX fills the base amounts of decided applications and unapplied
+// remainders and returns the signed realised gain per application id (R7.5):
+// the settled base value minus the booked base value, with the sign flipped
+// for credit-side items (owing less in base terms is the gain there). The
+// invoice rate is the rate in force when the item was recorded; the
+// settlement rate is the rate in force at the end of the posting date.
+// Base-currency items price at par with no rate reads; foreign items need
+// the request's FX config. Products round half up to ledger scale, the
+// codebase default.
+func priceFX(ctx context.Context, masters *ledger.Service, req SettleRequest, result *ApplyResult, items map[string]Item, base string) (map[string]types.Decimal, error) {
+	settleAt, err := endOfDate(req.PostingDate)
+	if err != nil {
+		return nil, err
+	}
+	gains := map[string]types.Decimal{}
+	convert := func(amount types.Decimal, item Item) (types.Decimal, error) {
+		if item.Currency == base {
+			return amount, nil
+		}
+		if req.FX == nil {
+			return types.Decimal{}, fmt.Errorf("%w: item %s is in %s with base %s but the settlement names no FX config", ErrInvalid, item.ID, item.Currency, base)
+		}
+		settleRate, err := masters.GetRate(ctx, item.Currency, base, req.FX.RateType, req.FX.RateSource, settleAt)
+		if err != nil {
+			return types.Decimal{}, err
+		}
+		return roundLedger(amount.Mul(settleRate))
+	}
+	for i := range result.Applications {
+		application := &result.Applications[i]
+		item := items[application.ItemID]
+		settled, err := convert(application.ItemAmount, item)
+		if err != nil {
+			return nil, err
+		}
+		application.BaseAmount = settled
+		if item.Currency == base {
+			continue
+		}
+		invoiceRate, err := masters.GetRate(ctx, item.Currency, base, req.FX.RateType, req.FX.RateSource, item.CreatedAt)
+		if err != nil {
+			return nil, err
+		}
+		booked, err := roundLedger(application.ItemAmount.Mul(invoiceRate))
+		if err != nil {
+			return nil, err
+		}
+		share := settled.Sub(booked)
+		if req.Side == ItemSideCredit {
+			share = share.Neg()
+		}
+		if share.Sign() != 0 {
+			gains[application.ID] = share
+		}
+	}
+	for i := range result.Unapplied {
+		unapplied := &result.Unapplied[i]
+		// Unapplied cash has no booked base to differ from: it records at
+		// the settlement rate directly. The item currency is the payment
+		// currency here (one settlement covers one transaction currency).
+		probe := Item{Currency: req.PaymentCurrency}
+		valued, err := convert(unapplied.Amount, probe)
+		if err != nil {
+			return nil, err
+		}
+		unapplied.BaseAmount = valued
+	}
+	return gains, nil
+}
+
+func endOfDate(date string) (time.Time, error) {
+	day, err := time.Parse(time.DateOnly, date)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("%w: %q is not a date as YYYY-MM-DD", ErrInvalid, date)
+	}
+	return day.Add(23*time.Hour + 59*time.Minute + 59*time.Second), nil
+}
+
+func roundLedger(amount types.Decimal) (types.Decimal, error) {
+	rounded, err := amount.Round(6, types.HalfUp)
+	if err != nil {
+		return types.Decimal{}, err
+	}
+	if !fitsLedger(rounded) {
+		return types.Decimal{}, fmt.Errorf("%w: converted amount %s overflows the ledger columns", ErrInvalid, rounded.String())
+	}
+	return rounded, nil
+}
+
+// postFX posts the realised gains and losses as one balanced plan through
+// the G6 engine under the fx_settlement identity, and returns its group id
+// (empty when nothing posted). Every nonzero per-application gain becomes
+// its own leg pair, so offsetting gains and losses all post instead of
+// netting away: a gain debits the control account and credits the gain
+// account, a loss debits the loss account and credits the control account.
+// Each control leg sources its locked item, satisfying the engine's control
+// check with rows known to exist. Realised FX posts only into open periods:
+// the engine does not take adjustments yet, so a soft-closed date refuses
+// here with the decided wording instead of surfacing the engine's stale one.
+func (s *SettlementService) postFX(ctx context.Context, tx *sql.Tx, req SettleRequest, applications []Application, gains map[string]types.Decimal, status string) (string, error) {
+	var lines []Line
+	for i := range applications {
+		application := &applications[i]
+		gain, ok := gains[application.ID]
+		if !ok || gain.Sign() == 0 {
+			continue
+		}
+		if status != ledger.PeriodOpen {
+			return "", fmt.Errorf("%w: realised FX of %s posts only into an open period; the posting period is %s",
+				ErrInvalid, gain.String(), status)
+		}
+		magnitude := gain.Abs()
+		if gain.Sign() < 0 {
+			lines = append(lines,
+				Line{Company: req.Company, Account: req.FX.LossAccount, DebitBase: magnitude},
+				Line{Company: req.Company, Account: req.ControlAccount, CreditBase: magnitude, SourceType: "party_item", SourceID: application.ItemID},
+			)
+		} else {
+			lines = append(lines,
+				Line{Company: req.Company, Account: req.ControlAccount, DebitBase: magnitude, SourceType: "party_item", SourceID: application.ItemID},
+				Line{Company: req.Company, Account: req.FX.GainAccount, CreditBase: magnitude},
+			)
+		}
+	}
+	if len(lines) == 0 {
+		return "", nil
+	}
+	plan := Plan{
+		VoucherType: FXVoucherType, VoucherID: req.VoucherID, Revision: req.Revision,
+		Event: EventSubmit, Book: req.Book, PostingDate: req.PostingDate,
+		Lines: lines,
+	}
+	engine := &Engine{DB: s.DB, Dialect: s.Dialect}
+	result, err := engine.PostInTx(ctx, tx, plan, PostOptions{Actor: req.Actor, Source: req.Source, RequestID: req.RequestID})
+	if err != nil {
+		return "", err
+	}
+	return result.PostingGroupID, nil
+}
+
 // insertApplications writes the decided application edges. A replay of the
 // same settlement line against the same item hits the unique line key and
 // reports ErrAlreadyApplied.
@@ -729,28 +1016,33 @@ func insertPartyRows(ctx context.Context, tx *sql.Tx, req SettleRequest, result 
 		applicationID any
 		debit         string
 		credit        string
+		txnDebit      string
+		txnCredit     string
 	}
 	rows := make([]partyRow, 0, len(result.Applications)+len(result.Unapplied))
 	byIndex := map[int]int{}
 	for i := range result.Applications {
 		application := &result.Applications[i]
-		amount := application.ItemAmount.String()
 		row := partyRow{itemID: application.ItemID, applicationID: application.ID}
 		if req.Side == ItemSideDebit {
-			row.credit = amount
+			row.credit = application.BaseAmount.String()
+			row.txnCredit = application.ItemAmount.String()
 		} else {
-			row.debit = amount
+			row.debit = application.BaseAmount.String()
+			row.txnDebit = application.ItemAmount.String()
 		}
 		byIndex[len(rows)] = -1
 		rows = append(rows, row)
 	}
 	for i := range result.Unapplied {
-		amount := result.Unapplied[i].Amount.String()
+		unapplied := &result.Unapplied[i]
 		row := partyRow{}
 		if req.Side == ItemSideDebit {
-			row.credit = amount
+			row.credit = unapplied.BaseAmount.String()
+			row.txnCredit = unapplied.Amount.String()
 		} else {
-			row.debit = amount
+			row.debit = unapplied.BaseAmount.String()
+			row.txnDebit = unapplied.Amount.String()
 		}
 		byIndex[len(rows)] = i
 		rows = append(rows, row)
@@ -786,10 +1078,17 @@ func insertPartyRows(ctx context.Context, tx *sql.Tx, req SettleRequest, result 
 		if row.credit != "" {
 			credit = row.credit
 		}
+		txnDebit, txnCredit := zero, zero
+		if row.txnDebit != "" {
+			txnDebit = row.txnDebit
+		}
+		if row.txnCredit != "" {
+			txnCredit = row.txnCredit
+		}
 		args = append(args,
 			id.String(), req.Company, req.Book, req.PartyType, req.PartyID, req.ControlAccount,
 			row.itemID, row.applicationID, req.PostingDate, debit, credit,
-			req.PaymentCurrency, debit, credit,
+			req.PaymentCurrency, txnDebit, txnCredit,
 			req.VoucherType, req.VoucherID, req.Revision, req.Event,
 			req.PostingGroupID, false, nil,
 		)
@@ -811,4 +1110,371 @@ func updateResiduals(ctx context.Context, tx *sql.Tx, running map[string]Item, t
 		}
 	}
 	return nil
+}
+
+// ReverseRequest unwinds one settlement voucher: every unreversed
+// submit-event application gets its cancel mirror, the items' residuals are
+// restored, unapplied cash mirrors back, and any realised-FX post unwinds
+// through the engine. The applications of every submit revision unwind
+// together, so a settlement re-revisioned after submit still unwinds fully;
+// each mirror keeps its submit revision for exact pairing while the mirror
+// party rows record Revision, the cancel revision the mirrors land under.
+// PostingDate is the current date: corrections land in the current period,
+// which is open, never backdated into a closed one.
+type ReverseRequest struct {
+	Company        string
+	Book           string
+	PartyType      string
+	PartyID        string
+	ControlAccount string
+	Side           string
+	VoucherType    string
+	VoucherID      string
+	Revision       int64
+	PostingDate    string // YYYY-MM-DD, the current date
+	Actor          string
+	Source         string // api, cli, rule, import or job
+	RequestID      string
+}
+
+// ReverseResult is one committed Reverse. Applications holds the cancel
+// mirrors, Items the restored items, and FXCancelGroups the engine cancel
+// group per unwound FX post (empty when the settlement posted no FX).
+type ReverseResult struct {
+	Applications   []Application
+	Items          []Item
+	FXCancelGroups []string
+}
+
+// Reverse unwinds a settlement inside its own transaction, with the same
+// isolation and lock-failure retries as Apply.
+func (s *SettlementService) Reverse(ctx context.Context, req ReverseRequest) (ReverseResult, error) {
+	return runTx(ctx, s.DB, s.Dialect, func(tx *sql.Tx) (ReverseResult, error) {
+		return s.ReverseInTx(ctx, tx, req)
+	})
+}
+
+// ReverseInTx unwinds a settlement inside the caller's transaction. Stored
+// rows are mirrored, never edited: applications gain cancel mirrors,
+// residuals restore, unapplied cash mirrors back, and each realised-FX post
+// unwinds through the engine. Anything failing rolls everything back and
+// writes nothing.
+func (s *SettlementService) ReverseInTx(ctx context.Context, tx *sql.Tx, req ReverseRequest) (ReverseResult, error) {
+	if err := checkReverseRequest(req); err != nil {
+		return ReverseResult{}, err
+	}
+	masters := &ledger.Service{DB: tx}
+	if err := checkControlAccount(ctx, masters, req.ControlAccount); err != nil {
+		return ReverseResult{}, err
+	}
+	if _, err := checkPostingPeriod(ctx, masters, req.Company, req.Book, req.PostingDate, nil, true); err != nil {
+		return ReverseResult{}, err
+	}
+	originals, err := unreversedApplications(ctx, tx, req)
+	if err != nil {
+		return ReverseResult{}, err
+	}
+	ids := make([]string, 0, len(originals))
+	for _, original := range originals {
+		ids = append(ids, original.ItemID)
+	}
+	currency := ""
+	if len(originals) > 0 {
+		currency = originals[0].PaymentCurrency
+	}
+	locked, err := lockItems(ctx, tx, req.Company, req.Book, req.PartyType, req.PartyID, req.ControlAccount, req.Side, currency, ids, false)
+	if err != nil {
+		return ReverseResult{}, err
+	}
+	batch, err := uuid.NewV7()
+	if err != nil {
+		return ReverseResult{}, fmt.Errorf("new mirror batch id: %w", err)
+	}
+	var result ReverseResult
+	for _, original := range originals {
+		id, err := uuid.NewV7()
+		if err != nil {
+			return ReverseResult{}, fmt.Errorf("new mirror id: %w", err)
+		}
+		mirror := Application{
+			ID: id.String(), LineNo: original.LineNo, ItemID: original.ItemID,
+			PaymentAmount: original.PaymentAmount, ItemAmount: original.ItemAmount, BaseAmount: original.BaseAmount,
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO athena_settlement_applications
+			(id, company_name, book, event, settlement_voucher_type, settlement_voucher_id,
+			settlement_voucher_revision, settlement_line_no, item_id, payment_currency, payment_amount,
+			item_currency, item_amount, base_amount, is_reversal, reverses_application_id, posting_group_id)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			mirror.ID, req.Company, req.Book, EventCancel, req.VoucherType, req.VoucherID,
+			original.Revision, mirror.LineNo, mirror.ItemID, original.PaymentCurrency, mirror.PaymentAmount.String(),
+			original.ItemCurrency, mirror.ItemAmount.String(), mirror.BaseAmount.String(),
+			true, original.ApplicationID, batch.String()); err != nil {
+			if s.isDuplicate(err) {
+				return ReverseResult{}, fmt.Errorf("%w: this settlement already reversed these lines", ErrAlreadyReversed)
+			}
+			return ReverseResult{}, err
+		}
+		if err := mirrorPartyRow(ctx, tx, req, batch.String(), original.ApplicationID, mirror.ID); err != nil {
+			return ReverseResult{}, err
+		}
+		item := locked[original.ItemID]
+		item.Residual = item.Residual.Add(original.ItemAmount)
+		if item.Residual.Cmp(item.Original) > 0 {
+			return ReverseResult{}, fmt.Errorf("restored residual %s of item %s exceeds its original %s",
+				item.Residual.String(), item.ID, item.Original.String())
+		}
+		item.Status = ItemOpen
+		locked[original.ItemID] = item
+		result.Applications = append(result.Applications, mirror)
+	}
+	if err := mirrorUnappliedCash(ctx, tx, req, batch.String()); err != nil {
+		return ReverseResult{}, err
+	}
+	touched := map[string]bool{}
+	for _, original := range originals {
+		touched[original.ItemID] = true
+	}
+	if err := updateResiduals(ctx, tx, locked, touched); err != nil {
+		return ReverseResult{}, err
+	}
+	for id := range touched {
+		result.Items = append(result.Items, locked[id])
+	}
+	sort.Slice(result.Items, func(a, b int) bool { return result.Items[a].ID < result.Items[b].ID })
+	groups, err := s.reverseFX(ctx, tx, req, originals)
+	if err != nil {
+		return ReverseResult{}, err
+	}
+	result.FXCancelGroups = groups
+	return result, nil
+}
+
+func checkReverseRequest(req ReverseRequest) error {
+	for name, value := range map[string]string{
+		"company": req.Company, "book": req.Book, "party type": req.PartyType,
+		"party id": req.PartyID, "control account": req.ControlAccount,
+		"voucher type": req.VoucherType, "voucher id": req.VoucherID,
+		"actor": req.Actor, "source": req.Source,
+	} {
+		if value == "" {
+			return fmt.Errorf("%w: a reversal must name its %s", ErrInvalid, name)
+		}
+	}
+	if req.Side != ItemSideDebit && req.Side != ItemSideCredit {
+		return fmt.Errorf("%w: side %q must be debit or credit", ErrInvalid, req.Side)
+	}
+	if req.Revision < 1 {
+		return fmt.Errorf("%w: voucher revision %d is below 1", ErrInvalid, req.Revision)
+	}
+	if !validDate(req.PostingDate) {
+		return fmt.Errorf("%w: %q is not a date as YYYY-MM-DD", ErrInvalid, req.PostingDate)
+	}
+	return nil
+}
+
+// storedApplication is one submit-event application row with its currencies.
+type storedApplication struct {
+	ApplicationID   string
+	LineNo          int
+	ItemID          string
+	PaymentCurrency string
+	PaymentAmount   types.Decimal
+	ItemCurrency    string
+	ItemAmount      types.Decimal
+	BaseAmount      types.Decimal
+	Revision        int64
+}
+
+// unreversedApplications reads every submit-event application of the voucher
+// without a cancel mirror yet, in id order. A voucher whose lines all
+// reversed reports ErrAlreadyReversed; one that never applied reports
+// ErrInvalid.
+func unreversedApplications(ctx context.Context, tx *sql.Tx, req ReverseRequest) ([]storedApplication, error) {
+	rows, err := tx.QueryContext(ctx, `SELECT a.id, a.settlement_line_no, a.item_id,
+		a.payment_currency, a.payment_amount, a.item_currency, a.item_amount, a.base_amount,
+		a.settlement_voucher_revision
+		FROM athena_settlement_applications a
+		WHERE a.settlement_voucher_type = ? AND a.settlement_voucher_id = ? AND a.event = ?
+		AND NOT EXISTS (SELECT 1 FROM athena_settlement_applications m WHERE m.reverses_application_id = a.id)
+		ORDER BY a.id`, req.VoucherType, req.VoucherID, EventSubmit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []storedApplication
+	for rows.Next() {
+		var application storedApplication
+		var payment, item, base string
+		if err := rows.Scan(&application.ApplicationID, &application.LineNo, &application.ItemID,
+			&application.PaymentCurrency, &payment, &application.ItemCurrency, &item, &base,
+			&application.Revision); err != nil {
+			return nil, err
+		}
+		for target, text := range map[*types.Decimal]string{
+			&application.PaymentAmount: payment, &application.ItemAmount: item, &application.BaseAmount: base,
+		} {
+			amount, err := types.ParseDecimal(text)
+			if err != nil {
+				return nil, fmt.Errorf("stored amount %q is not a decimal: %w", text, err)
+			}
+			*target = amount
+		}
+		out = append(out, application)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if len(out) > 0 {
+		return out, nil
+	}
+	var submitCount int
+	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM athena_settlement_applications
+		WHERE settlement_voucher_type = ? AND settlement_voucher_id = ? AND event = ?`,
+		req.VoucherType, req.VoucherID, EventSubmit).Scan(&submitCount); err != nil {
+		return nil, err
+	}
+	if submitCount > 0 {
+		return nil, fmt.Errorf("%w: every line of this settlement already has its mirror", ErrAlreadyReversed)
+	}
+	return nil, fmt.Errorf("%w: this settlement has no applications to reverse", ErrInvalid)
+}
+
+// mirrorPartyRow writes the cancel mirror of one application party row: the
+// base and transaction amounts swap sides, the row flags its reversal link,
+// and the voucher revision and date move to the cancel.
+func mirrorPartyRow(ctx context.Context, tx *sql.Tx, req ReverseRequest, batch, applicationID, mirrorID string) error {
+	var row struct {
+		id          string
+		company     string
+		book        string
+		partyType   string
+		partyID     string
+		control     string
+		itemID      sql.NullString
+		debitBase   string
+		creditBase  string
+		txnCurrency sql.NullString
+		txnDebit    string
+		txnCredit   string
+	}
+	err := tx.QueryRowContext(ctx, `SELECT id, company_name, book, party_type, party_id, control_account_name,
+		item_id, debit_base, credit_base, txn_currency, txn_debit, txn_credit
+		FROM l_party WHERE application_id = ?`, applicationID).Scan(
+		&row.id, &row.company, &row.book, &row.partyType, &row.partyID, &row.control,
+		&row.itemID, &row.debitBase, &row.creditBase, &row.txnCurrency, &row.txnDebit, &row.txnCredit)
+	if err != nil {
+		return err
+	}
+	id, err := uuid.NewV7()
+	if err != nil {
+		return fmt.Errorf("new mirror row id: %w", err)
+	}
+	_, err = tx.ExecContext(ctx, `INSERT INTO l_party
+		(id, company_name, book, party_type, party_id, control_account_name,
+		item_id, application_id, posting_date, debit_base, credit_base, txn_currency,
+		txn_debit, txn_credit, voucher_type, voucher_id, voucher_revision, event,
+		posting_group_id, is_reversal, reversed_row_id)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		id.String(), row.company, row.book, row.partyType, row.partyID, row.control,
+		row.itemID, mirrorID, req.PostingDate, row.creditBase, row.debitBase, row.txnCurrency,
+		row.txnCredit, row.txnDebit, req.VoucherType, req.VoucherID, req.Revision, EventCancel,
+		batch, true, row.id)
+	return err
+}
+
+// mirrorUnappliedCash writes cancel mirrors for the voucher's unapplied cash
+// rows without mirrors yet: cancelled cash leaves the party with the
+// payment, so the subledger must not keep showing it held.
+func mirrorUnappliedCash(ctx context.Context, tx *sql.Tx, req ReverseRequest, batch string) error {
+	rows, err := tx.QueryContext(ctx, `SELECT id, company_name, book, party_type, party_id, control_account_name,
+		debit_base, credit_base, txn_currency, txn_debit, txn_credit
+		FROM l_party p
+		WHERE p.voucher_type = ? AND p.voucher_id = ? AND p.event = ? AND p.item_id IS NULL
+		AND NOT EXISTS (SELECT 1 FROM l_party m WHERE m.reversed_row_id = p.id)
+		ORDER BY p.id`, req.VoucherType, req.VoucherID, EventSubmit)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	type cashRow struct {
+		id          string
+		company     string
+		book        string
+		partyType   string
+		partyID     string
+		control     string
+		debitBase   string
+		creditBase  string
+		txnCurrency sql.NullString
+		txnDebit    string
+		txnCredit   string
+	}
+	var cash []cashRow
+	for rows.Next() {
+		var row cashRow
+		if err := rows.Scan(&row.id, &row.company, &row.book, &row.partyType, &row.partyID,
+			&row.control, &row.debitBase, &row.creditBase, &row.txnCurrency, &row.txnDebit, &row.txnCredit); err != nil {
+			return err
+		}
+		cash = append(cash, row)
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	for _, row := range cash {
+		id, err := uuid.NewV7()
+		if err != nil {
+			return fmt.Errorf("new mirror row id: %w", err)
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO l_party
+			(id, company_name, book, party_type, party_id, control_account_name,
+			item_id, application_id, posting_date, debit_base, credit_base, txn_currency,
+			txn_debit, txn_credit, voucher_type, voucher_id, voucher_revision, event,
+			posting_group_id, is_reversal, reversed_row_id)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			id.String(), row.company, row.book, row.partyType, row.partyID, row.control,
+			nil, nil, req.PostingDate, row.creditBase, row.debitBase, row.txnCurrency,
+			row.txnCredit, row.txnDebit, req.VoucherType, req.VoucherID, req.Revision, EventCancel,
+			batch, true, row.id); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// reverseFX unwinds one realised-FX post per submit revision the reversal
+// covers, through the engine: each fx_settlement submit group gains its
+// cancel mirror in the reversal date's open period. Revisions that posted no
+// FX (base-currency settlements) are skipped: there is nothing to unwind.
+func (s *SettlementService) reverseFX(ctx context.Context, tx *sql.Tx, req ReverseRequest, originals []storedApplication) ([]string, error) {
+	revisions := map[int64]bool{}
+	for _, original := range originals {
+		revisions[original.Revision] = true
+	}
+	ordered := make([]int64, 0, len(revisions))
+	for revision := range revisions {
+		ordered = append(ordered, revision)
+	}
+	sort.Slice(ordered, func(a, b int) bool { return ordered[a] < ordered[b] })
+	engine := &Engine{DB: s.DB, Dialect: s.Dialect}
+	var groups []string
+	for _, revision := range ordered {
+		var groupID string
+		err := tx.QueryRowContext(ctx, `SELECT id FROM athena_posting_groups
+			WHERE voucher_type = ? AND voucher_id = ? AND voucher_revision = ? AND event = ? AND book = ?`,
+			FXVoucherType, req.VoucherID, revision, EventSubmit, req.Book).Scan(&groupID)
+		if errors.Is(err, sql.ErrNoRows) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		result, err := engine.ReverseInTx(ctx, tx, FXVoucherType, req.VoucherID, revision, req.Book,
+			ReverseOptions{Actor: req.Actor, Source: req.Source, RequestID: req.RequestID, PostingDate: req.PostingDate})
+		if err != nil {
+			return nil, err
+		}
+		groups = append(groups, result.PostingGroupID)
+	}
+	return groups, nil
 }

@@ -8,8 +8,10 @@ import (
 	"database/sql"
 	"errors"
 	"sort"
+	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"athena-erp/internal/ledger"
 	"athena-erp/internal/posting"
@@ -30,11 +32,49 @@ func settleSetup(t *testing.T) (*posting.SettlementService, *sql.DB) {
 	}
 	masters := &ledger.Service{DB: db, Dialect: store.MariaDB{}}
 	ctx := context.Background()
-	if _, err := masters.SaveCurrency(ctx, ledger.Currency{Code: "USD", Label: "US dollar", Exponent: 2}, 0); err != nil {
-		t.Fatal(err)
+	for _, currency := range []ledger.Currency{
+		{Code: "USD", Label: "US dollar", Exponent: 2},
+		{Code: "EUR", Label: "Euro", Exponent: 2},
+		{Code: "KES", Label: "Kenyan shilling", Exponent: 2},
+	} {
+		if _, err := masters.SaveCurrency(ctx, currency, 0); err != nil {
+			t.Fatal(err)
+		}
 	}
-	if _, err := masters.SaveCompany(ctx, ledger.Company{Name: "acme", Label: "Acme", BaseCurrency: "USD"}, 0); err != nil {
-		t.Fatal(err)
+	for _, company := range []ledger.Company{
+		{Name: "acme", Label: "Acme", BaseCurrency: "USD"},
+		{Name: "nairobi", Label: "Nairobi", BaseCurrency: "KES"},
+	} {
+		if _, err := masters.SaveCompany(ctx, company, 0); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := masters.SaveFiscalYear(ctx, ledger.FiscalYear{Name: "fy2026-" + company.Name, Label: "FY 2026", Company: company.Name, StartDate: "2026-01-01", EndDate: "2026-12-31"}, 0); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := masters.SavePeriod(ctx, ledger.Period{Company: company.Name, Book: "main", Name: "fy2026", Label: "FY 2026", FiscalYear: "fy2026-" + company.Name, StartDate: "2026-01-01", EndDate: "2026-12-31"}, 0); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, accountType := range []ledger.AccountType{
+		{Name: "asset", Label: "Asset", NormalBalance: "debit"},
+		{Name: "liability", Label: "Liability", NormalBalance: "credit"},
+		{Name: "income", Label: "Income", NormalBalance: "credit"},
+		{Name: "expense", Label: "Expense", NormalBalance: "debit"},
+	} {
+		if _, err := masters.SaveAccountType(ctx, accountType); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, account := range []ledger.Account{
+		{Name: "cash", Label: "Cash", Type: "asset"},
+		{Name: "receivable", Label: "Receivable", Type: "asset", ControlRole: "receivable"},
+		{Name: "payable", Label: "Payable", Type: "liability", ControlRole: "payable"},
+		{Name: "fx_gain", Label: "FX gain", Type: "income"},
+		{Name: "fx_loss", Label: "FX loss", Type: "expense"},
+	} {
+		if _, err := masters.SaveAccount(ctx, account, 0); err != nil {
+			t.Fatal(err)
+		}
 	}
 	return &posting.SettlementService{DB: db, Dialect: store.MariaDB{}}, db
 }
@@ -73,7 +113,8 @@ func settleRequest(group string, lines []posting.SettleLine) posting.SettleReque
 		ControlAccount: "receivable", Side: posting.ItemSideDebit,
 		VoucherType: "receipt", VoucherID: "33333333-3333-3333-3333-333333333333",
 		Revision: 2, Event: posting.EventSubmit, PostingDate: "2026-06-20",
-		PostingGroupID: group, PaymentCurrency: "USD", Lines: lines,
+		PostingGroupID: group, PaymentCurrency: "USD",
+		Actor: "tester", Source: "test", Lines: lines,
 	}
 }
 
@@ -240,7 +281,8 @@ func TestApplyRefusesMismatches(t *testing.T) {
 		"other currency": func(req *posting.SettleRequest) {
 			req.Lines[0].Items[0].ItemID = createdForeign[0].ID
 		},
-		"payment off base": func(req *posting.SettleRequest) { req.PaymentCurrency = "EUR" },
+		"payment off item": func(req *posting.SettleRequest) { req.PaymentCurrency = "EUR" },
+		"plain account":    func(req *posting.SettleRequest) { req.ControlAccount = "cash" },
 	} {
 		req := settleRequest(group, []posting.SettleLine{
 			{LineNo: 1, Amount: types.MustDecimal("10.00"), Items: []posting.LineItem{{ItemID: created[0].ID}}},
@@ -440,6 +482,7 @@ func TestSettlementAllocationProperty(t *testing.T) {
 			VoucherType: "receipt", VoucherID: uuid.NewString(),
 			Revision: 2, Event: posting.EventSubmit, PostingDate: "2026-06-20",
 			PostingGroupID: uuid.NewString(), PaymentCurrency: "USD",
+			Actor: "tester", Source: "test",
 			Lines: []posting.SettleLine{{LineNo: 1, Amount: payment, Items: targets}},
 		}
 		result, err := svc.Apply(ctx, req)
@@ -529,4 +572,441 @@ func indexOf(items []posting.Item, id string) int {
 		}
 	}
 	return -1
+}
+
+func seedRate(t *testing.T, db *sql.DB, from, to, rate string, at time.Time) {
+	t.Helper()
+	masters := &ledger.Service{DB: db, Dialect: store.MariaDB{}}
+	if _, err := masters.SaveRate(context.Background(), ledger.ExchangeRate{
+		From: from, To: to, RateType: "spot", Source: "test",
+		EffectiveAt: at, Rate: types.MustDecimal(rate),
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// backdateItem moves an item's booking instant back in time, simulating an
+// invoice recorded earlier and settled later.
+func backdateItem(t *testing.T, db *sql.DB, id, created string) {
+	t.Helper()
+	if _, err := db.Exec(`UPDATE athena_party_items SET created_at = ? WHERE id = ?`, created, id); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func setPeriodStatus(t *testing.T, db *sql.DB, company, status string) {
+	t.Helper()
+	ctx := context.Background()
+	masters := &ledger.Service{DB: db, Dialect: store.MariaDB{}}
+	period, err := masters.GetPeriod(ctx, company, "main", "fy2026")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := masters.SetPeriodStatus(ctx, company, "main", "fy2026", status, "tester", period.Revision); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func fxRequest(voucher, group string, lines []posting.SettleLine) posting.SettleRequest {
+	return posting.SettleRequest{
+		Company: "nairobi", Book: "main", PartyType: "customer", PartyID: settleParty,
+		ControlAccount: "receivable", Side: posting.ItemSideDebit,
+		VoucherType: "receipt", VoucherID: voucher,
+		Revision: 2, Event: posting.EventSubmit, PostingDate: "2026-07-15",
+		PostingGroupID: group, PaymentCurrency: "USD",
+		Actor: "tester", Source: "test",
+		FX:    &posting.FXConfig{RateType: "spot", GainAccount: "fx_gain", LossAccount: "fx_loss"},
+		Lines: lines,
+	}
+}
+
+func fxItem(amount string, instalment int) posting.NewItem {
+	item := settleItem(amount, instalment)
+	item.Company = "nairobi"
+	item.Currency = "USD"
+	return item
+}
+
+func fxLegs(t *testing.T, db *sql.DB, group string) map[string][2]string {
+	t.Helper()
+	rows, err := db.Query(`SELECT account_name, debit_base, credit_base FROM l_gl WHERE posting_group_id = ? ORDER BY id`, group)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	legs := map[string][2]string{}
+	for rows.Next() {
+		var account, debit, credit string
+		if err := rows.Scan(&account, &debit, &credit); err != nil {
+			t.Fatal(err)
+		}
+		legs[account] = [2]string{debit, credit}
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	return legs
+}
+
+func TestApplyPostsRealisedGain(t *testing.T) {
+	svc, db := settleSetup(t)
+	seedRate(t, db, "USD", "KES", "130", time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC))
+	seedRate(t, db, "USD", "KES", "132", time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC))
+	created := createItems(t, svc, db, []posting.NewItem{fxItem("100.00", 1)})
+	backdateItem(t, db, created[0].ID, "2026-06-15 12:00:00")
+	result, err := svc.Apply(context.Background(), fxRequest(
+		"aaaaaaaa-0000-0000-0000-000000000001", "aaaaaaaa-0000-0000-0000-000000000002",
+		[]posting.SettleLine{{LineNo: 1, Amount: types.MustDecimal("100.00"), Items: []posting.LineItem{{ItemID: created[0].ID}}}},
+	))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.Applications[0].BaseAmount.Equal(types.MustDecimal("13200")) {
+		t.Fatalf("settled base is %v, want 13200", result.Applications[0].BaseAmount)
+	}
+	if result.FXGroupID == "" {
+		t.Fatal("gain posts an FX group")
+	}
+	legs := fxLegs(t, db, result.FXGroupID)
+	if len(legs) != 2 || legs["receivable"] != [2]string{"200.000000", "0.000000"} || legs["fx_gain"] != [2]string{"0.000000", "200.000000"} {
+		t.Fatalf("FX legs are %v, want Dr receivable 200 / Cr fx_gain 200", legs)
+	}
+	// The post itself proves the control leg carried its item source: the
+	// engine refuses sourceless control legs, and l_gl stores no sources.
+}
+
+func TestApplyPostsRealisedLoss(t *testing.T) {
+	svc, db := settleSetup(t)
+	seedRate(t, db, "USD", "KES", "132", time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC))
+	seedRate(t, db, "USD", "KES", "130", time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC))
+	created := createItems(t, svc, db, []posting.NewItem{fxItem("100.00", 1)})
+	backdateItem(t, db, created[0].ID, "2026-06-15 12:00:00")
+	result, err := svc.Apply(context.Background(), fxRequest(
+		"aaaaaaaa-0000-0000-0000-000000000003", "aaaaaaaa-0000-0000-0000-000000000004",
+		[]posting.SettleLine{{LineNo: 1, Amount: types.MustDecimal("100.00"), Items: []posting.LineItem{{ItemID: created[0].ID}}}},
+	))
+	if err != nil {
+		t.Fatal(err)
+	}
+	legs := fxLegs(t, db, result.FXGroupID)
+	if legs["fx_loss"] != [2]string{"200.000000", "0.000000"} || legs["receivable"] != [2]string{"0.000000", "200.000000"} {
+		t.Fatalf("FX legs are %v, want Dr fx_loss 200 / Cr receivable 200", legs)
+	}
+}
+
+func TestApplySkipsZeroFX(t *testing.T) {
+	svc, db := settleSetup(t)
+	seedRate(t, db, "USD", "KES", "130", time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC))
+	created := createItems(t, svc, db, []posting.NewItem{fxItem("100.00", 1)})
+	backdateItem(t, db, created[0].ID, "2026-06-15 12:00:00")
+	result, err := svc.Apply(context.Background(), fxRequest(
+		"aaaaaaaa-0000-0000-0000-000000000005", "aaaaaaaa-0000-0000-0000-000000000006",
+		[]posting.SettleLine{{LineNo: 1, Amount: types.MustDecimal("100.00"), Items: []posting.LineItem{{ItemID: created[0].ID}}}},
+	))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.FXGroupID != "" {
+		t.Fatal("zero gain posts no FX group")
+	}
+	if !result.Applications[0].BaseAmount.Equal(types.MustDecimal("13000")) {
+		t.Fatalf("settled base is %v, want 13000", result.Applications[0].BaseAmount)
+	}
+}
+
+func TestApplyRefusesForeignWithoutFX(t *testing.T) {
+	svc, db := settleSetup(t)
+	created := createItems(t, svc, db, []posting.NewItem{fxItem("100.00", 1)})
+	req := fxRequest(
+		"aaaaaaaa-0000-0000-0000-000000000007", "aaaaaaaa-0000-0000-0000-000000000008",
+		[]posting.SettleLine{{LineNo: 1, Amount: types.MustDecimal("100.00"), Items: []posting.LineItem{{ItemID: created[0].ID}}}},
+	)
+	req.FX = nil
+	if _, err := svc.Apply(context.Background(), req); !errors.Is(err, posting.ErrInvalid) {
+		t.Fatalf("foreign items without FX config refuse, got %v", err)
+	}
+}
+
+func TestApplyRespectsCloses(t *testing.T) {
+	authority := &posting.CloseAuthority{Allowed: true, Reason: "year-end adjustment"}
+	softFX := func() posting.SettleRequest {
+		req := fxRequest(
+			"aaaaaaaa-0000-0000-0000-000000000009", "aaaaaaaa-0000-0000-0000-000000000010",
+			[]posting.SettleLine{{LineNo: 1, Amount: types.MustDecimal("100.00"), Items: []posting.LineItem{{ItemID: "ffffffff-ffff-ffff-ffff-ffffffffffff"}}}},
+		)
+		req.Authority = authority
+		return req
+	}
+	t.Run("soft closed without authority refuses", func(t *testing.T) {
+		svc, db := settleSetup(t)
+		setPeriodStatus(t, db, "acme", ledger.PeriodSoftClosed)
+		created := createItems(t, svc, db, []posting.NewItem{settleItem("100.00", 1)})
+		req := settleRequest("bbbbbbbb-0000-0000-0000-000000000001", []posting.SettleLine{
+			{LineNo: 1, Amount: types.MustDecimal("100.00"), Items: []posting.LineItem{{ItemID: created[0].ID}}},
+		})
+		err := applyErr(svc, req)
+		if !errors.Is(err, posting.ErrInvalid) || !strings.Contains(err.Error(), "ledger:close") {
+			t.Fatalf("soft close names the grant and reason, got %v", err)
+		}
+	})
+	t.Run("soft closed with authority applies base-only", func(t *testing.T) {
+		svc, db := settleSetup(t)
+		setPeriodStatus(t, db, "acme", ledger.PeriodSoftClosed)
+		created := createItems(t, svc, db, []posting.NewItem{settleItem("100.00", 1)})
+		req := settleRequest("bbbbbbbb-0000-0000-0000-000000000002", []posting.SettleLine{
+			{LineNo: 1, Amount: types.MustDecimal("100.00"), Items: []posting.LineItem{{ItemID: created[0].ID}}},
+		})
+		req.Authority = authority
+		if _, err := svc.Apply(context.Background(), req); err != nil {
+			t.Fatalf("adjustment with authority applies: %v", err)
+		}
+	})
+	t.Run("soft closed refuses FX", func(t *testing.T) {
+		svc, db := settleSetup(t)
+		setPeriodStatus(t, db, "nairobi", ledger.PeriodSoftClosed)
+		seedRate(t, db, "USD", "KES", "130", time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC))
+		seedRate(t, db, "USD", "KES", "132", time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC))
+		created := createItems(t, svc, db, []posting.NewItem{fxItem("100.00", 1)})
+		backdateItem(t, db, created[0].ID, "2026-06-15 12:00:00")
+		req := softFX()
+		req.Lines[0].Items[0].ItemID = created[0].ID
+		err := applyErr(svc, req)
+		if !errors.Is(err, posting.ErrInvalid) || !strings.Contains(err.Error(), "open period") {
+			t.Fatalf("FX into soft close refuses for an open period, got %v", err)
+		}
+		var applications int
+		if err := db.QueryRow(`SELECT COUNT(*) FROM athena_settlement_applications`).Scan(&applications); err != nil {
+			t.Fatal(err)
+		}
+		if applications != 0 {
+			t.Fatal("refused FX writes nothing")
+		}
+	})
+	t.Run("hard closed refuses everything", func(t *testing.T) {
+		svc, db := settleSetup(t)
+		setPeriodStatus(t, db, "acme", ledger.PeriodHardClosed)
+		created := createItems(t, svc, db, []posting.NewItem{settleItem("100.00", 1)})
+		req := settleRequest("bbbbbbbb-0000-0000-0000-000000000003", []posting.SettleLine{
+			{LineNo: 1, Amount: types.MustDecimal("100.00"), Items: []posting.LineItem{{ItemID: created[0].ID}}},
+		})
+		req.Authority = authority
+		err := applyErr(svc, req)
+		if !errors.Is(err, posting.ErrInvalid) || !strings.Contains(err.Error(), "hard-closed") {
+			t.Fatalf("hard close refuses everything, got %v", err)
+		}
+	})
+	t.Run("unknown book refuses", func(t *testing.T) {
+		svc, _ := settleSetup(t)
+		req := settleRequest("bbbbbbbb-0000-0000-0000-000000000004", []posting.SettleLine{
+			{LineNo: 1, Amount: types.MustDecimal("100.00"), Items: []posting.LineItem{{ItemID: settleParty}}},
+		})
+		req.Book = "side"
+		err := applyErr(svc, req)
+		if !errors.Is(err, posting.ErrInvalid) || !strings.Contains(err.Error(), "not defined") {
+			t.Fatalf("unknown book refuses, got %v", err)
+		}
+	})
+	t.Run("uncovered date refuses", func(t *testing.T) {
+		svc, _ := settleSetup(t)
+		req := settleRequest("bbbbbbbb-0000-0000-0000-000000000005", []posting.SettleLine{
+			{LineNo: 1, Amount: types.MustDecimal("100.00"), Items: []posting.LineItem{{ItemID: settleParty}}},
+		})
+		req.PostingDate = "2027-01-01"
+		err := applyErr(svc, req)
+		if !errors.Is(err, posting.ErrInvalid) || !strings.Contains(err.Error(), "no period covers") {
+			t.Fatalf("uncovered date refuses, got %v", err)
+		}
+	})
+}
+
+func applyErr(svc *posting.SettlementService, req posting.SettleRequest) error {
+	_, err := svc.Apply(context.Background(), req)
+	return err
+}
+
+func reverseRequest(voucher string, revision int64) posting.ReverseRequest {
+	return posting.ReverseRequest{
+		Company: "acme", Book: "main", PartyType: "customer", PartyID: settleParty,
+		ControlAccount: "receivable", Side: posting.ItemSideDebit,
+		VoucherType: "receipt", VoucherID: voucher, Revision: revision,
+		PostingDate: "2026-07-20", Actor: "tester", Source: "test",
+	}
+}
+
+func TestReverseMirrorsSettlement(t *testing.T) {
+	svc, db := settleSetup(t)
+	created := createItems(t, svc, db, []posting.NewItem{settleItem("100.00", 1)})
+	applyReq := settleRequest("cccccccc-0000-0000-0000-000000000002", []posting.SettleLine{
+		{LineNo: 1, Amount: types.MustDecimal("130.00"), Items: []posting.LineItem{{ItemID: created[0].ID}}},
+	})
+	applyReq.VoucherID = "cccccccc-0000-0000-0000-000000000001"
+	applied, err := svc.Apply(context.Background(), applyReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(applied.Unapplied) != 1 {
+		t.Fatal("fixture carries unapplied cash")
+	}
+	result, err := svc.Reverse(context.Background(), reverseRequest("cccccccc-0000-0000-0000-000000000001", 3))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Applications) != 1 || len(result.Items) != 1 {
+		t.Fatalf("one mirror restores one item: %+v", result)
+	}
+	if !result.Items[0].Residual.Equal(types.MustDecimal("100.00")) || result.Items[0].Status != posting.ItemOpen {
+		t.Fatalf("residual restores open: %+v", result.Items[0])
+	}
+	var isReversal bool
+	var reverses string
+	if err := db.QueryRow(`SELECT is_reversal, reverses_application_id FROM athena_settlement_applications WHERE id = ?`,
+		result.Applications[0].ID).Scan(&isReversal, &reverses); err != nil {
+		t.Fatal(err)
+	}
+	if !isReversal || reverses != applied.Applications[0].ID {
+		t.Fatal("mirror flags its reversal link")
+	}
+	var debit, credit string
+	var rowReversed bool
+	if err := db.QueryRow(`SELECT debit_base, credit_base, is_reversal FROM l_party WHERE application_id = ?`,
+		result.Applications[0].ID).Scan(&debit, &credit, &rowReversed); err != nil {
+		t.Fatal(err)
+	}
+	if !rowReversed || debit != "100.000000" || credit != "0.000000" {
+		t.Fatalf("mirror swaps to debit 100, got %s/%s", debit, credit)
+	}
+	var cashMirrors int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM l_party WHERE item_id IS NULL AND is_reversal = TRUE`).Scan(&cashMirrors); err != nil {
+		t.Fatal(err)
+	}
+	if cashMirrors != 1 {
+		t.Fatalf("unapplied cash mirrors back, got %d rows", cashMirrors)
+	}
+	if len(result.FXCancelGroups) != 0 {
+		t.Fatal("base settlement unwinds no FX")
+	}
+	if _, err := svc.Reverse(context.Background(), reverseRequest("cccccccc-0000-0000-0000-000000000001", 4)); !errors.Is(err, posting.ErrAlreadyReversed) {
+		t.Fatalf("second cancel reports ErrAlreadyReversed, got %v", err)
+	}
+	if _, err := svc.Reverse(context.Background(), reverseRequest("cccccccc-0000-0000-0000-000000009999", 3)); !errors.Is(err, posting.ErrInvalid) {
+		t.Fatalf("unknown settlement reports ErrInvalid, got %v", err)
+	}
+}
+
+func TestReverseUnwindsFX(t *testing.T) {
+	svc, db := settleSetup(t)
+	seedRate(t, db, "USD", "KES", "130", time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC))
+	seedRate(t, db, "USD", "KES", "132", time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC))
+	created := createItems(t, svc, db, []posting.NewItem{fxItem("100.00", 1)})
+	backdateItem(t, db, created[0].ID, "2026-06-15 12:00:00")
+	voucher := "dddddddd-0000-0000-0000-000000000001"
+	if _, err := svc.Apply(context.Background(), fxRequest(
+		voucher, "dddddddd-0000-0000-0000-000000000002",
+		[]posting.SettleLine{{LineNo: 1, Amount: types.MustDecimal("100.00"), Items: []posting.LineItem{{ItemID: created[0].ID}}}},
+	)); err != nil {
+		t.Fatal(err)
+	}
+	req := reverseRequest(voucher, 3)
+	req.Company = "nairobi"
+	result, err := svc.Reverse(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.FXCancelGroups) != 1 {
+		t.Fatalf("one FX post unwinds once: %+v", result)
+	}
+	rows, err := db.Query(`SELECT account_name, debit_base, credit_base FROM l_gl WHERE voucher_type = 'fx_settlement' AND voucher_id = ?`, voucher)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	net := map[string]string{}
+	count := 0
+	for rows.Next() {
+		var account, debit, credit string
+		if err := rows.Scan(&account, &debit, &credit); err != nil {
+			t.Fatal(err)
+		}
+		count++
+		balance := types.Decimal{}
+		if net[account] != "" {
+			var err error
+			balance, err = types.ParseDecimal(net[account])
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+		debitAmount, err := types.ParseDecimal(debit)
+		if err != nil {
+			t.Fatal(err)
+		}
+		creditAmount, err := types.ParseDecimal(credit)
+		if err != nil {
+			t.Fatal(err)
+		}
+		net[account] = balance.Add(debitAmount).Sub(creditAmount).String()
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if count != 4 {
+		t.Fatalf("FX submit plus cancel is 4 rows, got %d", count)
+	}
+	for account, balance := range net {
+		parsed, err := types.ParseDecimal(balance)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if parsed.Sign() != 0 {
+			t.Fatalf("account %s nets %s, want zero", account, balance)
+		}
+	}
+}
+
+func TestReverseRefusesClosedDate(t *testing.T) {
+	svc, db := settleSetup(t)
+	created := createItems(t, svc, db, []posting.NewItem{settleItem("100.00", 1)})
+	voucher := "eeeeeeee-0000-0000-0000-000000000001"
+	applyReq := settleRequest("eeeeeeee-0000-0000-0000-000000000002", []posting.SettleLine{
+		{LineNo: 1, Amount: types.MustDecimal("100.00"), Items: []posting.LineItem{{ItemID: created[0].ID}}},
+	})
+	applyReq.VoucherID = voucher
+	if _, err := svc.Apply(context.Background(), applyReq); err != nil {
+		t.Fatal(err)
+	}
+	setPeriodStatus(t, db, "acme", ledger.PeriodSoftClosed)
+	req := reverseRequest(voucher, 3)
+	if _, err := svc.Reverse(context.Background(), req); !errors.Is(err, posting.ErrInvalid) {
+		t.Fatalf("reversal into a soft date refuses, got %v", err)
+	}
+}
+
+func TestReverseAcrossRevisions(t *testing.T) {
+	svc, db := settleSetup(t)
+	seedRate(t, db, "USD", "KES", "130", time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC))
+	seedRate(t, db, "USD", "KES", "132", time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC))
+	created := createItems(t, svc, db, []posting.NewItem{fxItem("100.00", 1)})
+	backdateItem(t, db, created[0].ID, "2026-06-15 12:00:00")
+	voucher := "ffffffff-0000-0000-0000-000000000001"
+	for revision, amount := range map[int64]string{2: "40.00", 3: "30.00"} {
+		req := fxRequest(voucher, uuid.NewString(), []posting.SettleLine{
+			{LineNo: 1, Amount: types.MustDecimal(amount), Items: []posting.LineItem{{ItemID: created[0].ID}}},
+		})
+		req.Revision = revision
+		if _, err := svc.Apply(context.Background(), req); err != nil {
+			t.Fatal(err)
+		}
+	}
+	req := reverseRequest(voucher, 4)
+	req.Company = "nairobi"
+	result, err := svc.Reverse(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Applications) != 2 || len(result.FXCancelGroups) != 2 {
+		t.Fatalf("both revisions unwind with both FX posts: %+v", result)
+	}
+	if !result.Items[0].Residual.Equal(types.MustDecimal("100.00")) {
+		t.Fatalf("residual restores fully: %+v", result.Items[0])
+	}
 }
