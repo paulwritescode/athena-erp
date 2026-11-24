@@ -68,7 +68,7 @@
   - Make idle and absolute lifetimes Workspace settings with safe bounds (OWASP Session Management): defaults idle 30 min for everyday users and 15 min for Build mode and root, absolute 12 h; "Keep me signed in on this device" extends absolute to 7 days for non-builder sessions only. Root and Build require re-entering the password after 15 min idle before a destructive action (step-up).
   - Rotate the session ID at sign-in, privilege change and step-up. Sign-out and password change send `Clear-Site-Data: "cache", "cookies", "storage"`.
   - Rate limiting in the Go server: per IP and per username on `AuthService.Login`, `CompleteChallenge`, `StartReset` (token bucket, for example 10 per minute per IP, 5 per 15 min per username, with `Retry-After`); per session on write procedures (for example 60 per minute) and on expensive reads (Reports, export). Library: `golang.org/x/time/rate` (maintained by the Go team, no CGO, fits the single binary). Limits are Workspace settings. Denials are logged to the Access Log without values.
-  - Tabs: one session across tabs of the same browser; `BroadcastChannel("athena-session")` so sign-out, expiry, Workspace switch and role change in one tab update all tabs; a warning dialog 2 min before idle expiry with "Stay signed in"; activity in any tab counts; a Workspace switch clears caches (playbook §8). Session list shows device and last seen; revoke from the list.
+  - Tabs: one session across tabs of the same browser; `BroadcastChannel("athena-session")` so sign-out, expiry, Workspace switch and role change in one tab update all tabs; a warning dialog 2 min before idle expiry with "Stay signed in"; activity in any tab counts; a Workspace switch clears caches (playbook §8; descoped 2026-11-24 until a switch flow exists, B7). Session list shows device and last seen; revoke from the list.
   - Accept: tests for each limit and timeout; Bruno checks for 429 and expiry; Desk test for cross-tab sign-out.
 - [x] **B8. Root administrator and Build/View presentation** (Codex then Muse). Complete 2026-11-22.
   - Slice 1 merged (4d03467): root guards shared across API/CLI/Desk + tests per path, audit attribution, password rotation. Slice 2 merged (48d804d+d81473f): root caption/badge, ?mode=build fix, mode switch, View hiding, read-only Preview-as.
@@ -116,7 +116,7 @@ Order follows dependencies. Desk parts of each group follow the design system an
   - Slice 2 merged 2026-11-22 (6be771e): event bus (Emit/Claim/Declare/Match + dispatcher) + posting/lifecycle emit hooks + Property 13 inbox dedup. Z4/Z2 clean. Open: slices 3+ (jobs/worker, workflows, secrets/lifetimes once Z4 is decided).
   - Slice 3 merged 2026-11-23 (415fed7+dce52a3+461633f+f3d547f, train1 919bab4): job runner (leases/fencing/backoff/occurrences/worker startup) + review fixes (B1 row-first recovery, F1/F2/F4/F5, F3 migration 19 occurrence_key 700). Round-2 review PASS. Z4/Z2 clean. Open: slices 4–6 (workflows, invite/reset delivery, events.proto/handlers/CLI/Desk; split sm-c2 running, sub-slice A merged on the task branch at 8684ccb).
   - Slices 4–6 merged 2026-11-24 (2dd8bbf..87db25e, 7 commits via sm-c2 split): workflows + Property 14 + consumer wiring, invite/reset outbox delivery, EventService/JobService + CLI + Jobs/Settings surface. Review PASS (6 follow-ups F1–F6). Open: secrets slices 8.8–8.10 (Z4, new migration + ADR-0033), then C10.
-- [ ] **C3. G10 Pack packaging.** PackService, install plan preview, PacksPage.
+- [ ] **C3. G10 Pack packaging.** PackService, install plan preview, PacksPage. (Unblocked 2026-11-24: Apache-2.0 decided, Z5; implementation pending.)
 - [ ] **C4. G13 Trees, effective dating, determination specificity, UoM.**
   - Slice 1 merged 2026-11-23 (d54d6e4): migration 18 `trees_effective_uom` + ADR-0029 (Proposed). Open: slices 2–6 (attributes, UoM, Property 25, CLI + Desk, docs + checkpoint).
   - Slice 2 merged 2026-11-23 (919bab4, train1): tree + effective-date Record Type attributes (path/depth/cycle/range, 12 files incl. protos, additive only). Review PASS (4 follow-ups). Open: slices 3 (UoM, in review), 13.3b (ledger-save recompute, added per Stylus — ADR-0029 line 27 had no implementing slice), 4–6 (Property 25, CLI + Desk, docs + checkpoint).
@@ -155,7 +155,7 @@ Order follows dependencies. Desk parts of each group follow the design system an
 
 - [ ] **E1. First-day usability trial** (playbook §8): owner, storekeeper, accountant tasks on a clean Workspace; record wrong turns and time to first transaction; fix the top issues.
 - [ ] **E2. Hardening pass:** impeccable `audit` and `harden` on every page; accessibility (keyboard, contrast, screen reader labels); Bruno black-box suite extended to every service; security review of sessions, rate limits, public routes.
-- [ ] **E3. Docs and release:** README, getting-started, decision log, ADR statuses, CHANGELOG `0.1.0-beta`, annotated tag after the user approves.
+- [ ] **E3. Docs and release:** README, getting-started, decision log, ADR statuses, CHANGELOG `0.1.0-beta`, annotated tag after the user approves. (Unblocked 2026-11-24: Apache-2.0 decided, Z5; implementation pending.)
 
 ## F. Night shift asks
 
@@ -201,7 +201,7 @@ Gates per name: pattern, 1 to 2 syllables, clean as `athena-<noun>`, the user ca
 - B5 slice 2: "No logo" empty text unreadable in mismatched swatch/theme combos; logo errors lack the CircleAlert icon pattern; clearing the display name toasts success but snaps back; theme-color static in dark theme (pre-existing); fallback favicon is the black mark in both themes.
 - B2a slice 2: no bulk RPCs anywhere (tables correctly hide select); runs list hardcoded pageSize 50, next token ignored, no total; centered columns stay centered in stacked phone rows; mapping no-file rows focusable despite no-op click; Actions column shows when row-actions returns []; unexplained px-4 py-3 rewrite in DataTable.
 - Notifications full list page (route, nav entry, permission and DataTable) needs design before it is built; the bell inbox covers design-system section 17 meanwhile.
-- B10 slice 1: "Back to home" from a direct 404 leaves the bad address in the bar; async chunk carries all 33 figures (~120 KB, defeats tree-shaking); FigureName closed union needs extending for custom figures; custom Athena figure set still wanted (hairline-create skill unavailable).
+- B10 slice 1: "Back to home" from a direct 404 leaves the bad address in the bar; async chunk carries all 33 figures (~120 KB, defeats tree-shaking); FigureName closed union needs extending for custom figures; custom Athena figure set still wanted (hairline-create skill unavailable). Custom illustrations accepted 2026-11-24 (B10; see F6 for the logo).
 - B9 form 2: History time/author stale until reload (pre-existing shared code); focus falls to body when its control unmounts; drop-indicator divs inside ul; picker listbox roles without arrow-key nav; picker alt duplicates visible path; icon-only buttons 28 px wide (needs design-system decision); section cards keyed by index.
 - B2a slice 3: current-company marker lost in the companies table (restore when DataTable supports marker rows); workspace CLI DSN lacks ParseTime so CLI period/date reads fail (Desk unaffected); no ledger bulk/delete RPCs.
 - B8 slice 1: EnsureRoot taken-name skip branch untested; serve-boot seeding duplicates kernel-open call with only one seam covered; Desk isRootSelected exact-matching RESOLVED in slice 2 (isRootUsername trims + lowercases).
@@ -240,16 +240,16 @@ Gates per name: pattern, 1 to 2 syllables, clean as `athena-<noun>`, the user ca
 | # | Question | Blocks |
 | --- | --- | --- |
 | Z0 | DECIDED 2026-11-21: both presets, chosen per Workspace | B4 |
-| Z1 | Pilot company, jurisdiction, chart and tax | D5 |
-| Z2 | Permitted backdating window (ADR-0023 O-011) and book policy (O-012) | C1 |
-| Z3 | Stock valuation method and negative stock | C7 |
-| Z4 | Retention periods and key custody | C2 |
-| Z5 | Licence | C3, E3 |
-| Z6 | `vite-plugin-pwa`, deployment profile and recovery objectives | D4 |
-| Z7 | Pack build order, pilot country, provider qualification | D7 |
+| Z1 | DECIDED 2026-11-24: pilot Circle Space (event management, Kenya); KES, 16 % VAT (+ zero-rated/exempt), Jan–Dec FY, IFRS for SMEs chart; M-Pesa/bank/cash recorded only; KRA eTIMS out of beta (C10 follow-up) | D5 |
+| Z2 | DECIDED 2026-11-24: open-periods-only posting, no day window; soft-close 10th (`ledger:close` adjustments with reason); hard-close after the VAT return (20th, refuses all); reopen needs `ledger:close` + reason + later periods + audit; corrections as current-period reversals; one statutory KES book + named books; ADR-0023 amended (O-011/O-012) | C1 |
+| Z3 | DECIDED 2026-11-24: perpetual weighted-average valuation for all stock (IAS 2.25); FEFO picking for perishables; rentals tracked-not-consumed; negative stock refused. ADR-0032 (C7-owned) | C7 |
+| Z4 | DECIDED 2026-11-24: retention 7 yr ledger/invoice/stock/audit (no beta auto-delete); guest data anonymised 90 d post-event + dietary consent; Access Log 1 yr; outbox/events 30 d; job runs 90 d; Workspace key from env/OS keychain, owner-held; `athena secrets rotate`. ADR-0033 (C2-owned) | C2 |
+| Z5 | DECIDED 2026-11-24: Apache-2.0 (LICENSE, NOTICE, README section); C3 + E3 unblocked | C3, E3 |
+| Z6 | DECIDED 2026-11-24: `vite-plugin-pwa`; single server on loopback; nightly `mariadb-dump`, 4 h restore / 24 h data-loss targets | D4 |
+| Z7 | DECIDED 2026-11-24: first industry Pack is Event Management (Circle Space) | D7 |
 | Z8 | DECIDED 2026-11-21 ("start all of those things"): B7 defaults as written | B7 |
 | Z9 | DECIDED 2026-11-21: added `@lucasmarkes/hairline` 0.5.1 (MIT, pinned) and `golang.org/x/time` v0.16.0 (indirect until B7 imports `rate`) | B10, B7 |
-| Z10 | Satori web embedding rights (bundle the font or keep local-only) | B3, D3 |
-| Z11 | Product names in section N | B6 |
+| Z10 | DECIDED 2026-11-24: Satori on public pages too; licence checked 2026-11-24 (Personal-Use trial only) → no Satori file bundled until the user buys a web licence; interim system stack on public, Desk via `local()` only | B3, D3 |
+| Z11 | DECIDED 2026-11-24: product name Athena (final) | B6 |
 | Z12 | DECIDED 2026-11-21: committed on `feat/batch-2-g1-g6` (951ed0d, bf47716) with `.agents/` and `.kiro/` | everything |
-| Z13 | Segregation of duties for posting Rule activation: require a different approver? Recommended: a Workspace setting, on by default when two or more users hold the approve permission, so a one-person business is not blocked | nothing for beta (C1 follow-up) |
+| Z13 | DECIDED 2026-11-24: Workspace setting "Require a second approver for posting Rules", on by default when two or more users hold the approve permission | nothing for beta (C1 follow-up) |

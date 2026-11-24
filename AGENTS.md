@@ -10,7 +10,7 @@ This file is the short, current guide for anyone working in this repository. Kee
 
 ## Current direction
 
-- **Working product name:** Athena. The public name is not finalized.
+- **Working product name:** Athena. The product name Athena is final.
 - **Backend:** Go owns the platform runtime and trusted core business logic.
 - **Configurable logic:** Starlark is for administrator-configured conditions, macros, and bounded actions. A first host runs validation, derivation, guard, transform and posting Rules on document events (`internal/rules`, `RuleService`, `athena rules`, ADR-0016 amended by ADR-0020, both Proposed; memory-guarded, pending sponsor acceptance). It must not bypass Go permission checks, invariants, or transaction boundaries; Rules reach data only through Go host functions. Posting Rules (`post` returning the plan, `fixtures()` replayed on activation with a plan diff and named approval) are not production-ready until accepted.
 - **Ledger masters:** `internal/ledger` owns Company, Branch, Department, Cost Centre, Dimension, Fiscal Year, Period, Currency, Exchange Rate, Account Type, Account, Determination and Setting masters in `athena_` tables (migration 13, `LedgerService`, `athena ledger`, Ledger setup desk page, ADR-0022, Proposed; `ledger:read`/`ledger:write`). Nothing is seeded: jurisdiction, chart and tax stay open for the sponsor, and the D-007 relation stays open until the sponsor confirms it. Ledger and Balance kinds stay kernel-only; `RecordService` refuses writes to them.

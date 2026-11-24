@@ -150,3 +150,7 @@ docs/                   architecture and decision records
 ```
 
 Useful commands: `make test`, `make web-build`, `make generate` (requires Buf), `make build`, and `make run`. Frontend dependencies are installed with the committed pnpm lockfile; npm and Yarn are not supported.
+
+## Licence
+
+Athena is open source under the [Apache License, Version 2.0](LICENSE) (decided 2026-11-24, Z5); see [NOTICE](NOTICE) for attribution. New source files carry an `SPDX-License-Identifier: Apache-2.0` header; existing files are unchanged.
