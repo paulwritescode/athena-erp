@@ -114,6 +114,13 @@ func (s recordService) ListRecords(ctx context.Context, req *athenav1.ListRecord
 		where += " AND (" + predicate.Where + ")"
 		args = append(args, predicate.Args...)
 	}
+	if q := strings.TrimSpace(req.GetQuery()); q != "" {
+		// The match runs in the database inside the paged query, so a search
+		// never reads more rows than a plain list.
+		predicate, pargs := matchPredicate(visibleDefinition(recordType, hidden), q)
+		where += " AND (" + predicate + ")"
+		args = append(args, pargs...)
+	}
 	query := fmt.Sprintf("SELECT %s FROM %s WHERE %s ORDER BY %s LIMIT ?", selectColumns(recordType), dialect.QuoteIdent(recordTypeTableName(recordType.Name)), where, dialect.QuoteIdent("id"))
 	rows, err := s.db.QueryContext(ctx, query, append(args, pageSize+1)...)
 	if err != nil {

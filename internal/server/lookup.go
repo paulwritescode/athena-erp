@@ -53,6 +53,28 @@ func labelExpression(d recordTypeDefinition) string {
 	return fmt.Sprintf("COALESCE(NULLIF(%s, ''), %s)", expr, column("id"))
 }
 
+// matchPredicate matches free text against the Record label and its text
+// fields. d must already be the visible definition, so a hidden value can
+// neither match nor leak through a search. It returns the OR fragment and its
+// arguments; the caller ANDs it into a paged query. LIKE wildcards in the
+// text stay literal.
+func matchPredicate(d recordTypeDefinition, query string) (string, []any) {
+	pattern := "%" + likeEscaper.Replace(query) + "%"
+	ors := []string{labelExpression(d) + " LIKE ?"}
+	args := []any{pattern}
+	for _, field := range d.Fields {
+		if !textFieldTypes[field.Type] {
+			continue
+		}
+		if d.LabelField != "" && field.Name == d.LabelField {
+			continue // the label expression already searches this column
+		}
+		ors = append(ors, dialect.QuoteIdent(field.Name)+" LIKE ?")
+		args = append(args, pattern)
+	}
+	return strings.Join(ors, " OR "), args
+}
+
 // lookupStateColumns select a Record's deletion flag and document state.
 func lookupStateColumns(d recordTypeDefinition) (deleted, docstate string) {
 	deleted, docstate = "0", "0"

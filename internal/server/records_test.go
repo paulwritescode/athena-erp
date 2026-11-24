@@ -152,6 +152,112 @@ func TestRecordListPagesInIDOrderWithoutGaps(t *testing.T) {
 	requireCode(t, err, connect.CodeInvalidArgument)
 }
 
+func recordNames(records []*athenav1.Record) []string {
+	out := make([]string, len(records))
+	for i, record := range records {
+		out[i] = record.GetValues()["name"].GetStringValue()
+	}
+	return out
+}
+
+func TestRecordListQueryMatchesLabelAndTextFields(t *testing.T) {
+	ctx := context.Background()
+	recordTypes, records := newServices(t)
+	saveRecordType(t, recordTypes, "customer",
+		&athenav1.RecordTypeField{Key: "name", Label: "Name", Type: "Text", Required: true},
+		&athenav1.RecordTypeField{Key: "notes", Label: "Notes", Type: "Long text"},
+		&athenav1.RecordTypeField{Key: "email", Label: "Email", Type: "Email"},
+		&athenav1.RecordTypeField{Key: "balance", Label: "Balance", Type: "Currency"},
+	)
+	for _, values := range []map[string]*athenav1.FieldValue{
+		{"name": text("Acme"), "notes": text("likes apples"), "balance": text("100")},
+		{"name": text("Bolt"), "email": text("bolt@example.com")},
+		{"name": text("Acorn"), "notes": text("oak fan")},
+		{"name": text("Zed 100%")},
+		{"name": text("Zed 1_0")},
+	} {
+		if _, err := create(t, records, "customer", values); err != nil {
+			t.Fatal(err)
+		}
+	}
+	list := func(query string) []string {
+		t.Helper()
+		res, err := records.ListRecords(ctx, &athenav1.ListRecordsRequest{RecordTypeKey: "customer", Query: query})
+		if err != nil {
+			t.Fatalf("list query %q: %v", query, err)
+		}
+		return recordNames(res.GetRecords())
+	}
+	all := "[Acme Bolt Acorn Zed 100% Zed 1_0]"
+	for query, want := range map[string]string{
+		"ac":            "[Acme Acorn]", // the label, whatever the case
+		"ACME":          "[Acme]",
+		"apples":        "[Acme]", // a text field that is not the label
+		"oak":           "[Acorn]",
+		"example.com":   "[Bolt]",     // Email counts as a text field
+		"100":           "[Zed 100%]", // the label matches, but the 100 balance must not
+		"%":             "[Zed 100%]", // a typed % is literal
+		"1_0":           "[Zed 1_0]",  // a typed _ is literal
+		"":              all,          // empty means no filter
+		"   ":           all,          // surrounding blanks are ignored
+		"no-such-thing": "[]",
+	} {
+		if got := fmt.Sprint(list(query)); got != want {
+			t.Fatalf("query %q = %v, want %v", query, got, want)
+		}
+	}
+
+	// Paging still walks the whole filtered set without gaps.
+	var paged []string
+	token := ""
+	for pages := 0; ; pages++ {
+		if pages > 5 {
+			t.Fatal("paging did not finish")
+		}
+		res, err := records.ListRecords(ctx, &athenav1.ListRecordsRequest{RecordTypeKey: "customer", Query: "zed", PageSize: 1, PageToken: token})
+		if err != nil {
+			t.Fatal(err)
+		}
+		paged = append(paged, recordNames(res.GetRecords())...)
+		if token = res.GetNextPageToken(); token == "" {
+			break
+		}
+	}
+	if fmt.Sprint(paged) != fmt.Sprint(list("zed")) || fmt.Sprint(paged) != "[Zed 100% Zed 1_0]" {
+		t.Fatalf("paged = %v", paged)
+	}
+}
+
+func TestRecordListQuerySearchesTheLabelField(t *testing.T) {
+	ctx := context.Background()
+	recordTypes, records := newServices(t)
+	// The label field is a choice, not a text field: the label still matches.
+	mustSave(t, recordTypes, &athenav1.RecordType{Key: "ticket", Label: "Ticket", Kind: "master", LabelField: "state", Fields: []*athenav1.RecordTypeField{
+		{Key: "name", Label: "Name", Type: "Text", Required: true},
+		{Key: "state", Label: "State", Type: "Enum", EnumValues: []*athenav1.EnumValue{{Value: "open", Label: "Open"}, {Value: "closed", Label: "Closed"}}},
+	}})
+	if _, err := create(t, records, "ticket", map[string]*athenav1.FieldValue{"name": text("Crash on save"), "state": text("open")}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := create(t, records, "ticket", map[string]*athenav1.FieldValue{"name": text("Typo in help"), "state": text("closed")}); err != nil {
+		t.Fatal(err)
+	}
+	list := func(query string) []string {
+		t.Helper()
+		res, err := records.ListRecords(ctx, &athenav1.ListRecordsRequest{RecordTypeKey: "ticket", Query: query})
+		if err != nil {
+			t.Fatalf("list query %q: %v", query, err)
+		}
+		return recordNames(res.GetRecords())
+	}
+	if got := fmt.Sprint(list("OPEN")); got != "[Crash on save]" {
+		t.Fatalf("label query = %v", got)
+	}
+	if got := fmt.Sprint(list("typo")); got != "[Typo in help]" {
+		t.Fatalf("text query = %v", got)
+	}
+}
+
 func TestRecordHistoryRecordsEachChange(t *testing.T) {
 	ctx := context.Background()
 	recordTypes, records := newServices(t)

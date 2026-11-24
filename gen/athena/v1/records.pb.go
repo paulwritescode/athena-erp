@@ -432,7 +432,10 @@ type ListRecordsRequest struct {
 	Filter string `protobuf:"bytes,5,opt,name=filter,proto3" json:"filter,omitempty"`
 	// Effective-dated Record Types only: list the rows effective on this
 	// YYYY-MM-DD date, resolved end-exclusive.
-	AsOf          string `protobuf:"bytes,6,opt,name=as_of,json=asOf,proto3" json:"as_of,omitempty"`
+	AsOf string `protobuf:"bytes,6,opt,name=as_of,json=asOf,proto3" json:"as_of,omitempty"`
+	// Case-insensitive text matched against the Record label and its text
+	// fields. Empty lists everything.
+	Query         string `protobuf:"bytes,7,opt,name=query,proto3" json:"query,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -505,6 +508,13 @@ func (x *ListRecordsRequest) GetFilter() string {
 func (x *ListRecordsRequest) GetAsOf() string {
 	if x != nil {
 		return x.AsOf
+	}
+	return ""
+}
+
+func (x *ListRecordsRequest) GetQuery() string {
+	if x != nil {
+		return x.Query
 	}
 	return ""
 }
@@ -2660,7 +2670,7 @@ const file_athena_v1_records_proto_rawDesc = "" +
 	"\feffective_to\x18\x14 \x01(\tR\veffectiveTo\x1aP\n" +
 	"\vValuesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12+\n" +
-	"\x05value\x18\x02 \x01(\v2\x15.athena.v1.FieldValueR\x05value:\x028\x01\"\xc2\x01\n" +
+	"\x05value\x18\x02 \x01(\v2\x15.athena.v1.FieldValueR\x05value:\x028\x01\"\xd8\x01\n" +
 	"\x12ListRecordsRequest\x12&\n" +
 	"\x0frecord_type_key\x18\x01 \x01(\tR\rrecordTypeKey\x12\x1b\n" +
 	"\tpage_size\x18\x02 \x01(\x05R\bpageSize\x12\x1d\n" +
@@ -2668,7 +2678,8 @@ const file_athena_v1_records_proto_rawDesc = "" +
 	"page_token\x18\x03 \x01(\tR\tpageToken\x12\x1b\n" +
 	"\tparent_id\x18\x04 \x01(\tR\bparentId\x12\x16\n" +
 	"\x06filter\x18\x05 \x01(\tR\x06filter\x12\x13\n" +
-	"\x05as_of\x18\x06 \x01(\tR\x04asOf\"j\n" +
+	"\x05as_of\x18\x06 \x01(\tR\x04asOf\x12\x14\n" +
+	"\x05query\x18\a \x01(\tR\x05query\"j\n" +
 	"\x13ListRecordsResponse\x12+\n" +
 	"\arecords\x18\x01 \x03(\v2\x11.athena.v1.RecordR\arecords\x12&\n" +
 	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"J\n" +

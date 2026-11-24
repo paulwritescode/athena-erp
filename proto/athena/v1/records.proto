@@ -118,6 +118,9 @@ message ListRecordsRequest {
   // Effective-dated Record Types only: list the rows effective on this
   // YYYY-MM-DD date, resolved end-exclusive.
   string as_of = 6;
+  // Case-insensitive text matched against the Record label and its text
+  // fields. Empty lists everything.
+  string query = 7;
 }
 
 message ListRecordsResponse {
