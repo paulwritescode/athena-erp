@@ -407,3 +407,39 @@
 - 07:35 w-fu renumber cleared (scratch-only, committed 23 intact, tree clean)
 - 07:39 MERGED F6 (bcd2913, 507s gate) + server t5w healthy
 - 07:39 w-fu F4 builder committed (6 mount tests); Gallery + embeds + lists UI next
+- 07:40 w-fu F4 at 12 commits (builder+Gallery done); ORDERED continue (no pause) + propose slice boundaries
+- 07:41 w-c2 holding (mig-22 gate running/queued); no action
+- 07:42 migration 24 reserved (F4 rules columns); 21 recorded merged
+- 07:44 w-c7 s2-fix restacked (fix e0fd3f7, s3 8d6ebdf); 26 tests green, affected next
+- 07:45 TICK: w-c2 ~7m in; KEEP r-c7s2 (re-review owed)
+- 07:46 w-fu F4 Builder UI committed (38 tests); mig-24 + server eval next
+- 07:47 w-c2 refused stale PASS (green was pre-rebase); rebased e3ba394 on 6c871c9, fresh gate queued
+- 07:51 w-f2 full running (started 07:46); rebase + report on green
+- 07:55 TICK: w-f2 ~9m in; KEEP r-c7s2 (re-review owed)
+- 07:59 F4 3-slice ruling: bottom-16 frozen core, stacked, no fork; suite breach noted+accepted (disclosed)
+- 08:00 F4 GOs: (1)(2) DENIED (F2-owned / F3-unstaffed), (3) api.ts APPROVED; F4 slice 2 blocked -> slice 3 now
+- 08:02 w-fu F4 text-match committed; slice 3 next (s2 waits F2s2/F3)
+- 08:04 w-f2 rebased clean on 6c871c9 (df2b80d), fresh gate per one-run-per-commit
+- 08:05 TICK: w-f7 running, fresh re-gates queued, KEEP r-c7s2
+- 08:06 disjoint rule: F2+C2 reruns stopped, PASSes ordered; SPAWNED r-c2s1; r-f2s1 brief ready, cap-held
+- 08:07 PASS x2: C2 secrets s1 (e3ba394) + F2 s1 (df2b80d, disjoint records); w-f2 -> slice 2; r-c2s1 blocked on disk, cleaning
+- 08:07 w-fu F4 QueueMessages committed; api.ts + lists UI + PDF next
+- 08:10 F2s2 ruling: RecordsPage GRANTED (search-only, Records E2E), Find verb, glossary minimal, searchScope approved
+- 08:13 w-f2 slice 2 building per ruling (factored search + Records E2E)
+- 08:14 disk 8.1GB (train/merge/f6-r2 removed, 3 branches deleted); SPAWNED r-c2s1 (t5x) + r-f2s1
+- 08:14 queue: w-f7 green then correctly re-queued post-rebase (main.go shared); r-c5s2 running
+- 08:15 TICK: r-c5s2 ~9m in, 4/4 reviewers live, KEEP r-c7s2
+- 08:15 w-c7 fix gate queued 30m+ (slot busy); tip unchanged, will report on green
+- 08:16 w-f7 rebased on F6 (real run() conflict, both kept, verified); ORDERED banner-header integration, race-aware commit
+- 08:16 w-fu F4 slice 3 progressing (preview + lists UI committed, 21 total); F4-owned embeds only, gates wait for 22
+- 08:17 w-f7 banner header in (8b3621f) before gate start; queued run covers final tree
+- 08:18 w-f2 slice 2 code done (14 tests); Records E2E browser running
+- 08:20 C5s2 REVIEW PASS; CLOSED r-c5s2; staged 8298269 (clean) + gate queued master-first
+- 08:20 w-fu F4 tests caught real watcher bug (fixed); no rebase (22 pending), docs-drift check next
+- 08:25 TICK: C5s2 gating-queued, w-c1 running, KEEP r-c7s2
+- 08:32 C5 slice 3 PASS (6a879f4); brief Z2 amended for slice 4; w-c1 -> slice 4; r-c5s3 spawn tried
+- 08:35 TICK: C5s2 gate ~4m in, C5s3 in review, KEEP r-c7s2
+- 08:39 w-c1 C5s4 design locked (Z2-native, handoffs noted); writing
+- 08:45 TICK: C5s2 ~14m in, KEEP r-c7s2
+- 08:50 w-f2 slice 2 browser PASS (Records E2E, 4 shots, 0 errors); committed 8b09cfe, final affected running
+- 08:52 MERGED C5s2 (929d3dd, 1124s gate) + server t60 healthy

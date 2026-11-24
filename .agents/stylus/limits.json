@@ -1,8 +1,8 @@
 {
   "stylus": "t6",
-  "maxAgents": 14,
+  "maxAgents": 15,
   "maxWorkers": 6,
-  "maxReviewers": 3,
+  "maxReviewers": 4,
   "maxSubmasters": 2,
   "maxSubworkersPerSubmaster": 2,
   "minMemFreePct": 15,
