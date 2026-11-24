@@ -523,3 +523,13 @@
 - 11:39 w-ts fold plan sound (measure pure, cleanup+docs to slice 1, mixed-auth caveat)
 - 11:43 TICK: train retry ~10m in post-fix
 - 11:46 MERGED C7 train (3272765, 703s retry) + server t6d healthy
+- 11:47 w-c7 ordered to rebase stack (train merged); C7s4 stages from fresh tip
+- 11:47 w-ts measuring (auth queued behind merges, correct)
+- 11:48 C7s4 staged 0052c9d (clean) + gate queued; w-c7 rebased (s4+s5 identical)
+- 11:55 TICK: F3s1 ~10m in; nudged r-c2s3 (KEPT, verdict owed)
+- 11:55 C2s3 REVIEW PASS (reconfirmed); CLOSED r-c2s3; merges after C2s2
+- 12:02 C2s3 REVIEW PASS (via comms log, msg never arrived as hc); CLOSED r-c2s3; merges after C2s2
+- 12:03 CORRECTION: 12:02 line wrong — r-c2s3 verdict DID arrive as hc (handled 11:55); redundant re-close harmless, no double-merge
+- 12:05 TICK: F3s1 ~20m in
+- 12:07 MERGED F3s1 (a82d934, 1223s gate); Stylus Argon2 finding -> w-ts (slice 1 first)
+- 12:08 w-ts acked reorder (slice 1 = Argon2 with parallel before/after)
