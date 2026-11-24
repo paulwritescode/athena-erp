@@ -1017,6 +1017,29 @@ func SystemMigrations() []store.Migration {
 				KEY idx_holds_record (record_type, record_id)
 			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 		)},
+		// Saved lists (ADR-0034): named condition trees over one Record Type
+		// with a column choice. Nothing is seeded: lists are Workspace data
+		// written through the lists service only.
+		// NOTE: versions 21 (C7) and 22 (C2 secrets) land first; until this
+		// branch rebases onto them, ValidateMigrations reports the gap and
+		// DB-backed tests stay red. That red is the reservation working, not
+		// a failure — the merge order is 21, 22, 23.
+		{Version: 23, Name: "saved_lists", Up: execAll(
+			`CREATE TABLE IF NOT EXISTS athena_lists (
+				id CHAR(36) NOT NULL PRIMARY KEY,
+				name VARCHAR(140) NOT NULL,
+				record_type_key VARCHAR(140) NOT NULL,
+				condition_tree JSON NOT NULL,
+				condition_expr TEXT NOT NULL,
+				columns JSON NULL,
+				owner VARCHAR(140) NOT NULL,
+				revision BIGINT NOT NULL DEFAULT 1,
+				created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+				UNIQUE KEY uq_lists_name (record_type_key, name),
+				KEY idx_lists_type (record_type_key)
+			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+		)},
 	}
 }
 
