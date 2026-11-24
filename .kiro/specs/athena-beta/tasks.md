@@ -114,6 +114,7 @@ Order follows dependencies. Desk parts of each group follow the design system an
   - Slice 1 merged 2026-11-22 (5d1e55f): migration 17 (events/outbox/inbox + subscriptions + jobs/occurrences + workflows/tasks) + ADR-0028 (8.1 adjusted); Z4 secrets/lifetimes deferred. Open: slices 2+ (subscriptions, worker, jobs, workflows, secrets/lifetimes once Z4 is decided).
   - Slice 2 merged 2026-11-22 (6be771e): event bus (Emit/Claim/Declare/Match + dispatcher) + posting/lifecycle emit hooks + Property 13 inbox dedup. Z4/Z2 clean. Open: slices 3+ (jobs/worker, workflows, secrets/lifetimes once Z4 is decided).
   - Slice 3 merged 2026-11-23 (415fed7+dce52a3+461633f+f3d547f, train1 919bab4): job runner (leases/fencing/backoff/occurrences/worker startup) + review fixes (B1 row-first recovery, F1/F2/F4/F5, F3 migration 19 occurrence_key 700). Round-2 review PASS. Z4/Z2 clean. Open: slices 4–6 (workflows, invite/reset delivery, events.proto/handlers/CLI/Desk; split sm-c2 running, sub-slice A merged on the task branch at 8684ccb).
+  - Slices 4–6 merged 2026-11-24 (2dd8bbf..87db25e, 7 commits via sm-c2 split): workflows + Property 14 + consumer wiring, invite/reset outbox delivery, EventService/JobService + CLI + Jobs/Settings surface. Review PASS (6 follow-ups F1–F6). Open: secrets slices 8.8–8.10 (Z4, new migration + ADR-0033), then C10.
 - [ ] **C3. G10 Pack packaging.** PackService, install plan preview, PacksPage.
 - [ ] **C4. G13 Trees, effective dating, determination specificity, UoM.**
   - Slice 1 merged 2026-11-23 (d54d6e4): migration 18 `trees_effective_uom` + ADR-0029 (Proposed). Open: slices 2–6 (attributes, UoM, Property 25, CLI + Desk, docs + checkpoint).
@@ -224,6 +225,7 @@ Gates per name: pattern, 1 to 2 syllables, clean as `athena-<noun>`, the user ca
 - C4 slice 3: posting must pass the voucher's business date (not today) when adopting ResolveAccount; as-of not yet on RPC/CLI (slice 5 owns CLI/Desk); trim-before-validate consistency; pin the two-leg conversion bound in Property 25; FromBase-with-override + g→mg test gaps.
 - C4 slice 4: pin the composed two-leg bound formula; fix ledgers_test comment overclaiming period proof of record dating; rapid bound-redraw nit.
 - C5 slice 1: ADR-0031 "mirrors negate by convention" → "mirrors swap sides" (engine swaps sides, amounts never negative).
+- C2 split: no `athena workflows` CLI; no Desk Workflows page; row-level exhaust (pre-existing); light-shot caveat note; harness wait + shot retake; silent unregistered-handler skips need a counter at G10.
 - C4 13.3b: cross-level reparent test; reparent-to-root test; label-only save skips refresh (repair or ADR note); NULL-parent plain error → inputErrorf; hardcoded test revisions.
 - D3 slice 4: filesWorkspace one-liner (take in slice 5); course image width/height parity; CLS re-measure on scroll if images move above the fold.
 
