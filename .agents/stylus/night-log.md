@@ -381,3 +381,29 @@
 - 07:03 w-fu F4 core done (mig-23 DDL standalone, expr+TS round-trips green); maroto diligence + builder next, DB gates still held
 - 07:05 TICK: F1 ~5m in, w-c2 on 22, r-f6 suite-blocked not stuck
 - 07:08 MERGED F1 (6ecf06d, 424s gate, server fresh 411s) + server t5s healthy
+- 07:08 docs 2954bce pushed (F1 record); CLOSED w-f1 (F1 merged); SPAWNED w-f2 (t5t, F2 slice 1)
+- 07:10 F4: maroto rejected (+14.9MB), gopdf v0.38.6 proposed (+1.2MB, MIT closure); clearance asked, w-fu on builder
+- 07:10 gopdf v0.38.6 CLEARED (own layout + Inter + golden 3-page test); w-fu wiring
+- 07:11 w-f2 slice 1 started (server match; F4 item deferred per brief)
+- 07:11 w-c2 migration 22 committed (1f462ed), affected queued
+- 07:13 w-c7 rebased on 2954bce (s1 dropped, s2=132cd51 identical, s3=8f7fdfe); narrows green; s3 affected next
+- 07:14 w-f2 slice 1 code done (narrows green), affected next
+- 07:15 TICK: w-c1 ~8m in, 6-deep queue, no one stuck
+- 07:19 C5 slice 2 PASS (9b91f8d); w-c1 -> slice 3; SPAWNED r-c5s2
+- 07:20 w-fu F4 PDF wired (gopdf + Inter + golden x3); lists service next
+- 07:20 spawn r-c5s2 REFUSED (disk 7.9GB); removing 4 dead trees, retry after
+- 07:20 disk 9.0GB after 4 dead trees removed; r-c5s2 spawn retried
+- 07:21 w-c2 holding (mig-22 gate queued); no action
+- 07:21 w-c1 on C5 slice 3 (Property 11, append-only, L3-safe)
+- 07:24 F6 REVIEW PASS (fix verified, env-confirm green); CLOSED r-f6; staged merge/f6 (4 clean picks, tip b1f5bd4) + gate queued
+- 07:24 w-c1 C5s3 tests narrow-green (100/100 x2), affected next
+- 07:25 TICK: F6 gated-queued, r-c7s2 running, no one stuck
+- 07:26 w-f7 slice 1 rebased clean (72562c4), affected re-queued
+- 07:30 C7s2 NEEDS_CHANGES (empty-kind cancels + over-return race + untested paths); w-c7 fixing, r-c7s2 stays for re-review
+- 07:31 w-c2 ordered to rebase on 2954bce before its gate starts
+- 07:32 w-c2 rebased clean on 2954bce (mig 28a9b5f); gate tests fresh tree
+- 07:34 w-fu F4 service committed (PDF verified); QUESTION: 'renumbered tree' vs committed 23 — scratch-only?
+- 07:35 TICK: F6 ~4m in, w-c7 fixing, w-fu questioned, no one stuck
+- 07:35 w-fu renumber cleared (scratch-only, committed 23 intact, tree clean)
+- 07:39 MERGED F6 (bcd2913, 507s gate) + server t5w healthy
+- 07:39 w-fu F4 builder committed (6 mount tests); Gallery + embeds + lists UI next

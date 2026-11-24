@@ -1,4 +1,4 @@
-# Stylus night report — night shift, 2026-11-24 (main 6ecf06d)
+# Stylus night report — night shift, 2026-11-24 (main bcd2913)
 
 ## Summary
 
@@ -19,6 +19,7 @@ Shift 3 + night shift have merged 48 code commits plus docs batches: train1, tra
 - **C7 slice 1** (`a6dec5c` → `6c99d3a`, 1 commit): migration 21 (10 stock tables) + ADR-0032. Review PASS (cache-provenance crux cleared). Merge gate: real 1042s run (17 Go ok, 632 web) after two hollow gates were voided (no DB env in the fresh staging tree).
 - **Decisions docs** (`6c99d3a` → `72caec6`, 1 commit): section Z (Z1–Z7/Z10/Z11/Z13 DECIDED), 12 log rows, ADR-0023 amendment, LICENSE/NOTICE/README/AGENTS.md. Review PASS (transcription exact).
 - **F1 tables** (`16cea19` → `6ecf06d`, 3 commits): footer count, right actions, explicit padding/left cells/select symmetry; browser 15/15 + 8/8 shots; DISJOINT from 6.10. Review PASS. Merge gate 424s (server re-ran fresh 411s DB-backed, 636 web).
+- **F6 logo** (`2954bce` → `bcd2913`, 4 commits): generator + frames, draw-in on 4 surfaces, CLI banner; 32/32 shots, 23/23 art tests. Review PASS after one NEEDS_CHANGES (step-ms, fixed). Merge gate 507s (server fresh 489s, 646 web).
 
 ## In progress (by lane, main 72caec6)
 

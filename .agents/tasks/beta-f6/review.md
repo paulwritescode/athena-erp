@@ -1,6 +1,6 @@
 # Review: F6 live ASCII logo
 
-Verdict: NEEDS_CHANGES — generator default disagrees with the doc and the shipped frames (one-line fix).
+Verdict: PASS (re-review of fix commit 9d841c8; the NEEDS_CHANGES defect below is fixed and re-verified).
 
 Tree: `../athena-erp-f6-r`, detached at 09a5fe1, clean; 3 F6 commits (4b3a667, 3e3a7c1, 09a5fe1) on 4acb8d4. All files within the brief's allowed set; no gate.go/proto/migration/App.vue/api.ts touches. `internal/webui/dist/.gitkeep` intact.
 
@@ -28,6 +28,11 @@ Fix: change the flag default 150 → 180 in `tools/asciilogo/main.go` (aligns co
 - F6-FU1: offline plug figure never paints — its lazy hairline chunk can't load while offline. Fix in B10 art ownership (inline the plug, or an offline-safe fallback); F6 logo already renders because frames ship in the main chunk.
 - F6-FU2 (nit, optional): the logo block centers as a whole while ragged lines read slightly right-of-centre on wide 404/offline pages. Cosmetic; matches the old mark's centering.
 
-## Re-review ask
+## Re-review of 9d841c8 (fix(f6): default -step-ms to 180 as documented)
 
-After the one-line default fix + regen no-diff confirmation, this is a PASS from me with no further browser work needed (no visual or behavioral change).
+Fresh detached checkout `../athena-erp-f6-r2` at 9d841c8 with the seeded `.env.local`. Delta 09a5fe1..9d841c8 is exactly the one line (`-step-ms` default 150 → 180 in `tools/asciilogo/main.go`); no visual or behavioral change, so no new browser work.
+
+- Regen claim verified: bare `go run ./tools/asciilogo` output is now byte-identical to the committed `web/src/art/logo-frames.ts` (`cmp` clean; 40x8, 9 frames/theme, variants differ in 52 cells).
+- Affected gate re-run through suite with seeded env: exit 0 — `ok athena-erp/cmd/athena`, `tools/asciilogo` no test files, web 65 files / 626 tests pass. Scope confirmed pure (`Go: ./cmd/athena ./tools/asciilogo | web tests: yes`).
+
+All six brief items now hold. Follow-ups F6-FU1 (offline plug, pre-existing) and F6-FU2 (logo centering nit) stand as filed above.
