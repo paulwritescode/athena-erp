@@ -130,12 +130,14 @@ choice, owner, revisions (exact DDL at implementation).
   list path (SQL `Translate` first, in-memory fallback inside the page).
   No snapshots, no staleness.
 - **PDF export now**: one click renders the current list (visible columns,
-  applied order) to a PDF download. Server-rendered with maroto v2.4.4
-  (MIT, pure Go, custom TTF embedding; see ADR-0034) plus a CLI
+  applied order) to a PDF download. Server-rendered with gopdf v0.38.6
+  (MIT; see ADR-0034 for the diligence) plus a CLI
   `athena lists export --pdf`. Every page carries a header with the
-  Workspace name and logo, list title, applied filter and render time;
-  body text embeds Inter TTF. The print-stylesheet fallback is rejected:
-  "export now" means bytes. PDF wiring waits for Stylus library clearance
+  Workspace name and logo, list title, applied filter and render time
+  (hand-rolled layout: gopdf has no auto page-break tables); body text
+  embeds Inter TTF. Maroto was rejected on binary size (+14.9 MB over a
+  ~5 MB budget) and the print-stylesheet fallback is rejected: "export
+  now" means bytes. PDF wiring waits for Stylus library clearance
   before any `go.mod` change.
 - **"Email them" / "Message them"**: queue, not send. One click writes one
   outbox envelope per recipient row (`list.message.requested`, payload of
@@ -198,8 +200,9 @@ fields (derivation sets stored fields only), a delivery provider, static
 
 ## 8. Answered by Stylus (2026-11-24 order; folded in above)
 
-1. PDF: server-rendered maroto v2.4.4 (MIT) + `athena lists export --pdf`;
+1. PDF: server-rendered gopdf v0.38.6 (MIT, +1.2 MB) + `athena lists export --pdf`;
    wiring waits for Stylus library clearance before any `go.mod` change.
+   Maroto v2.4.4 evaluated and rejected on size (+14.9 MB).
 2. `lists:send` is a new system permission (+ `procedurePolicies` + Roles UI).
 3. Slice 1 literals-only; field compare + one Link hop next, before F5.
 4. Kernel table `athena_lists`, migration 23 (not a Record Type).

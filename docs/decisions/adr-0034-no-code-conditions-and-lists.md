@@ -51,15 +51,21 @@ spec are in `.agents/tasks/beta-f4/design.md` (draft).
 - Permissions: lists follow type read Grants; editing lists needs
   `build`; queueing needs read plus the new `lists:send` system
   permission (declared in `procedurePolicies` and the Roles UI).
-- PDF export is server-rendered with
-  `github.com/johnfercher/maroto/v2 v2.4.4` (MIT, pure Go, no cgo,
-  released 2026-10-22; builder rows/cols/tables/images, auto page breaks,
-  repeating headers, custom TTF embedding for Inter; transitive deps
-  MIT/Apache-2.0/BSD) plus a CLI `athena lists export --pdf`. Every page
-  carries Workspace name/logo, list title, applied filter and render
-  time. PDF wiring waits for Stylus library clearance before any
-  `go.mod` change. Slice 1 is literals-only; field compare plus one Link
-  hop follows before F5.
+- PDF export is server-rendered with `github.com/signintech/gopdf v0.38.6`
+  (MIT, released 2026-11-21; TTF embedding, images, manual layout) plus
+  a CLI `athena lists export --pdf`. Every page carries Workspace
+  name/logo, list title, applied filter and render time; headers and
+  page breaks are hand-rolled (gopdf has no auto-layout). PDF wiring
+  waits for Stylus library clearance before any `go.mod` change. Slice 1
+  is literals-only; field compare plus one Link hop follows before F5.
+- Dependency diligence (2026-11-24, in-branch): maroto v2.4.4 (MIT,
+  Oct 2026) was evaluated first and REJECTED on size — +14.9 MB
+  (+10.4 MB stripped) over the ~5 MB budget, measured against a
+  hello-world baseline. gopdf adds +1.2 MB (+0.8 MB stripped). gopdf's
+  full closure is 3 modules, all permissive, none archived, no cgo:
+  signintech/gopdf v0.38.6 (MIT, active), phpdave11/gofpdi
+  v1.0.14-0.20211212211723 (MIT, active Apr 2026), pkg/errors v0.8.1
+  (BSD, active Mar 2026). No GPL/LGPL anywhere in either tree.
 
 ## Consequences
 
