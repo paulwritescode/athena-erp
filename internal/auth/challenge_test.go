@@ -13,17 +13,13 @@ import (
 	"time"
 
 	"athena-erp/internal/auth"
-	"athena-erp/internal/server"
-	"athena-erp/internal/store"
 	"pgregory.net/rapid"
 )
 
 func challengeService(t *testing.T) (*auth.Service, *time.Time) {
 	t.Helper()
+	// No migrate: the shared database arrives migrated and Reset keeps it so.
 	db := sharedDatabase(t)
-	if _, err := store.Up(context.Background(), db, store.MariaDB{}, server.SystemMigrations(), store.UpOptions{}); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
 	now := time.Now().UTC().Truncate(time.Millisecond)
 	return &auth.Service{DB: db, Now: func() time.Time { return now }}, &now
 }
@@ -243,10 +239,8 @@ func TestActivationCodeIsShortAndSingleUse(t *testing.T) {
 // iterations by default, the spec minimum. Hashing is lowered for the run:
 // the property is about concurrency, not Argon2id cost.
 func TestChallengeSingleUseProperty(t *testing.T) {
+	// No migrate: the shared database arrives migrated and Reset keeps it so.
 	db := sharedDatabase(t)
-	if _, err := store.Up(context.Background(), db, store.MariaDB{}, server.SystemMigrations(), store.UpOptions{}); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
 	previous := auth.DefaultParams
 	auth.DefaultParams = auth.Params{MemoryKiB: 8 * 1024, Time: 1, Threads: 1}
 	t.Cleanup(func() { auth.DefaultParams = previous })

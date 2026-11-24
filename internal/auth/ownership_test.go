@@ -7,8 +7,6 @@ import (
 	"testing"
 
 	"athena-erp/internal/auth"
-	"athena-erp/internal/server"
-	"athena-erp/internal/store"
 	"pgregory.net/rapid"
 )
 
@@ -358,10 +356,10 @@ func TestStartResetNeedsTheActorPassword(t *testing.T) {
 // phase calls it per iteration for exactly the owners it demotes.
 func ownerDB(t *testing.T) *auth.Service {
 	t.Helper()
+	// No migrate here: the shared database arrives migrated and Reset
+	// keeps it so; re-running Up per iteration only re-acquires the
+	// schema lock and rechecks every migration.
 	db := sharedDatabase(t)
-	if _, err := store.Up(context.Background(), db, store.MariaDB{}, server.SystemMigrations(), store.UpOptions{}); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
 	svc := &auth.Service{DB: db}
 	if err := svc.EnsureSystemRoles(context.Background()); err != nil {
 		t.Fatalf("seed: %v", err)
