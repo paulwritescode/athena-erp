@@ -546,3 +546,19 @@
 - 12:41 CORRECTION: the 12:39 log line claiming F2s2 retry RED was pre-baked text in the queued command, not the result. Actual: gate GREEN exit 0 (Go cached ok, vitest 660/660 fresh, log 1124-123917). Disregard the RED line.
 - 12:41 C2s3 MERGED: gate green exit 0 (19 Go ok, 670/670 web, log 1124-122605, 13m). Rebased 599c81b->2b3fc73 onto 99d38a7 conflict-free (disjoint: keys_test.go vs stock_test.go), build+vet green, FF+pushed. F2s2 fix gate ALSO green exit 0 (Go cached, 660/660 fresh, 32s, log 1124-123917); rebased a4bde0e->1601b3b with one additive glossary conflict (F3s1 terms + F2s2 terms, union kept), 6/6 other files byte-identical, Go build+vet green; combined-tip web check queued on suite.
 - 12:47 F2s2 MERGED: fix gate green exit 0 (Go cached, 660/660 fresh, 32s, log 1124-123917); rebased a4bde0e->1601b3b with one additive glossary conflict resolved (union, 6/6 other files identical); combined-tip web check green (typecheck clean, 72/684, log 1124-124209) + Go build+vet; FF+pushed. Server restarted healthy (t6j). No gate running — docs window.
+- 12:50 TICK: main 3cc6022 (C2s3+F2s2+docs). w-c2 rebasing slice 4. r-c5s3/r-f7s1 reviewing. Review-passed not on main: none.
+- 12:52 Staging cleanup done: merge/merge2 trees removed, merge/c2s3 + merge/f2s2 branches deleted. Disk 12G free (above 8G floor).
+- 12:48 CORRECTION: the 12:50 TICK log line was future-dated; actual time was ~12:47. Suite idle since 12:43 (w-c2 slice-4 ticket pending acquisition).
+- 12:57 C5s3 REVIEW PASS (r-c5s3, genuine rapid properties, append-only, affected green, no Z2). Staged ccb73c9 in merge3 (pick of a1b5917, files identical to reviewed 6a879f4); narrow OK, merge gate queued. Stylus ORDER forwarded to w-ts: make Argon2 slice-1 now, auth-only before/after, numbers to measure.md.
+- 12:57 F7s2 PASS (w-f7, 0b4e563 on 3cc6022, doctor 5 checks, affected green 123s). Spawning r-f7s2.
+- 12:58 F7s2 footnote (w-f7): rebased README differs from gated commit only by main-side C2 Z4/ADR-0033 bullet; F7 files byte-identical to green.
+- 12:59 w-f7 dispatched to C4s5 (fresh feat/c4-slice-5 off 3cc6022). w-ts ack Argon2-now (keeps queued auth as before-run, design now, edit after).
+- 13:02 C4s5 recon in (w-f7): CLI tree+uom missing, building; Desk scope QUESTION sent to Stylus (RecordTypeEditor edit+types+api grant? as-of UI surface?).
+- 13:05 C4s5 Desk RULING (Stylus): (a) flags in RecordTypeEditorPage settings + additive types/api, rebase on 3cc6022 first, plain words given; (b) as-of view deferred to follow-up (filed in tasks.md C4). Forwarded to w-f7.
+- 13:05 TICK: main 3cc6022. w-c1 affected RUNNING (slot 0, since 12:56); C5s3 gate + r-f7s2 queued behind. Review-passed not on main: C5s3 (queued).
+- 13:07 Stylus ORDER to w-ts: skip before-run (baseline auth 1178s known), cancel waiter, commit Argon2 edit now; master runs auth-only gate as priority ticket, merge solo.
+- 13:10 TS slice 1 committed e73ec95 (test-only, tree clean); master-priority auth gate queued in athena-erp-ts.
+- 13:10 C5s4 PASS (w-c1, 5c7b7bf on 3cc6022, FX + reversals, affected green 7 pkgs, Z2 edges deferred to 7.6/engine). Spawning r-c5s4.
+- 13:15 TICK: main 3cc6022. C5s3 gate RUNNING (13:11); TS priority + C2s4 + C4s5 + reviewers queued behind. r-f7s1/r-f7s2/r-c5s4 reviewing. Review-passed not on main: C5s3 (gating).
+- 13:25 TICK: main 3cc6022. C5s3 gate RUNNING ~14m; r-c5s4 queued 13:15. All lanes steady. Review-passed not on main: C5s3 (gating).
+- 13:33 C5s3 MERGED: gate green exit 0, 19.5m (19 Go ok incl posting 1119s/server 1088s DB-backed, 684/684 web, log 1124-131114). FF ccb73c9+pushed (main unmoved). Server restarted healthy (t6n).
