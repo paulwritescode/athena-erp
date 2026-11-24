@@ -1,0 +1,112 @@
+syntax = "proto3";
+
+package athena.v1;
+
+option go_package = "athena-erp/gen/athena/v1;athenav1";
+
+import "athena/v1/records.proto";
+
+// ListService manages saved lists (ADR-0034, Proposed): named condition
+// trees over one Record Type with a column choice. The Desk sends the
+// tree; the server compiles and validates it, stores both forms, and runs
+// the compiled expression through the normal list path, so permissions,
+// Scopes and paging behave exactly like Records. Export renders the list
+// to PDF bytes.
+service ListService {
+  // SaveList creates a list, or replaces the named one when id is set
+  // (expected_revision must match). Needs build.
+  rpc SaveList(SaveListRequest) returns (SaveListResponse);
+  // GetList returns one list. Needs read on its Record Type.
+  rpc GetList(GetListRequest) returns (GetListResponse);
+  // ListLists returns the Record Type's lists, newest first, with keyset
+  // paging over the list id. Needs read on the Record Type.
+  rpc ListLists(ListListsRequest) returns (ListListsResponse);
+  // DeleteList removes a list (expected_revision must match). Needs build.
+  rpc DeleteList(DeleteListRequest) returns (DeleteListResponse);
+  // RunList executes the list's compiled expression through RecordService
+  // paging. Needs read on the Record Type.
+  rpc RunList(RunListRequest) returns (RunListResponse);
+  // ExportListPdf renders up to max_rows matching rows to PDF bytes.
+  // Needs read on the Record Type.
+  rpc ExportListPdf(ExportListPdfRequest) returns (ExportListPdfResponse);
+}
+
+// SavedList is one stored list: the tree the builder edits plus the
+// expression the server compiled from it.
+message SavedList {
+  string id = 1;
+  string name = 2;
+  string record_type_key = 3;
+  // Canonical condition tree JSON (internal/expr Tree).
+  string condition_tree = 4;
+  // Server-compiled expression; the only form ever executed.
+  string condition_expr = 5;
+  // Field names to show, in order; empty means the default columns.
+  repeated string columns = 6;
+  string owner = 7;
+  int64 revision = 8;
+}
+
+message SaveListRequest {
+  // Empty creates; set updates (expected_revision must match).
+  string id = 1;
+  string name = 2;
+  string record_type_key = 3;
+  string condition_tree = 4;
+  repeated string columns = 5;
+  int64 expected_revision = 6;
+}
+
+message SaveListResponse {
+  SavedList list = 1;
+}
+
+message GetListRequest {
+  string id = 1;
+}
+
+message GetListResponse {
+  SavedList list = 1;
+}
+
+message ListListsRequest {
+  string record_type_key = 1;
+  int32 page_size = 2;
+  string page_token = 3;
+}
+
+message ListListsResponse {
+  repeated SavedList lists = 1;
+  string next_page_token = 2;
+}
+
+message DeleteListRequest {
+  string id = 1;
+  int64 expected_revision = 2;
+}
+
+message DeleteListResponse {
+}
+
+message RunListRequest {
+  string id = 1;
+  int32 page_size = 2;
+  string page_token = 3;
+}
+
+message RunListResponse {
+  SavedList list = 1;
+  repeated Record records = 2;
+  string next_page_token = 3;
+}
+
+message ExportListPdfRequest {
+  string id = 1;
+  // Rows to render, 1 to 500. Defaults to 200.
+  int32 max_rows = 2;
+}
+
+message ExportListPdfResponse {
+  bytes pdf = 1;
+  string filename = 2;
+}
