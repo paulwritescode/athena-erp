@@ -40,8 +40,20 @@ type RuleDefinition struct {
 	// validations, then guards.
 	Priority int32 `protobuf:"varint,6,opt,name=priority,proto3" json:"priority,omitempty"`
 	Enabled  bool  `protobuf:"varint,7,opt,name=enabled,proto3" json:"enabled,omitempty"`
-	// Starlark source, at most 64 KiB.
-	Source        string `protobuf:"bytes,8,opt,name=source,proto3" json:"source,omitempty"`
+	// Starlark source, at most 64 KiB. Empty for builder Rules.
+	Source string `protobuf:"bytes,8,opt,name=source,proto3" json:"source,omitempty"`
+	// Builder condition tree JSON (internal/expr Tree). Set only for
+	// validation, guard and derivation Rules authored in the builder.
+	ConditionTree string `protobuf:"bytes,9,opt,name=condition_tree,json=conditionTree,proto3" json:"condition_tree,omitempty"`
+	// Expression compiled from the tree by the server on save; the only
+	// form a builder Rule executes. Empty for Starlark Rules.
+	ConditionExpr string `protobuf:"bytes,10,opt,name=condition_expr,json=conditionExpr,proto3" json:"condition_expr,omitempty"`
+	// Builder outcome: the message a validation fails or a guard blocks
+	// with. Required for builder validation and guard Rules.
+	Message string `protobuf:"bytes,11,opt,name=message,proto3" json:"message,omitempty"`
+	// Builder derivation assignments: fields the Rule sets when its
+	// condition holds. Only for builder derivation Rules.
+	Sets          []*DerivationSet `protobuf:"bytes,12,rep,name=sets,proto3" json:"sets,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -132,6 +144,88 @@ func (x *RuleDefinition) GetSource() string {
 	return ""
 }
 
+func (x *RuleDefinition) GetConditionTree() string {
+	if x != nil {
+		return x.ConditionTree
+	}
+	return ""
+}
+
+func (x *RuleDefinition) GetConditionExpr() string {
+	if x != nil {
+		return x.ConditionExpr
+	}
+	return ""
+}
+
+func (x *RuleDefinition) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+func (x *RuleDefinition) GetSets() []*DerivationSet {
+	if x != nil {
+		return x.Sets
+	}
+	return nil
+}
+
+// DerivationSet assigns one field when a builder derivation's condition
+// holds. The value is an expression over the record's fields.
+type DerivationSet struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Field         string                 `protobuf:"bytes,1,opt,name=field,proto3" json:"field,omitempty"`
+	ValueExpr     string                 `protobuf:"bytes,2,opt,name=value_expr,json=valueExpr,proto3" json:"value_expr,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DerivationSet) Reset() {
+	*x = DerivationSet{}
+	mi := &file_athena_v1_rules_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DerivationSet) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DerivationSet) ProtoMessage() {}
+
+func (x *DerivationSet) ProtoReflect() protoreflect.Message {
+	mi := &file_athena_v1_rules_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DerivationSet.ProtoReflect.Descriptor instead.
+func (*DerivationSet) Descriptor() ([]byte, []int) {
+	return file_athena_v1_rules_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *DerivationSet) GetField() string {
+	if x != nil {
+		return x.Field
+	}
+	return ""
+}
+
+func (x *DerivationSet) GetValueExpr() string {
+	if x != nil {
+		return x.ValueExpr
+	}
+	return ""
+}
+
 type Rule struct {
 	state      protoimpl.MessageState `protogen:"open.v1"`
 	Definition *RuleDefinition        `protobuf:"bytes,1,opt,name=definition,proto3" json:"definition,omitempty"`
@@ -148,7 +242,7 @@ type Rule struct {
 
 func (x *Rule) Reset() {
 	*x = Rule{}
-	mi := &file_athena_v1_rules_proto_msgTypes[1]
+	mi := &file_athena_v1_rules_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -160,7 +254,7 @@ func (x *Rule) String() string {
 func (*Rule) ProtoMessage() {}
 
 func (x *Rule) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_rules_proto_msgTypes[1]
+	mi := &file_athena_v1_rules_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -173,7 +267,7 @@ func (x *Rule) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Rule.ProtoReflect.Descriptor instead.
 func (*Rule) Descriptor() ([]byte, []int) {
-	return file_athena_v1_rules_proto_rawDescGZIP(), []int{1}
+	return file_athena_v1_rules_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *Rule) GetDefinition() *RuleDefinition {
@@ -219,7 +313,7 @@ type ListRulesRequest struct {
 
 func (x *ListRulesRequest) Reset() {
 	*x = ListRulesRequest{}
-	mi := &file_athena_v1_rules_proto_msgTypes[2]
+	mi := &file_athena_v1_rules_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -231,7 +325,7 @@ func (x *ListRulesRequest) String() string {
 func (*ListRulesRequest) ProtoMessage() {}
 
 func (x *ListRulesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_rules_proto_msgTypes[2]
+	mi := &file_athena_v1_rules_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -244,7 +338,7 @@ func (x *ListRulesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListRulesRequest.ProtoReflect.Descriptor instead.
 func (*ListRulesRequest) Descriptor() ([]byte, []int) {
-	return file_athena_v1_rules_proto_rawDescGZIP(), []int{2}
+	return file_athena_v1_rules_proto_rawDescGZIP(), []int{3}
 }
 
 type ListRulesResponse struct {
@@ -256,7 +350,7 @@ type ListRulesResponse struct {
 
 func (x *ListRulesResponse) Reset() {
 	*x = ListRulesResponse{}
-	mi := &file_athena_v1_rules_proto_msgTypes[3]
+	mi := &file_athena_v1_rules_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -268,7 +362,7 @@ func (x *ListRulesResponse) String() string {
 func (*ListRulesResponse) ProtoMessage() {}
 
 func (x *ListRulesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_rules_proto_msgTypes[3]
+	mi := &file_athena_v1_rules_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -281,7 +375,7 @@ func (x *ListRulesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListRulesResponse.ProtoReflect.Descriptor instead.
 func (*ListRulesResponse) Descriptor() ([]byte, []int) {
-	return file_athena_v1_rules_proto_rawDescGZIP(), []int{3}
+	return file_athena_v1_rules_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *ListRulesResponse) GetRules() []*Rule {
@@ -300,7 +394,7 @@ type GetRuleRequest struct {
 
 func (x *GetRuleRequest) Reset() {
 	*x = GetRuleRequest{}
-	mi := &file_athena_v1_rules_proto_msgTypes[4]
+	mi := &file_athena_v1_rules_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -312,7 +406,7 @@ func (x *GetRuleRequest) String() string {
 func (*GetRuleRequest) ProtoMessage() {}
 
 func (x *GetRuleRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_rules_proto_msgTypes[4]
+	mi := &file_athena_v1_rules_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -325,7 +419,7 @@ func (x *GetRuleRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetRuleRequest.ProtoReflect.Descriptor instead.
 func (*GetRuleRequest) Descriptor() ([]byte, []int) {
-	return file_athena_v1_rules_proto_rawDescGZIP(), []int{4}
+	return file_athena_v1_rules_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *GetRuleRequest) GetKey() string {
@@ -344,7 +438,7 @@ type GetRuleResponse struct {
 
 func (x *GetRuleResponse) Reset() {
 	*x = GetRuleResponse{}
-	mi := &file_athena_v1_rules_proto_msgTypes[5]
+	mi := &file_athena_v1_rules_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -356,7 +450,7 @@ func (x *GetRuleResponse) String() string {
 func (*GetRuleResponse) ProtoMessage() {}
 
 func (x *GetRuleResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_rules_proto_msgTypes[5]
+	mi := &file_athena_v1_rules_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -369,7 +463,7 @@ func (x *GetRuleResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetRuleResponse.ProtoReflect.Descriptor instead.
 func (*GetRuleResponse) Descriptor() ([]byte, []int) {
-	return file_athena_v1_rules_proto_rawDescGZIP(), []int{5}
+	return file_athena_v1_rules_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *GetRuleResponse) GetRule() *Rule {
@@ -390,7 +484,7 @@ type SaveRuleRequest struct {
 
 func (x *SaveRuleRequest) Reset() {
 	*x = SaveRuleRequest{}
-	mi := &file_athena_v1_rules_proto_msgTypes[6]
+	mi := &file_athena_v1_rules_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -402,7 +496,7 @@ func (x *SaveRuleRequest) String() string {
 func (*SaveRuleRequest) ProtoMessage() {}
 
 func (x *SaveRuleRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_rules_proto_msgTypes[6]
+	mi := &file_athena_v1_rules_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -415,7 +509,7 @@ func (x *SaveRuleRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SaveRuleRequest.ProtoReflect.Descriptor instead.
 func (*SaveRuleRequest) Descriptor() ([]byte, []int) {
-	return file_athena_v1_rules_proto_rawDescGZIP(), []int{6}
+	return file_athena_v1_rules_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *SaveRuleRequest) GetDefinition() *RuleDefinition {
@@ -441,7 +535,7 @@ type SaveRuleResponse struct {
 
 func (x *SaveRuleResponse) Reset() {
 	*x = SaveRuleResponse{}
-	mi := &file_athena_v1_rules_proto_msgTypes[7]
+	mi := &file_athena_v1_rules_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -453,7 +547,7 @@ func (x *SaveRuleResponse) String() string {
 func (*SaveRuleResponse) ProtoMessage() {}
 
 func (x *SaveRuleResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_rules_proto_msgTypes[7]
+	mi := &file_athena_v1_rules_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -466,7 +560,7 @@ func (x *SaveRuleResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SaveRuleResponse.ProtoReflect.Descriptor instead.
 func (*SaveRuleResponse) Descriptor() ([]byte, []int) {
-	return file_athena_v1_rules_proto_rawDescGZIP(), []int{7}
+	return file_athena_v1_rules_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *SaveRuleResponse) GetRule() *Rule {
@@ -486,7 +580,7 @@ type DeleteRuleRequest struct {
 
 func (x *DeleteRuleRequest) Reset() {
 	*x = DeleteRuleRequest{}
-	mi := &file_athena_v1_rules_proto_msgTypes[8]
+	mi := &file_athena_v1_rules_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -498,7 +592,7 @@ func (x *DeleteRuleRequest) String() string {
 func (*DeleteRuleRequest) ProtoMessage() {}
 
 func (x *DeleteRuleRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_rules_proto_msgTypes[8]
+	mi := &file_athena_v1_rules_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -511,7 +605,7 @@ func (x *DeleteRuleRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteRuleRequest.ProtoReflect.Descriptor instead.
 func (*DeleteRuleRequest) Descriptor() ([]byte, []int) {
-	return file_athena_v1_rules_proto_rawDescGZIP(), []int{8}
+	return file_athena_v1_rules_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *DeleteRuleRequest) GetKey() string {
@@ -536,7 +630,7 @@ type DeleteRuleResponse struct {
 
 func (x *DeleteRuleResponse) Reset() {
 	*x = DeleteRuleResponse{}
-	mi := &file_athena_v1_rules_proto_msgTypes[9]
+	mi := &file_athena_v1_rules_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -548,7 +642,7 @@ func (x *DeleteRuleResponse) String() string {
 func (*DeleteRuleResponse) ProtoMessage() {}
 
 func (x *DeleteRuleResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_rules_proto_msgTypes[9]
+	mi := &file_athena_v1_rules_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -561,7 +655,7 @@ func (x *DeleteRuleResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteRuleResponse.ProtoReflect.Descriptor instead.
 func (*DeleteRuleResponse) Descriptor() ([]byte, []int) {
-	return file_athena_v1_rules_proto_rawDescGZIP(), []int{9}
+	return file_athena_v1_rules_proto_rawDescGZIP(), []int{10}
 }
 
 type RuleVersion struct {
@@ -578,7 +672,7 @@ type RuleVersion struct {
 
 func (x *RuleVersion) Reset() {
 	*x = RuleVersion{}
-	mi := &file_athena_v1_rules_proto_msgTypes[10]
+	mi := &file_athena_v1_rules_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -590,7 +684,7 @@ func (x *RuleVersion) String() string {
 func (*RuleVersion) ProtoMessage() {}
 
 func (x *RuleVersion) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_rules_proto_msgTypes[10]
+	mi := &file_athena_v1_rules_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -603,7 +697,7 @@ func (x *RuleVersion) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RuleVersion.ProtoReflect.Descriptor instead.
 func (*RuleVersion) Descriptor() ([]byte, []int) {
-	return file_athena_v1_rules_proto_rawDescGZIP(), []int{10}
+	return file_athena_v1_rules_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *RuleVersion) GetVersion() int64 {
@@ -650,7 +744,7 @@ type ListRuleVersionsRequest struct {
 
 func (x *ListRuleVersionsRequest) Reset() {
 	*x = ListRuleVersionsRequest{}
-	mi := &file_athena_v1_rules_proto_msgTypes[11]
+	mi := &file_athena_v1_rules_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -662,7 +756,7 @@ func (x *ListRuleVersionsRequest) String() string {
 func (*ListRuleVersionsRequest) ProtoMessage() {}
 
 func (x *ListRuleVersionsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_rules_proto_msgTypes[11]
+	mi := &file_athena_v1_rules_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -675,7 +769,7 @@ func (x *ListRuleVersionsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListRuleVersionsRequest.ProtoReflect.Descriptor instead.
 func (*ListRuleVersionsRequest) Descriptor() ([]byte, []int) {
-	return file_athena_v1_rules_proto_rawDescGZIP(), []int{11}
+	return file_athena_v1_rules_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *ListRuleVersionsRequest) GetKey() string {
@@ -694,7 +788,7 @@ type ListRuleVersionsResponse struct {
 
 func (x *ListRuleVersionsResponse) Reset() {
 	*x = ListRuleVersionsResponse{}
-	mi := &file_athena_v1_rules_proto_msgTypes[12]
+	mi := &file_athena_v1_rules_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -706,7 +800,7 @@ func (x *ListRuleVersionsResponse) String() string {
 func (*ListRuleVersionsResponse) ProtoMessage() {}
 
 func (x *ListRuleVersionsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_rules_proto_msgTypes[12]
+	mi := &file_athena_v1_rules_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -719,7 +813,7 @@ func (x *ListRuleVersionsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListRuleVersionsResponse.ProtoReflect.Descriptor instead.
 func (*ListRuleVersionsResponse) Descriptor() ([]byte, []int) {
-	return file_athena_v1_rules_proto_rawDescGZIP(), []int{12}
+	return file_athena_v1_rules_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *ListRuleVersionsResponse) GetVersions() []*RuleVersion {
@@ -741,7 +835,7 @@ type RuleMessage struct {
 
 func (x *RuleMessage) Reset() {
 	*x = RuleMessage{}
-	mi := &file_athena_v1_rules_proto_msgTypes[13]
+	mi := &file_athena_v1_rules_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -753,7 +847,7 @@ func (x *RuleMessage) String() string {
 func (*RuleMessage) ProtoMessage() {}
 
 func (x *RuleMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_rules_proto_msgTypes[13]
+	mi := &file_athena_v1_rules_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -766,7 +860,7 @@ func (x *RuleMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RuleMessage.ProtoReflect.Descriptor instead.
 func (*RuleMessage) Descriptor() ([]byte, []int) {
-	return file_athena_v1_rules_proto_rawDescGZIP(), []int{13}
+	return file_athena_v1_rules_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *RuleMessage) GetCode() string {
@@ -796,7 +890,7 @@ type RuleChange struct {
 
 func (x *RuleChange) Reset() {
 	*x = RuleChange{}
-	mi := &file_athena_v1_rules_proto_msgTypes[14]
+	mi := &file_athena_v1_rules_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -808,7 +902,7 @@ func (x *RuleChange) String() string {
 func (*RuleChange) ProtoMessage() {}
 
 func (x *RuleChange) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_rules_proto_msgTypes[14]
+	mi := &file_athena_v1_rules_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -821,7 +915,7 @@ func (x *RuleChange) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RuleChange.ProtoReflect.Descriptor instead.
 func (*RuleChange) Descriptor() ([]byte, []int) {
-	return file_athena_v1_rules_proto_rawDescGZIP(), []int{14}
+	return file_athena_v1_rules_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *RuleChange) GetField() string {
@@ -861,7 +955,7 @@ type SimulateRuleRequest struct {
 
 func (x *SimulateRuleRequest) Reset() {
 	*x = SimulateRuleRequest{}
-	mi := &file_athena_v1_rules_proto_msgTypes[15]
+	mi := &file_athena_v1_rules_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -873,7 +967,7 @@ func (x *SimulateRuleRequest) String() string {
 func (*SimulateRuleRequest) ProtoMessage() {}
 
 func (x *SimulateRuleRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_rules_proto_msgTypes[15]
+	mi := &file_athena_v1_rules_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -886,7 +980,7 @@ func (x *SimulateRuleRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SimulateRuleRequest.ProtoReflect.Descriptor instead.
 func (*SimulateRuleRequest) Descriptor() ([]byte, []int) {
-	return file_athena_v1_rules_proto_rawDescGZIP(), []int{15}
+	return file_athena_v1_rules_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *SimulateRuleRequest) GetDefinition() *RuleDefinition {
@@ -935,7 +1029,7 @@ type SimulateRuleResponse struct {
 
 func (x *SimulateRuleResponse) Reset() {
 	*x = SimulateRuleResponse{}
-	mi := &file_athena_v1_rules_proto_msgTypes[16]
+	mi := &file_athena_v1_rules_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -947,7 +1041,7 @@ func (x *SimulateRuleResponse) String() string {
 func (*SimulateRuleResponse) ProtoMessage() {}
 
 func (x *SimulateRuleResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_rules_proto_msgTypes[16]
+	mi := &file_athena_v1_rules_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -960,7 +1054,7 @@ func (x *SimulateRuleResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SimulateRuleResponse.ProtoReflect.Descriptor instead.
 func (*SimulateRuleResponse) Descriptor() ([]byte, []int) {
-	return file_athena_v1_rules_proto_rawDescGZIP(), []int{16}
+	return file_athena_v1_rules_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *SimulateRuleResponse) GetOutcome() string {
@@ -1058,7 +1152,7 @@ type ListRuleRunsRequest struct {
 
 func (x *ListRuleRunsRequest) Reset() {
 	*x = ListRuleRunsRequest{}
-	mi := &file_athena_v1_rules_proto_msgTypes[17]
+	mi := &file_athena_v1_rules_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1070,7 +1164,7 @@ func (x *ListRuleRunsRequest) String() string {
 func (*ListRuleRunsRequest) ProtoMessage() {}
 
 func (x *ListRuleRunsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_rules_proto_msgTypes[17]
+	mi := &file_athena_v1_rules_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1083,7 +1177,7 @@ func (x *ListRuleRunsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListRuleRunsRequest.ProtoReflect.Descriptor instead.
 func (*ListRuleRunsRequest) Descriptor() ([]byte, []int) {
-	return file_athena_v1_rules_proto_rawDescGZIP(), []int{17}
+	return file_athena_v1_rules_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *ListRuleRunsRequest) GetRuleKey() string {
@@ -1167,7 +1261,7 @@ type RuleRun struct {
 
 func (x *RuleRun) Reset() {
 	*x = RuleRun{}
-	mi := &file_athena_v1_rules_proto_msgTypes[18]
+	mi := &file_athena_v1_rules_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1179,7 +1273,7 @@ func (x *RuleRun) String() string {
 func (*RuleRun) ProtoMessage() {}
 
 func (x *RuleRun) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_rules_proto_msgTypes[18]
+	mi := &file_athena_v1_rules_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1192,7 +1286,7 @@ func (x *RuleRun) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RuleRun.ProtoReflect.Descriptor instead.
 func (*RuleRun) Descriptor() ([]byte, []int) {
-	return file_athena_v1_rules_proto_rawDescGZIP(), []int{18}
+	return file_athena_v1_rules_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *RuleRun) GetId() string {
@@ -1352,7 +1446,7 @@ type ListRuleRunsResponse struct {
 
 func (x *ListRuleRunsResponse) Reset() {
 	*x = ListRuleRunsResponse{}
-	mi := &file_athena_v1_rules_proto_msgTypes[19]
+	mi := &file_athena_v1_rules_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1364,7 +1458,7 @@ func (x *ListRuleRunsResponse) String() string {
 func (*ListRuleRunsResponse) ProtoMessage() {}
 
 func (x *ListRuleRunsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_athena_v1_rules_proto_msgTypes[19]
+	mi := &file_athena_v1_rules_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1377,7 +1471,7 @@ func (x *ListRuleRunsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListRuleRunsResponse.ProtoReflect.Descriptor instead.
 func (*ListRuleRunsResponse) Descriptor() ([]byte, []int) {
-	return file_athena_v1_rules_proto_rawDescGZIP(), []int{19}
+	return file_athena_v1_rules_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *ListRuleRunsResponse) GetRuns() []*RuleRun {
@@ -1398,7 +1492,7 @@ var File_athena_v1_rules_proto protoreflect.FileDescriptor
 
 const file_athena_v1_rules_proto_rawDesc = "" +
 	"\n" +
-	"\x15athena/v1/rules.proto\x12\tathena.v1\x1a\x17athena/v1/records.proto\"\xe1\x01\n" +
+	"\x15athena/v1/rules.proto\x12\tathena.v1\x1a\x17athena/v1/records.proto\"\xf7\x02\n" +
 	"\x0eRuleDefinition\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05label\x18\x02 \x01(\tR\x05label\x12\x1b\n" +
@@ -1407,7 +1501,16 @@ const file_athena_v1_rules_proto_rawDesc = "" +
 	"\x05event\x18\x05 \x01(\tR\x05event\x12\x1a\n" +
 	"\bpriority\x18\x06 \x01(\x05R\bpriority\x12\x18\n" +
 	"\aenabled\x18\a \x01(\bR\aenabled\x12\x16\n" +
-	"\x06source\x18\b \x01(\tR\x06source\"\xbe\x01\n" +
+	"\x06source\x18\b \x01(\tR\x06source\x12%\n" +
+	"\x0econdition_tree\x18\t \x01(\tR\rconditionTree\x12%\n" +
+	"\x0econdition_expr\x18\n" +
+	" \x01(\tR\rconditionExpr\x12\x18\n" +
+	"\amessage\x18\v \x01(\tR\amessage\x12,\n" +
+	"\x04sets\x18\f \x03(\v2\x18.athena.v1.DerivationSetR\x04sets\"D\n" +
+	"\rDerivationSet\x12\x14\n" +
+	"\x05field\x18\x01 \x01(\tR\x05field\x12\x1d\n" +
+	"\n" +
+	"value_expr\x18\x02 \x01(\tR\tvalueExpr\"\xbe\x01\n" +
 	"\x04Rule\x129\n" +
 	"\n" +
 	"definition\x18\x01 \x01(\v2\x19.athena.v1.RuleDefinitionR\n" +
@@ -1550,70 +1653,72 @@ func file_athena_v1_rules_proto_rawDescGZIP() []byte {
 	return file_athena_v1_rules_proto_rawDescData
 }
 
-var file_athena_v1_rules_proto_msgTypes = make([]protoimpl.MessageInfo, 22)
+var file_athena_v1_rules_proto_msgTypes = make([]protoimpl.MessageInfo, 23)
 var file_athena_v1_rules_proto_goTypes = []any{
 	(*RuleDefinition)(nil),           // 0: athena.v1.RuleDefinition
-	(*Rule)(nil),                     // 1: athena.v1.Rule
-	(*ListRulesRequest)(nil),         // 2: athena.v1.ListRulesRequest
-	(*ListRulesResponse)(nil),        // 3: athena.v1.ListRulesResponse
-	(*GetRuleRequest)(nil),           // 4: athena.v1.GetRuleRequest
-	(*GetRuleResponse)(nil),          // 5: athena.v1.GetRuleResponse
-	(*SaveRuleRequest)(nil),          // 6: athena.v1.SaveRuleRequest
-	(*SaveRuleResponse)(nil),         // 7: athena.v1.SaveRuleResponse
-	(*DeleteRuleRequest)(nil),        // 8: athena.v1.DeleteRuleRequest
-	(*DeleteRuleResponse)(nil),       // 9: athena.v1.DeleteRuleResponse
-	(*RuleVersion)(nil),              // 10: athena.v1.RuleVersion
-	(*ListRuleVersionsRequest)(nil),  // 11: athena.v1.ListRuleVersionsRequest
-	(*ListRuleVersionsResponse)(nil), // 12: athena.v1.ListRuleVersionsResponse
-	(*RuleMessage)(nil),              // 13: athena.v1.RuleMessage
-	(*RuleChange)(nil),               // 14: athena.v1.RuleChange
-	(*SimulateRuleRequest)(nil),      // 15: athena.v1.SimulateRuleRequest
-	(*SimulateRuleResponse)(nil),     // 16: athena.v1.SimulateRuleResponse
-	(*ListRuleRunsRequest)(nil),      // 17: athena.v1.ListRuleRunsRequest
-	(*RuleRun)(nil),                  // 18: athena.v1.RuleRun
-	(*ListRuleRunsResponse)(nil),     // 19: athena.v1.ListRuleRunsResponse
-	nil,                              // 20: athena.v1.SimulateRuleRequest.ValuesEntry
-	nil,                              // 21: athena.v1.SimulateRuleResponse.ResultEntry
-	(*FieldValue)(nil),               // 22: athena.v1.FieldValue
+	(*DerivationSet)(nil),            // 1: athena.v1.DerivationSet
+	(*Rule)(nil),                     // 2: athena.v1.Rule
+	(*ListRulesRequest)(nil),         // 3: athena.v1.ListRulesRequest
+	(*ListRulesResponse)(nil),        // 4: athena.v1.ListRulesResponse
+	(*GetRuleRequest)(nil),           // 5: athena.v1.GetRuleRequest
+	(*GetRuleResponse)(nil),          // 6: athena.v1.GetRuleResponse
+	(*SaveRuleRequest)(nil),          // 7: athena.v1.SaveRuleRequest
+	(*SaveRuleResponse)(nil),         // 8: athena.v1.SaveRuleResponse
+	(*DeleteRuleRequest)(nil),        // 9: athena.v1.DeleteRuleRequest
+	(*DeleteRuleResponse)(nil),       // 10: athena.v1.DeleteRuleResponse
+	(*RuleVersion)(nil),              // 11: athena.v1.RuleVersion
+	(*ListRuleVersionsRequest)(nil),  // 12: athena.v1.ListRuleVersionsRequest
+	(*ListRuleVersionsResponse)(nil), // 13: athena.v1.ListRuleVersionsResponse
+	(*RuleMessage)(nil),              // 14: athena.v1.RuleMessage
+	(*RuleChange)(nil),               // 15: athena.v1.RuleChange
+	(*SimulateRuleRequest)(nil),      // 16: athena.v1.SimulateRuleRequest
+	(*SimulateRuleResponse)(nil),     // 17: athena.v1.SimulateRuleResponse
+	(*ListRuleRunsRequest)(nil),      // 18: athena.v1.ListRuleRunsRequest
+	(*RuleRun)(nil),                  // 19: athena.v1.RuleRun
+	(*ListRuleRunsResponse)(nil),     // 20: athena.v1.ListRuleRunsResponse
+	nil,                              // 21: athena.v1.SimulateRuleRequest.ValuesEntry
+	nil,                              // 22: athena.v1.SimulateRuleResponse.ResultEntry
+	(*FieldValue)(nil),               // 23: athena.v1.FieldValue
 }
 var file_athena_v1_rules_proto_depIdxs = []int32{
-	0,  // 0: athena.v1.Rule.definition:type_name -> athena.v1.RuleDefinition
-	1,  // 1: athena.v1.ListRulesResponse.rules:type_name -> athena.v1.Rule
-	1,  // 2: athena.v1.GetRuleResponse.rule:type_name -> athena.v1.Rule
-	0,  // 3: athena.v1.SaveRuleRequest.definition:type_name -> athena.v1.RuleDefinition
-	1,  // 4: athena.v1.SaveRuleResponse.rule:type_name -> athena.v1.Rule
-	0,  // 5: athena.v1.RuleVersion.definition:type_name -> athena.v1.RuleDefinition
-	10, // 6: athena.v1.ListRuleVersionsResponse.versions:type_name -> athena.v1.RuleVersion
-	0,  // 7: athena.v1.SimulateRuleRequest.definition:type_name -> athena.v1.RuleDefinition
-	20, // 8: athena.v1.SimulateRuleRequest.values:type_name -> athena.v1.SimulateRuleRequest.ValuesEntry
-	13, // 9: athena.v1.SimulateRuleResponse.warnings:type_name -> athena.v1.RuleMessage
-	13, // 10: athena.v1.SimulateRuleResponse.logs:type_name -> athena.v1.RuleMessage
-	14, // 11: athena.v1.SimulateRuleResponse.changes:type_name -> athena.v1.RuleChange
-	21, // 12: athena.v1.SimulateRuleResponse.result:type_name -> athena.v1.SimulateRuleResponse.ResultEntry
-	13, // 13: athena.v1.RuleRun.warnings:type_name -> athena.v1.RuleMessage
-	13, // 14: athena.v1.RuleRun.logs:type_name -> athena.v1.RuleMessage
-	18, // 15: athena.v1.ListRuleRunsResponse.runs:type_name -> athena.v1.RuleRun
-	22, // 16: athena.v1.SimulateRuleRequest.ValuesEntry.value:type_name -> athena.v1.FieldValue
-	22, // 17: athena.v1.SimulateRuleResponse.ResultEntry.value:type_name -> athena.v1.FieldValue
-	2,  // 18: athena.v1.RuleService.ListRules:input_type -> athena.v1.ListRulesRequest
-	4,  // 19: athena.v1.RuleService.GetRule:input_type -> athena.v1.GetRuleRequest
-	6,  // 20: athena.v1.RuleService.SaveRule:input_type -> athena.v1.SaveRuleRequest
-	8,  // 21: athena.v1.RuleService.DeleteRule:input_type -> athena.v1.DeleteRuleRequest
-	11, // 22: athena.v1.RuleService.ListRuleVersions:input_type -> athena.v1.ListRuleVersionsRequest
-	15, // 23: athena.v1.RuleService.SimulateRule:input_type -> athena.v1.SimulateRuleRequest
-	17, // 24: athena.v1.RuleService.ListRuleRuns:input_type -> athena.v1.ListRuleRunsRequest
-	3,  // 25: athena.v1.RuleService.ListRules:output_type -> athena.v1.ListRulesResponse
-	5,  // 26: athena.v1.RuleService.GetRule:output_type -> athena.v1.GetRuleResponse
-	7,  // 27: athena.v1.RuleService.SaveRule:output_type -> athena.v1.SaveRuleResponse
-	9,  // 28: athena.v1.RuleService.DeleteRule:output_type -> athena.v1.DeleteRuleResponse
-	12, // 29: athena.v1.RuleService.ListRuleVersions:output_type -> athena.v1.ListRuleVersionsResponse
-	16, // 30: athena.v1.RuleService.SimulateRule:output_type -> athena.v1.SimulateRuleResponse
-	19, // 31: athena.v1.RuleService.ListRuleRuns:output_type -> athena.v1.ListRuleRunsResponse
-	25, // [25:32] is the sub-list for method output_type
-	18, // [18:25] is the sub-list for method input_type
-	18, // [18:18] is the sub-list for extension type_name
-	18, // [18:18] is the sub-list for extension extendee
-	0,  // [0:18] is the sub-list for field type_name
+	1,  // 0: athena.v1.RuleDefinition.sets:type_name -> athena.v1.DerivationSet
+	0,  // 1: athena.v1.Rule.definition:type_name -> athena.v1.RuleDefinition
+	2,  // 2: athena.v1.ListRulesResponse.rules:type_name -> athena.v1.Rule
+	2,  // 3: athena.v1.GetRuleResponse.rule:type_name -> athena.v1.Rule
+	0,  // 4: athena.v1.SaveRuleRequest.definition:type_name -> athena.v1.RuleDefinition
+	2,  // 5: athena.v1.SaveRuleResponse.rule:type_name -> athena.v1.Rule
+	0,  // 6: athena.v1.RuleVersion.definition:type_name -> athena.v1.RuleDefinition
+	11, // 7: athena.v1.ListRuleVersionsResponse.versions:type_name -> athena.v1.RuleVersion
+	0,  // 8: athena.v1.SimulateRuleRequest.definition:type_name -> athena.v1.RuleDefinition
+	21, // 9: athena.v1.SimulateRuleRequest.values:type_name -> athena.v1.SimulateRuleRequest.ValuesEntry
+	14, // 10: athena.v1.SimulateRuleResponse.warnings:type_name -> athena.v1.RuleMessage
+	14, // 11: athena.v1.SimulateRuleResponse.logs:type_name -> athena.v1.RuleMessage
+	15, // 12: athena.v1.SimulateRuleResponse.changes:type_name -> athena.v1.RuleChange
+	22, // 13: athena.v1.SimulateRuleResponse.result:type_name -> athena.v1.SimulateRuleResponse.ResultEntry
+	14, // 14: athena.v1.RuleRun.warnings:type_name -> athena.v1.RuleMessage
+	14, // 15: athena.v1.RuleRun.logs:type_name -> athena.v1.RuleMessage
+	19, // 16: athena.v1.ListRuleRunsResponse.runs:type_name -> athena.v1.RuleRun
+	23, // 17: athena.v1.SimulateRuleRequest.ValuesEntry.value:type_name -> athena.v1.FieldValue
+	23, // 18: athena.v1.SimulateRuleResponse.ResultEntry.value:type_name -> athena.v1.FieldValue
+	3,  // 19: athena.v1.RuleService.ListRules:input_type -> athena.v1.ListRulesRequest
+	5,  // 20: athena.v1.RuleService.GetRule:input_type -> athena.v1.GetRuleRequest
+	7,  // 21: athena.v1.RuleService.SaveRule:input_type -> athena.v1.SaveRuleRequest
+	9,  // 22: athena.v1.RuleService.DeleteRule:input_type -> athena.v1.DeleteRuleRequest
+	12, // 23: athena.v1.RuleService.ListRuleVersions:input_type -> athena.v1.ListRuleVersionsRequest
+	16, // 24: athena.v1.RuleService.SimulateRule:input_type -> athena.v1.SimulateRuleRequest
+	18, // 25: athena.v1.RuleService.ListRuleRuns:input_type -> athena.v1.ListRuleRunsRequest
+	4,  // 26: athena.v1.RuleService.ListRules:output_type -> athena.v1.ListRulesResponse
+	6,  // 27: athena.v1.RuleService.GetRule:output_type -> athena.v1.GetRuleResponse
+	8,  // 28: athena.v1.RuleService.SaveRule:output_type -> athena.v1.SaveRuleResponse
+	10, // 29: athena.v1.RuleService.DeleteRule:output_type -> athena.v1.DeleteRuleResponse
+	13, // 30: athena.v1.RuleService.ListRuleVersions:output_type -> athena.v1.ListRuleVersionsResponse
+	17, // 31: athena.v1.RuleService.SimulateRule:output_type -> athena.v1.SimulateRuleResponse
+	20, // 32: athena.v1.RuleService.ListRuleRuns:output_type -> athena.v1.ListRuleRunsResponse
+	26, // [26:33] is the sub-list for method output_type
+	19, // [19:26] is the sub-list for method input_type
+	19, // [19:19] is the sub-list for extension type_name
+	19, // [19:19] is the sub-list for extension extendee
+	0,  // [0:19] is the sub-list for field type_name
 }
 
 func init() { file_athena_v1_rules_proto_init() }
@@ -1622,14 +1727,14 @@ func file_athena_v1_rules_proto_init() {
 		return
 	}
 	file_athena_v1_records_proto_init()
-	file_athena_v1_rules_proto_msgTypes[14].OneofWrappers = []any{}
+	file_athena_v1_rules_proto_msgTypes[15].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_athena_v1_rules_proto_rawDesc), len(file_athena_v1_rules_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   22,
+			NumMessages:   23,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

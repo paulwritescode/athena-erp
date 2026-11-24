@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file athena/v1/rules.proto.
  */
 export const file_athena_v1_rules: GenFile = /*@__PURE__*/
-  fileDesc("ChVhdGhlbmEvdjEvcnVsZXMucHJvdG8SCWF0aGVuYS52MSKaAQoOUnVsZURlZmluaXRpb24SCwoDa2V5GAEgASgJEg0KBWxhYmVsGAIgASgJEhEKCXJ1bGVfdHlwZRgDIAEoCRIXCg9yZWNvcmRfdHlwZV9rZXkYBCABKAkSDQoFZXZlbnQYBSABKAkSEAoIcHJpb3JpdHkYBiABKAUSDwoHZW5hYmxlZBgHIAEoCBIOCgZzb3VyY2UYCCABKAkihQEKBFJ1bGUSLQoKZGVmaW5pdGlvbhgBIAEoCzIZLmF0aGVuYS52MS5SdWxlRGVmaW5pdGlvbhIPCgd2ZXJzaW9uGAIgASgDEhMKC3NvdXJjZV9oYXNoGAMgASgJEhMKC21vZGlmaWVkX2J5GAQgASgJEhMKC21vZGlmaWVkX2F0GAUgASgJIhIKEExpc3RSdWxlc1JlcXVlc3QiMwoRTGlzdFJ1bGVzUmVzcG9uc2USHgoFcnVsZXMYASADKAsyDy5hdGhlbmEudjEuUnVsZSIdCg5HZXRSdWxlUmVxdWVzdBILCgNrZXkYASABKAkiMAoPR2V0UnVsZVJlc3BvbnNlEh0KBHJ1bGUYASABKAsyDy5hdGhlbmEudjEuUnVsZSJaCg9TYXZlUnVsZVJlcXVlc3QSLQoKZGVmaW5pdGlvbhgBIAEoCzIZLmF0aGVuYS52MS5SdWxlRGVmaW5pdGlvbhIYChBleHBlY3RlZF92ZXJzaW9uGAIgASgDIjEKEFNhdmVSdWxlUmVzcG9uc2USHQoEcnVsZRgBIAEoCzIPLmF0aGVuYS52MS5SdWxlIjoKEURlbGV0ZVJ1bGVSZXF1ZXN0EgsKA2tleRgBIAEoCRIYChBleHBlY3RlZF92ZXJzaW9uGAIgASgDIhQKEkRlbGV0ZVJ1bGVSZXNwb25zZSKFAQoLUnVsZVZlcnNpb24SDwoHdmVyc2lvbhgBIAEoAxItCgpkZWZpbml0aW9uGAIgASgLMhkuYXRoZW5hLnYxLlJ1bGVEZWZpbml0aW9uEhMKC3NvdXJjZV9oYXNoGAMgASgJEg0KBWFjdG9yGAQgASgJEhIKCmNyZWF0ZWRfYXQYBSABKAkiJgoXTGlzdFJ1bGVWZXJzaW9uc1JlcXVlc3QSCwoDa2V5GAEgASgJIkQKGExpc3RSdWxlVmVyc2lvbnNSZXNwb25zZRIoCgh2ZXJzaW9ucxgBIAMoCzIWLmF0aGVuYS52MS5SdWxlVmVyc2lvbiIpCgtSdWxlTWVzc2FnZRIMCgRjb2RlGAEgASgJEgwKBHRleHQYAiABKAkiZwoKUnVsZUNoYW5nZRINCgVmaWVsZBgBIAEoCRIWCglvbGRfdmFsdWUYAiABKAlIAIgBARIWCgluZXdfdmFsdWUYAyABKAlIAYgBAUIMCgpfb2xkX3ZhbHVlQgwKCl9uZXdfdmFsdWUi2QEKE1NpbXVsYXRlUnVsZVJlcXVlc3QSLQoKZGVmaW5pdGlvbhgBIAEoCzIZLmF0aGVuYS52MS5SdWxlRGVmaW5pdGlvbhIRCglyZWNvcmRfaWQYAiABKAkSOgoGdmFsdWVzGAMgAygLMiouYXRoZW5hLnYxLlNpbXVsYXRlUnVsZVJlcXVlc3QuVmFsdWVzRW50cnkaRAoLVmFsdWVzRW50cnkSCwoDa2V5GAEgASgJEiQKBXZhbHVlGAIgASgLMhUuYXRoZW5hLnYxLkZpZWxkVmFsdWU6AjgBIowDChRTaW11bGF0ZVJ1bGVSZXNwb25zZRIPCgdvdXRjb21lGAEgASgJEgwKBGNvZGUYAiABKAkSDwoHbWVzc2FnZRgDIAEoCRIoCgh3YXJuaW5ncxgEIAMoCzIWLmF0aGVuYS52MS5SdWxlTWVzc2FnZRIkCgRsb2dzGAUgAygLMhYuYXRoZW5hLnYxLlJ1bGVNZXNzYWdlEiYKB2NoYW5nZXMYBiADKAsyFS5hdGhlbmEudjEuUnVsZUNoYW5nZRI7CgZyZXN1bHQYByADKAsyKy5hdGhlbmEudjEuU2ltdWxhdGVSdWxlUmVzcG9uc2UuUmVzdWx0RW50cnkSDQoFc3RlcHMYCCABKAMSDQoFcmVhZHMYCSABKAMSFwoPZHVyYXRpb25fbWljcm9zGAogASgDEhIKCmlucHV0X2hhc2gYCyABKAkaRAoLUmVzdWx0RW50cnkSCwoDa2V5GAEgASgJEiQKBXZhbHVlGAIgASgLMhUuYXRoZW5hLnYxLkZpZWxkVmFsdWU6AjgBIp8BChNMaXN0UnVsZVJ1bnNSZXF1ZXN0EhAKCHJ1bGVfa2V5GAEgASgJEhcKD3JlY29yZF90eXBlX2tleRgCIAEoCRIRCglyZWNvcmRfaWQYAyABKAkSEgoKcmVxdWVzdF9pZBgEIAEoCRIPCgdvdXRjb21lGAUgASgJEhEKCXBhZ2Vfc2l6ZRgGIAEoBRISCgpwYWdlX3Rva2VuGAcgASgJIq4DCgdSdWxlUnVuEgoKAmlkGAEgASgJEhAKCHJ1bGVfa2V5GAIgASgJEhQKDHJ1bGVfdmVyc2lvbhgDIAEoAxIRCglydWxlX3R5cGUYBCABKAkSFwoPcmVjb3JkX3R5cGVfa2V5GAUgASgJEhEKCXJlY29yZF9pZBgGIAEoCRINCgVldmVudBgHIAEoCRISCgppbnB1dF9oYXNoGAggASgJEg8KB291dGNvbWUYCSABKAkSDAoEY29kZRgKIAEoCRIPCgdtZXNzYWdlGAsgASgJEg0KBXN0ZXBzGAwgASgDEg0KBXJlYWRzGA0gASgDEg4KBndyaXRlcxgOIAEoAxIXCg9kdXJhdGlvbl9taWNyb3MYDyABKAMSDwoHZHJ5X3J1bhgQIAEoCBINCgVhY3RvchgRIAEoCRISCgpyZXF1ZXN0X2lkGBIgASgJEhIKCmNyZWF0ZWRfYXQYEyABKAkSKAoId2FybmluZ3MYFCADKAsyFi5hdGhlbmEudjEuUnVsZU1lc3NhZ2USJAoEbG9ncxgVIAMoCzIWLmF0aGVuYS52MS5SdWxlTWVzc2FnZSJRChRMaXN0UnVsZVJ1bnNSZXNwb25zZRIgCgRydW5zGAEgAygLMhIuYXRoZW5hLnYxLlJ1bGVSdW4SFwoPbmV4dF9wYWdlX3Rva2VuGAIgASgJMqYECgtSdWxlU2VydmljZRJGCglMaXN0UnVsZXMSGy5hdGhlbmEudjEuTGlzdFJ1bGVzUmVxdWVzdBocLmF0aGVuYS52MS5MaXN0UnVsZXNSZXNwb25zZRJACgdHZXRSdWxlEhkuYXRoZW5hLnYxLkdldFJ1bGVSZXF1ZXN0GhouYXRoZW5hLnYxLkdldFJ1bGVSZXNwb25zZRJDCghTYXZlUnVsZRIaLmF0aGVuYS52MS5TYXZlUnVsZVJlcXVlc3QaGy5hdGhlbmEudjEuU2F2ZVJ1bGVSZXNwb25zZRJJCgpEZWxldGVSdWxlEhwuYXRoZW5hLnYxLkRlbGV0ZVJ1bGVSZXF1ZXN0Gh0uYXRoZW5hLnYxLkRlbGV0ZVJ1bGVSZXNwb25zZRJbChBMaXN0UnVsZVZlcnNpb25zEiIuYXRoZW5hLnYxLkxpc3RSdWxlVmVyc2lvbnNSZXF1ZXN0GiMuYXRoZW5hLnYxLkxpc3RSdWxlVmVyc2lvbnNSZXNwb25zZRJPCgxTaW11bGF0ZVJ1bGUSHi5hdGhlbmEudjEuU2ltdWxhdGVSdWxlUmVxdWVzdBofLmF0aGVuYS52MS5TaW11bGF0ZVJ1bGVSZXNwb25zZRJPCgxMaXN0UnVsZVJ1bnMSHi5hdGhlbmEudjEuTGlzdFJ1bGVSdW5zUmVxdWVzdBofLmF0aGVuYS52MS5MaXN0UnVsZVJ1bnNSZXNwb25zZUIjWiFhdGhlbmEtZXJwL2dlbi9hdGhlbmEvdjE7YXRoZW5hdjFiBnByb3RvMw", [file_athena_v1_records]);
+  fileDesc("ChVhdGhlbmEvdjEvcnVsZXMucHJvdG8SCWF0aGVuYS52MSKDAgoOUnVsZURlZmluaXRpb24SCwoDa2V5GAEgASgJEg0KBWxhYmVsGAIgASgJEhEKCXJ1bGVfdHlwZRgDIAEoCRIXCg9yZWNvcmRfdHlwZV9rZXkYBCABKAkSDQoFZXZlbnQYBSABKAkSEAoIcHJpb3JpdHkYBiABKAUSDwoHZW5hYmxlZBgHIAEoCBIOCgZzb3VyY2UYCCABKAkSFgoOY29uZGl0aW9uX3RyZWUYCSABKAkSFgoOY29uZGl0aW9uX2V4cHIYCiABKAkSDwoHbWVzc2FnZRgLIAEoCRImCgRzZXRzGAwgAygLMhguYXRoZW5hLnYxLkRlcml2YXRpb25TZXQiMgoNRGVyaXZhdGlvblNldBINCgVmaWVsZBgBIAEoCRISCgp2YWx1ZV9leHByGAIgASgJIoUBCgRSdWxlEi0KCmRlZmluaXRpb24YASABKAsyGS5hdGhlbmEudjEuUnVsZURlZmluaXRpb24SDwoHdmVyc2lvbhgCIAEoAxITCgtzb3VyY2VfaGFzaBgDIAEoCRITCgttb2RpZmllZF9ieRgEIAEoCRITCgttb2RpZmllZF9hdBgFIAEoCSISChBMaXN0UnVsZXNSZXF1ZXN0IjMKEUxpc3RSdWxlc1Jlc3BvbnNlEh4KBXJ1bGVzGAEgAygLMg8uYXRoZW5hLnYxLlJ1bGUiHQoOR2V0UnVsZVJlcXVlc3QSCwoDa2V5GAEgASgJIjAKD0dldFJ1bGVSZXNwb25zZRIdCgRydWxlGAEgASgLMg8uYXRoZW5hLnYxLlJ1bGUiWgoPU2F2ZVJ1bGVSZXF1ZXN0Ei0KCmRlZmluaXRpb24YASABKAsyGS5hdGhlbmEudjEuUnVsZURlZmluaXRpb24SGAoQZXhwZWN0ZWRfdmVyc2lvbhgCIAEoAyIxChBTYXZlUnVsZVJlc3BvbnNlEh0KBHJ1bGUYASABKAsyDy5hdGhlbmEudjEuUnVsZSI6ChFEZWxldGVSdWxlUmVxdWVzdBILCgNrZXkYASABKAkSGAoQZXhwZWN0ZWRfdmVyc2lvbhgCIAEoAyIUChJEZWxldGVSdWxlUmVzcG9uc2UihQEKC1J1bGVWZXJzaW9uEg8KB3ZlcnNpb24YASABKAMSLQoKZGVmaW5pdGlvbhgCIAEoCzIZLmF0aGVuYS52MS5SdWxlRGVmaW5pdGlvbhITCgtzb3VyY2VfaGFzaBgDIAEoCRINCgVhY3RvchgEIAEoCRISCgpjcmVhdGVkX2F0GAUgASgJIiYKF0xpc3RSdWxlVmVyc2lvbnNSZXF1ZXN0EgsKA2tleRgBIAEoCSJEChhMaXN0UnVsZVZlcnNpb25zUmVzcG9uc2USKAoIdmVyc2lvbnMYASADKAsyFi5hdGhlbmEudjEuUnVsZVZlcnNpb24iKQoLUnVsZU1lc3NhZ2USDAoEY29kZRgBIAEoCRIMCgR0ZXh0GAIgASgJImcKClJ1bGVDaGFuZ2USDQoFZmllbGQYASABKAkSFgoJb2xkX3ZhbHVlGAIgASgJSACIAQESFgoJbmV3X3ZhbHVlGAMgASgJSAGIAQFCDAoKX29sZF92YWx1ZUIMCgpfbmV3X3ZhbHVlItkBChNTaW11bGF0ZVJ1bGVSZXF1ZXN0Ei0KCmRlZmluaXRpb24YASABKAsyGS5hdGhlbmEudjEuUnVsZURlZmluaXRpb24SEQoJcmVjb3JkX2lkGAIgASgJEjoKBnZhbHVlcxgDIAMoCzIqLmF0aGVuYS52MS5TaW11bGF0ZVJ1bGVSZXF1ZXN0LlZhbHVlc0VudHJ5GkQKC1ZhbHVlc0VudHJ5EgsKA2tleRgBIAEoCRIkCgV2YWx1ZRgCIAEoCzIVLmF0aGVuYS52MS5GaWVsZFZhbHVlOgI4ASKMAwoUU2ltdWxhdGVSdWxlUmVzcG9uc2USDwoHb3V0Y29tZRgBIAEoCRIMCgRjb2RlGAIgASgJEg8KB21lc3NhZ2UYAyABKAkSKAoId2FybmluZ3MYBCADKAsyFi5hdGhlbmEudjEuUnVsZU1lc3NhZ2USJAoEbG9ncxgFIAMoCzIWLmF0aGVuYS52MS5SdWxlTWVzc2FnZRImCgdjaGFuZ2VzGAYgAygLMhUuYXRoZW5hLnYxLlJ1bGVDaGFuZ2USOwoGcmVzdWx0GAcgAygLMisuYXRoZW5hLnYxLlNpbXVsYXRlUnVsZVJlc3BvbnNlLlJlc3VsdEVudHJ5Eg0KBXN0ZXBzGAggASgDEg0KBXJlYWRzGAkgASgDEhcKD2R1cmF0aW9uX21pY3JvcxgKIAEoAxISCgppbnB1dF9oYXNoGAsgASgJGkQKC1Jlc3VsdEVudHJ5EgsKA2tleRgBIAEoCRIkCgV2YWx1ZRgCIAEoCzIVLmF0aGVuYS52MS5GaWVsZFZhbHVlOgI4ASKfAQoTTGlzdFJ1bGVSdW5zUmVxdWVzdBIQCghydWxlX2tleRgBIAEoCRIXCg9yZWNvcmRfdHlwZV9rZXkYAiABKAkSEQoJcmVjb3JkX2lkGAMgASgJEhIKCnJlcXVlc3RfaWQYBCABKAkSDwoHb3V0Y29tZRgFIAEoCRIRCglwYWdlX3NpemUYBiABKAUSEgoKcGFnZV90b2tlbhgHIAEoCSKuAwoHUnVsZVJ1bhIKCgJpZBgBIAEoCRIQCghydWxlX2tleRgCIAEoCRIUCgxydWxlX3ZlcnNpb24YAyABKAMSEQoJcnVsZV90eXBlGAQgASgJEhcKD3JlY29yZF90eXBlX2tleRgFIAEoCRIRCglyZWNvcmRfaWQYBiABKAkSDQoFZXZlbnQYByABKAkSEgoKaW5wdXRfaGFzaBgIIAEoCRIPCgdvdXRjb21lGAkgASgJEgwKBGNvZGUYCiABKAkSDwoHbWVzc2FnZRgLIAEoCRINCgVzdGVwcxgMIAEoAxINCgVyZWFkcxgNIAEoAxIOCgZ3cml0ZXMYDiABKAMSFwoPZHVyYXRpb25fbWljcm9zGA8gASgDEg8KB2RyeV9ydW4YECABKAgSDQoFYWN0b3IYESABKAkSEgoKcmVxdWVzdF9pZBgSIAEoCRISCgpjcmVhdGVkX2F0GBMgASgJEigKCHdhcm5pbmdzGBQgAygLMhYuYXRoZW5hLnYxLlJ1bGVNZXNzYWdlEiQKBGxvZ3MYFSADKAsyFi5hdGhlbmEudjEuUnVsZU1lc3NhZ2UiUQoUTGlzdFJ1bGVSdW5zUmVzcG9uc2USIAoEcnVucxgBIAMoCzISLmF0aGVuYS52MS5SdWxlUnVuEhcKD25leHRfcGFnZV90b2tlbhgCIAEoCTKmBAoLUnVsZVNlcnZpY2USRgoJTGlzdFJ1bGVzEhsuYXRoZW5hLnYxLkxpc3RSdWxlc1JlcXVlc3QaHC5hdGhlbmEudjEuTGlzdFJ1bGVzUmVzcG9uc2USQAoHR2V0UnVsZRIZLmF0aGVuYS52MS5HZXRSdWxlUmVxdWVzdBoaLmF0aGVuYS52MS5HZXRSdWxlUmVzcG9uc2USQwoIU2F2ZVJ1bGUSGi5hdGhlbmEudjEuU2F2ZVJ1bGVSZXF1ZXN0GhsuYXRoZW5hLnYxLlNhdmVSdWxlUmVzcG9uc2USSQoKRGVsZXRlUnVsZRIcLmF0aGVuYS52MS5EZWxldGVSdWxlUmVxdWVzdBodLmF0aGVuYS52MS5EZWxldGVSdWxlUmVzcG9uc2USWwoQTGlzdFJ1bGVWZXJzaW9ucxIiLmF0aGVuYS52MS5MaXN0UnVsZVZlcnNpb25zUmVxdWVzdBojLmF0aGVuYS52MS5MaXN0UnVsZVZlcnNpb25zUmVzcG9uc2USTwoMU2ltdWxhdGVSdWxlEh4uYXRoZW5hLnYxLlNpbXVsYXRlUnVsZVJlcXVlc3QaHy5hdGhlbmEudjEuU2ltdWxhdGVSdWxlUmVzcG9uc2USTwoMTGlzdFJ1bGVSdW5zEh4uYXRoZW5hLnYxLkxpc3RSdWxlUnVuc1JlcXVlc3QaHy5hdGhlbmEudjEuTGlzdFJ1bGVSdW5zUmVzcG9uc2VCI1ohYXRoZW5hLWVycC9nZW4vYXRoZW5hL3YxO2F0aGVuYXYxYgZwcm90bzM", [file_athena_v1_records]);
 
 /**
  * RuleDefinition is what a person edits.
@@ -70,11 +70,43 @@ export type RuleDefinition = Message<"athena.v1.RuleDefinition"> & {
   enabled: boolean;
 
   /**
-   * Starlark source, at most 64 KiB.
+   * Starlark source, at most 64 KiB. Empty for builder Rules.
    *
    * @generated from field: string source = 8;
    */
   source: string;
+
+  /**
+   * Builder condition tree JSON (internal/expr Tree). Set only for
+   * validation, guard and derivation Rules authored in the builder.
+   *
+   * @generated from field: string condition_tree = 9;
+   */
+  conditionTree: string;
+
+  /**
+   * Expression compiled from the tree by the server on save; the only
+   * form a builder Rule executes. Empty for Starlark Rules.
+   *
+   * @generated from field: string condition_expr = 10;
+   */
+  conditionExpr: string;
+
+  /**
+   * Builder outcome: the message a validation fails or a guard blocks
+   * with. Required for builder validation and guard Rules.
+   *
+   * @generated from field: string message = 11;
+   */
+  message: string;
+
+  /**
+   * Builder derivation assignments: fields the Rule sets when its
+   * condition holds. Only for builder derivation Rules.
+   *
+   * @generated from field: repeated athena.v1.DerivationSet sets = 12;
+   */
+  sets: DerivationSet[];
 };
 
 /**
@@ -83,6 +115,31 @@ export type RuleDefinition = Message<"athena.v1.RuleDefinition"> & {
  */
 export const RuleDefinitionSchema: GenMessage<RuleDefinition> = /*@__PURE__*/
   messageDesc(file_athena_v1_rules, 0);
+
+/**
+ * DerivationSet assigns one field when a builder derivation's condition
+ * holds. The value is an expression over the record's fields.
+ *
+ * @generated from message athena.v1.DerivationSet
+ */
+export type DerivationSet = Message<"athena.v1.DerivationSet"> & {
+  /**
+   * @generated from field: string field = 1;
+   */
+  field: string;
+
+  /**
+   * @generated from field: string value_expr = 2;
+   */
+  valueExpr: string;
+};
+
+/**
+ * Describes the message athena.v1.DerivationSet.
+ * Use `create(DerivationSetSchema)` to create a new message.
+ */
+export const DerivationSetSchema: GenMessage<DerivationSet> = /*@__PURE__*/
+  messageDesc(file_athena_v1_rules, 1);
 
 /**
  * @generated from message athena.v1.Rule
@@ -125,7 +182,7 @@ export type Rule = Message<"athena.v1.Rule"> & {
  * Use `create(RuleSchema)` to create a new message.
  */
 export const RuleSchema: GenMessage<Rule> = /*@__PURE__*/
-  messageDesc(file_athena_v1_rules, 1);
+  messageDesc(file_athena_v1_rules, 2);
 
 /**
  * @generated from message athena.v1.ListRulesRequest
@@ -138,7 +195,7 @@ export type ListRulesRequest = Message<"athena.v1.ListRulesRequest"> & {
  * Use `create(ListRulesRequestSchema)` to create a new message.
  */
 export const ListRulesRequestSchema: GenMessage<ListRulesRequest> = /*@__PURE__*/
-  messageDesc(file_athena_v1_rules, 2);
+  messageDesc(file_athena_v1_rules, 3);
 
 /**
  * @generated from message athena.v1.ListRulesResponse
@@ -155,7 +212,7 @@ export type ListRulesResponse = Message<"athena.v1.ListRulesResponse"> & {
  * Use `create(ListRulesResponseSchema)` to create a new message.
  */
 export const ListRulesResponseSchema: GenMessage<ListRulesResponse> = /*@__PURE__*/
-  messageDesc(file_athena_v1_rules, 3);
+  messageDesc(file_athena_v1_rules, 4);
 
 /**
  * @generated from message athena.v1.GetRuleRequest
@@ -172,7 +229,7 @@ export type GetRuleRequest = Message<"athena.v1.GetRuleRequest"> & {
  * Use `create(GetRuleRequestSchema)` to create a new message.
  */
 export const GetRuleRequestSchema: GenMessage<GetRuleRequest> = /*@__PURE__*/
-  messageDesc(file_athena_v1_rules, 4);
+  messageDesc(file_athena_v1_rules, 5);
 
 /**
  * @generated from message athena.v1.GetRuleResponse
@@ -189,7 +246,7 @@ export type GetRuleResponse = Message<"athena.v1.GetRuleResponse"> & {
  * Use `create(GetRuleResponseSchema)` to create a new message.
  */
 export const GetRuleResponseSchema: GenMessage<GetRuleResponse> = /*@__PURE__*/
-  messageDesc(file_athena_v1_rules, 5);
+  messageDesc(file_athena_v1_rules, 6);
 
 /**
  * @generated from message athena.v1.SaveRuleRequest
@@ -213,7 +270,7 @@ export type SaveRuleRequest = Message<"athena.v1.SaveRuleRequest"> & {
  * Use `create(SaveRuleRequestSchema)` to create a new message.
  */
 export const SaveRuleRequestSchema: GenMessage<SaveRuleRequest> = /*@__PURE__*/
-  messageDesc(file_athena_v1_rules, 6);
+  messageDesc(file_athena_v1_rules, 7);
 
 /**
  * @generated from message athena.v1.SaveRuleResponse
@@ -230,7 +287,7 @@ export type SaveRuleResponse = Message<"athena.v1.SaveRuleResponse"> & {
  * Use `create(SaveRuleResponseSchema)` to create a new message.
  */
 export const SaveRuleResponseSchema: GenMessage<SaveRuleResponse> = /*@__PURE__*/
-  messageDesc(file_athena_v1_rules, 7);
+  messageDesc(file_athena_v1_rules, 8);
 
 /**
  * @generated from message athena.v1.DeleteRuleRequest
@@ -252,7 +309,7 @@ export type DeleteRuleRequest = Message<"athena.v1.DeleteRuleRequest"> & {
  * Use `create(DeleteRuleRequestSchema)` to create a new message.
  */
 export const DeleteRuleRequestSchema: GenMessage<DeleteRuleRequest> = /*@__PURE__*/
-  messageDesc(file_athena_v1_rules, 8);
+  messageDesc(file_athena_v1_rules, 9);
 
 /**
  * @generated from message athena.v1.DeleteRuleResponse
@@ -265,7 +322,7 @@ export type DeleteRuleResponse = Message<"athena.v1.DeleteRuleResponse"> & {
  * Use `create(DeleteRuleResponseSchema)` to create a new message.
  */
 export const DeleteRuleResponseSchema: GenMessage<DeleteRuleResponse> = /*@__PURE__*/
-  messageDesc(file_athena_v1_rules, 9);
+  messageDesc(file_athena_v1_rules, 10);
 
 /**
  * @generated from message athena.v1.RuleVersion
@@ -304,7 +361,7 @@ export type RuleVersion = Message<"athena.v1.RuleVersion"> & {
  * Use `create(RuleVersionSchema)` to create a new message.
  */
 export const RuleVersionSchema: GenMessage<RuleVersion> = /*@__PURE__*/
-  messageDesc(file_athena_v1_rules, 10);
+  messageDesc(file_athena_v1_rules, 11);
 
 /**
  * @generated from message athena.v1.ListRuleVersionsRequest
@@ -321,7 +378,7 @@ export type ListRuleVersionsRequest = Message<"athena.v1.ListRuleVersionsRequest
  * Use `create(ListRuleVersionsRequestSchema)` to create a new message.
  */
 export const ListRuleVersionsRequestSchema: GenMessage<ListRuleVersionsRequest> = /*@__PURE__*/
-  messageDesc(file_athena_v1_rules, 11);
+  messageDesc(file_athena_v1_rules, 12);
 
 /**
  * @generated from message athena.v1.ListRuleVersionsResponse
@@ -338,7 +395,7 @@ export type ListRuleVersionsResponse = Message<"athena.v1.ListRuleVersionsRespon
  * Use `create(ListRuleVersionsResponseSchema)` to create a new message.
  */
 export const ListRuleVersionsResponseSchema: GenMessage<ListRuleVersionsResponse> = /*@__PURE__*/
-  messageDesc(file_athena_v1_rules, 12);
+  messageDesc(file_athena_v1_rules, 13);
 
 /**
  * RuleMessage is one warning, or one line a Rule wrote with log.
@@ -364,7 +421,7 @@ export type RuleMessage = Message<"athena.v1.RuleMessage"> & {
  * Use `create(RuleMessageSchema)` to create a new message.
  */
 export const RuleMessageSchema: GenMessage<RuleMessage> = /*@__PURE__*/
-  messageDesc(file_athena_v1_rules, 13);
+  messageDesc(file_athena_v1_rules, 14);
 
 /**
  * RuleChange is one field a Rule sets, with the value before and after as
@@ -394,7 +451,7 @@ export type RuleChange = Message<"athena.v1.RuleChange"> & {
  * Use `create(RuleChangeSchema)` to create a new message.
  */
 export const RuleChangeSchema: GenMessage<RuleChange> = /*@__PURE__*/
-  messageDesc(file_athena_v1_rules, 14);
+  messageDesc(file_athena_v1_rules, 15);
 
 /**
  * @generated from message athena.v1.SimulateRuleRequest
@@ -429,7 +486,7 @@ export type SimulateRuleRequest = Message<"athena.v1.SimulateRuleRequest"> & {
  * Use `create(SimulateRuleRequestSchema)` to create a new message.
  */
 export const SimulateRuleRequestSchema: GenMessage<SimulateRuleRequest> = /*@__PURE__*/
-  messageDesc(file_athena_v1_rules, 15);
+  messageDesc(file_athena_v1_rules, 16);
 
 /**
  * @generated from message athena.v1.SimulateRuleResponse
@@ -507,7 +564,7 @@ export type SimulateRuleResponse = Message<"athena.v1.SimulateRuleResponse"> & {
  * Use `create(SimulateRuleResponseSchema)` to create a new message.
  */
 export const SimulateRuleResponseSchema: GenMessage<SimulateRuleResponse> = /*@__PURE__*/
-  messageDesc(file_athena_v1_rules, 16);
+  messageDesc(file_athena_v1_rules, 17);
 
 /**
  * @generated from message athena.v1.ListRuleRunsRequest
@@ -560,7 +617,7 @@ export type ListRuleRunsRequest = Message<"athena.v1.ListRuleRunsRequest"> & {
  * Use `create(ListRuleRunsRequestSchema)` to create a new message.
  */
 export const ListRuleRunsRequestSchema: GenMessage<ListRuleRunsRequest> = /*@__PURE__*/
-  messageDesc(file_athena_v1_rules, 17);
+  messageDesc(file_athena_v1_rules, 18);
 
 /**
  * RuleRun is one execution of a Rule (spec 12.1). It holds the hash of the
@@ -682,7 +739,7 @@ export type RuleRun = Message<"athena.v1.RuleRun"> & {
  * Use `create(RuleRunSchema)` to create a new message.
  */
 export const RuleRunSchema: GenMessage<RuleRun> = /*@__PURE__*/
-  messageDesc(file_athena_v1_rules, 18);
+  messageDesc(file_athena_v1_rules, 19);
 
 /**
  * @generated from message athena.v1.ListRuleRunsResponse
@@ -704,13 +761,15 @@ export type ListRuleRunsResponse = Message<"athena.v1.ListRuleRunsResponse"> & {
  * Use `create(ListRuleRunsResponseSchema)` to create a new message.
  */
 export const ListRuleRunsResponseSchema: GenMessage<ListRuleRunsResponse> = /*@__PURE__*/
-  messageDesc(file_athena_v1_rules, 19);
+  messageDesc(file_athena_v1_rules, 20);
 
 /**
- * RuleService manages Rules, which are Starlark programs the kernel runs at
- * document lifecycle events (spec 13, ADR-0016, Proposed). A Rule never
- * reaches the database itself: it calls Go host functions that read as the
- * acting user and set fields of the document it runs on. Reading needs the
+ * RuleService manages Rules, which the kernel runs at document lifecycle
+ * events (spec 13, ADR-0016, Proposed). A Rule is authored in Starlark or in
+ * the no-code builder (ADR-0034, Proposed): builder Rules carry a condition
+ * tree with its compiled expression instead of source. A Rule never reaches
+ * the database itself: it calls Go host functions that read as the acting
+ * user and set fields of the document it runs on. Reading needs the
  * rules:read system permission; saving, deleting and simulating need
  * rules:write. Starlark rules are not production-ready.
  *

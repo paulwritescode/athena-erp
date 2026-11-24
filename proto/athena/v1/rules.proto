@@ -6,10 +6,12 @@ import "athena/v1/records.proto";
 
 option go_package = "athena-erp/gen/athena/v1;athenav1";
 
-// RuleService manages Rules, which are Starlark programs the kernel runs at
-// document lifecycle events (spec 13, ADR-0016, Proposed). A Rule never
-// reaches the database itself: it calls Go host functions that read as the
-// acting user and set fields of the document it runs on. Reading needs the
+// RuleService manages Rules, which the kernel runs at document lifecycle
+// events (spec 13, ADR-0016, Proposed). A Rule is authored in Starlark or in
+// the no-code builder (ADR-0034, Proposed): builder Rules carry a condition
+// tree with its compiled expression instead of source. A Rule never reaches
+// the database itself: it calls Go host functions that read as the acting
+// user and set fields of the document it runs on. Reading needs the
 // rules:read system permission; saving, deleting and simulating need
 // rules:write. Starlark rules are not production-ready.
 service RuleService {
@@ -53,8 +55,27 @@ message RuleDefinition {
   // validations, then guards.
   int32 priority = 6;
   bool enabled = 7;
-  // Starlark source, at most 64 KiB.
+  // Starlark source, at most 64 KiB. Empty for builder Rules.
   string source = 8;
+  // Builder condition tree JSON (internal/expr Tree). Set only for
+  // validation, guard and derivation Rules authored in the builder.
+  string condition_tree = 9;
+  // Expression compiled from the tree by the server on save; the only
+  // form a builder Rule executes. Empty for Starlark Rules.
+  string condition_expr = 10;
+  // Builder outcome: the message a validation fails or a guard blocks
+  // with. Required for builder validation and guard Rules.
+  string message = 11;
+  // Builder derivation assignments: fields the Rule sets when its
+  // condition holds. Only for builder derivation Rules.
+  repeated DerivationSet sets = 12;
+}
+
+// DerivationSet assigns one field when a builder derivation's condition
+// holds. The value is an expression over the record's fields.
+message DerivationSet {
+  string field = 1;
+  string value_expr = 2;
 }
 
 message Rule {
