@@ -3,6 +3,7 @@ package stock_test
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -299,4 +300,240 @@ func scopedGLStock(t *rapid.T, db *sql.DB, vouchers []string) types.Decimal {
 		t.Fatal(err)
 	}
 	return total
+}
+
+// TestAvailabilityProperty checks Property 23 over drawn reservation sets:
+// available always equals on-hand minus active holds, takes beyond it
+// fail, and no set of holds exceeds on-hand for one item and location.
+//
+// Feature: athena-batch-2, Property 23: Availability.
+//
+// One shared database serves all iterations; fresh item ids isolate them.
+// Each iteration funds two locations, draws a set of holds across holders
+// (some over, some duplicated), then draws releases, consumes and an
+// expiry sweep, asserting an independent arithmetic model against the
+// service after every step.
+func TestAvailabilityProperty(t *testing.T) {
+	stockSvc, engine, masters, db := setup(t)
+	seedStockBasics(t, masters)
+
+	rapid.Check(t, func(t *rapid.T) {
+		ctx := context.Background()
+		itemID := uuid.NewString()
+		locations := []string{"wh_main", "wh_east"}
+		type modelHold struct {
+			id      string
+			qty     int64
+			expires bool
+		}
+		type locModel struct {
+			onHand int64
+			holds  map[string]*modelHold
+		}
+		models := map[string]*locModel{}
+		for _, location := range locations {
+			funding := testMovement()
+			funding.ItemID = itemID
+			funding.Location = location
+			funding.Quantity = types.Quantity{Value: types.MustDecimal(fmt.Sprint(rapid.IntRange(50, 100).Draw(t, "fund"))), UoM: "each"}
+			postOp(t, db, stockSvc, engine, funding)
+			onHand, err := decimalInt(funding.Quantity.Value)
+			if err != nil {
+				t.Fatal(err)
+			}
+			models[location] = &locModel{onHand: onHand, holds: map[string]*modelHold{}}
+		}
+		assertLocations := func() {
+			for _, location := range locations {
+				model := models[location]
+				var reserved int64
+				for _, hold := range model.holds {
+					reserved += hold.qty
+				}
+				avail, err := stockSvc.Available(ctx, db, stock.BinKey{
+					Company: "acme", Book: "main", Owner: "company", ItemID: itemID, Location: location,
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if got := avail.OnHand.String(); got != fmt.Sprintf("%d.000000", model.onHand) {
+					t.Fatalf("%s on-hand is %s, want %d", location, got, model.onHand)
+				}
+				if got := avail.Reserved.String(); got != fmt.Sprintf("%d.000000", reserved) {
+					t.Fatalf("%s reserved is %s, want %d", location, got, reserved)
+				}
+				if got := avail.Available.String(); got != fmt.Sprintf("%d.000000", model.onHand-reserved) {
+					t.Fatalf("%s available is %s, want %d", location, got, model.onHand-reserved)
+				}
+			}
+		}
+
+		attempts := rapid.IntRange(1, 8).Draw(t, "attempts")
+		for i := 0; i < attempts; i++ {
+			location := locations[rapid.IntRange(0, 1).Draw(t, "location")]
+			holder := fmt.Sprintf("holder-%d", rapid.IntRange(1, 3).Draw(t, "holder"))
+			qty := int64(rapid.IntRange(1, 60).Draw(t, "holdQty"))
+			model := models[location]
+			var reserved int64
+			for _, hold := range model.holds {
+				reserved += hold.qty
+			}
+			_, dup := model.holds[holder]
+			r := testReservationFor(t, itemID, location, holder, qty)
+			held, err := tryReserve(ctx, db, stockSvc, r)
+			switch {
+			case qty > model.onHand-reserved:
+				if !errors.Is(err, stock.ErrInsufficientAvailable) {
+					t.Fatalf("over-hold error is %v, want ErrInsufficientAvailable", err)
+				}
+			case dup:
+				if !errors.Is(err, stock.ErrDuplicateHold) {
+					t.Fatalf("double-hold error is %v, want ErrDuplicateHold", err)
+				}
+			default:
+				if err != nil {
+					t.Fatalf("hold error is %v, want success", err)
+				}
+				model.holds[holder] = &modelHold{id: held.ID, qty: qty, expires: r.ExpiresAt != "" && r.ExpiresAt < "2026-06-15 12:00:00"}
+			}
+			assertLocations()
+		}
+
+		lifecycle := rapid.IntRange(0, 4).Draw(t, "lifecycle")
+		for i := 0; i < lifecycle; i++ {
+			type candidate struct {
+				location string
+				holder   string
+				hold     *modelHold
+			}
+			var actives []candidate
+			for _, location := range locations {
+				for holder, hold := range models[location].holds {
+					actives = append(actives, candidate{location, holder, hold})
+				}
+			}
+			choice := rapid.IntRange(0, 99).Draw(t, "lifecycleOp")
+			switch {
+			case len(actives) == 0 || choice < 25:
+				tx, err := db.BeginTx(ctx, nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, err := stockSvc.ExpireReservations(ctx, tx, "acme", "main", "2026-06-15 12:00:00"); err != nil {
+					t.Fatal(err)
+				}
+				if err := tx.Commit(); err != nil {
+					t.Fatal(err)
+				}
+				// The sweep is workspace-wide and may free earlier
+				// iterations' holds too, so assert per-row statuses for
+				// this iteration's holds instead of the freed count.
+				for _, location := range locations {
+					for holder, hold := range models[location].holds {
+						var status string
+						if err := db.QueryRow(`SELECT status FROM athena_reservations WHERE id = ?`, hold.id).Scan(&status); err != nil {
+							t.Fatal(err)
+						}
+						if hold.expires && status != stock.ReserveExpired {
+							t.Fatalf("past-expiry hold is %s, want expired", status)
+						}
+						if !hold.expires && status != stock.ReserveActive {
+							t.Fatalf("live hold is %s, want active", status)
+						}
+						if hold.expires {
+							delete(models[location].holds, holder)
+						}
+					}
+				}
+			default:
+				pick := actives[rapid.IntRange(0, len(actives)-1).Draw(t, "lifecycleHold")]
+				part := int64(rapid.IntRange(1, int(pick.hold.qty)).Draw(t, "lifecycleQty"))
+				amount := types.MustDecimal(fmt.Sprint(part))
+				tx, err := db.BeginTx(ctx, nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if choice < 65 {
+					if err := stockSvc.ReleaseReservation(ctx, tx, pick.hold.id, amount); err != nil {
+						t.Fatal(err)
+					}
+				} else if err := stockSvc.ConsumeReservation(ctx, tx, pick.hold.id, amount); err != nil {
+					t.Fatal(err)
+				}
+				if err := tx.Commit(); err != nil {
+					t.Fatal(err)
+				}
+				if left := pick.hold.qty - part; left == 0 {
+					delete(models[pick.location].holds, pick.holder)
+				} else {
+					pick.hold.qty = left
+				}
+			}
+			assertLocations()
+		}
+
+		for _, location := range locations {
+			var active, onHand string
+			err := db.QueryRow(`SELECT (SELECT COALESCE(SUM(qty), 0) FROM athena_reservations WHERE company_name = 'acme' AND book = 'main' AND owner = 'company' AND item_id = ? AND location_name = ? AND status = 'active'), on_hand FROM athena_stock_bins WHERE company_name = 'acme' AND book = 'main' AND owner = 'company' AND item_id = ? AND location_name = ?`,
+				itemID, location, itemID, location).Scan(&active, &onHand)
+			if err != nil {
+				t.Fatal(err)
+			}
+			heldTotal, err := types.ParseDecimal(active)
+			if err != nil {
+				t.Fatal(err)
+			}
+			stockTotal, err := types.ParseDecimal(onHand)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if heldTotal.Cmp(stockTotal) > 0 {
+				t.Fatalf("%s holds %s exceed on-hand %s", location, active, onHand)
+			}
+		}
+	})
+}
+
+func testReservationFor(t *rapid.T, itemID, location, holder string, qty int64) stock.Reservation {
+	expiry := ""
+	switch rapid.IntRange(0, 2).Draw(t, "expiry") {
+	case 1:
+		expiry = "2026-01-01 00:00:00"
+	case 2:
+		expiry = "2027-01-01 00:00:00"
+	}
+	return stock.Reservation{
+		Company: "acme", Book: "main", Owner: "company",
+		ItemType: "test_widget", ItemID: itemID, Location: location,
+		Quantity:   types.Quantity{Value: types.MustDecimal(fmt.Sprint(qty)), UoM: "each"},
+		HolderType: "cart", HolderID: holder, ExpiresAt: expiry,
+	}
+}
+
+func tryReserve(ctx context.Context, db *sql.DB, stockSvc *stock.Service, r stock.Reservation) (stock.HeldReservation, error) {
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return stock.HeldReservation{}, err
+	}
+	defer tx.Rollback()
+	held, err := stockSvc.Reserve(ctx, tx, r)
+	if err != nil {
+		return stock.HeldReservation{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return stock.HeldReservation{}, err
+	}
+	return held, nil
+}
+
+func decimalInt(d types.Decimal) (int64, error) {
+	whole, err := d.Rescale(0)
+	if err != nil {
+		return 0, err
+	}
+	var out int64
+	if _, err := fmt.Sscan(whole.String(), &out); err != nil {
+		return 0, err
+	}
+	return out, nil
 }
