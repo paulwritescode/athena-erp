@@ -462,3 +462,9 @@
 - 09:35 TICK: F2s1 ~14m in, 3/4 reviewers live
 - 09:35 ACK Stylus: C7s3 listed as PASS-blocked-on-s2; train order (s2fix+s3, one gate) on r-c7s2 PASS
 - 09:41 MERGED F2s1 (57e04c4, 1151s gate) + server t63 healthy
+- 09:45 TICK: C2s1 ~5m in, C7s3 listed stacked
+- 09:48 TICK: C2s1 ~8m in
+- 09:55 TICK: C2s1 ~15m in
+- 09:57 C4/B7 to Stylus: B7 tick (8/8 verified + descope), C4 slice-5 briefed (L4 after F2)
+- 09:58 redirect applied: B7 tick queued, C4s5 -> L6 after F7s2, F3 briefed (L4 after F2s2, builder gated on F4 merge)
+- 10:01 MERGED C2s1 (65e59cc, 1150s gate) + server t64 healthy; 22 unblocks F4 DB; w-c2 -> slice 2
