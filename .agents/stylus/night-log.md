@@ -376,3 +376,8 @@
 - 06:51 ERROR (master): make restart owned the user server (t5f died); moved to hc terminal t5p (no-parent/outlive, node PATH), healthz ok; MASTER.md fixed
 - 06:51 w-c7 stack rebased (s2 a69d8b3), slice 3 started; SPAWNED r-c7s2 (t5q, delta-only); w-c2 holding
 - 06:55 TICK: C7s1 REAL ~13m in; r-f6 re-review due, watching
+- 07:02 MERGED C7s1 (6c99d3a, real 1042s gate) + decisions (72caec6, log conflict kept-both) + docs 16cea19, pushed; server t5r healthy; w-c2 GO on 22, w-c7 rebasing
+- 07:02 w-fu F4 core green (pure; mig-23 DB still held for 22); piped-exit-code lesson noted
+- 07:03 w-fu F4 core done (mig-23 DDL standalone, expr+TS round-trips green); maroto diligence + builder next, DB gates still held
+- 07:05 TICK: F1 ~5m in, w-c2 on 22, r-f6 suite-blocked not stuck
+- 07:08 MERGED F1 (6ecf06d, 424s gate, server fresh 411s) + server t5s healthy
