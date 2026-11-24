@@ -20,8 +20,8 @@ const StockToGLCheck = "stock_to_gl"
 // balance posted on or before the cutoff, Observed is the stock ledger
 // value (l_stock rows plus on-hand cost deltas; sold deltas post to cost
 // of sales, not the control account). Match reports equality. LogID names
-// the integrity-log row written for a break, or "" when the account
-// matched or an identical open row already exists.
+// the integrity-log row written for a break, or the reused identical open
+// row; "" when the account matched.
 type AccountCheck struct {
 	Control    string
 	Expected   string
