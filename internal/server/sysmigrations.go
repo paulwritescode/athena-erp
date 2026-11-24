@@ -1020,10 +1020,6 @@ func SystemMigrations() []store.Migration {
 		// Saved lists (ADR-0034): named condition trees over one Record Type
 		// with a column choice. Nothing is seeded: lists are Workspace data
 		// written through the lists service only.
-		// NOTE: versions 21 (C7) and 22 (C2 secrets) land first; until this
-		// branch rebases onto them, ValidateMigrations reports the gap and
-		// DB-backed tests stay red. That red is the reservation working, not
-		// a failure — the merge order is 21, 22, 23, 24.
 		{Version: 23, Name: "saved_lists", Up: execAll(
 			`CREATE TABLE IF NOT EXISTS athena_lists (
 				id CHAR(36) NOT NULL PRIMARY KEY,
