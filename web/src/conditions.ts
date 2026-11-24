@@ -38,6 +38,45 @@ export interface TreeField {
   scale?: number
 }
 
+// BuilderField is one field the builder offers: the variable name the model
+// stores, the label it shows, the Athena field type for operator narrowing,
+// the compile kind, and optional value choices for autocomplete.
+export interface BuilderField {
+  name: string
+  label: string
+  type: string
+  kind: TreeFieldKind
+  currency?: string
+  scale?: number
+  choices?: string[]
+}
+
+// Plain-words labels for the operator select. Kept beside the compiler so
+// labels and behavior change together.
+export const OPERATOR_LABELS: Record<ConditionOp, string> = {
+  is: 'is',
+  is_not: 'is not',
+  contains: 'contains',
+  not_contains: 'does not contain',
+  starts_with: 'starts with',
+  is_empty: 'is empty',
+  is_not_empty: 'is not empty',
+  more_than: 'more than',
+  at_least: 'at least',
+  less_than: 'less than',
+  at_most: 'at most',
+  is_any_of: 'is any of',
+  is_none_of: 'is none of',
+  before: 'before',
+  after: 'after',
+  on_or_before: 'on or before',
+  on_or_after: 'on or after',
+  in_the_last_n_days: 'in the last',
+  in_the_next_n_days: 'in the next',
+  is_checked: 'is checked',
+  is_not_checked: 'is not checked',
+}
+
 // Operator lists per Athena field type for the builder UI. The compiler
 // below is kind-level (like Go); the UI narrows by field type (Enum gets
 // no contains family, Link gets is/empty only, documents add Status).
