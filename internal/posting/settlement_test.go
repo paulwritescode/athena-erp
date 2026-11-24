@@ -69,6 +69,8 @@ func settleSetup(t *testing.T) (*posting.SettlementService, *sql.DB) {
 		{Name: "cash", Label: "Cash", Type: "asset"},
 		{Name: "receivable", Label: "Receivable", Type: "asset", ControlRole: "receivable"},
 		{Name: "payable", Label: "Payable", Type: "liability", ControlRole: "payable"},
+		{Name: "revenue", Label: "Revenue", Type: "income"},
+		{Name: "cost", Label: "Cost", Type: "expense"},
 		{Name: "fx_gain", Label: "FX gain", Type: "income"},
 		{Name: "fx_loss", Label: "FX loss", Type: "expense"},
 	} {
@@ -1009,4 +1011,419 @@ func TestReverseAcrossRevisions(t *testing.T) {
 	if !result.Items[0].Residual.Equal(types.MustDecimal("100.00")) {
 		t.Fatalf("residual restores fully: %+v", result.Items[0])
 	}
+}
+
+// equationFixture is one Property 12 iteration: a throwaway company with an
+// open full-year period, so iterations never share a control balance.
+type equationFixture struct {
+	company string
+	control string
+	offset  string
+	side    string
+	base    string
+}
+
+func equationCompany(t *rapid.T, masters *ledger.Service, base string) equationFixture {
+	tag := uuid.NewString()[:8]
+	company := "c12" + tag
+	ctx := context.Background()
+	if _, err := masters.SaveCompany(ctx, ledger.Company{Name: company, Label: "Property 12", BaseCurrency: base}, 0); err != nil {
+		t.Fatalf("company: %v", err)
+	}
+	if _, err := masters.SaveFiscalYear(ctx, ledger.FiscalYear{Name: "fy" + tag, Label: "FY", Company: company, StartDate: "2026-01-01", EndDate: "2026-12-31"}, 0); err != nil {
+		t.Fatalf("year: %v", err)
+	}
+	if _, err := masters.SavePeriod(ctx, ledger.Period{Company: company, Book: "main", Name: "fy2026", Label: "FY 2026", FiscalYear: "fy" + tag, StartDate: "2026-01-01", EndDate: "2026-12-31"}, 0); err != nil {
+		t.Fatalf("period: %v", err)
+	}
+	return equationFixture{company: company, base: base}
+}
+
+func controlBalance(t *rapid.T, db *sql.DB, company, control string) types.Decimal {
+	var debit, credit string
+	if err := db.QueryRow(`SELECT COALESCE(SUM(debit_base), 0), COALESCE(SUM(credit_base), 0) FROM l_gl WHERE company_name = ? AND account_name = ?`,
+		company, control).Scan(&debit, &credit); err != nil {
+		t.Fatalf("control balance: %v", err)
+	}
+	debitAmount, err := types.ParseDecimal(debit)
+	if err != nil {
+		t.Fatalf("parse debit: %v", err)
+	}
+	creditAmount, err := types.ParseDecimal(credit)
+	if err != nil {
+		t.Fatalf("parse credit: %v", err)
+	}
+	return debitAmount.Sub(creditAmount)
+}
+
+// assertBaseEquation checks R7.8 in one currency: signed open residuals
+// equal the control balance. Settled rows carry zero and change nothing.
+func assertBaseEquation(t *rapid.T, db *sql.DB, company, control string) {
+	rows, err := db.Query(`SELECT side, residual_amount FROM athena_party_items WHERE company_name = ?`, company)
+	if err != nil {
+		t.Fatalf("residuals: %v", err)
+	}
+	defer rows.Close()
+	total := types.Decimal{}
+	for rows.Next() {
+		var side, residual string
+		if err := rows.Scan(&side, &residual); err != nil {
+			t.Fatalf("scan residual: %v", err)
+		}
+		amount, err := types.ParseDecimal(residual)
+		if err != nil {
+			t.Fatalf("parse residual: %v", err)
+		}
+		if side == posting.ItemSideCredit {
+			amount = amount.Neg()
+		}
+		total = total.Add(amount)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("residual rows: %v", err)
+	}
+	if balance := controlBalance(t, db, company, control); !balance.Equal(total) {
+		t.Fatalf("control %v, signed residuals %v", balance, total)
+	}
+}
+
+// assertFXEquation checks R7.8 across currencies: each residual valued at
+// its invoice rate sums to the control balance. Rates are integral in these
+// sequences so every conversion is exact; fractional-rate rounding dust has
+// no booked-base column to pin it to and stays out of the equation.
+func assertFXEquation(t *rapid.T, db *sql.DB, company, control string, invoiceRates map[string]types.Decimal) {
+	rows, err := db.Query(`SELECT id, side, residual_amount FROM athena_party_items WHERE company_name = ?`, company)
+	if err != nil {
+		t.Fatalf("residuals: %v", err)
+	}
+	defer rows.Close()
+	total := types.Decimal{}
+	for rows.Next() {
+		var id, side, residual string
+		if err := rows.Scan(&id, &side, &residual); err != nil {
+			t.Fatalf("scan residual: %v", err)
+		}
+		amount, err := types.ParseDecimal(residual)
+		if err != nil {
+			t.Fatalf("parse residual: %v", err)
+		}
+		rate, ok := invoiceRates[id]
+		if !ok {
+			t.Fatalf("item %s has no tracked invoice rate", id)
+		}
+		valued := amount.Mul(rate)
+		if side == posting.ItemSideCredit {
+			valued = valued.Neg()
+		}
+		total = total.Add(valued)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("residual rows: %v", err)
+	}
+	if balance := controlBalance(t, db, company, control); !balance.Equal(total) {
+		t.Fatalf("control %v, booked residuals %v", balance, total)
+	}
+}
+
+// equationInvoice posts one invoice's control legs through the engine and
+// records its items: one leg pair per instalment, each control leg sourced
+// to its item, in the given base amounts (equal to the instalments for base
+// invoices, converted for foreign ones). It returns the created items.
+func equationInvoice(t *rapid.T, svc *posting.SettlementService, db *sql.DB, engine *posting.Engine, fix equationFixture, partyID, currency string, minors []int64, onCreated func([]posting.Item), baseOf func(minor int64, itemID string) types.Decimal) []posting.Item {
+	voucherID := uuid.NewString()
+	items := make([]posting.NewItem, len(minors))
+	for j, minor := range minors {
+		amount, err := types.NewDecimal(minor, 2)
+		if err != nil {
+			t.Fatalf("instalment: %v", err)
+		}
+		items[j] = posting.NewItem{
+			Company: fix.company, Book: "main", PartyType: "customer", PartyID: partyID,
+			ControlAccount: fix.control, SourceType: "invoice", SourceID: voucherID,
+			SourceRevision: 2, InstalmentNo: j + 1, Currency: currency, Side: fix.side, Amount: amount,
+		}
+	}
+	tx, err := db.Begin()
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	created, err := svc.CreateItemsInTx(context.Background(), tx, items)
+	if err != nil {
+		tx.Rollback()
+		t.Fatalf("create items: %v", err)
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatalf("commit items: %v", err)
+	}
+	if onCreated != nil {
+		onCreated(created)
+	}
+	var lines []posting.Line
+	for j := range created {
+		valued := baseOf(minors[j], created[j].ID)
+		if fix.side == posting.ItemSideDebit {
+			lines = append(lines,
+				posting.Line{Company: fix.company, Account: fix.control, DebitBase: valued, SourceType: "party_item", SourceID: created[j].ID},
+				posting.Line{Company: fix.company, Account: fix.offset, CreditBase: valued},
+			)
+		} else {
+			lines = append(lines,
+				posting.Line{Company: fix.company, Account: fix.offset, DebitBase: valued},
+				posting.Line{Company: fix.company, Account: fix.control, CreditBase: valued, SourceType: "party_item", SourceID: created[j].ID},
+			)
+		}
+	}
+	_, err = engine.Post(context.Background(), posting.Plan{
+		VoucherType: "invoice", VoucherID: voucherID, Revision: 2,
+		Event: posting.EventSubmit, Book: "main", PostingDate: "2026-06-10", Lines: lines,
+	}, posting.PostOptions{Actor: "tester", Source: "test"})
+	if err != nil {
+		t.Fatalf("post invoice: %v", err)
+	}
+	return created
+}
+
+// equationSettle applies one line over a random nonempty subset of the open
+// items and posts the payment legs for the applied base only, returning the
+// settlement voucher id when legs posted (empty otherwise) and the ids still
+// open afterwards.
+func equationSettle(t *rapid.T, svc *posting.SettlementService, db *sql.DB, engine *posting.Engine, fix equationFixture, partyID, currency, date string, open []string, fx *posting.FXConfig) (string, []string) {
+	included := map[string]bool{}
+	for _, id := range open {
+		if rapid.Bool().Draw(t, "include") {
+			included[id] = true
+		}
+	}
+	if len(included) == 0 {
+		included[open[0]] = true
+	}
+	targets := make([]posting.LineItem, 0, len(included))
+	for _, id := range open {
+		if included[id] {
+			targets = append(targets, posting.LineItem{ItemID: id})
+		}
+	}
+	payment, err := types.NewDecimal(int64(rapid.IntRange(1, 4000).Draw(t, "payment")), 2)
+	if err != nil {
+		t.Fatalf("payment: %v", err)
+	}
+	voucherID := uuid.NewString()
+	result, err := svc.Apply(context.Background(), posting.SettleRequest{
+		Company: fix.company, Book: "main", PartyType: "customer", PartyID: partyID,
+		ControlAccount: fix.control, Side: fix.side,
+		VoucherType: "receipt", VoucherID: voucherID,
+		Revision: 2, Event: posting.EventSubmit, PostingDate: date,
+		PostingGroupID: uuid.NewString(), PaymentCurrency: currency,
+		Actor: "tester", Source: "test", FX: fx,
+		Lines: []posting.SettleLine{{LineNo: 1, Amount: payment, Items: targets}},
+	})
+	if err != nil {
+		t.Fatalf("apply: %v", err)
+	}
+	applied := types.Decimal{}
+	for _, application := range result.Applications {
+		applied = applied.Add(application.BaseAmount)
+	}
+	stillOpen := open[:0]
+	for _, id := range open {
+		settled := false
+		for _, item := range result.Items {
+			if item.ID == id && item.Status == posting.ItemSettled {
+				settled = true
+			}
+		}
+		if !settled {
+			stillOpen = append(stillOpen, id)
+		}
+	}
+	if applied.Sign() == 0 {
+		return "", stillOpen
+	}
+	var legs []posting.Line
+	for _, application := range result.Applications {
+		if fix.side == posting.ItemSideDebit {
+			legs = append(legs,
+				posting.Line{Company: fix.company, Account: "cash", DebitBase: application.BaseAmount},
+				posting.Line{Company: fix.company, Account: fix.control, CreditBase: application.BaseAmount, SourceType: "party_item", SourceID: application.ItemID},
+			)
+		} else {
+			legs = append(legs,
+				posting.Line{Company: fix.company, Account: fix.control, DebitBase: application.BaseAmount, SourceType: "party_item", SourceID: application.ItemID},
+				posting.Line{Company: fix.company, Account: "cash", CreditBase: application.BaseAmount},
+			)
+		}
+	}
+	// Payment legs move the applied base only (R7.7 contract): unapplied
+	// cash stays out of the control account until a later application moves
+	// it, which is exactly what keeps the equation exact.
+	if _, err := engine.Post(context.Background(), posting.Plan{
+		VoucherType: "receipt", VoucherID: voucherID, Revision: 2,
+		Event: posting.EventSubmit, Book: "main", PostingDate: date, Lines: legs,
+	}, posting.PostOptions{Actor: "tester", Source: "test"}); err != nil {
+		t.Fatalf("post payment: %v", err)
+	}
+	return voucherID, stillOpen
+}
+
+// equationReverse unwinds one settlement and mirrors its payment legs.
+func equationReverse(t *rapid.T, svc *posting.SettlementService, engine *posting.Engine, fix equationFixture, partyID, voucherID, date string) {
+	if _, err := svc.Reverse(context.Background(), posting.ReverseRequest{
+		Company: fix.company, Book: "main", PartyType: "customer", PartyID: partyID,
+		ControlAccount: fix.control, Side: fix.side,
+		VoucherType: "receipt", VoucherID: voucherID, Revision: 3,
+		PostingDate: date, Actor: "tester", Source: "test",
+	}); err != nil {
+		t.Fatalf("reverse: %v", err)
+	}
+	if _, err := engine.Reverse(context.Background(), "receipt", voucherID, 2, "main",
+		posting.ReverseOptions{Actor: "tester", Source: "test", PostingDate: date}); err != nil {
+		t.Fatalf("mirror payment legs: %v", err)
+	}
+}
+
+// TestPartyLedgerEqualsControl checks Property 12 in one currency: for any
+// sequence of invoices, settlements and reversals, the signed party
+// residuals equal the control balance after every completed operation.
+//
+// Feature: athena-batch-2, Property 12: Party ledger equals control.
+func TestPartyLedgerEqualsControl(t *testing.T) {
+	svc, db := settleSetup(t)
+	engine := &posting.Engine{DB: db, Dialect: store.MariaDB{}}
+	rapid.Check(t, func(t *rapid.T) {
+		fix := equationCompany(t, &ledger.Service{DB: db, Dialect: store.MariaDB{}}, "USD")
+		fix.control, fix.offset, fix.side = "receivable", "revenue", posting.ItemSideDebit
+		if rapid.Bool().Draw(t, "payable") {
+			fix.control, fix.offset, fix.side = "payable", "cost", posting.ItemSideCredit
+		}
+		partyID := uuid.NewString()
+		var open []string
+		for i, n := 0, rapid.IntRange(1, 2).Draw(t, "invoices"); i < n; i++ {
+			total := int64(rapid.IntRange(100, 2000).Draw(t, "invoice total"))
+			parts := []int64{total}
+			if rapid.Bool().Draw(t, "split") {
+				cut := int64(rapid.IntRange(1, int(total-1)).Draw(t, "cut"))
+				parts = []int64{cut, total - cut}
+			}
+			created := equationInvoice(t, svc, db, engine, fix, partyID, "USD", parts, nil, func(minor int64, _ string) types.Decimal {
+				amount, err := types.NewDecimal(minor, 2)
+				if err != nil {
+					t.Fatalf("instalment base: %v", err)
+				}
+				return amount
+			})
+			for _, item := range created {
+				open = append(open, item.ID)
+			}
+			assertBaseEquation(t, db, fix.company, fix.control)
+		}
+		var settled []string
+		for i, n := 0, rapid.IntRange(0, 2).Draw(t, "settlements"); i < n && len(open) > 0; i++ {
+			voucherID, rest := equationSettle(t, svc, db, engine, fix, partyID, "USD", "2026-07-15", open, nil)
+			open = rest
+			if voucherID != "" {
+				settled = append(settled, voucherID)
+			}
+			assertBaseEquation(t, db, fix.company, fix.control)
+		}
+		if len(settled) > 0 && rapid.Bool().Draw(t, "reverse") {
+			equationReverse(t, svc, engine, fix, partyID, settled[len(settled)-1], "2026-08-20")
+			assertBaseEquation(t, db, fix.company, fix.control)
+		}
+	})
+}
+
+// TestPartyLedgerEqualsControlFX checks Property 12 across currencies: with
+// foreign items, each residual valued at its invoice rate sums to the
+// control balance after every completed operation. Rates move between
+// booking and settlement, so realised gains and losses post along the way.
+//
+// Feature: athena-batch-2, Property 12: Party ledger equals control.
+func TestPartyLedgerEqualsControlFX(t *testing.T) {
+	svc, db := settleSetup(t)
+	masters := &ledger.Service{DB: db, Dialect: store.MariaDB{}}
+	engine := &posting.Engine{DB: db, Dialect: store.MariaDB{}}
+	ctx := context.Background()
+	for _, curve := range []struct {
+		rate string
+		at   time.Time
+	}{
+		{"120", time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)},
+		{"130", time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)},
+		{"125", time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)},
+	} {
+		if _, err := masters.SaveRate(ctx, ledger.ExchangeRate{
+			From: "USD", To: "KES", RateType: "spot", Source: "test",
+			EffectiveAt: curve.at, Rate: types.MustDecimal(curve.rate),
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	bookedAt := []string{"2026-03-01 12:00:00", "2026-07-15 12:00:00"}
+	settleDates := []string{"2026-07-15", "2026-10-15"}
+	fx := &posting.FXConfig{RateType: "spot", GainAccount: "fx_gain", LossAccount: "fx_loss"}
+	rapid.Check(t, func(t *rapid.T) {
+		fix := equationCompany(t, masters, "KES")
+		fix.control, fix.offset, fix.side = "receivable", "revenue", posting.ItemSideDebit
+		if rapid.Bool().Draw(t, "payable") {
+			fix.control, fix.offset, fix.side = "payable", "cost", posting.ItemSideCredit
+		}
+		invoiceRates := map[string]types.Decimal{}
+		partyID := uuid.NewString()
+		var open []string
+		for i, n := 0, rapid.IntRange(1, 2).Draw(t, "invoices"); i < n; i++ {
+			total := int64(rapid.IntRange(100, 2000).Draw(t, "invoice total"))
+			parts := []int64{total}
+			if rapid.Bool().Draw(t, "split") {
+				cut := int64(rapid.IntRange(1, int(total-1)).Draw(t, "cut"))
+				parts = []int64{cut, total - cut}
+			}
+			created := equationInvoice(t, svc, db, engine, fix, partyID, "USD", parts,
+				func(items []posting.Item) {
+					for _, item := range items {
+						stamp := bookedAt[rapid.IntRange(0, len(bookedAt)-1).Draw(t, "booked at")]
+						if _, err := db.Exec(`UPDATE athena_party_items SET created_at = ? WHERE id = ?`, stamp, item.ID); err != nil {
+							t.Fatalf("backdate: %v", err)
+						}
+						at, err := time.ParseInLocation("2006-01-02 15:04:05", stamp, time.UTC)
+						if err != nil {
+							t.Fatalf("parse instant: %v", err)
+						}
+						rate, err := masters.GetRate(ctx, "USD", "KES", "spot", "", at)
+						if err != nil {
+							t.Fatalf("invoice rate: %v", err)
+						}
+						invoiceRates[item.ID] = rate
+					}
+				},
+				func(minor int64, itemID string) types.Decimal {
+					amount, err := types.NewDecimal(minor, 2)
+					if err != nil {
+						t.Fatalf("instalment base: %v", err)
+					}
+					booked, err := amount.Mul(invoiceRates[itemID]).Round(6, types.HalfUp)
+					if err != nil {
+						t.Fatalf("book base: %v", err)
+					}
+					return booked
+				})
+			for _, item := range created {
+				open = append(open, item.ID)
+			}
+			assertFXEquation(t, db, fix.company, fix.control, invoiceRates)
+		}
+		var settled []string
+		for i, n := 0, rapid.IntRange(0, 2).Draw(t, "settlements"); i < n && len(open) > 0; i++ {
+			date := settleDates[rapid.IntRange(0, len(settleDates)-1).Draw(t, "settle date")]
+			voucherID, rest := equationSettle(t, svc, db, engine, fix, partyID, "USD", date, open, fx)
+			open = rest
+			if voucherID != "" {
+				settled = append(settled, voucherID)
+			}
+			assertFXEquation(t, db, fix.company, fix.control, invoiceRates)
+		}
+		if len(settled) > 0 && rapid.Bool().Draw(t, "reverse") {
+			equationReverse(t, svc, engine, fix, partyID, settled[len(settled)-1], "2026-11-20")
+			assertFXEquation(t, db, fix.company, fix.control, invoiceRates)
+		}
+	})
 }
