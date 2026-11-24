@@ -1023,7 +1023,7 @@ func SystemMigrations() []store.Migration {
 		// NOTE: versions 21 (C7) and 22 (C2 secrets) land first; until this
 		// branch rebases onto them, ValidateMigrations reports the gap and
 		// DB-backed tests stay red. That red is the reservation working, not
-		// a failure — the merge order is 21, 22, 23.
+		// a failure — the merge order is 21, 22, 23, 24.
 		{Version: 23, Name: "saved_lists", Up: execAll(
 			`CREATE TABLE IF NOT EXISTS athena_lists (
 				id CHAR(36) NOT NULL PRIMARY KEY,
@@ -1039,6 +1039,19 @@ func SystemMigrations() []store.Migration {
 				UNIQUE KEY uq_lists_name (record_type_key, name),
 				KEY idx_lists_type (record_type_key)
 			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+		)},
+		// Builder Rules (ADR-0034): condition authoring beside Starlark
+		// source. NULL means Starlark-authored; the two forms are mutually
+		// exclusive and versions carry both.
+		{Version: 24, Name: "rule_builder_columns", Up: execAll(
+			`ALTER TABLE athena_rules ADD COLUMN IF NOT EXISTS condition_tree JSON NULL AFTER source`,
+			`ALTER TABLE athena_rules ADD COLUMN IF NOT EXISTS condition_expr TEXT NULL AFTER condition_tree`,
+			`ALTER TABLE athena_rules ADD COLUMN IF NOT EXISTS message VARCHAR(500) NULL AFTER condition_expr`,
+			`ALTER TABLE athena_rules ADD COLUMN IF NOT EXISTS sets JSON NULL AFTER message`,
+			`ALTER TABLE athena_rule_versions ADD COLUMN IF NOT EXISTS condition_tree JSON NULL AFTER source`,
+			`ALTER TABLE athena_rule_versions ADD COLUMN IF NOT EXISTS condition_expr TEXT NULL AFTER condition_tree`,
+			`ALTER TABLE athena_rule_versions ADD COLUMN IF NOT EXISTS message VARCHAR(500) NULL AFTER condition_expr`,
+			`ALTER TABLE athena_rule_versions ADD COLUMN IF NOT EXISTS sets JSON NULL AFTER message`,
 		)},
 	}
 }
