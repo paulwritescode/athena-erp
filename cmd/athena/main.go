@@ -38,64 +38,70 @@ func main() {
 	}
 }
 
+// cliCommand is one athena command: its name, its one-line menu summary
+// and its handler. The interactive menu lists this table, so a newly
+// registered command appears there with no other change.
+type cliCommand struct {
+	name  string
+	short string
+	run   func(args []string, out io.Writer) error
+}
+
+var commands = []cliCommand{
+	{name: "init", short: "Create a home and save its MariaDB server login.", run: func(args []string, _ io.Writer) error { return initCommand(args) }},
+	{name: "new", short: "Create a workspace in the current home, with its own database.", run: func(args []string, out io.Writer) error { return newCommand(args, out) }},
+	{name: "run", short: "Run a workspace.", run: func(args []string, _ io.Writer) error { return runCommand(args) }},
+	{name: "serve", short: "Run against ATHENA_DATABASE_URL without a workspace (development).", run: func(args []string, _ io.Writer) error { return serveCommand(args) }},
+	{name: "migrate", short: "Show or apply system migrations.", run: func(args []string, out io.Writer) error { return migrateCommand(args, out) }},
+	{name: "audit", short: "Verify the Audit Log hash chain.", run: func(args []string, out io.Writer) error { return auditCommand(args, out) }},
+	{name: "record-types", short: "Read and change Record Types.", run: func(args []string, out io.Writer) error { return recordTypesCommand(args, out) }},
+	{name: "records", short: "List, create and delete Records; submit, cancel and amend documents.", run: func(args []string, out io.Writer) error { return recordsCommand(args, out) }},
+	{name: "expressions", short: "Type-check and evaluate expressions.", run: func(args []string, out io.Writer) error { return expressionsCommand(args, out) }},
+	{name: "security", short: "Show or change session and rate settings.", run: func(args []string, out io.Writer) error { return securityCommand(args, out) }},
+	{name: "user", short: "Manage sign-in users.", run: func(args []string, out io.Writer) error { return userCommand(args, out) }},
+	{name: "role", short: "Manage Roles and their Grants.", run: func(args []string, out io.Writer) error { return roleCommand(args, out) }},
+	{name: "access-log", short: "Print sign-ins, failures, lockouts, denials and access changes.", run: func(args []string, out io.Writer) error { return accessLogCommand(args, out) }},
+	{name: "files", short: "List, read, write, rename and delete workspace files.", run: func(args []string, out io.Writer) error { return filesCommand(args, os.Stdin, out) }},
+	{name: "workspace", short: "Show or change Workspace identity and appearance.", run: func(args []string, out io.Writer) error { return workspaceCommand(args, out) }},
+	{name: "notifications", short: "Read an inbox as the operator.", run: func(args []string, out io.Writer) error { return notificationsCommand(args, out) }},
+	{name: "ledger", short: "Manage the kernel's ledger masters.", run: func(args []string, out io.Writer) error { return ledgerCommand(args, out) }},
+	{name: "post", short: "Preview, submit and cancel voucher postings.", run: func(args []string, out io.Writer) error { return postCommand(args, out) }},
+	{name: "jobs", short: "List jobs and schedule occurrences; run dead work again.", run: func(args []string, out io.Writer) error { return jobsCommand(args, out) }},
+	{name: "events", short: "List events and outbox deliveries; emit dead work again.", run: func(args []string, out io.Writer) error { return eventsCommand(args, out) }},
+	{name: "rules", short: "Manage Starlark Rules.", run: func(args []string, out io.Writer) error { return rulesCommand(args, out) }},
+	{name: "version", short: "Print the version.", run: func(_ []string, out io.Writer) error { _, err := fmt.Fprintln(out, versionBanner()); return err }},
+	{name: "help", short: "Show every command with its flags.", run: func(_ []string, out io.Writer) error { printUsageTo(out); return nil }},
+}
+
+func lookupCommand(name string) *cliCommand {
+	for i := range commands {
+		if commands[i].name == name {
+			return &commands[i]
+		}
+	}
+	return nil
+}
+
 func run(args []string) error {
 	if len(args) == 0 {
+		if isInteractive(os.Stdin, os.Stdout) {
+			return runMenu(os.Stdin, os.Stdout)
+		}
 		printUsage()
 		return nil
 	}
-	switch args[0] {
-	case "init":
-		return initCommand(args[1:])
-	case "new":
-		return newCommand(args[1:], os.Stdout)
-	case "run":
-		return runCommand(args[1:])
-	case "serve":
-		return serveCommand(args[1:])
-	case "migrate":
-		return migrateCommand(args[1:], os.Stdout)
-	case "audit":
-		return auditCommand(args[1:], os.Stdout)
-	case "record-types":
-		return recordTypesCommand(args[1:], os.Stdout)
-	case "records":
-		return recordsCommand(args[1:], os.Stdout)
-	case "expressions":
-		return expressionsCommand(args[1:], os.Stdout)
-	case "security":
-		return securityCommand(args[1:], os.Stdout)
-	case "user":
-		return userCommand(args[1:], os.Stdout)
-	case "role":
-		return roleCommand(args[1:], os.Stdout)
-	case "access-log":
-		return accessLogCommand(args[1:], os.Stdout)
-	case "files":
-		return filesCommand(args[1:], os.Stdin, os.Stdout)
-	case "workspace":
-		return workspaceCommand(args[1:], os.Stdout)
-	case "notifications":
-		return notificationsCommand(args[1:], os.Stdout)
-	case "ledger":
-		return ledgerCommand(args[1:], os.Stdout)
-	case "post":
-		return postCommand(args[1:], os.Stdout)
-	case "jobs":
-		return jobsCommand(args[1:], os.Stdout)
-	case "events":
-		return eventsCommand(args[1:], os.Stdout)
-	case "rules":
-		return rulesCommand(args[1:], os.Stdout)
-	case "version", "--version", "-v":
-		fmt.Println(versionBanner())
-		return nil
-	case "help", "--help", "-h":
-		printUsage()
-		return nil
-	default:
-		printUsage()
-		return fmt.Errorf("unknown command %q", args[0])
+	name := args[0]
+	switch name {
+	case "--version", "-v":
+		name = "version"
+	case "--help", "-h":
+		name = "help"
 	}
+	if cmd := lookupCommand(name); cmd != nil {
+		return cmd.run(args[1:], os.Stdout)
+	}
+	printUsage()
+	return fmt.Errorf("unknown command %q", args[0])
 }
 
 // asciiMark is the static Athena tree for the CLI banner: a copy of the
@@ -121,8 +127,12 @@ func versionBanner() string {
 }
 
 func printUsage() {
-	fmt.Print(usageBanner())
-	fmt.Printf(`
+	printUsageTo(os.Stdout)
+}
+
+func printUsageTo(out io.Writer) {
+	fmt.Fprint(out, usageBanner())
+	fmt.Fprintf(out, `
 
 Usage:
   athena init [directory] [--host 127.0.0.1] [--port 3306] [--user name]
