@@ -191,7 +191,7 @@ func (s *Service) PlanMovement(ctx context.Context, tx *sql.Tx, m Movement) (Pla
 		return PlannedMovement{Movement: m, Replayed: true, ReplayRow: rowID}, nil
 	}
 	masters := &ledger.Service{DB: tx, Dialect: s.Dialect}
-	company, err := checkMasters(ctx, masters, m)
+	company, err := checkMasters(ctx, masters, m.Company, m.ControlAccount, m.OffsetAccount)
 	if err != nil {
 		return PlannedMovement{}, err
 	}
@@ -325,19 +325,19 @@ func validDate(date string) bool {
 // enabled base currency, and accounts that are not enabled leaves. The
 // fragment validation in PlanMovement rechecks periods and dimensions for
 // moves that post value.
-func checkMasters(ctx context.Context, masters *ledger.Service, m Movement) (ledger.Company, error) {
-	company, err := masters.GetCompany(ctx, m.Company)
+func checkMasters(ctx context.Context, masters *ledger.Service, companyName, control, offset string) (ledger.Company, error) {
+	company, err := masters.GetCompany(ctx, companyName)
 	if err != nil {
 		if errors.Is(err, ledger.ErrNotFound) {
-			return ledger.Company{}, fmt.Errorf("%w: company %q does not exist", ErrInvalid, m.Company)
+			return ledger.Company{}, fmt.Errorf("%w: company %q does not exist", ErrInvalid, companyName)
 		}
 		return ledger.Company{}, err
 	}
 	if company.Disabled {
-		return ledger.Company{}, fmt.Errorf("%w: company %q is disabled", ErrInvalid, m.Company)
+		return ledger.Company{}, fmt.Errorf("%w: company %q is disabled", ErrInvalid, companyName)
 	}
 	if company.BaseCurrency == "" {
-		return ledger.Company{}, fmt.Errorf("%w: company %q has no base currency", ErrInvalid, m.Company)
+		return ledger.Company{}, fmt.Errorf("%w: company %q has no base currency", ErrInvalid, companyName)
 	}
 	currency, err := masters.GetCurrency(ctx, company.BaseCurrency)
 	if err != nil {
@@ -349,7 +349,7 @@ func checkMasters(ctx context.Context, masters *ledger.Service, m Movement) (led
 	if currency.Disabled {
 		return ledger.Company{}, fmt.Errorf("%w: base currency %q is disabled", ErrInvalid, company.BaseCurrency)
 	}
-	for name, account := range map[string]string{"control": m.ControlAccount, "offset": m.OffsetAccount} {
+	for name, account := range map[string]string{"control": control, "offset": offset} {
 		stored, err := masters.GetAccount(ctx, account)
 		if err != nil {
 			if errors.Is(err, ledger.ErrNotFound) {
