@@ -107,9 +107,10 @@ Each validation/guard/derivation rule gains an authoring mode toggle:
 - **Starlark** (unchanged): full source for everything else.
 
 Posting/reaction/scheduled Rules stay Starlark-only. Switching Builder →
-Starlark renders the condition as a commented `fail`/`set` scaffold the
-author extends (one-way, confirmed); Starlark → Builder is offered only
-when the source parses back into the canonical subset.
+Starlark renders the condition as a commented scaffold the author extends
+(one-way, confirmed); Starlark → Builder starts over blank (confirmed
+discard) — Starlark never parses back into a tree. The expr → tree
+parse-back serves the builder's editable expression box, not Starlark.
 
 Storage (implementation pins the proto): the Rule carries
 `condition_tree` (JSON) and `condition_expr` (compiled) beside `source`;

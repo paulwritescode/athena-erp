@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ruleEvents, ruleProblem, ruleTypes } from './ruleDefinitions'
+import { ruleEvents, ruleProblem, ruleTypes, type RuleAuthoring } from './ruleDefinitions'
 
 const valid = { key: 'qty_positive', label: 'Quantity above zero', ruleType: 'validation', recordTypeKey: 'invoice', event: 'validate', priority: 10, source: 'def validate(doc, ctx):\n    pass\n' }
 
@@ -22,5 +22,24 @@ describe('ruleProblem', () => {
   })
   it('lists every type with its events', () => {
     for (const type of ruleTypes) expect(Array.isArray(ruleEvents[type])).toBe(true)
+  })
+  it('accepts a valid builder validation without source', () => {
+    const tree = { root: { all: true, conditions: [{ field: 'doc.qty', op: 'more_than' as const, values: ['0'] }] } }
+    const fields = { 'doc.qty': { kind: 'decimal' as const } }
+    expect(ruleProblem({ ...valid, source: '' }, { mode: 'builder', tree, message: 'Qty must beat zero.', sets: [], fields })).toBeNull()
+  })
+  it('checks builder trees, messages and sets', () => {
+    const authoring: RuleAuthoring = {
+      mode: 'builder',
+      tree: { root: { all: true, conditions: [{ field: 'doc.qty', op: 'more_than', values: ['0'] }] } },
+      message: 'Fix it.',
+      sets: [],
+      fields: { 'doc.qty': { kind: 'decimal' } },
+    }
+    expect(ruleProblem({ ...valid, source: '' }, { ...authoring, tree: null })).not.toBeNull()
+    expect(ruleProblem({ ...valid, source: '' }, { ...authoring, message: '' })).not.toBeNull()
+    expect(ruleProblem({ ...valid, ruleType: 'derivation', event: 'validate', source: '' }, authoring)).not.toBeNull()
+    expect(ruleProblem({ ...valid, ruleType: 'derivation', event: 'validate', source: '' }, { ...authoring, sets: [{ field: 'doc.qty', valueExpr: 'dec("1")' }] })).toBeNull()
+    expect(ruleProblem({ ...valid, source: '' }, { ...authoring, tree: { root: { all: true, conditions: [{ field: 'doc.nope', op: 'is', values: ['a'] }] } } })).not.toBeNull()
   })
 })

@@ -8,6 +8,8 @@ import { isRuleType, ruleEvents, ruleProblem, ruleTypeHelp, ruleTypes, starterSo
 import type { RecordType } from '../types'
 import ActionButton from '@/components/ActionButton.vue'
 import HelpHint from '@/copy/HelpHint.vue'
+import ConditionBuilder from '@/components/conditions/ConditionBuilder.vue'
+import { compileTree, type BuilderField, type ConditionTree, type TreeField } from '@/conditions'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import DataTable, { type TableFilter } from '@/components/DataTable.vue'
 import DetailSheet from '@/components/DetailSheet.vue'
@@ -29,8 +31,9 @@ import ResponsiveDialog from '@/components/ResponsiveDialog.vue'
 // not production-ready (ADR-0016, Proposed).
 const props = withDefaults(defineProps<{ canWrite: boolean; recordTypes: RecordType[]; username?: string }>(), { username: '' })
 
-type Form = { key: string; label: string; ruleType: string; recordTypeKey: string; event: string; priority: number; enabled: boolean; source: string }
-const blank = (): Form => ({ key: '', label: '', ruleType: 'validation', recordTypeKey: '', event: 'validate', priority: 100, enabled: true, source: starterSource.validation })
+type RuleSet = { field: string; valueExpr: string }
+type Form = { key: string; label: string; ruleType: string; recordTypeKey: string; event: string; priority: number; enabled: boolean; source: string; mode: 'builder' | 'starlark'; tree: ConditionTree | null; message: string; sets: RuleSet[] }
+const blank = (): Form => ({ key: '', label: '', ruleType: 'validation', recordTypeKey: '', event: 'validate', priority: 100, enabled: true, source: starterSource.validation, mode: 'builder', tree: null, message: '', sets: [] })
 
 const rules = ref<Rule[]>([])
 const loaded = ref(false)
@@ -48,7 +51,38 @@ const previousType = ref<RuleType>('validation')
 
 const documentTypes = computed(() => props.recordTypes.filter((item) => item.kind === 'document' && item.revision > 0))
 const events = computed(() => (isRuleType(form.value.ruleType) ? ruleEvents[form.value.ruleType] : []))
-const problem = computed(() => (selected.value || creating.value ? ruleProblem(form.value) : null))
+// Builder authoring: the selected type's fields as builder fields plus the
+// compile map, and the authoring object ruleProblem validates.
+const selectedType = computed(() => props.recordTypes.find((item) => item.name === form.value.recordTypeKey) ?? null)
+function fieldKind(type: string): TreeField['kind'] {
+  if (type === 'Number' || type === 'Currency' || type === 'Quantity') return 'decimal'
+  if (type === 'Money') return 'money'
+  if (type === 'Date') return 'date'
+  if (type === 'Checkbox') return 'bool'
+  return 'string'
+}
+const builderFields = computed<BuilderField[]>(() => (selectedType.value?.fields ?? []).map((f) => ({
+  name: `doc.${f.name}`,
+  label: f.label,
+  type: f.type,
+  kind: fieldKind(f.type),
+  currency: f.currency,
+  scale: f.scale,
+  choices: f.values?.map((c) => c.value),
+})))
+const builderVars = computed<Record<string, TreeField>>(() => {
+  const vars: Record<string, TreeField> = {}
+  for (const f of builderFields.value) vars[f.name] = { kind: f.kind, currency: f.currency, scale: f.scale }
+  return vars
+})
+const builderOffered = computed(() => ['validation', 'derivation', 'guard'].includes(form.value.ruleType))
+const problem = computed(() => {
+  if (!selected.value && !creating.value) return null
+  if (form.value.mode === 'builder' && builderOffered.value) {
+    return ruleProblem(form.value, { mode: 'builder', tree: form.value.tree, message: form.value.message, sets: form.value.sets, fields: builderVars.value })
+  }
+  return ruleProblem(form.value)
+})
 const dirty = computed(() => (selected.value !== '' || creating.value) && JSON.stringify(form.value) !== JSON.stringify(saved.value))
 const isOpen = computed(() => selected.value !== '' || creating.value)
 
@@ -61,7 +95,19 @@ function describe(err: unknown, action: string): string {
 
 function toForm(rule: Rule): Form {
   const d = rule.definition
-  return { key: d?.key ?? '', label: d?.label ?? '', ruleType: d?.ruleType ?? 'validation', recordTypeKey: d?.recordTypeKey ?? '', event: d?.event ?? '', priority: d?.priority ?? 100, enabled: d?.enabled ?? true, source: d?.source ?? '' }
+  const base = { key: d?.key ?? '', label: d?.label ?? '', ruleType: d?.ruleType ?? 'validation', recordTypeKey: d?.recordTypeKey ?? '', event: d?.event ?? '', priority: d?.priority ?? 100, enabled: d?.enabled ?? true, source: d?.source ?? '' }
+  // A stored compiled expression means builder-authored; anything else
+  // opens as Starlark.
+  if (d?.conditionExpr) {
+    try {
+      const tree = JSON.parse(d.conditionTree) as ConditionTree
+      return { ...base, mode: 'builder', tree, message: d.message ?? '', sets: (d.sets ?? []).map((s) => ({ field: s.field, valueExpr: s.valueExpr })) }
+    } catch {
+      // Corrupt tree JSON falls back to Starlark, where the empty source
+      // prompts a fix instead of rendering a broken builder.
+    }
+  }
+  return { ...base, mode: 'starlark', tree: null, message: '', sets: [] }
 }
 
 async function refresh() {
@@ -117,21 +163,59 @@ function proceed() {
   action?.()
 }
 
+function addSet() {
+  const first = builderFields.value[0]?.name ?? ''
+  form.value = { ...form.value, sets: [...form.value.sets, { field: first, valueExpr: '' }] }
+}
+
+function updateSet(index: number, patch: Partial<RuleSet>) {
+  const sets = form.value.sets.map((s, i) => (i === index ? { ...s, ...patch } : s))
+  form.value = { ...form.value, sets }
+}
+
+function removeSet(index: number) {
+  form.value = { ...form.value, sets: form.value.sets.filter((_, i) => i !== index) }
+}
+
 // Changing the type resets what depends on it.
 watch(() => form.value.ruleType, (type) => {
   if (!isRuleType(type)) return
   const allowed = ruleEvents[type]
   if (!allowed.includes(form.value.event)) form.value.event = allowed[0] ?? ''
-  if (type === 'transform') form.value.recordTypeKey = ''
+  if (type === 'transform') {
+    form.value.recordTypeKey = ''
+    form.value.mode = 'starlark'
+  }
   if (creating.value && form.value.source === starterSource[previousType.value]) form.value.source = starterSource[type]
   previousType.value = type
 })
+
+// Builder and Starlark authoring are mutually exclusive on save: each
+// clears the other's fields, so the server never sees both. The server
+// compiles the tree; the Desk sends no expression.
+function toDefinition() {
+  const builder = form.value.mode === 'builder' && builderOffered.value
+  return {
+    key: form.value.key,
+    label: form.value.label,
+    ruleType: form.value.ruleType,
+    recordTypeKey: form.value.recordTypeKey,
+    event: form.value.event,
+    priority: form.value.priority,
+    enabled: form.value.enabled,
+    source: builder ? '' : form.value.source,
+    conditionTree: builder && form.value.tree ? JSON.stringify(form.value.tree) : '',
+    conditionExpr: '',
+    message: builder ? form.value.message : '',
+    sets: builder ? form.value.sets.map((s) => ({ field: s.field, valueExpr: s.valueExpr })) : [],
+  }
+}
 
 async function save() {
   if (!props.canWrite || !dirty.value || problem.value) return
   busy.value = true
   try {
-    const res = await ruleClient.saveRule({ definition: form.value, expectedVersion: BigInt(version.value) })
+    const res = await ruleClient.saveRule({ definition: toDefinition(), expectedVersion: BigInt(version.value) })
     toast.success(`Saved ${form.value.key} as version ${res.rule?.version}.`)
     await refresh()
     if (res.rule) open(res.rule)
@@ -178,9 +262,41 @@ function onDetail(value: string | number) {
 function loadVersion(item: RuleVersion) {
   const d = item.definition
   if (!d) return
-  form.value = { ...form.value, label: d.label, ruleType: d.ruleType, recordTypeKey: d.recordTypeKey, event: d.event, priority: d.priority, enabled: d.enabled, source: d.source }
+  const loaded = toForm({ definition: d } as Rule)
+  form.value = { ...form.value, label: loaded.label, ruleType: loaded.ruleType, recordTypeKey: loaded.recordTypeKey, event: loaded.event, priority: loaded.priority, enabled: loaded.enabled, source: loaded.source, mode: loaded.mode, tree: loaded.tree, message: loaded.message, sets: loaded.sets }
   detail.value = 'editor'
   toast.success(`Version ${item.version} is in the editor. Save to make it the current version.`)
+}
+
+// Switching authoring modes confirms first: Builder → Starlark renders the
+// condition as a commented scaffold; Starlark → Builder starts over blank.
+const switchTo = ref<'builder' | 'starlark' | null>(null)
+function askSwitch(mode: 'builder' | 'starlark') {
+  if (mode === form.value.mode) return
+  switchTo.value = mode
+}
+function confirmSwitch() {
+  const mode = switchTo.value
+  switchTo.value = null
+  if (!mode || mode === form.value.mode) return
+  if (mode === 'starlark') {
+    const lines = ['# Converted from the builder. Keep the condition below or delete it and write Starlark.']
+    if (form.value.tree) {
+      try {
+        const vars: Record<string, TreeField> = {}
+        for (const f of builderFields.value) vars[f.name] = { kind: f.kind, currency: f.currency, scale: f.scale }
+        lines.push(`# Condition was: ${compileTree(form.value.tree, vars)}`)
+      } catch {
+        lines.push('# Condition was: (does not compile)')
+      }
+    }
+    if (form.value.message) lines.push(`# Message was: ${form.value.message}`)
+    for (const set of form.value.sets) lines.push(`# Set was: ${set.field} = ${set.valueExpr}`)
+    const starter = isRuleType(form.value.ruleType) ? starterSource[form.value.ruleType] : ''
+    form.value = { ...form.value, mode: 'starlark', source: `${lines.join('\n')}\n\n${starter}` }
+  } else {
+    form.value = { ...form.value, mode: 'builder', tree: null, message: '', sets: [] }
+  }
 }
 
 const deleting = ref(false)
@@ -366,7 +482,7 @@ async function simulate() {
   }
   busy.value = true
   try {
-    simulation.value = await ruleClient.simulateRule({ definition: form.value, recordId: recordId.value.trim(), values })
+    simulation.value = await ruleClient.simulateRule({ definition: toDefinition(), recordId: recordId.value.trim(), values })
   } catch (err) {
     simulation.value = null
     toast.error(describe(err, 'simulate the Rule'))
@@ -464,9 +580,54 @@ onMounted(refresh)
                 <div class="settings-field"><Label for="rule-priority">Priority</Label><Input id="rule-priority" v-model.number="form.priority" type="number" min="0" max="1000" :disabled="!canWrite" /></div>
                 <div class="settings-field"><Label for="rule-enabled">Enabled</Label><Switch id="rule-enabled" v-model="form.enabled" :disabled="!canWrite" /></div>
               </div>
-              <Textarea v-model="form.source" class="files-editor" spellcheck="false" :readonly="!canWrite" aria-label="Starlark source" @keydown.meta.s.prevent="save" @keydown.ctrl.s.prevent="save" />
+              <div v-if="builderOffered" class="mb-3 flex items-center gap-2" role="group" aria-label="Authoring mode">
+                <button
+                  type="button"
+                  class="h-8 rounded-3xl border px-3 text-sm"
+                  :class="form.mode === 'builder' ? 'border-transparent bg-primary text-primary-foreground' : 'border-border text-muted-foreground'"
+                  :aria-pressed="form.mode === 'builder'"
+                  :disabled="!canWrite"
+                  @click="askSwitch('builder')"
+                >
+                  Builder
+                </button>
+                <button
+                  type="button"
+                  class="h-8 rounded-3xl border px-3 text-sm"
+                  :class="form.mode === 'starlark' ? 'border-transparent bg-primary text-primary-foreground' : 'border-border text-muted-foreground'"
+                  :aria-pressed="form.mode === 'starlark'"
+                  :disabled="!canWrite"
+                  @click="askSwitch('starlark')"
+                >
+                  Starlark
+                </button>
+              </div>
+              <template v-if="form.mode === 'builder' && builderOffered">
+                <p v-if="!form.recordTypeKey" class="files-hint">Pick the Record Type the Rule belongs to, then build its condition.</p>
+                <ConditionBuilder v-else :model-value="form.tree" :fields="builderFields" @update:model-value="form = { ...form, tree: $event }" />
+                <div v-if="form.ruleType === 'validation' || form.ruleType === 'guard'" class="settings-field mt-3">
+                  <Label for="rule-message">{{ form.ruleType === 'validation' ? 'Message shown when the check fails' : 'Reason shown when blocked' }}</Label>
+                  <Input id="rule-message" v-model="form.message" :disabled="!canWrite" autocomplete="off" placeholder="Say what to fix, in plain words" />
+                </div>
+                <div v-if="form.ruleType === 'derivation'" class="mt-3 space-y-2">
+                  <p class="text-sm font-medium">Set these fields when the condition holds</p>
+                  <div v-for="(set, index) in form.sets" :key="index" class="flex flex-wrap items-center gap-2">
+                    <Select :model-value="set.field" :disabled="!canWrite" @update:model-value="updateSet(index, { field: String($event) })">
+                      <SelectTrigger class="w-48" :aria-label="`Field for set ${index + 1}`"><SelectValue placeholder="Field" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem v-for="f in builderFields" :key="f.name" :value="f.name">{{ f.label }}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Input :model-value="set.valueExpr" :disabled="!canWrite" :aria-label="`Value for set ${index + 1}`" placeholder="Value or expression" class="min-w-40 flex-1" @update:model-value="updateSet(index, { valueExpr: String($event) })" />
+                    <ActionButton kind="quiet" density="row" label="Remove" icon="x" @press="removeSet(index)" />
+                  </div>
+                  <ActionButton kind="secondary" density="row" label="Set a field" icon="plus" :disabled="!canWrite" @press="addSet" />
+                </div>
+              </template>
+              <Textarea v-else v-model="form.source" class="files-editor" spellcheck="false" :readonly="!canWrite" aria-label="Starlark source" @keydown.meta.s.prevent="save" @keydown.ctrl.s.prevent="save" />
               <p v-if="problem && dirty" class="files-hint files-problem">{{ problem }}</p>
-              <p v-else class="files-hint">The server compiles the source on save and reports the line of a mistake.</p>
+              <p v-else-if="form.mode !== 'builder' || !builderOffered" class="files-hint">The server compiles the source on save and reports the line of a mistake.</p>
+              <p v-else class="files-hint">The server compiles the condition on save and runs it without Starlark.</p>
             </TabsContent>
             <TabsContent value="runs">
               <DataTable
@@ -551,6 +712,17 @@ onMounted(refresh)
       confirm-icon="x"
       @confirm="proceed"
       @update:open="(value: boolean) => { if (!value) pending = null }"
+    />
+    <ConfirmDialog
+      :open="switchTo !== null"
+      :title="switchTo === 'starlark' ? 'Write Starlark instead?' : 'Start over in the builder?'"
+      :body="switchTo === 'starlark'
+        ? 'The condition becomes a commented scaffold at the top of the source. Saving clears the builder fields.'
+        : 'The Starlark source is discarded and the builder starts blank. Saving clears the source.'"
+      :confirm-label="switchTo === 'starlark' ? 'Switch to Starlark' : 'Start over'"
+      cancel-label="Keep editing"
+      @confirm="confirmSwitch"
+      @update:open="(value: boolean) => { if (!value) switchTo = null }"
     />
 
     <DetailSheet
