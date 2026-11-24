@@ -562,3 +562,6 @@
 - 13:15 TICK: main 3cc6022. C5s3 gate RUNNING (13:11); TS priority + C2s4 + C4s5 + reviewers queued behind. r-f7s1/r-f7s2/r-c5s4 reviewing. Review-passed not on main: C5s3 (gating).
 - 13:25 TICK: main 3cc6022. C5s3 gate RUNNING ~14m; r-c5s4 queued 13:15. All lanes steady. Review-passed not on main: C5s3 (gating).
 - 13:33 C5s3 MERGED: gate green exit 0, 19.5m (19 Go ok incl posting 1119s/server 1088s DB-backed, 684/684 web, log 1124-131114). FF ccb73c9+pushed (main unmoved). Server restarted healthy (t6n).
+- 13:35 C5s3 docs pushed (5795830); merge3 + c5-s3-r trees + branch removed. w-c1 rebasing slice 4.
+- 13:36 w-c1 rebased on 5795830: slice 3 dropped merged-identical, slice 4 now 3b798c5 content-identical to 5c7b7bf (r-c5s4 review carries).
+- 13:38 TS slice 1 MERGED solo: auth gate green exit 0 (188s vs 1178s baseline, log 1124-133042). Master delta-review PASS (pins match password.go:33, test-only). Picked e73ec95->1c757a0 conflict-free, build+vet green, FF+pushed. No server restart (test-only, binary unaffected). No independent reviewer per explicit Stylus solo order (variance noted).
