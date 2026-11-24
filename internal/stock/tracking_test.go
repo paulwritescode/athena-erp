@@ -557,6 +557,34 @@ func TestTransferPreservesCompanyValue(t *testing.T) {
 	}
 }
 
+func TestTransferCancelUnwindsBothLines(t *testing.T) {
+	stockSvc, engine, masters, db := setup(t)
+	seedStockBasics(t, masters)
+
+	receipt := testMovement()
+	postMovement(t, db, stockSvc, engine, receipt)
+	transfer := testTransfer(receipt, "quarantine", "30")
+	postTransfer(t, db, stockSvc, engine, transfer)
+
+	cancelled := cancelVoucher(t, db, stockSvc, engine, transfer.VoucherType, transfer.VoucherID, true)
+	if len(cancelled.RowIDs) != 2 {
+		t.Fatalf("cancel wrote %d rows, want 2", len(cancelled.RowIDs))
+	}
+	atMain, _ := binOf(t, stockSvc, db, receipt)
+	if got := atMain.Qty.String(); got != "100.000000" {
+		t.Fatalf("main bin holds %s after cancel, want 100.000000", got)
+	}
+	moved := receipt
+	moved.Location = "quarantine"
+	atQuarantine, _ := binOf(t, stockSvc, db, moved)
+	if got := atQuarantine.Qty.String(); got != "0.000000" {
+		t.Fatalf("quarantine bin holds %s after cancel, want 0.000000", got)
+	}
+	if got := glStockBalance(t, db); got != "1000.000000" {
+		t.Fatalf("GL stock balance is %s after cancel, want 1000.000000", got)
+	}
+}
+
 func TestTransferHeldStockRefused(t *testing.T) {
 	stockSvc, engine, masters, db := setup(t)
 	seedStockBasics(t, masters)

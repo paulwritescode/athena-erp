@@ -455,6 +455,11 @@ func (s *Service) planReturn(ctx context.Context, tx *sql.Tx, p *PlannedMovement
 	if orig.Event != posting.EventSubmit || orig.Qty.Sign() >= 0 || orig.Reversal {
 		return fmt.Errorf("%w: row %s is not a submitted issue", ErrInvalid, m.ReversesRowID)
 	}
+	if cancelled, err := hasCancelMirror(ctx, tx, m.ReversesRowID); err != nil {
+		return err
+	} else if cancelled {
+		return fmt.Errorf("%w: issue %s is cancelled; nothing left to return", ErrInvalid, m.ReversesRowID)
+	}
 	if orig.Bin != p.Bin || orig.ItemType != m.ItemType {
 		return fmt.Errorf("%w: return bin differs from the issue's bin", ErrInvalid)
 	}
@@ -498,9 +503,11 @@ func (s *Service) planReturn(ctx context.Context, tx *sql.Tx, p *PlannedMovement
 }
 
 // valueLegs builds the balanced control and offset legs of a movement with
-// a non-zero value. Receipts and returns debit the stock control account;
-// issues credit it. The control leg carries the base quantity and the item
-// source the control-role check requires.
+// a non-zero value. Sides follow the value's sign, not the quantity's: a
+// positive value debits stock (receipts, returns, and issues at a negative
+// average, which relieve negative value), a negative value credits it.
+// Keying off quantity instead would mirror the GL side whenever the
+// average goes negative after large credit deltas.
 func valueLegs(m Movement, baseUoM string, baseQty, value types.Decimal) []posting.Line {
 	magnitude := value.Abs()
 	quantity := baseQty.Abs()
@@ -518,7 +525,7 @@ func valueLegs(m Movement, baseUoM string, baseQty, value types.Decimal) []posti
 		Account:    m.OffsetAccount,
 		Dimensions: m.Dimensions,
 	}
-	if baseQty.Sign() > 0 {
+	if value.Sign() > 0 {
 		control.DebitBase = magnitude
 		offset.CreditBase = magnitude
 	} else {
@@ -746,6 +753,20 @@ func replayCancel(ctx context.Context, tx *sql.Tx, rows []string) (AppliedCancel
 	return AppliedCancel{RowIDs: rows, PostingGroupID: groupID, Replayed: true}, nil
 }
 
+// hasCancelMirror reports whether a submit row has a cancel mirror.
+func hasCancelMirror(ctx context.Context, tx *sql.Tx, rowID string) (bool, error) {
+	var id string
+	err := tx.QueryRowContext(ctx, `SELECT id FROM l_stock WHERE reversed_row_id = ? AND event = ? AND is_reversal = 1 LIMIT 1`,
+		rowID, posting.EventCancel).Scan(&id)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
+}
+
 func replayApplied(ctx context.Context, q ledger.DB, rowID string) (AppliedMovement, error) {
 	row, err := loadStockRow(ctx, q, rowID)
 	if err != nil {
@@ -879,6 +900,10 @@ func (s *Service) PlanCancel(ctx context.Context, tx *sql.Tx, voucherType, vouch
 		bins[bin] = state
 		return state, nil
 	}
+	own := map[string]bool{}
+	for _, orig := range submits {
+		own[orig.ID] = true
+	}
 	for _, orig := range submits {
 		mirror := cancelMirror{Orig: *orig, Qty: orig.Qty.Neg(), Value: orig.Value.Neg(), valued: orig.Value.Sign() != 0}
 		if _, err := lock(orig.Bin); err != nil {
@@ -886,7 +911,7 @@ func (s *Service) PlanCancel(ctx context.Context, tx *sql.Tx, voucherType, vouch
 		}
 		switch {
 		case orig.Qty.Sign() > 0 && orig.Reversed == "":
-			if err := planReceiptCancel(ctx, tx, &mirror); err != nil {
+			if err := planReceiptCancel(ctx, tx, &mirror, own, planned); err != nil {
 				return PlannedCancel{}, err
 			}
 		case orig.Qty.Sign() < 0:
@@ -921,9 +946,11 @@ func (s *Service) PlanCancel(ctx context.Context, tx *sql.Tx, voucherType, vouch
 	return planned, nil
 }
 
-// planReceiptCancel consumes the receipt's own layer back. A residual
-// short of the received quantity means downstream issues consumed it.
-func planReceiptCancel(ctx context.Context, tx *sql.Tx, mirror *cancelMirror) error {
+// planReceiptCancel consumes the receipt's own layer back. Live downstream
+// rows (issues, returns or deltas on the receipt) block first: unwinding
+// must run LIFO, newest first. Then a residual short of the received
+// quantity means downstream issues consumed it.
+func planReceiptCancel(ctx context.Context, tx *sql.Tx, mirror *cancelMirror, own map[string]bool, planned PlannedCancel) error {
 	layer, found, err := layerByReceipt(ctx, tx, mirror.Orig.ID)
 	if err != nil {
 		return err
@@ -934,6 +961,13 @@ func planReceiptCancel(ctx context.Context, tx *sql.Tx, mirror *cancelMirror) er
 		}
 		return nil
 	}
+	live, err := countLiveDownstream(ctx, tx, mirror.Orig.ID, layer.ID, own, planned)
+	if err != nil {
+		return err
+	}
+	if live > 0 {
+		return fmt.Errorf("%w: receipt has live downstream rows; cancel them first", ErrCancelBlocked)
+	}
 	if magnitude := mirror.Orig.Qty; layer.Residual.Cmp(magnitude) < 0 {
 		return fmt.Errorf("%w: layer holds %s of received %s", ErrCancelBlocked, layer.Residual.String(), magnitude.String())
 	}
@@ -941,9 +975,51 @@ func planReceiptCancel(ctx context.Context, tx *sql.Tx, mirror *cancelMirror) er
 	return nil
 }
 
+// countLiveDownstream counts submitted, non-reversal issue, return and
+// delta rows that reference a receipt (through its layer or directly) and
+// have no cancel mirror yet. Rows unwound in the same cancel batch (own,
+// and the batch's voucher for deltas) do not count.
+func countLiveDownstream(ctx context.Context, tx *sql.Tx, receiptID, layerID string, own map[string]bool, planned PlannedCancel) (int, error) {
+	excluded := make([]any, 0, len(own)+1)
+	placeholders := ""
+	for id := range own {
+		if placeholders != "" {
+			placeholders += ","
+		}
+		placeholders += "?"
+		excluded = append(excluded, id)
+	}
+	movesQuery := `SELECT COUNT(DISTINCT a.issue_row_id) FROM athena_item_applications a WHERE a.receipt_layer_id = ? AND a.is_reversal = 0 AND NOT EXISTS (SELECT 1 FROM l_stock c WHERE c.reversed_row_id = a.issue_row_id AND c.event = ? AND c.is_reversal = 1)`
+	movesArgs := []any{layerID, posting.EventCancel}
+	if placeholders != "" {
+		movesQuery += ` AND a.issue_row_id NOT IN (` + placeholders + `)`
+		movesArgs = append(movesArgs, excluded...)
+	}
+	var moves int
+	if err := tx.QueryRowContext(ctx, movesQuery, movesArgs...).Scan(&moves); err != nil {
+		return 0, err
+	}
+	var deltas int
+	err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM l_stock_value v WHERE v.stock_row_id = ? AND v.event = ? AND v.is_reversal = 0 AND NOT (v.voucher_type = ? AND v.voucher_id = ? AND v.voucher_revision = ?) AND NOT EXISTS (SELECT 1 FROM l_stock_value c WHERE c.reversed_row_id = v.id AND c.event = ? AND c.is_reversal = 1)`,
+		receiptID, posting.EventSubmit, planned.VoucherType, planned.VoucherID, planned.Revision, posting.EventCancel).Scan(&deltas)
+	if err != nil {
+		return 0, err
+	}
+	return moves + deltas, nil
+}
+
 // planIssueCancel restores exactly what the issue consumed along its
-// application edges.
+// application edges. Live returns against the issue block first: their
+// restores are still in the layers, and restoring again would double
+// count.
 func planIssueCancel(ctx context.Context, tx *sql.Tx, mirror *cancelMirror) error {
+	outstanding, err := sumPriorReturns(ctx, tx, mirror.Orig.ID)
+	if err != nil {
+		return err
+	}
+	if outstanding.Sign() > 0 {
+		return fmt.Errorf("%w: issue has live returns; cancel them first", ErrCancelBlocked)
+	}
 	edges, err := applicationEdges(ctx, tx, mirror.Orig.ID, "issue")
 	if err != nil {
 		return err

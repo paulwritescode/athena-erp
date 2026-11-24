@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"athena-erp/internal/ledger"
 	"athena-erp/internal/posting"
 	"athena-erp/internal/stock"
 	"athena-erp/internal/types"
@@ -536,4 +537,269 @@ func decimalInt(d types.Decimal) (int64, error) {
 		return 0, err
 	}
 	return out, nil
+}
+
+// TestStockValueEqualsGLProperty checks Property 22 over drawn stock
+// histories: for any sequence of receipts, issues, returns, cost deltas
+// and cancellations, the stock ledger value per item control account
+// equals the GL balance of that account at every cutoff.
+//
+// Feature: athena-batch-2, Property 22: Stock value equals GL.
+//
+// One shared database serves all iterations; fresh items with their own
+// control accounts isolate them. Each iteration runs every operation kind
+// in phases with drawn parameters (rapid integers skew small, so a ranged
+// kind dispatch would starve non-receipt ops; phases guarantee each kind
+// executes) and asserts stock-equals-GL per control account at every
+// operation's posting date, plus one company-wide check at the end.
+func TestStockValueEqualsGLProperty(t *testing.T) {
+	stockSvc, engine, masters, db := setup(t)
+	seedStockBasics(t, masters)
+	ctx := context.Background()
+
+	rapid.Check(t, func(t *rapid.T) {
+		models := make([]*p22Item, 2)
+		for i := range models {
+			control := fmt.Sprintf("st%s%d", uuid.NewString()[:6], i)
+			if _, err := masters.SaveAccount(ctx, ledger.Account{Name: control, Label: control, Type: "asset", Parent: "assets"}, 0); err != nil {
+				t.Fatal(err)
+			}
+			models[i] = &p22Item{itemID: uuid.NewString(), control: control}
+		}
+		accounts := []string{models[0].control, models[1].control}
+		assertCutoff := func(cutoff string) {
+			for _, control := range accounts {
+				stockSum := cutoffSum(t, db, true, control, cutoff)
+				glSum := cutoffSum(t, db, false, control, cutoff)
+				if !stockSum.Equal(glSum) {
+					t.Fatalf("account %s at %s: stock %s != GL %s", control, cutoff, stockSum.String(), glSum.String())
+				}
+			}
+		}
+		var posted []*p22Op
+
+		doReceipt := func(model *p22Item, item int) {
+			movementDate, postingDate := drawDatePair(t)
+			base := testMovement()
+			base.ItemID = model.itemID
+			base.ControlAccount = model.control
+			base.MovementDate = movementDate
+			base.PostingDate = postingDate
+			qty := int64(rapid.IntRange(1, 50).Draw(t, "receiptQty"))
+			cost, err := types.NewDecimal(int64(rapid.IntRange(100, 5000).Draw(t, "receiptCost")), 2)
+			if err != nil {
+				t.Fatal(err)
+			}
+			base.Quantity = types.Quantity{Value: types.MustDecimal(fmt.Sprint(qty)), UoM: "each"}
+			base.UnitCost = cost
+			_, applied := postOp(t, db, stockSvc, engine, base)
+			model.onHand += qty
+			model.receipts = append(model.receipts, applied.RowID)
+			posted = append(posted, &p22Op{voucherType: base.VoucherType, voucherID: base.VoucherID, item: item, qtyDelta: qty, hasGL: true})
+			assertCutoff(postingDate)
+		}
+		doIssue := func(model *p22Item, item int) {
+			if model.onHand == 0 {
+				return
+			}
+			movementDate, postingDate := drawDatePair(t)
+			base := testMovement()
+			base.ItemID = model.itemID
+			base.ControlAccount = model.control
+			base.MovementDate = movementDate
+			base.PostingDate = postingDate
+			qty := int64(rapid.IntRange(1, int(model.onHand)).Draw(t, "issueQty"))
+			issue := issueOf(base, fmt.Sprint(qty))
+			_, applied := postOp(t, db, stockSvc, engine, issue)
+			model.onHand -= qty
+			record := &p22Issue{rowID: applied.RowID, unreturned: qty}
+			model.issues = append(model.issues, record)
+			posted = append(posted, &p22Op{voucherType: issue.VoucherType, voucherID: issue.VoucherID, item: item, qtyDelta: -qty, hasGL: true, issue: record})
+			assertCutoff(postingDate)
+		}
+		doReturn := func(model *p22Item, item int) {
+			var open []*p22Issue
+			for _, issue := range model.issues {
+				if issue.unreturned > 0 && !issue.cancelled {
+					open = append(open, issue)
+				}
+			}
+			if len(open) == 0 {
+				return
+			}
+			movementDate, postingDate := drawDatePair(t)
+			base := testMovement()
+			base.ItemID = model.itemID
+			base.ControlAccount = model.control
+			base.MovementDate = movementDate
+			base.PostingDate = postingDate
+			pick := open[rapid.IntRange(0, len(open)-1).Draw(t, "returnOf")]
+			qty := int64(rapid.IntRange(1, int(pick.unreturned)).Draw(t, "returnQty"))
+			base.Quantity = types.Quantity{Value: types.MustDecimal(fmt.Sprint(qty)), UoM: "each"}
+			base.UnitCost = types.Decimal{}
+			base.VoucherType = "stock_return"
+			base.ReversesRowID = pick.rowID
+			postOp(t, db, stockSvc, engine, base)
+			model.onHand += qty
+			pick.unreturned -= qty
+			posted = append(posted, &p22Op{voucherType: base.VoucherType, voucherID: base.VoucherID, item: item, qtyDelta: qty, hasGL: true, reversed: pick})
+			assertCutoff(postingDate)
+		}
+		doDelta := func(model *p22Item, item int) {
+			_, postingDate := drawDatePair(t)
+			receipt := model.receipts[rapid.IntRange(0, len(model.receipts)-1).Draw(t, "deltaOf")]
+			total, err := types.NewDecimal(int64(rapid.IntRange(-2000, 5000).Draw(t, "deltaTotal")), 2)
+			if err != nil {
+				t.Fatal(err)
+			}
+			delta := testDelta(receipt)
+			delta.Total = total
+			delta.PostingDate = postingDate
+			planned, _ := postDeltaOp(t, db, stockSvc, engine, delta)
+			posted = append(posted, &p22Op{voucherType: delta.VoucherType, voucherID: delta.VoucherID, item: item, hasGL: len(planned.Legs) > 0})
+			assertCutoff(postingDate)
+		}
+		doCancel := func() {
+			var open []*p22Op
+			for _, op := range posted {
+				if !op.cancelled {
+					open = append(open, op)
+				}
+			}
+			if len(open) == 0 {
+				return
+			}
+			movementDate, postingDate := drawDatePair(t)
+			pick := open[rapid.IntRange(0, len(open)-1).Draw(t, "cancelOf")]
+			applied, err := cancelOp(t, db, stockSvc, engine, pick.voucherType, pick.voucherID, movementDate, postingDate, pick.hasGL)
+			if err != nil {
+				if !errors.Is(err, stock.ErrCancelBlocked) {
+					t.Fatalf("cancel error is %v, want applied or ErrCancelBlocked", err)
+				}
+			} else if applied {
+				pick.cancelled = true
+				models[pick.item].onHand -= pick.qtyDelta
+				if pick.reversed != nil {
+					pick.reversed.unreturned += pick.qtyDelta
+				}
+				if pick.issue != nil {
+					pick.issue.cancelled = true
+				}
+			}
+			assertCutoff(postingDate)
+		}
+		// Two rounds per item: every kind executes with drawn
+		// parameters, and the second round interleaves with cancels.
+		for round := 0; round < 2; round++ {
+			for item, model := range models {
+				for i, n := 0, 1+rapid.IntRange(0, 1).Draw(t, "receipts"); i < n; i++ {
+					doReceipt(model, item)
+				}
+				for i, n := 0, 1+rapid.IntRange(0, 1).Draw(t, "issues"); i < n; i++ {
+					doIssue(model, item)
+				}
+				doReturn(model, item)
+				if rapid.IntRange(0, 1).Draw(t, "extraReturn") == 1 {
+					doReturn(model, item)
+				}
+				for i, n := 0, 1+rapid.IntRange(0, 1).Draw(t, "deltas"); i < n; i++ {
+					doDelta(model, item)
+				}
+				for i, n := 0, 1+rapid.IntRange(0, 1).Draw(t, "cancels"); i < n; i++ {
+					doCancel()
+				}
+			}
+		}
+	})
+
+	report, err := stockSvc.CheckStockToGL(context.Background(), db, "acme", "main", "2026-12-31", "property-22")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !report.Matched() {
+		t.Fatalf("company-wide check broke: %+v", report.Accounts)
+	}
+}
+
+func drawDatePair(t *rapid.T) (movement, posting string) {
+	first, second := drawDate(t, "dateA"), drawDate(t, "dateB")
+	if first > second {
+		first, second = second, first
+	}
+	return first, second
+}
+
+type p22Issue struct {
+	rowID      string
+	unreturned int64
+	cancelled  bool
+}
+
+type p22Op struct {
+	voucherType string
+	voucherID   string
+	item        int
+	qtyDelta    int64
+	hasGL       bool
+	cancelled   bool
+	reversed    *p22Issue
+	issue       *p22Issue
+}
+
+type p22Item struct {
+	itemID   string
+	control  string
+	onHand   int64
+	receipts []string
+	issues   []*p22Issue
+}
+
+// cutoffSum reads one side of the property at a cutoff: the stock ledger
+// value (l_stock plus on-hand deltas) or the GL control balance.
+func cutoffSum(t *rapid.T, db *sql.DB, stockSide bool, control, cutoff string) types.Decimal {
+	var total string
+	var err error
+	if stockSide {
+		err = db.QueryRow(`SELECT COALESCE((SELECT SUM(value_base) FROM l_stock WHERE company_name = 'acme' AND book = 'main' AND control_account_name = ? AND posting_date <= ?), 0) + COALESCE((SELECT SUM(on_hand_delta) FROM l_stock_value WHERE company_name = 'acme' AND book = 'main' AND control_account_name = ? AND posting_date <= ?), 0)`,
+			control, cutoff, control, cutoff).Scan(&total)
+	} else {
+		err = db.QueryRow(`SELECT COALESCE(SUM(debit_base - credit_base), 0) FROM l_gl WHERE company_name = 'acme' AND book = 'main' AND account_name = ? AND posting_date <= ?`,
+			control, cutoff).Scan(&total)
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	parsed, err := types.ParseDecimal(total)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return parsed
+}
+
+func cancelOp(t *rapid.T, db *sql.DB, stockSvc *stock.Service, engine *posting.Engine, voucherType, voucherID, movementDate, postingDate string, withGL bool) (bool, error) {
+	ctx := context.Background()
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback()
+	planned, err := stockSvc.PlanCancel(ctx, tx, voucherType, voucherID, 1, "main", movementDate, postingDate)
+	if err != nil {
+		return false, err
+	}
+	groupID := ""
+	if withGL {
+		result, err := engine.ReverseInTx(ctx, tx, voucherType, voucherID, 1, "main", posting.ReverseOptions{Actor: "tester", Source: "test", OperationID: uuid.NewString(), PostingDate: postingDate})
+		if err != nil {
+			return false, err
+		}
+		groupID = result.PostingGroupID
+	}
+	if _, err := stockSvc.ApplyCancel(ctx, tx, planned, groupID); err != nil {
+		return false, err
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatal(err)
+	}
+	return true, nil
 }

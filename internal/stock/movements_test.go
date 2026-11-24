@@ -406,6 +406,134 @@ func TestCancelMirrorsSubmit(t *testing.T) {
 	}
 }
 
+func TestCancelIssueBlockedByLiveReturn(t *testing.T) {
+	stockSvc, engine, masters, db := setup(t)
+	seedStockBasics(t, masters)
+
+	receipt := testMovement()
+	postMovement(t, db, stockSvc, engine, receipt)
+	issue := issueOf(receipt, "40")
+	_, issueApplied := postMovement(t, db, stockSvc, engine, issue)
+	back := receipt
+	back.VoucherID = uuid.NewString()
+	back.VoucherType = "stock_return"
+	back.Quantity = types.Quantity{Value: dec("40"), UoM: "each"}
+	back.UnitCost = types.Decimal{}
+	back.ReversesRowID = issueApplied.RowID
+	postMovement(t, db, stockSvc, engine, back)
+
+	tx, err := db.BeginTx(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = stockSvc.PlanCancel(context.Background(), tx, issue.VoucherType, issue.VoucherID, 1, "main", "2026-06-16", "2026-06-16")
+	tx.Rollback()
+	if !errors.Is(err, stock.ErrCancelBlocked) {
+		t.Fatalf("issue cancel error is %v, want ErrCancelBlocked", err)
+	}
+
+	cancelVoucher(t, db, stockSvc, engine, back.VoucherType, back.VoucherID, true)
+	cancelVoucher(t, db, stockSvc, engine, issue.VoucherType, issue.VoucherID, true)
+	bin, _ := binOf(t, stockSvc, db, receipt)
+	if got := bin.Qty.String(); got != "100.000000" {
+		t.Fatalf("bin holds %s after LIFO unwind, want 100.000000", got)
+	}
+}
+
+func TestCancelReceiptBlockedByLiveDownstream(t *testing.T) {
+	stockSvc, engine, masters, db := setup(t)
+	seedStockBasics(t, masters)
+
+	receipt := testMovement()
+	_, receiptApplied := postMovement(t, db, stockSvc, engine, receipt)
+	issue := issueOf(receipt, "60")
+	_, issueApplied := postMovement(t, db, stockSvc, engine, issue)
+	back := receipt
+	back.VoucherID = uuid.NewString()
+	back.VoucherType = "stock_return"
+	back.Quantity = types.Quantity{Value: dec("60"), UoM: "each"}
+	back.UnitCost = types.Decimal{}
+	back.ReversesRowID = issueApplied.RowID
+	postMovement(t, db, stockSvc, engine, back)
+
+	// The layer is whole again (100), but live rows reference it.
+	tx, err := db.BeginTx(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = stockSvc.PlanCancel(context.Background(), tx, receipt.VoucherType, receipt.VoucherID, 1, "main", "2026-06-16", "2026-06-16")
+	tx.Rollback()
+	if !errors.Is(err, stock.ErrCancelBlocked) {
+		t.Fatalf("receipt cancel error is %v, want ErrCancelBlocked", err)
+	}
+
+	cancelVoucher(t, db, stockSvc, engine, back.VoucherType, back.VoucherID, true)
+	cancelVoucher(t, db, stockSvc, engine, issue.VoucherType, issue.VoucherID, true)
+	cancelVoucher(t, db, stockSvc, engine, receipt.VoucherType, receipt.VoucherID, true)
+	bin, _ := binOf(t, stockSvc, db, receipt)
+	if got := bin.Qty.String(); got != "0.000000" {
+		t.Fatalf("bin holds %s after full unwind, want 0.000000", got)
+	}
+	if got := layerResidual(t, db, receiptApplied.RowID); got != "0.000000" {
+		t.Fatalf("layer residual is %s after full unwind, want 0.000000", got)
+	}
+}
+
+func TestIssueAtNegativeAverageMatchesGL(t *testing.T) {
+	stockSvc, engine, masters, db := setup(t)
+	seedStockBasics(t, masters)
+
+	receipt := testMovement()
+	receipt.Quantity = types.Quantity{Value: dec("10"), UoM: "each"}
+	receipt.UnitCost = dec("1")
+	_, receiptApplied := postMovement(t, db, stockSvc, engine, receipt)
+	credit := testDelta(receiptApplied.RowID)
+	credit.Total = dec("-50")
+	postDelta(t, db, stockSvc, engine, credit)
+
+	issue := issueOf(receipt, "5")
+	planned, _ := postMovement(t, db, stockSvc, engine, issue)
+	if got := planned.Value.String(); got != "20.000000" {
+		t.Fatalf("issue value is %s, want 20.000000 (relieving negative value)", got)
+	}
+	if len(planned.Legs) != 2 || planned.Legs[0].DebitBase.String() != "20.000000" {
+		t.Fatalf("control leg is %+v, want a 20.000000 debit", planned.Legs[0])
+	}
+	bin, _ := binOf(t, stockSvc, db, receipt)
+	if got := bin.Value.String(); got != "-20.000000" {
+		t.Fatalf("bin value is %s, want -20.000000", got)
+	}
+	if got := glStockBalance(t, db); got != "-20.000000" {
+		t.Fatalf("GL stock balance is %s, want -20.000000", got)
+	}
+}
+
+func TestReturnAgainstCancelledIssueRefused(t *testing.T) {
+	stockSvc, engine, masters, db := setup(t)
+	seedStockBasics(t, masters)
+
+	receipt := testMovement()
+	postMovement(t, db, stockSvc, engine, receipt)
+	issue := issueOf(receipt, "40")
+	_, issueApplied := postMovement(t, db, stockSvc, engine, issue)
+	cancelVoucher(t, db, stockSvc, engine, issue.VoucherType, issue.VoucherID, true)
+
+	back := receipt
+	back.VoucherID = uuid.NewString()
+	back.VoucherType = "stock_return"
+	back.Quantity = types.Quantity{Value: dec("10"), UoM: "each"}
+	back.UnitCost = types.Decimal{}
+	back.ReversesRowID = issueApplied.RowID
+	tx, err := db.BeginTx(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback()
+	if _, err := stockSvc.PlanMovement(context.Background(), tx, back); !errors.Is(err, stock.ErrInvalid) {
+		t.Fatalf("return on cancelled issue error is %v, want ErrInvalid", err)
+	}
+}
+
 func TestCancelBlockedByDownstreamIssue(t *testing.T) {
 	stockSvc, engine, masters, db := setup(t)
 	seedStockBasics(t, masters)
