@@ -633,7 +633,7 @@ const activeFilterCount = computed(() => props.filters.reduce((count, filter) =>
                 v-for="cell in row.getAllCells()"
                 :key="cell.id"
                 :data-label="stackLabel(cell.column)"
-                :class="['pt-3 pr-4 pb-3 pl-4', hiddenOnMobile(cell.column) ? 'datatable-hide-mobile' : undefined, numericColumn(cell.column) ? 'text-right tabular-nums' : centerColumn(cell.column) ? 'text-center' : undefined]"
+                :class="['pt-3 pr-4 pb-3 pl-4', hiddenOnMobile(cell.column) ? 'datatable-hide-mobile' : undefined, numericColumn(cell.column) ? 'text-right tabular-nums' : centerColumn(cell.column) ? 'text-center' : 'text-left']"
               >
                 <FlexRender :cell="cell" />
               </TableCell>
