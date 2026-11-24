@@ -80,6 +80,8 @@ describe('PageSwitch build chrome', () => {
       canWriteFiles: ref(false),
       canLedger: ref(false),
       canWriteLedger: ref(false),
+      canManageLists: ref(false),
+      canSendLists: ref(false),
     }
     const library = {
       unknownSelectedType: ref(false),

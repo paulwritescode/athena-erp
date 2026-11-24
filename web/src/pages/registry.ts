@@ -24,6 +24,8 @@ export type PageContext = {
   canWriteRules: boolean
   canWriteFiles: boolean
   canWriteLedger: boolean
+  canManageLists: boolean
+  canSendLists: boolean
   typesLoaded: boolean
   typesLoadFailed: boolean
 }
@@ -91,8 +93,9 @@ export const pageEntries: PageEntry[] = [
   },
   {
     key: 'reports', title: 'Reports', shortTitle: 'Reports', blurb: 'Lists and totals from your Records.', icon: icon('chart-column'),
-    modes: ['build'], gate: { build: true }, nav: true, group: 'operate',
+    modes: ['build'], gate: { anyPermission: ['build', 'lists:send'] }, nav: true, group: 'operate',
     load: () => import('@/pages/ReportsPage.vue'),
+    props: (ctx) => ({ canManage: ctx.canManageLists, canSend: ctx.canSendLists, recordTypes: ctx.recordTypes }),
   },
   {
     key: 'jobs', title: 'Jobs', shortTitle: 'Jobs', blurb: 'Imports, exports and scheduled work.', icon: icon('list-checks'),

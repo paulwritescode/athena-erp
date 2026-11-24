@@ -10,6 +10,7 @@ import { RecordTypeService, RecordTypeSchema, type MigrationStep, type RecordTyp
 import { NotificationService } from './gen/athena/v1/notifications_pb'
 import { WorkspaceService } from './gen/athena/v1/workspace_pb'
 import { EventService, JobService } from './gen/athena/v1/events_pb'
+import { ListService } from './gen/athena/v1/lists_pb'
 import { create } from '@bufbuild/protobuf'
 import { Code, ConnectError } from '@connectrpc/connect'
 import { isStepUpRequired, sessionEndReason } from './apiErrors'
@@ -257,3 +258,4 @@ export async function deleteRecordType(recordType: RecordType): Promise<void> {
 // runner behind the build permission.
 export const eventClient = createClient(EventService, transport)
 export const jobClient = createClient(JobService, transport)
+export const listClient = createClient(ListService, transport)

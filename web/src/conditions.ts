@@ -77,6 +77,36 @@ export const OPERATOR_LABELS: Record<ConditionOp, string> = {
   is_not_checked: 'is not checked',
 }
 
+// The fields a host offers the builder, in compile form.
+export interface BuilderFieldSource {
+  name: string
+  label: string
+  type: string
+  currency?: string
+  scale?: number
+  values?: Array<{ value: string }>
+}
+
+export function treeFieldKind(type: string): TreeFieldKind {
+  if (type === 'Number' || type === 'Currency' || type === 'Quantity') return 'decimal'
+  if (type === 'Money') return 'money'
+  if (type === 'Date') return 'date'
+  if (type === 'Checkbox') return 'bool'
+  return 'string'
+}
+
+export function builderFieldsFor(fields: BuilderFieldSource[]): BuilderField[] {
+  return fields.map((f) => ({
+    name: `doc.${f.name}`,
+    label: f.label,
+    type: f.type,
+    kind: treeFieldKind(f.type),
+    currency: f.currency,
+    scale: f.scale,
+    choices: f.values?.map((c) => c.value),
+  }))
+}
+
 // Operator lists per Athena field type for the builder UI. The compiler
 // below is kind-level (like Go); the UI narrows by field type (Enum gets
 // no contains family, Link gets is/empty only, documents add Status).

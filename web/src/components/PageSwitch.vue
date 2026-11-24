@@ -68,6 +68,8 @@ const ctx = computed<PageContext>(() => ({
   canWriteRules: session.canWriteRules.value,
   canWriteFiles: session.canWriteFiles.value,
   canWriteLedger: session.canWriteLedger.value,
+  canManageLists: session.canManageLists.value,
+  canSendLists: session.canSendLists.value,
   typesLoaded: library.loaded.value,
   typesLoadFailed: library.loadFailed.value,
 }))

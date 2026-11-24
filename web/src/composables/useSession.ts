@@ -48,6 +48,10 @@ export function useSession(route: DeskRoute, library: RecordTypeLibrary) {
   // Access follows access:users or access:roles; the server checks the finer
   // access:* permissions on every call.
   const canAccess = computed(() => (user.value ? user.value.systemPermissions.includes('access:users') || user.value.systemPermissions.includes('access:roles') : false))
+  // Lists follow build (manage) or lists:send (queue); the server checks the
+  // Record Type read Grant on every call.
+  const canManageLists = computed(() => (user.value ? user.value.systemPermissions.includes('build') : false))
+  const canSendLists = computed(() => (user.value ? user.value.systemPermissions.includes('lists:send') : false))
   // Ledger follows ledger:read and edits only with ledger:write.
   const canLedger = computed(() => (user.value ? user.value.systemPermissions.includes('ledger:read') : false))
   const canWriteLedger = computed(() => (user.value ? user.value.systemPermissions.includes('ledger:write') : false))
@@ -239,7 +243,7 @@ export function useSession(route: DeskRoute, library: RecordTypeLibrary) {
     apiState, databaseState, workspaceName, authState, hasUsers, pageState,
     signInNote, rechecking, user, changingPassword,
     canBuild, canFiles, canWriteFiles, canRules, canWriteRules, canAccess,
-    canLedger, canWriteLedger, canBuildDesk,
+    canLedger, canWriteLedger, canBuildDesk, canManageLists, canSendLists,
     signedIn, signOut, startDesk, recheck,
   }
 }

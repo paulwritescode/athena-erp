@@ -2,7 +2,7 @@
 // internal/expr CompileTree for representative trees (the Go suite pins
 // every operator; these guard the mirror against drift).
 import { describe, expect, it } from 'vitest'
-import { compileTree, OPERATORS_FOR_TYPE, type ConditionOp, type TreeCondition, type TreeField } from './conditions'
+import { builderFieldsFor, compileTree, OPERATORS_FOR_TYPE, type ConditionOp, type TreeCondition, type TreeField } from './conditions'
 
 const fields: Record<string, TreeField> = {
   'doc.name': { kind: 'string' },
@@ -76,5 +76,27 @@ describe('OPERATORS_FOR_TYPE', () => {
     expect(OPERATORS_FOR_TYPE['Link']).toEqual(['is', 'is_not', 'is_empty', 'is_not_empty'])
     expect(OPERATORS_FOR_TYPE['Checkbox']).toEqual(['is_checked', 'is_not_checked'])
     expect(OPERATORS_FOR_TYPE['Date']).toContain('in_the_last_n_days')
+  })
+})
+
+// The builder field map both authoring hosts share (Rules form today, the
+// lists editor next): doc. names, kind mapping, and Enum choices.
+describe('builderFieldsFor', () => {
+  it('maps names, kinds and money scale', () => {
+    const out = builderFieldsFor([
+      { name: 'total', label: 'Total', type: 'Money', currency: 'KES', scale: 2 },
+      { name: 'paid', label: 'Paid', type: 'Checkbox' },
+      { name: 'city', label: 'City', type: 'ShortText' },
+    ])
+    expect(out[0]).toMatchObject({ name: 'doc.total', label: 'Total', type: 'Money', kind: 'money', currency: 'KES', scale: 2 })
+    expect(out[1]).toMatchObject({ name: 'doc.paid', kind: 'bool' })
+    expect(out[2]).toMatchObject({ name: 'doc.city', kind: 'string' })
+  })
+
+  it('carries Enum choices through', () => {
+    const out = builderFieldsFor([
+      { name: 'status', label: 'Status', type: 'Enum', values: [{ value: 'open' }, { value: 'shut' }] },
+    ])
+    expect(out[0].choices).toEqual(['open', 'shut'])
   })
 })

@@ -9,7 +9,7 @@ import type { RecordType } from '../types'
 import ActionButton from '@/components/ActionButton.vue'
 import HelpHint from '@/copy/HelpHint.vue'
 import ConditionBuilder from '@/components/conditions/ConditionBuilder.vue'
-import { compileTree, type BuilderField, type ConditionTree, type TreeField } from '@/conditions'
+import { builderFieldsFor, compileTree, type BuilderField, type ConditionTree, type TreeField } from '@/conditions'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import DataTable, { type TableFilter } from '@/components/DataTable.vue'
 import DetailSheet from '@/components/DetailSheet.vue'
@@ -54,22 +54,7 @@ const events = computed(() => (isRuleType(form.value.ruleType) ? ruleEvents[form
 // Builder authoring: the selected type's fields as builder fields plus the
 // compile map, and the authoring object ruleProblem validates.
 const selectedType = computed(() => props.recordTypes.find((item) => item.name === form.value.recordTypeKey) ?? null)
-function fieldKind(type: string): TreeField['kind'] {
-  if (type === 'Number' || type === 'Currency' || type === 'Quantity') return 'decimal'
-  if (type === 'Money') return 'money'
-  if (type === 'Date') return 'date'
-  if (type === 'Checkbox') return 'bool'
-  return 'string'
-}
-const builderFields = computed<BuilderField[]>(() => (selectedType.value?.fields ?? []).map((f) => ({
-  name: `doc.${f.name}`,
-  label: f.label,
-  type: f.type,
-  kind: fieldKind(f.type),
-  currency: f.currency,
-  scale: f.scale,
-  choices: f.values?.map((c) => c.value),
-})))
+const builderFields = computed<BuilderField[]>(() => builderFieldsFor(selectedType.value?.fields ?? []))
 const builderVars = computed<Record<string, TreeField>>(() => {
   const vars: Record<string, TreeField> = {}
   for (const f of builderFields.value) vars[f.name] = { kind: f.kind, currency: f.currency, scale: f.scale }
