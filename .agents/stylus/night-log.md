@@ -812,3 +812,23 @@
 - TICK 01:22: main 679e519. C5s6 tip gate RUNNING slot 0 (merge21, started 01:16) — merge on green. r-f4 KEPT (re-review owed at w-fu rebased tip; w-fu rebasing). w-c2 C10s3 gating, others queued/building. Review-passed not on main: C5s6 (gate running). Next: C5s6 merge + docs.
 - 01:23 Stylus: w-fu holds rebase for C5s6 landing, then rebases once + re-gates; r-f4 reviews delta only. Forwarded to both.
 - 01:24 r-f4 acked hold; delta-review on rebased tip.
+- 01:34 C5s6 MERGED: gate green exit 0, 694s (22 Go ok, 724 web, log 1125-011626-master.log; clean=false = queue-time-head artifact of Stylus-ordered C7s8 rebase, gate ran on rebased tip 187519c per reflog). Rebased onto docs main (identical) + build+vet; FF 1d6c8a7+pushed (first push hit transient GitHub 500, retry green). Docs ca6ad9d+pushed (incl suite unknown-command guard). Server restarted healthy (t7r) for new RPCs. CLOSED merge21 tree. c5-s6-r already absent (reviewer self-cleanup, 6th).
+- TICK 01:42: main ca6ad9d. w-fu post-rebase web green, Go affected queued; tip to r-f4 follows. F7s3 re-gate done, PASS pending. C10s3/C5s8/C7s9/TSs5 queued. r-f4 awaiting tip. Review-passed not on main: none. Next: F7s3 PASS -> review; F4 tip -> delta verdict -> train gate.
+- 01:55 C5s8 PASS 24ecb55 (creation + ADR amend, disjoint carry claimed); r-c5s8 (t7s) spawned. w-c1 ordered to start slice 9 stacked (slice 7 Desk still held for F4s2).
+- TICK 01:52: main ca6ad9d. C5s8 PASS with r-c5s8 (t7s); w-c1 on slice 9. C7s9 full gate on slot 0. F4 rebased tip to r-f4 pending (w-fu re-gated). F7s3 PASS pending. Review-passed not on main: none. Next: first verdict/PASS -> review/gate -> merge.
+- 01:53 Ruled w-c1 slice-9 skill question: (1) proceed without account-write (Cursor-side, unloadable here; F1 precedent), repo conventions as authority, decided-without-skills logged.
+- 01:55 w-ts slice-5a auth root-caused (81s alone, owner property 70.6s from redundant per-iteration Up; no clock target); fix uncommitted, after-run queued; 5b cmd queued.
+- 01:58 w-c1 slice 9 nearly done (fixture green, docs written, typecheck+build green); checkpoint gate queueing.
+- TICK 02:02: main ca6ad9d. C7s9 gate GREEN exit 0 clean; PASS report pending. F7s3 PASS + F4 tip pending. r-c5s8 verifying, r-f4 awaiting tip. Review-passed not on main: none. Next: C7s9/F7s3 PASS -> reviews; F4 tip -> delta verdict.
+- 02:05 w-ts cmd-after GREEN 44.2s (keepers ~5s as designed); auth-after pending, then 5a+5b commit + -p 4 retry.
+- 02:07 w-c7 slice 9 rebased onto ca6ad9d as 1c078e8 (3 same-anchor conflicts with C5s6: gate entries, perms incl. ledger:close, CLI+help — kept both); build green, gating.
+- 02:06 w-f7 post-reword run GREEN exit 0; PASS pending. w-c2 C10s3 affected on slot 0.
+- TICK 02:12: main ca6ad9d. C10s3 gate slot 0; F7s3 full gate queued behind it. F4 rebased tip to r-f4 pending (w-fu re-gating). C7s9 rebased + queued. r-c5s8 verifying. Review-passed not on main: none. Next: first PASS/verdict -> review/gate -> merge.
+- 02:13 w-fu F4 tip 5a34cb5 to r-f4 (markers gone, behavior unchanged, Go 4/4, web 735/735, both browsers green); delta re-review pending.
+- 02:15 C10s3 PASS f77b02f (migration 25 + Property 26, disjoint carry); r-c10s3 (t7t) spawned. w-c2 ordered to start slice 4 stacked.
+- 02:16 w-c2 slice 4 started (storage question first).
+- 02:17 w-ts slice 5 committed (c921d84 auth + 95426a3 cmd); -p 4 full retry queued; PASS on green.
+- TICK 02:23: main ca6ad9d. C5s8 REVIEW PASS (r-c5s8; creation+void+ADR verified, affected green at 24ecb55) — staged 9105f28 in merge22 (pick clean, markers clean), tip gate queued. CLOSED r-c5s8 pane (-r tree self-removed, 7th). r-f4 delta + r-c10s3 verifying. Workers gating/building. Review-passed not on main: C5s8 (gate queued). Next: C5s8 merge.
+- 02:27 C5s9 PASS 267fc07 (fixture+docs+checkpoint, browser N/A variance disclosed); r-c5s9 (t7v) spawned (variance ruling briefed). w-c1 holding (slice 7 on F4s2 merge; C5 ticks at slice 7, not 9).
+- TICK 02:32: main ca6ad9d. C5s8 tip gate RUNNING slot 0 (merge22, started 02:26) — merge on green. C5s9 PASS with r-c5s9. r-f4 delta + r-c10s3 verifying. Workers gating/building. Review-passed not on main: C5s8 (gate running). Next: C5s8 merge + docs.
+- 02:38 w-c2 slice 4 built (attachments/search/comments/import + Search dialect + abandoned-upload job; B9-on-path.go verified, beta images-only in ADR); full gate next, then commit.
