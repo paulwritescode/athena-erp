@@ -41,7 +41,7 @@ func run() error {
 	rows := flag.Int("rows", 8, "frame height in lines (design 9.6 allows at most 8)")
 	lightGamma := flag.Float64("light-gamma", 1.0, "gamma for the light-theme variant")
 	darkGamma := flag.Float64("dark-gamma", 1.0, "gamma for the dark-theme variant")
-	stepMs := flag.Int("step-ms", 150, "draw-in step in milliseconds (120 to 240)")
+	stepMs := flag.Int("step-ms", 180, "draw-in step in milliseconds (120 to 240)")
 	lightSrc := flag.String("light-src", "web/src/assets/brand/athena-black.png", "black mark source")
 	darkSrc := flag.String("dark-src", "web/src/assets/brand/athena-white.png", "white mark source")
 	out := flag.String("out", "web/src/art/logo-frames.ts", "generated frames file")
