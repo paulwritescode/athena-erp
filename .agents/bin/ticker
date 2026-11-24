@@ -83,6 +83,16 @@ while True:
         print(time.strftime("%H:%M"), "no master terminal; skipped")
         continue
     close = candidates()
+    # Keep disk above the spawn floor: the Go build cache grows about 1 GB an hour under steady gates.
+    floor = s.limits().get("minDiskFreeGB", 8)
+    running = any(os.path.exists(os.path.join(d, "owner.json")) for d in glob.glob(s.path("locks/suite*")))
+    if s.disk_free_gb() < floor + 2 and not running:  # never clean the build cache under a running build
+        cache = subprocess.run(["go", "env", "GOCACHE"], capture_output=True, text=True).stdout.strip()
+        if cache and os.path.isdir(cache):
+            subprocess.run(["go", "clean", "-cache"], capture_output=True)
+            note = f"go clean -cache (free was below {floor + 2} GB, now {round(s.disk_free_gb(), 1)} GB)"
+            print(time.strftime("%H:%M"), note)
+            s.append("comms.jsonl", {"from": "ticker", "to": "master", "kind": "INFO", "text": note, "delivered": False})
     text = ("ORDER: 10-minute tick. Post your progress update now with .agents/bin/progress \"<lanes, merges, "
             "blockers, next>\". Check every agent you own (hc ls, hc read) and unstick any that is idle without a report.")
     if close:

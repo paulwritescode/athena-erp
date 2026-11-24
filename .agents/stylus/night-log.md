@@ -638,3 +638,43 @@
 - 16:45 TICK: main eb04345. C5s4 gate RUNNING ~10m. Review-passed not on main: C5s4 (gating), C7s6 (stacked on fix).
 - 16:55 TICK: main eb04345. C5s4 gate RUNNING ~20m (near watch limit; -p 2 default in effect). Review-passed not on main: C5s4 (gating), C7s6 (stacked on fix).
 - 17:02 C5s4 MERGED: gate green exit 0, 26m (19 Go ok all fresh under -p 2, 684/684 web, log 1124-163438). FF 9d0ad48+pushed. Server restarted healthy (t6w).
+- 17:03 C5s4 docs pushed (43ded7c); merge7 + branch removed (c5-s4-r self-removed by reviewer, pruned). w-c1 dispatched to slice 5.
+- 17:05 TICK: main 43ded7c. TS slice-2 RUNNING (17:00). Review-passed not on main: C7s6 (stacked on fix).
+- 17:07 C5s5 started (w-c1, Property 12 design: uuid isolation, base + FX parts, applied-base legs). Writing tests.
+- 17:13 C5s5 committed 8468821 (slice 4 dropped as merged, identical); narrow 100/100; affected queued.
+- 17:15 TICK: main 43ded7c. TS slice-2 RUNNING ~14m. Review-passed not on main: C7s6 (stacked on fix).
+- 17:18 Stylus DATA to w-ts: slice-3 scope (posting shared-DB first, then ledger/jobs/events/stock in one commit; 17 server testdb.New left; measure posting before/after).
+- 17:20 TS slice 2 PASS (w-ts, 68b9a97+da178bb, affected 7 pkgs green 1103s, testdb 7.6s). Spawning r-ts2; w-ts on slice 3.
+- 17:22 C2s5 PASS (w-c2, 518be6e on eb04345, secrets CLI + rotate + docs, affected green). Spawning r-c2s5.
+- 17:25 TICK: main 43ded7c. Disk cleared for spawn retry. Review-passed not on main: C7s6 (stacked on fix).
+- 17:25 Disk cleared: 6 dead -r trees + f7-s2-r dir + L4 node_modules + 5 redundant per-tree pnpm stores (~2.4GB) removed. Shared store is the only source; CACHE_DIR rule stands.
+- 17:28 C10 BRIEFED (migration 25 + ADR-0035, acceptance-mapped); w-c2 dispatched (fresh feat/c10-integrations). Stylus INFO: ticker auto-cleans go cache under 10GB when suite idle; commit bin/ticker with next docs.
+- 17:29 C10 migration 25 held for 23/24 (same posture as 22); w-c2 on ADR-0035 + docs.
+- 17:31 C7s5 fix2 committed 1b1ce5c (tip bd1570e, 31-line test delta) with SUBSTANTIVE pushback: third-location return unpostable (planReturn enforces same-bin), enforcement pinned instead. Gating; reasoning with FIX2 report. Re-review adjudicates.
+- 17:32 C10s1 docs committed 7bb7578 (migration held); w-c2 on slice 2 stacked (no migration needed).
+- 17:33 C2s5 REVIEW PASS (r-c2s5, CLI e2e + custody + generate + gates). Staging merge.
+- 17:36 C4s5 REVIEW PASS (r-c4s5, CLI+asof live, flags per ruling, gates green). Staging merge.
+- 17:41 TICK: main 43ded7c. C2s5 + C4s5 merge gates queued. r-c7s5 KEPT (owes fix verdict). Review-passed not on main: C2s5 + C4s5 (queued), C7s6 (stacked on fix).
+- 17:46 TICK: main 43ded7c. r-c7s5 redirected to fix2 (adjudicate pushback) + nudged. r-c7s5 KEPT (owes fix2 verdict). Review-passed not on main: C2s5 + C4s5 (queued), C7s6 (stacked).
+- 17:48 C5s5 PASS (w-c1, 8468821 on 43ded7c, Property 12, affected green). Spawning r-c5s5.
+- 17:52 TS slice 3 committed a9a495e (posting shared-DB); PASS on before-run landing; master-priority after-run follows.
+- 17:54 C5s5 REVIEW PASS (r-c5s5, genuine rapid both parts, green twice + affected reuse, tests-only). Staging merge.
+- 18:00 TICK: main 43ded7c. C2s5 gate RUNNING; C4s5 + C5s5 queued. Review-passed not on main: C2s5 (gating), C4s5 + C5s5 (queued), C7s6 (stacked on fix2).
+- 18:05 C5s6 backend done (proto+handlers+gate+CLI, narrow green); full gate queueing. FLAG for 7.6/7.8 scoping: nothing creates settlement items in production yet (invoice-submit wiring? tests seed via service).
+- 18:06 TICK: main 43ded7c. C2s5 gate RUNNING ~18m; C4s5 + C5s5 queued. Review-passed not on main: C2s5 (gating), C4s5 + C5s5 (queued), C7s6 (stacked on fix2).
+- 18:13 C2s5 gate GREEN exit 0, 25m (19 Go ok all fresh under -p 2, 684/684 web, log 1124-174823). C4s5 gate started same second — NO merge until it lands; order: C2s5 first, then C4s5 with rebase+disjoint check (both touch cmd/athena, different files).
+- 18:16 TICK: main 43ded7c. C4s5 gate RUNNING; C2s5 green held for it; C5s5 queued. Review-passed not on main: C2s5 (held), C4s5 (gating), C5s5 (queued), C7s6 (stacked on fix2).
+- 18:18 C2s5 MERGED per Stylus order (gate green on 43ded7c=main, pushed during C4s5 gate): FF bd4d841. C4s5 trial pick: decision-log ONLY conflict, 6/6 other files identical to gated content — running gate CARRIES per ruling. Server restarting.
+- 18:20 C2s5 pushed (bd4d841); server healthy (t71). Docs held for C4s5 window.
+- 18:23 TICK: main bd4d841. C4s5 gate RUNNING ~10m; C5s5 queued. Review-passed not on main: C4s5 (gating, carries), C5s5 (queued), C7s6 (stacked on fix2).
+- 18:26 TICK: main bd4d841. C4s5 gate RUNNING ~13m; C5s5 queued. Review-passed not on main: C4s5 (gating, carries), C5s5 (queued), C7s6 (stacked on fix2).
+- 18:36 TICK: main bd4d841. C4s5 gate RUNNING ~23m; C5s5 queued. Review-passed not on main: C4s5 (gating, carries), C5s5 (queued), C7s6 (stacked on fix2).
+- 18:38 C4s5 gate GREEN exit 0, 24m (19 Go ok, 72 web files, log 1124-181313). Asked Stylus: push C4s5 during C5s5 gate (disjoint, trial-pick first) or hold?
+- 18:40 C4s5 rebased ede4a20 (log union, code identical, build+vet green). Asked Stylus: push during C5s5 gate (zero shared files) or hold?
+- 18:42 C5s5 .fail file: w-c1 rules DEBRIS (test-helper bug, fixed; pins nothing). Plan: merge as-is, delete in slice 6 with verification. Put to Stylus (r-c5s5 unspawnable, disk-blocked).
+- 18:44 NOTE: merge9 dir+branch vanished with no logged removal (gate + rebase + push all completed first; main verified intact at ede4a20 with C4s5+C2s5 content on disk). Cause unknown; end state correct.
+- 18:44 .fail plan ACCEPTED by Stylus (merge as-is, delete in slice 6). r-c5s5f spawn STOOD DOWN (question settled); c5-s5-r tree removed. Docs (C2s5+C4s5) held for the C5s5 window.
+- 18:46 Stylus: tree-removal tools ruled out (ticker/suite touch only go cache); end state correct. RULE ADOPTED: log every worktree/branch removal as CLOSED with path. Mechanism of merge9/c5-s5-r disappearance still unknown; audit below.
+- 18:52 TICK: main ede4a20. C5s5 gate RUNNING ~15m. Review-passed not on main: C5s5 (gating), C7s6 (stacked on fix2).
+- 18:54 C2 TICKED (Stylus check): all acceptance merged (G8 1-6 + secrets 1-5, invite delivery, Jobs/Settings); provider/markers are F4/G18 scope. Goes in the pending docs commit.
+- 19:05 C5s5 MERGED: gate green exit 0, 24m (19 Go ok, 684/684 web, log 1124-183717). Rebased 0c4b59e->646cc6d onto post-C4s5 main conflict-free (posting tests vs secrets/ledger), identical, build+vet green; FF+pushed during F4 worker gate (rule covers merge gates only). Server restarted healthy (t75).

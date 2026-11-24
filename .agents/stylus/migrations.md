@@ -13,3 +13,4 @@ Master reserves a number here before a worker writes the migration. Merged numbe
 | 22 | C2 secrets/retention (ADR-0033) | reserved 2026-11-24 |
 | 23 | F4 lists kernel table (ADR-0034) | reserved 2026-11-24 |
 | 24 | F4 rules builder columns (ADR-0034) | reserved 2026-11-24 |
+| 25 | C10 integration surface (ADR-0035) | reserved 2026-11-24 |
