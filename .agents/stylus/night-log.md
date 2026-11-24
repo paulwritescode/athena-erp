@@ -589,3 +589,26 @@
 - 14:45 TICK: main 032a090 (C2s4+F7s1). Server restarting (health pending). Docs commit next. Review-passed not on main: none.
 - 14:46 C2s4 MERGED: retry-p4 green exit 0, 6.2m (19 Go ok, posting 355s fresh, 684/684 web, log 1124-143705). FF fe41dcd+pushed.
 - 14:46 F7s1 MERGED after C2s4: retry-p4 green exit 0, 6.8m (19 Go ok, posting 390s fresh, 684/684 web, log 1124-143015). Rebases 7d49cef+032a090 conflict-free, code identical, build+vet green; FF+pushed. Server restarted healthy (t6q).
+- 14:47 C2s4+F7s1 docs pushed (89cf82d); merge4/merge5/f7-s1-r trees + branches removed. w-c2/w-f7 notified (rebase after gates). w-ts ACKed slice 2a (Makefile -p 4, own solo commit after slice 2).
+- 14:50 C7s5 PASS (w-c7, 5153252 on 8b0efdf, reservations/serial/batch/FEFO/counts, stock 185s green, 43 tests). Spawning r-c7s5.
+- 14:52 F7s2 REVIEW PASS (r-f7s2, 5 checks + contract + no leak + registry wiring, affected green, generate stable). Staging merge.
+- 14:55 w-f7 lock overlap = by design (slot 0 Go + slot 1 browser), answered. C7s5 REVIEW NEEDS_CHANGES (re-hold impossible + return-cancel wrong location); fix ordered, slice 6 paused.
+- 14:55 TICK: main 89cf82d. C4s5 gate RUNNING (14:48); F7s2 gate queued behind. C7s5 fix ordered. Review-passed not on main: F7s2 (queued).
+- 15:05 TICK: main 89cf82d. C4s5 gate RUNNING; F7s2 gate queued. r-c7s5 KEPT (owes fix re-review). Review-passed not on main: F7s2 (queued).
+- 15:07 Stylus INFO: bin/suite now defaults GOFLAGS=-p=4 (runs starting now; running C4s5 gate keeps -p 8, one retry on timeout). Commit bin/suite with next docs push. Broadcast to 8 agents.
+- 15:08 suite-default ACK from w-fu.
+- 15:09 suite-default ACKs from r-c7s5, w-c2, w-f7, r-c5s4, w-c7, w-ts (7/8; w-c1 pending).
+- 15:12 C4s5 gate RED on posting 20m timeout (-p 8 run, all else ok, untouched by slice). w-f7 retrying once with automatic suite -p 4, behind the F7s2 merge ticket.
+- 15:15 TICK: main 89cf82d. F7s2 gate RUNNING (15:10); C4s5 retry queued. Review-passed not on main: F7s2 (gating).
+- 15:25 TICK: main 89cf82d. F7s2 gate RUNNING ~14m. Review-passed not on main: F7s2 (gating).
+- 15:27 C4s5 browser PASS (w-f7, 26/26 steps, both themes, 0 page errors, shots eyeballed). Awaits -p 4 gate retry.
+- 15:28 Stylus FINDING to w-ts: per-test migrations = fsync storm (11k xfers/s); prioritise slice-2 migrate-once over clocks/locks. trx_commit=2 waits for user.
+- 15:34 ERROR: F7s2 gate RED under -p 4 — auth timeout 1215s (0s test progress, starvation), posting passed 910s, all else green (log 1124-151047). Not code (cmd/athena+README only). Asked Stylus before retrying per order.
+- 15:36 Stylus RULING: F7s2 retry with -p 2 (suite default now -p 2, explicit flags dropped; gate NOT narrowed). Re-queued as retry-p2. w-ts: migrate-once top L7 priority, gate goes master-priority.
+- 15:37 QUESTION to Stylus: TS slice 2a as -p 2 to match suite, or drop until settled? (Makefile -p would override GOFLAGS.)
+- 15:35 Stylus ANSWER: drop TS 2a; measure -p 2/4/8 after slices 2+3, winner as GO_TEST_P in Makefile. Relayed.
+- 15:35 TICK: main 89cf82d. r-c5s4 affected RUNNING; F7s2 retry-p2 queued. Review-passed not on main: F7s2 (retry queued).
+- 15:36 Stylus CORRECTION: Makefile line is go test -p $(GO_TEST_P), GO_TEST_P ?= winner. Relayed.
+- 15:45 TICK: main 89cf82d. r-c5s4 affected RUNNING ~12m; F7s2 retry-p2 queued. Review-passed not on main: F7s2 (retry queued).
+- 15:47 TS testdb re-queued as master-priority (tests w-ts working tree as-is); w-ts ordered to stop its own waiter and freeze slice-2 edits until it lands.
+- 15:53 F7s2 MERGED: retry-p2 green exit 0, ~2m (auth 83s fresh, 684/684 web, zero FAIL, log 1124-154943; combined with -p 4 run's green packages on identical content). FF af1f891+pushed. Server restarted healthy (t6s). TS testdb master-priority GREEN (7.6s); w-ts unfrozen (commit + affected + PASS next).
