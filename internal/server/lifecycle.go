@@ -14,6 +14,7 @@ import (
 	athenav1 "athena-erp/gen/athena/v1"
 	"athena-erp/internal/audit"
 	"athena-erp/internal/auth"
+	"athena-erp/internal/ledger"
 	"athena-erp/internal/lifecycle"
 	"athena-erp/internal/posting"
 	"athena-erp/internal/store"
@@ -350,14 +351,106 @@ func (s recordService) postVoucher(ctx context.Context, tx *sql.Tx, d recordType
 	}
 	_, source := requestFrom(ctx)
 	engine := &posting.Engine{DB: s.db, Dialect: dialect, Workspace: s.workspace}
+	offset := 0
 	for _, named := range plans {
 		opts := posting.PostOptions{Actor: actorName(ctx), Source: source, RequestID: requestID,
 			OperationID: operationID("submit", d.Name, id, revision, named.plan.Book)}
 		if _, err := engine.PostInTx(ctx, tx, named.plan, opts); err != nil {
 			return postingError(named.rule, err)
 		}
+		next, hookErr := s.createVoucherItems(ctx, tx, d.Name, id, named.plan, offset)
+		if hookErr != nil {
+			return postingError(named.rule, hookErr)
+		}
+		offset = next
 	}
 	return nil
+}
+
+// createVoucherItems records one open item per control leg a submit posted,
+// in the same transaction (G7.8 creation rule, ADR-0031). Each control leg
+// names its party in its source: SourceType "party_item" with an item id
+// references an item that must already exist (the engine's deferred
+// existence check); any other source type names a party record type whose id
+// must exist, and records a new item for it. Instalment numbers follow the
+// control legs in plan order from offset, so identity stays voucher-scoped:
+// (voucher type, id, revision, instalment). Replays find their items already
+// recorded and pass through. It returns the offset past this plan's legs.
+func (s recordService) createVoucherItems(ctx context.Context, tx *sql.Tx, voucherType, voucherID string, plan posting.Plan, offset int) (int, error) {
+	masters := &ledger.Service{DB: tx}
+	settle := &posting.SettlementService{DB: s.db, Dialect: dialect}
+	position := offset
+	for i := range plan.Lines {
+		line := &plan.Lines[i]
+		account, err := masters.GetAccount(ctx, line.Account)
+		if err != nil {
+			return offset, err
+		}
+		if account.ControlRole == "" {
+			continue
+		}
+		if line.SourceType == "" || line.SourceID == "" {
+			return offset, fmt.Errorf("%w: control leg for account %q names no source", posting.ErrInvalid, line.Account)
+		}
+		if line.SourceType == "party_item" {
+			var exists bool
+			if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM athena_party_items WHERE id = ?)`, line.SourceID).Scan(&exists); err != nil {
+				return offset, err
+			}
+			if !exists {
+				return offset, fmt.Errorf("%w: control source item %s does not exist", posting.ErrInvalid, line.SourceID)
+			}
+			continue
+		}
+		def, err := loadRecordTypeFrom(ctx, tx, line.SourceType)
+		if err != nil {
+			return offset, fmt.Errorf("%w: control source names unknown party type %q", posting.ErrInvalid, line.SourceType)
+		}
+		if _, err := loadRecord(ctx, tx, def, line.SourceID, ""); err != nil {
+			if connect.CodeOf(err) == connect.CodeNotFound {
+				return offset, fmt.Errorf("%w: party %s %s does not exist", posting.ErrInvalid, line.SourceType, line.SourceID)
+			}
+			return offset, err
+		}
+		position++
+		amount, currency := line.DebitBase, ""
+		side := posting.ItemSideDebit
+		if line.TxnDebit.Sign() > 0 || line.TxnCredit.Sign() > 0 {
+			if line.TxnDebit.Sign() > 0 {
+				amount = line.TxnDebit
+			} else {
+				amount, side = line.TxnCredit, posting.ItemSideCredit
+			}
+			currency = line.TxnCurrency
+		} else {
+			if line.DebitBase.Sign() == 0 {
+				side = posting.ItemSideCredit
+			}
+			if line.DebitBase.Sign() > 0 {
+				amount = line.DebitBase
+			} else {
+				amount = line.CreditBase
+			}
+			company, err := masters.GetCompany(ctx, line.Company)
+			if err != nil {
+				return offset, err
+			}
+			currency = company.BaseCurrency
+		}
+		_, err = settle.CreateItemsInTx(ctx, tx, []posting.NewItem{{
+			Company: line.Company, Book: plan.Book, PartyType: line.SourceType, PartyID: line.SourceID,
+			ControlAccount: line.Account, SourceType: voucherType, SourceID: voucherID,
+			SourceRevision: plan.Revision, InstalmentNo: position,
+			Currency: currency, Side: side, Amount: amount,
+		}})
+		if errors.Is(err, posting.ErrItemExists) {
+			continue
+		}
+		if err != nil {
+			return offset, err
+		}
+	}
+	return position, nil
 }
 
 // submitGroup is one posted submit group of a voucher.
@@ -371,6 +464,10 @@ type submitGroup struct {
 // submit that an allow-on-submit edit re-revisioned still unwinds fully.
 // Vouchers that never posted reverse nothing.
 func (s recordService) reverseVoucher(ctx context.Context, tx *sql.Tx, recordType, id, requestID string) error {
+	settle := &posting.SettlementService{DB: s.db, Dialect: dialect}
+	if _, err := settle.VoidVoucherItems(ctx, tx, recordType, id); err != nil {
+		return postingError("", err)
+	}
 	rows, err := tx.QueryContext(ctx, `SELECT voucher_revision, book FROM athena_posting_groups WHERE voucher_type = ? AND voucher_id = ? AND event = ? ORDER BY voucher_revision, book`,
 		recordType, id, posting.EventSubmit)
 	if err != nil {

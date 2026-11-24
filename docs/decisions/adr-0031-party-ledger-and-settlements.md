@@ -32,6 +32,23 @@ Control accounts (receivables, payables) post into `l_gl` today with no subledge
 - G7.4 posts realised gain/loss as plans through the G6 engine, mirrors applications on cancel, and adds the control-account source existence check the engine deferred.
 - G7.6 adds `ApplySettlement`, `ReverseSettlement` and `ListOpenItems` to `LedgerService` with gate policies, `athena settle apply|reverse|open-items`, and the Desk open-items panel.
 - G9 party balances build on `l_party`; no second subledger is needed.
+- G7.8 creation rule (slice 8 amendment, 2026-11-24): posting a
+  receivable/payable control leg on submit creates the open item(s) in the
+  same transaction, one per control leg (one item when the voucher carries
+  no schedule). Each control leg names its party in its source
+  (`SourceType` = party record type, `SourceID` = party record id; both
+  must exist). The item's identity stays voucher-scoped from plan context
+  (source voucher type/id/revision plus the control-leg index as
+  `InstalmentNo`), so two invoices from one party never collide, and
+  replays find their items already recorded (`ErrItemExists` passes
+  through). `SourceType` `party_item` with an item id references an
+  existing item and is verified, never created; any other source shape
+  refuses. Cancelling the source voucher voids its open items (residuals
+  zero, originals kept, status `cancelled`) and refuses while any
+  unreversed application touches the voucher, as source or as settlement:
+  reversing the settlements first is what keeps the party equation exact.
+  Due dates have no plan channel and record NULL at creation (follow-up:
+  instalment due dates need a plan channel).
 
 ## Revisit when
 

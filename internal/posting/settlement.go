@@ -46,10 +46,13 @@ const (
 )
 
 // Item statuses. An item settles when its residual reaches zero; settled
-// rows stay for the audit trail and refuse further application.
+// rows stay for the audit trail and refuse further application. Cancelling
+// the source voucher voids its open items: residuals zero with the original
+// kept, so the party equation holds and the history reads.
 const (
-	ItemOpen    = "open"
-	ItemSettled = "settled"
+	ItemOpen      = "open"
+	ItemSettled   = "settled"
+	ItemCancelled = "cancelled"
 )
 
 var (
@@ -643,7 +646,10 @@ func lockItems(ctx context.Context, tx *sql.Tx, company, book, partyType, partyI
 			return nil, fmt.Errorf("%w: item %s is in %s, the payment is in %s: one settlement covers one currency", ErrInvalid, id, item.Currency, currency)
 		}
 		if requireOpen && item.Status != ItemOpen {
-			return nil, fmt.Errorf("%w: item %s is already settled", ErrInvalid, id)
+			if item.Status == ItemSettled {
+				return nil, fmt.Errorf("%w: item %s is already settled", ErrInvalid, id)
+			}
+			return nil, fmt.Errorf("%w: item %s is %s", ErrInvalid, id, item.Status)
 		}
 		locked[id] = item
 	}
@@ -1457,6 +1463,65 @@ func mirrorUnappliedCash(ctx context.Context, tx *sql.Tx, req ReverseRequest, ba
 		}
 	}
 	return nil
+}
+
+// VoidVoucherItems voids every open item a voucher sourced, for its cancel:
+// residuals zero with the originals kept, so the party equation holds and no
+// application can land on them again. It returns how many voided. Vouchers
+// that sourced nothing void nothing. It refuses while any unreversed
+// application touches the voucher, as source or as settlement: reversing
+// the settlements first is what keeps the void exact.
+func (s *SettlementService) VoidVoucherItems(ctx context.Context, tx *sql.Tx, voucherType, voucherID string) (int, error) {
+	rows, err := tx.QueryContext(ctx, `SELECT id FROM athena_party_items
+		WHERE source_voucher_type = ? AND source_voucher_id = ? FOR UPDATE`, voucherType, voucherID)
+	if err != nil {
+		return 0, err
+	}
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return 0, err
+		}
+		ids = append(ids, id)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return 0, err
+	}
+	// The locks above serialize against concurrent applies: a settlement
+	// that committed first shows its applications here, and one that lands
+	// after sees cancelled rows and refuses.
+	var open int
+	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM athena_settlement_applications a
+		WHERE a.event = ? AND (
+			(a.settlement_voucher_type = ? AND a.settlement_voucher_id = ?) OR
+			EXISTS (SELECT 1 FROM athena_party_items i WHERE i.id = a.item_id
+				AND i.source_voucher_type = ? AND i.source_voucher_id = ?)
+		)
+		AND NOT EXISTS (SELECT 1 FROM athena_settlement_applications m WHERE m.reverses_application_id = a.id)`,
+		EventSubmit, voucherType, voucherID, voucherType, voucherID).Scan(&open); err != nil {
+		return 0, err
+	}
+	if open > 0 {
+		return 0, fmt.Errorf("%w: this voucher has %d unreversed settlement applications; reverse its settlements first", ErrInvalid, open)
+	}
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	result, err := tx.ExecContext(ctx, `UPDATE athena_party_items
+		SET residual_amount = 0, status = ?, revision = revision + 1
+		WHERE source_voucher_type = ? AND source_voucher_id = ? AND status = ?`,
+		ItemCancelled, voucherType, voucherID, ItemOpen)
+	if err != nil {
+		return 0, err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return 0, err
+	}
+	return int(affected), nil
 }
 
 // reverseFX unwinds one realised-FX post per submit revision the reversal
