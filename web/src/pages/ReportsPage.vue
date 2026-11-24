@@ -9,6 +9,7 @@ import ActionButton from '@/components/ActionButton.vue'
 import ConditionBuilder from '@/components/conditions/ConditionBuilder.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import EmptyState from '@/components/EmptyState.vue'
+import { ClipboardList, ListFilter } from '@/icons'
 import PageHeader from '@/components/PageHeader.vue'
 import ResponsiveDialog from '@/components/ResponsiveDialog.vue'
 import FormSection from '@/components/FormSection.vue'
@@ -322,6 +323,7 @@ async function confirmDelete() {
       <p v-else-if="listsFailed" class="text-destructive text-sm" role="alert">{{ listsFailed }}</p>
       <EmptyState
         v-else-if="lists.length === 0"
+        :icon="ClipboardList"
         title="No lists yet"
         :body="canManage ? 'Save a list to rerun a filter any time.' : 'A builder can save the first list.'"
       />
@@ -346,7 +348,7 @@ async function confirmDelete() {
         </div>
         <p v-if="runLoading && runRows.length === 0" class="text-muted-foreground text-sm">Running the list…</p>
         <p v-else-if="runFailed" class="text-destructive text-sm" role="alert">{{ runFailed }}</p>
-        <EmptyState v-else-if="runRows.length === 0" title="No matching records" body="Loosen the filter or add records." />
+        <EmptyState v-else-if="runRows.length === 0" :icon="ListFilter" title="No matching records" body="Loosen the filter or add records." />
         <Table v-else>
           <TableHeader>
             <TableRow>

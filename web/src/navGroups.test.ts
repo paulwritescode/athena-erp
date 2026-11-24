@@ -23,7 +23,7 @@ function fakeStorage(initial: Record<string, string> = {}) {
 
 describe('visibleBuildGroups', () => {
   it('orders §15 groups with Overview first and unheaded', () => {
-    const groups = visibleBuildGroups(true, ['rules:read', 'files:read', 'access:users', 'ledger:read'])
+    const groups = visibleBuildGroups(true, ['build', 'rules:read', 'files:read', 'access:users', 'ledger:read'])
     expect(groups.map((group) => group.label)).toEqual([null, 'Build', 'Operate', 'Administer'])
     expect(groups[0]?.entries.map((entry) => entry.key)).toEqual(['overview'])
     expect(groups[1]?.entries.map((entry) => entry.key)).toEqual(['record-types', 'packs', 'rules', 'files'])
