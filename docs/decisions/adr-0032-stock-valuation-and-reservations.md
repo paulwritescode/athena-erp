@@ -45,6 +45,7 @@ The beta plan left the valuation method and the negative stock policy open (Z3).
 - G11.7 implements the per-control-account stock-to-GL comparison with Integrity Log rows in `check.go`.
 - G11.8 pins Property 22 (stock value equals GL at every cutoff).
 - G11.9 adds `StockService` with gate policies, `athena stock balance|ledger|reserve|rebuild|check`, and the Desk stock-check view.
+- A return lands on the issue's bin; returning goods elsewhere is a return followed by a transfer.
 
 ## Revisit when
 

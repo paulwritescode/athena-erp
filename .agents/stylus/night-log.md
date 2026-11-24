@@ -678,3 +678,33 @@
 - 18:52 TICK: main ede4a20. C5s5 gate RUNNING ~15m. Review-passed not on main: C5s5 (gating), C7s6 (stacked on fix2).
 - 18:54 C2 TICKED (Stylus check): all acceptance merged (G8 1-6 + secrets 1-5, invite delivery, Jobs/Settings); provider/markers are F4/G18 scope. Goes in the pending docs commit.
 - 19:05 C5s5 MERGED: gate green exit 0, 24m (19 Go ok, 684/684 web, log 1124-183717). Rebased 0c4b59e->646cc6d onto post-C4s5 main conflict-free (posting tests vs secrets/ledger), identical, build+vet green; FF+pushed during F4 worker gate (rule covers merge gates only). Server restarted healthy (t75).
+- 19:06 CLOSED merge10 tree (/Users/iampaulking/projects/duchess/athena-erp-merge10) + branch merge/c5s5 (C5s5 merged).
+- 19:06 C5s5 docs pushed (9b1c070, incl C2s5+C4s5 summaries, C2 tick, bin/ticker).
+- 19:06 TICK: main 9b1c070 (C2s5+C4s5+C5s5+docs). F4 retry RUNNING. Review-passed not on main: C7s6 (stacked on fix2).
+- 19:12 TICK: main 9b1c070. F4 retry RUNNING ~10m. Review-passed not on main: C7s6 (stacked on fix2).
+- 19:22 TICK: main 9b1c070. F4 retry RUNNING ~20m. Review-passed not on main: C7s6 (stacked on fix2).
+- 19:24 Stylus ORDER: r-c7s5 stops duplicate stock ticket, verdicts conditional on w-c7 fix2 gate (cite/reuse on green). Relayed.
+- 19:26 F4 full suite GREEN (w-fu, 18/18 Go incl posting 663s/server 603s at -p 4, 686 web). Browser pass starting; slice-1 PASS follows.
+- 19:28 F7s3 E2E found REAL bug (CLI connector missing parseTime, DATE scan fails on real Workspaces; tests mask it). Scope QUESTION to Stylus (route vs authorize F7).
+- 19:30 Stylus RULING: w-f7 fixes parseTime in L6 (own commit, export EndpointConnector for ledgerService, test fails-before, own review, merges ahead of F7s3). Relayed.
+- 19:30 F4s1 PASS (w-fu, full suite + browser green, bottom-16 core). Spawning r-f4s1. NOTE: F4-builder merge fires L4 respawn trigger 2 (F3s2).
+- 19:32 r-f4s1 spawn BLOCKED on disk (6.4GB < 8GB floor); trees already clean. Holding until F4 retry ends, then go clean -cache + spawn (suite self-cleans at next acquisition regardless).
+- 19:36 go clean -cache ran (disk 6.3->11GB; r-ts2 compiles cold like a suite-clean run). r-f4s1 spawn retried.
+- 19:32 TICK: main 9b1c070. TS after-run queued priority. Review-passed not on main: C7s6 (stacked on fix2).
+- 19:36 TS slice-3 after-run GREEN exit 0: posting 13.7s vs 396.2s before (~29x, log 1124-193523). Spawning r-ts3 for slice-3 review.
+- 19:39 TS slice 3 rebased to b9b5f02+690a1a9 on 9b1c070 (identical); slice 4 held uncommitted. r-ts3 re-pointed.
+- 19:40 parseTime fix committed 3a26f4d (fail-before/pass-after verified, doctor ping-only confirmed, workspace untouched); affected queued. F7s3 stashed until fix merges.
+- 19:42 TSs3 REVIEW PASS (r-ts3, 5/5 sites, no weakening, 396.2->13.7s verified). STACKED on unmerged TSs2 (in review) — merges after it (train or sequential). AFTER-row amend at merge noted. r-ts3 CLOSED.
+- 19:44 C7s5 fix2 BLOCKED with counter-proposal (third-location return unpostable by design; enforcement pinned). QUESTION to Stylus: accept pin vs scope new design work. r-c7s5 verdict HELD for ruling.
+- 19:45 C7s7 PASS (w-c7, 471107e on 9b1c070, CheckStockToGL, affected green). Spawning r-c7s7; w-c7 to slice 8.
+- 19:46 Stylus RULING (a): fix2 counter-proposal ACCEPTED (same-bin design; ADR-0032 line recorded). r-c7s5 hold LIFTED, verdicting now.
+- 19:46 TICK: main 9b1c070. Fix2 hold lifted (verdict next). Review-passed not on main: C7s6 + TSs3 (both stacked).
+- 19:47 C7s5 FIX2 REVIEW PASS (r-c7s5, ruling accepted, pin real, gate green). Train = s5+fix1+fix2+s6 (docs car DROPPED: w-c7 paraphrased the ADR line; Stylus verbatim line kept in main tree instead).
+- 19:50 C10s2 rebased to 54430ee (conflicts keep-both, build green); fresh gate re-queued, no carry claimed.
+- 19:52 TICK: main 9b1c070. C7 train queued behind C5s6 full run. Review-passed not on main: C7 train (queued), TSs3 (stacked on s2).
+- 20:02 TICK: main 9b1c070. C7 train queued behind C5s6 full run. Review-passed not on main: C7 train (queued), TSs3 (stacked on s2).
+- 20:13 TICK: main 9b1c070. C7 train gate RUNNING (20:08). Review-passed not on main: C7 train (gating), TSs3 (stacked on s2).
+- 20:15 C7s8 committed 9f7b05b (Property 22 green 100/100; found+fixed 2 real bugs: LIFO cancel guards, value-sign legs). Gating.
+- 20:22 TICK: main 9b1c070. C7 train gate RUNNING ~14m. Review-passed not on main: C7 train (gating), TSs3 (stacked on s2).
+- 20:32 TICK: main 9b1c070. C7 train gate RUNNING ~24m. Review-passed not on main: C7 train (gating), TSs3 (stacked on s2).
+- 20:38 C7 train MERGED: gate green exit 0, 27m (19 Go ok all fresh, 684/684 web, log 1124-200805). FF fb22709+pushed. Server restarted healthy (t79).
