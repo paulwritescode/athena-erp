@@ -221,16 +221,13 @@ Usage:
       List committed events newest first, show one envelope, list outbox
       delivery rows, emit a dead delivery again as a fresh event (the dead
       row stays), and list the declared consumer subscriptions.
-<<<<<<< HEAD
   athena secrets save|rotate [--workspace slug] [--json]
       Register a secret reference (never a value) and rotate a key to a
       new active version from a 32-byte file, retiring the old one.
       rotate takes --key, --from and --key-dir ($ATHENA_SECRETS_DIR).
-=======
   athena lists export <id> --pdf [--out path] [--max-rows N] [--workspace slug]
       Render a saved list to PDF bytes (Workspace name, logo, title,
       filter and time in a repeated header).
->>>>>>> 15f6923 (feat(lists): F4 ListService CRUD/run/export + CLI export)
   athena rules list|show|save|rm|versions|simulate|runs [key] [--workspace slug] [--json]
       Manage Starlark Rules (validation, derivation, guard, transform, posting). Rules run
       at document events inside the save, through Go host functions only, under
