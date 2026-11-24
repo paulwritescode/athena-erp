@@ -66,6 +66,9 @@ const (
 	PermissionRulesRead = "rules:read"
 	// PermissionRulesWrite saves, deletes and simulates Rules. Treat it like build: a Rule runs on every matching save.
 	PermissionRulesWrite = "rules:write"
+	// PermissionListsSend queues list messages (Email/Message) from saved
+	// lists. Reading lists follows the Record Type's read Grant.
+	PermissionListsSend = "lists:send"
 	// PermissionLedgerRead lists the kernel's ledger masters.
 	PermissionLedgerRead = "ledger:read"
 	// PermissionLedgerWrite saves ledger masters, periods, rates, accounts,
@@ -84,7 +87,7 @@ const (
 )
 
 // SystemPermissions lists every system permission.
-var SystemPermissions = []string{PermissionBuild, PermissionAudit, PermissionFilesRead, PermissionFilesWrite, PermissionRulesRead, PermissionRulesWrite,
+var SystemPermissions = []string{PermissionBuild, PermissionAudit, PermissionFilesRead, PermissionFilesWrite, PermissionRulesRead, PermissionRulesWrite, PermissionListsSend,
 	PermissionLedgerRead, PermissionLedgerWrite, PermissionLedgerClose, PermissionAppearance, PermissionWorkspace, PermissionSecurity,
 	PermissionAccessOwnership, PermissionAccessUsers, PermissionAccessRoles, PermissionAccessAssign, PermissionAccessRecover, PermissionAccessSessions, PermissionAccessExplore}
 

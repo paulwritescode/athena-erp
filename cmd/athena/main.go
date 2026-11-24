@@ -184,7 +184,7 @@ Usage:
       --unlock and --display-name.
   athena role list|show|save|delete|assign|revoke|explain [name] [--workspace slug] [--json]
       Manage Roles and their Grants. "save --file role.json" takes a JSON
-      Role: system permissions (build, audit, files:read, files:write, rules:read, rules:write, ledger:read, ledger:write, ledger:close, settings:appearance, settings:workspace, settings:security, access:ownership, access:users, access:roles, access:assign, access:recover, access:sessions, access:explore) and Grants of actions
+      Role: system permissions (build, audit, files:read, files:write, rules:read, rules:write, lists:send, ledger:read, ledger:write, ledger:close, settings:appearance, settings:workspace, settings:security, access:ownership, access:users, access:roles, access:assign, access:recover, access:sessions, access:explore) and Grants of actions
       on a Record Type with a permission level and an optional row condition.
   athena access-log [--event name] [--limit N] [--workspace slug] [--json]
       Print sign-ins, failures, lockouts, denials and access changes.

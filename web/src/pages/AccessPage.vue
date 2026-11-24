@@ -718,6 +718,7 @@ const systemPermissionOptions = [
   'files:write',
   'rules:read',
   'rules:write',
+  'lists:send',
   'access:ownership',
   'access:users',
   'access:roles',
