@@ -4,7 +4,8 @@
 - Delta reviewed: `b3e9ca4..a69d8b3` ONLY (6 new files, all `internal/stock/**`, +2351). Slice 1 out of scope.
 - Reviewer: r-c7s2. Date: 2026-11-24.
 
-Verdict: NEEDS_CHANGES
+Verdict: NEEDS_CHANGES (first review at `a69d8b3`; re-review of fix tip
+`325cca0` below — see "Re-review" section for the final verdict).
 
 Three slice-scoped defects need fixes (empty cancel-edge kinds, concurrent-return
 over-return race, untested cancel/claim paths); the rest is sound and the tests
@@ -179,3 +180,52 @@ that exist are real asserts through the G6 engine.
 4. F4: document the mixed-voucher ordering contract (G6 post before
    quantity-only apply) in the seam comment; fix the stale "not scheduled in
    any C7 slice yet" line to name slice 11.
+
+## Re-review (fix tip `325cca0`, stack `fe222f2` s2 + `325cca0` fix on `6c871c9`)
+
+Re-review verdict: PASS.
+
+Verdict: PASS
+
+- Base check: `git diff a69d8b3 fe222f2 -- internal/stock` is EMPTY — the
+  restacked slice-2 base is content-identical to what the first review
+  passed over; only the fix commit below was judged fresh. Fix scope is
+  `internal/stock/{stock,bins,movements_test}.go` only (+220/−17).
+- F1 DONE: the three cancel planners now set `Kind` exactly as prescribed
+  (`"issue"` receipt-cancel consume, `"issue"` issue-cancel restore,
+  `"return"` return-cancel consume). Stored-kind asserts added:
+  `cancelEdgeKinds` helper; issue-cancel `[issue]` (existing test),
+  receipt-cancel `[issue]`, return-cancel `[return]`. No `kind=''` path
+  remains (grep: every `layerOp` literal now carries `Kind`).
+- F2 DONE: `loadStockRow` and both `sumPriorReturns` reads are `FOR UPDATE`
+  (verified in diff). Lock analysis: the first return's plan holds the issue
+  row lock across plan→apply→commit in the caller's tx, so a concurrent
+  second return blocks instead of deciding; once the winner commits, the
+  waiter's locking reads bypass the snapshot and see the winner's rows, so
+  `ErrOverReturn` holds. `TestConcurrentReturnsSerializeOnLocks` proves a
+  second in-flight plan gets lock-wait 1205, not a stale plan decision.
+  Characterization note (not blocking): the 1205 in that test fires at the
+  pre-existing bin lock, so the test guards in-flight serialization rather
+  than discriminating the new issue-row lock; the post-commit stale-snapshot
+  case is closed by the locking reads, verified in code. A stronger
+  deterministic test (establish txB's snapshot, commit txA's return, txB must
+  refuse) is possible and left as an optional follow-up.
+- F3 DONE: `TestQuantityOnlyCancelClaimsGroup` exercises the cancel
+  `claimGroup` branch (`withGL=false`: 1 cancel group, 0 GL rows, bin
+  zeroed); `TestReceiptCancelSuccess` (bin/layer/`consumed`/kind/GL asserts)
+  and `TestReturnCancelSuccess` (bin 60/600, residual 60, kind `[return]`,
+  GL 600) cover the remaining success paths. Suite is now 19 test funcs
+  (5 average + 14 movements).
+- F4 DONE: ordering contract in the package comment ("plan all lines, post
+  once, then apply all", naming the no-operation-row breakage), and the
+  wiring line now names slice 11.
+- Nits: replay-locking comment, nil-`Dialect` `duplicate()` guard (both call
+  sites), and bin `ItemType` check all done. Skipped nits match the review's
+  call exactly per the worker's report: `validDate` strictness (acceptable)
+  and mixed-`Valued` guard (slice 5).
+- `gofmt -l cmd internal` empty, `go build ./...` OK, `go vet ./...` OK at
+  `325cca0` (run in the re-review worktree).
+- Reviewer's affected at `325cca0`: GREEN — `ok internal/stock 343s`,
+  exit 0, stock-only plan (fix touches `internal/stock` only). First queue
+  attempt was stopped cleanly by a suite slot change (`gave-up`, no result);
+  fresh re-queue ran to green.

@@ -90,6 +90,8 @@ def is_full(c, lab):
     # Go test runs (full `make test` or scoped `go test` of the big packages) each use most of the
     # machine: two at once pushed internal/server and internal/posting past their 20 minute timeout.
     lab = lab or ""
+    # Every Go run is exclusive. Tried 2026-11-24 10:05: light Go runs beside a full suite pushed
+    # internal/auth (argon2), internal/posting and internal/server past their 20 minute timeout.
     return "make test" in c or "go test" in c or lab.startswith("affected: full") or \
         (lab.startswith("affected: Go:") and not lab.startswith("affected: Go: none"))
 

@@ -468,3 +468,58 @@
 - 09:57 C4/B7 to Stylus: B7 tick (8/8 verified + descope), C4 slice-5 briefed (L4 after F2)
 - 09:58 redirect applied: B7 tick queued, C4s5 -> L6 after F7s2, F3 briefed (L4 after F2s2, builder gated on F4 merge)
 - 10:01 MERGED C2s1 (65e59cc, 1150s gate) + server t64 healthy; 22 unblocks F4 DB; w-c2 -> slice 2
+- 10:05 TICK: w-f2 ~6m in, 22-land releases moving
+- 10:06 slot-1 light-Go rule: stopped r-c7s2 + w-c7 waits; both re-queueing fresh (fix first)
+- 10:06 w-fu rebased on 65e59cc (24 commits, dropped superseded search for F2s1, conflicts kept-both); DB gates next
+- 10:15 TICK: C7s2 PASS, train staged+gated, w-f2 ~16m in
+- 10:15 w-c2 secrets slice 2 at 57ad54b (package green), affected queued
+- 10:17 w-c7 FIX PASS re-gated (f68cf1d); re-review already PASS, train in motion
+- 10:18 C7 slice 4 PASS (f68cf1d); w-c7 -> slice 5; SPAWNED r-c7s4
+- 10:20 secrets slice 2 PASS (57ad54b); w-c2 -> slice 3; SPAWNED r-c2s2
+- 10:22 w-f2 full RED on env (20m timeouts, slot-1 sharing suspect); reported to Stylus (revert recommended); w-f2 rebasing + re-queueing
+- 10:22 secrets slice 3 PASS (bcb44e7); w-c2 -> slice 4; SPAWNED r-c2s3
+- 10:22 REVERTED (Stylus): Go exclusive slot 0 again, slot 1 web/browser; suite -> next docs push
+- 10:22 ERROR: w-f2 full timeouts (20m auth/posting/server) = contention under slot-1 sharing, not code
+- 10:23 r-c2s3 BLOCKED on cap (r-c5s3/r-f7s1/r-c7s4/r-c2s2 live); brief+tree ready, spawns on next verdict
+- 10:23 w-f2 rebased on 96acb15 (s1 dropped merged, s2 1087724 identical, disjoint); full re-queued
+- 10:23 C7s4 REVIEW PASS; CLOSED r-c7s4; SPAWNED r-c2s3; C7s4 merges after train
+- 10:25 F2s2 PASS (1087724); w-f2 -> F3s1 (fresh tree); SPAWNED r-f2s2 (t68)
+- 10:25 C2s2 REVIEW PASS; CLOSED r-c2s2; staged 1b42318 + gate queued
+- 10:28 F3s1 ruling: editor grant (Basics move + recordTypes), help variance, composer IN
+- 10:31 F2s2 REVIEW PASS; CLOSED r-f2s2; staged a4bde0e + gate queued
+- 10:31 C2s2+C2s3 stay sequential (stop cannot spare running train); s3 merges after s2
+- 10:31 w-c7 slice 5 code done (reserve/tracking/count + 15 tests); testing
+- 10:31 w-f2 F3s1 writing (ruling acked, scope mapped)
+- 10:36 server terminal vanished (process healthy orphan); relaunched t69, healthz ok
+- 10:41 w-c2 secrets slice 4 at f5cbe4d, affected queued
+- 10:43 TICK: train ~23m in (slow, cache-clean cost)
+- 10:44 w-c7 slice 5 fixes in, re-running tests, gate next
+- 10:45 TRAIN RED on contention (posting+server 20m panics, stock green 586s); w-c7 rogue full-stock run outside lock; rule broadcast to all
+- 10:45 ERROR: train gate timeout = w-c7 rogue run + cold cache, not code; re-queueing clean
+- 10:45 TICK: train RED contention, rogue kill ordered, KEEP r-c2s3
+- 10:47 w-c7 slice 5 committed (3eb2049, 17 tests); affected next; Stylus updated
+- 10:48 asked Stylus: merge C2s2+train on disjoint greens, or re-gate combination?
+- 10:48 w-f2 F3s1 code done (23 tests); sheet browser running
+- 10:49 disjoint-additive rule in MASTER.md (Stylus); C2s2+train merge on own greens
+- 10:55 TICK: C2s2 ~11m in
+- 10:58 w-f2 F3s1 browser caught real section-state bug (fixed + regression test); re-running pass
+- 11:00 F3s1 PASS (661bcef); SPAWNED r-f3s1; w-f2 holds for merges/reviews
+- 11:04 overdue check: C2s2 Go phase 4m in (healthy), F2s2 queued behind; both fine
+- 11:05 TICK: C2s2 ~21m in (watching timeouts), KEEP r-c2s3
+- 11:14 L7 live: CLOSED w-f2 (branches kept); SPAWNED w-ts (TS slice 0 measure-first)
+- 11:15 TICK: L7 live, C2s2 node repair running, KEEP r-c2s3; L4-rest defended to Stylus
+- 11:16 L4 rest accepted + 3rd trigger recorded (F3s1 PASS + unblocked item)
+- 11:17 shared-store rule in MASTER.md + broadcast; merge3 pre-warmed 13s
+- 11:17 w-ts slice 0 measuring (found prior unmerged TS report.md); r-f7s1 acked store rule
+- 11:17 store-rule ACKs: w-ts, w-f7 (both Go-only, no installs needed)
+- 11:18 store-rule ACK: r-c5s3 (no installs planned)
+- 11:18 store-rule ACK: w-c7 (Go-only, s5 gate in flight)
+- 11:18 w-ts measuring (auth first); interim: shared-DB TestMain already on main, slowness elsewhere
+- 11:23 store-rule ACK: w-fu (no reinstall needed, Go gates queued)
+- 11:25 TICK: F2s2 ~17m in
+- 11:35 TICK: F2s2 RED cold-cache, re-queued; KEEP r-c2s3
+- 11:38 DECIDED (Stylus) dropped 87 stale test_athena_* databases older than 2 h (3069 tables, from killed runs since 11-21); 13 recent left. Raised innodb_buffer_pool_size 128 MB -> 512 MB at runtime (not persisted). Reason: internal/posting test time grew from ~400-600 s (11-22) to ~1200 s (now), hitting the 20 m package timeout.
+- 11:38 Stylus fixed timeout cause (87 stale DBs dropped, pool 512MB); w-ts ordered: compare + TestMain cleanup + docs setting
+- 11:39 w-ts fold plan sound (measure pure, cleanup+docs to slice 1, mixed-auth caveat)
+- 11:43 TICK: train retry ~10m in post-fix
+- 11:46 MERGED C7 train (3272765, 703s retry) + server t6d healthy

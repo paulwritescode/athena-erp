@@ -1,4 +1,4 @@
-# Stylus night report — night shift, 2026-11-24 (main 65e59cc)
+# Stylus night report — night shift, 2026-11-24 (main 3272765)
 
 ## Summary
 
@@ -23,6 +23,7 @@ Shift 3 + night shift have merged 48 code commits plus docs batches: train1, tra
 - **C5 slice 2** (`6c871c9` → `929d3dd`, 1 commit): settlement open items + applications (locks, ceiling, unapplied cash). Review PASS. Merge gate 1124s (17 Go ok, 646 web).
 - **F2 slice 1** (`3e1bc9d` → `57e04c4`, 1 commit): server free-text match on ListRecords (hidden-safe, paged, escaped). Review PASS (disjoint-rule carry). Merge gate 1151s (17 Go ok, 646 web).
 - **C2 secrets slice 1** (`baf6a8b` → `65e59cc`, 2 commits): migration 22 (secret refs, key versions, disposal, holds) + ADR-0033 (Z4 exact). Review PASS. Merge gate 1150s (17 Go ok, 646 web). Unblocks F4's DB gates. Also: B7 ticked (verified + descope), C4 slice 5 briefed (L6 after F7s2), F3 briefed (L4 after F2s2).
+- **C7 train s2+fix+s3** (`96acb15` → `3272765`, 3 commits): stock core + 4-finding fix + cost deltas. Reviews PASS (re-review for the fix). Gate 703s (18 Go ok, 646 web) after a contention red (rogue run killed, DB fix halved times).
 
 ## In progress (by lane, main 72caec6)
 
