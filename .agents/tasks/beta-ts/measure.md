@@ -132,6 +132,22 @@ concurrent tests join; jobs disposal CREATE TABLE is Reset-dropped);
 server converts brand/shop/public/identity-x2, keeps `dead` handle, kinds
 legacy migration, sysmigrations x8, vocabulary rename (all with
 why-comments) + newIsolatedServices (already documented). gofmt+vet clean.
+
+| Run | Result |
+| --- | --- |
+| `affected` 8 pkgs (suite log 1124-225111, `-p 2` default), commit a0741da | GREEN exit 0, 607s slot: events 8.1s (was 655s), jobs 7.4s (was 653s), ledger 9.9s (was 857s), stock 32.3s (was 202-408s), posting 25.8s, server 228.2s (was 435-551s), auth 327.0s (was 639-657s — canary responding as the storm clears), cmd/athena 245.7s |
+
+Stylus train-vs-gate data (both `-p 2`): posting 853s -> 33s in full gate.
+
+## Slice 5 sketch: auth-waits + remaining DDL (ORDERED next)
+
+Auth has ZERO testdb.New (4 shared fixtures + OpenShared): its
+parallel-vs-alone gap is pure victim waiting. Remaining per-test DDL after
+slice 4: files 1 fixture, secrets 1 fixture (both hazard-free; secrets
+needs a Stylus order — in-flight lane), store migrate keepers,
+cmd/athena ~25 NewWithConfig sites (no TestMain; migrate_test is a
+migration-state keeper, rest need per-test shareability reads). Then the
+`-p 2` vs `-p 4` shootout on one full run each.
 - Slice 4 (ORDERED): ledger/jobs/events/stock in ONE commit, plus the 17
   testdb.New calls left in server (brand/identity/etc.). testdb.New kept
   ONLY for tests that change migration state, with a why-comment.
