@@ -42,6 +42,7 @@ This directory describes the product and the system as it exists and as decision
 - [ADR-0029: Trees, effective dating and UoM](decisions/adr-0029-trees-effective-dating-and-uom.md) — proposed: materialised tree paths, end-exclusive effective ranges, UoM families with exact factors; migration 18 seeds nothing.
 - [ADR-0030: Public pages and SEO](decisions/adr-0030-public-pages-and-seo.md) — proposed: server-rendered public routes from fixed projections, per-page SEO contract, noindex list, vitals budget; no new tables, no Desk changes.
 - [ADR-0031: Party ledger and settlements](decisions/adr-0031-party-ledger-and-settlements.md) — proposed: append-only party facts, mutable open items per instalment, append-only application edges; migration 20 seeds nothing; Z2 open.
+- [ADR-0032: Stock valuation and reservations](decisions/adr-0032-stock-valuation-and-reservations.md) — proposed: weighted-average stock ledger with layers, applications, bins, reservations, serial/batch identity and integrity log; migration 21 seeds nothing; Z2 open.
 - [ADR template](decisions/adr-template.md) — format for recording a consequential architecture decision.
 - [Project README](../README.md) — setup, run, build, and repository layout.
 

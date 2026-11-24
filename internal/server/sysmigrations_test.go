@@ -517,3 +517,131 @@ func TestPartyLedgerMigrationCreatesThePartyTables(t *testing.T) {
 		}
 	}
 }
+
+// TestStockLedgerMigrationCreatesTheStockTables builds a database the way
+// migration 20 leaves it, upgrades to migration 21 and checks the stock
+// ledger tables exist with their keys: append-only l_stock facts with item,
+// control, lot, serial, voucher and group indexes, append-only
+// l_stock_value cost deltas referencing the original rows, receipt layers
+// with one row per receipt, append-only item applications linking issues
+// to receipts, bin balances keyed by company, book, owner, item, location,
+// lot and serial, reservations with one hold per holder and bin, serials
+// with one row per unit, batches with one row per lot, integrity-log
+// entries and rebuild state. The tables start empty: layers, bins,
+// reservations, serials and batches are Workspace data the stock service
+// writes.
+func TestStockLedgerMigrationCreatesTheStockTables(t *testing.T) {
+	ctx := context.Background()
+	db := testdb.New(t)
+	if _, err := store.Up(ctx, db, dialect, SystemMigrations(), store.UpOptions{Target: 20}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Up(ctx, db, dialect, SystemMigrations(), store.UpOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	tables := map[string][]string{
+		"l_stock": {
+			"id", "company_name", "book", "owner", "item_type", "item_id",
+			"control_account_name", "location_name", "lot_no", "serial_no",
+			"base_uom", "qty_base", "value_base", "base_currency",
+			"movement_date", "posting_date", "dimensions",
+			"voucher_type", "voucher_id", "voucher_revision", "source_line_no",
+			"event", "posting_group_id", "is_reversal", "reversed_row_id",
+			"created_at",
+		},
+		"l_stock_value": {
+			"id", "company_name", "book", "stock_row_id", "item_type", "item_id",
+			"control_account_name", "delta_value", "on_hand_delta", "sold_delta",
+			"base_currency", "economic_date", "posting_date",
+			"voucher_type", "voucher_id", "voucher_revision", "source_line_no",
+			"event", "posting_group_id", "is_reversal", "reversed_row_id",
+			"created_at",
+		},
+		"athena_stock_layers": {
+			"id", "company_name", "book", "item_type", "item_id",
+			"location_name", "lot_no", "receipt_row_id", "base_uom",
+			"original_qty", "residual_qty", "unit_cost", "base_currency",
+			"status", "revision", "created_at", "updated_at",
+		},
+		"athena_item_applications": {
+			"id", "company_name", "book", "event", "kind", "issue_row_id",
+			"receipt_layer_id", "applied_qty", "applied_value", "base_currency",
+			"voucher_type", "voucher_id", "voucher_revision", "posting_group_id",
+			"is_reversal", "reverses_application_id", "created_at",
+		},
+		"athena_stock_bins": {
+			"company_name", "book", "owner", "item_type", "item_id",
+			"location_name", "lot_no", "serial_no", "base_uom", "on_hand",
+			"reserved_qty", "value_on_hand", "base_currency", "revision",
+			"created_at", "updated_at",
+		},
+		"athena_reservations": {
+			"id", "company_name", "book", "owner", "item_type", "item_id",
+			"location_name", "lot_no", "serial_no", "base_uom", "qty",
+			"status", "holder_type", "holder_id", "expires_at", "revision",
+			"created_at", "updated_at",
+		},
+		"athena_serials": {
+			"id", "company_name", "book", "item_type", "item_id", "serial_no",
+			"status", "owner", "location_name", "lot_no", "receipt_row_id",
+			"issue_row_id", "revision", "created_at", "updated_at",
+		},
+		"athena_batches": {
+			"id", "company_name", "book", "item_type", "item_id", "lot_no",
+			"expiry_date", "received_date", "status", "receipt_row_id",
+			"revision", "created_at", "updated_at",
+		},
+		"athena_integrity_log": {
+			"id", "company_name", "book", "check_name", "control_account_name",
+			"cutoff_date", "expected_value", "observed_value", "base_currency",
+			"owner", "status", "detail", "created_at",
+		},
+		"athena_stock_rebuilds": {
+			"id", "company_name", "book", "state", "watermark_row_id",
+			"started_at", "completed_at", "error",
+		},
+	}
+	for table, columns := range tables {
+		rows, err := db.QueryContext(ctx, `SELECT column_name FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ?`, table)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := map[string]bool{}
+		for rows.Next() {
+			var column string
+			if err := rows.Scan(&column); err != nil {
+				rows.Close()
+				t.Fatal(err)
+			}
+			got[column] = true
+		}
+		rows.Close()
+		if len(got) == 0 {
+			t.Errorf("table %s missing after migration 21", table)
+			continue
+		}
+		for _, column := range columns {
+			if !got[column] {
+				t.Errorf("table %s misses column %s after migration 21", table, column)
+			}
+		}
+		var count int
+		if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM `+table).Scan(&count); err != nil {
+			t.Fatal(err)
+		}
+		if count != 0 {
+			t.Errorf("table %s holds %d rows, want it empty: migration 21 seeds nothing", table, count)
+		}
+	}
+	for table, key := range map[string]string{
+		"athena_stock_layers": "uq_stock_layers_receipt",
+		"athena_reservations": "uq_reservations_hold",
+		"athena_serials":      "uq_serials_unit",
+		"athena_batches":      "uq_batches_lot",
+	} {
+		var name string
+		if err := db.QueryRowContext(ctx, `SELECT index_name FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = ? AND index_name = ? LIMIT 1`, table, key).Scan(&name); err != nil {
+			t.Errorf("unique key %s on %s missing after migration 21: %v", key, table, err)
+		}
+	}
+}
