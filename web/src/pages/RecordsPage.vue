@@ -67,7 +67,7 @@ export function postingPreviewBlocked(err: unknown): string | null {
 import { computed, nextTick, reactive, ref, watch } from 'vue'
 import { create } from '@bufbuild/protobuf'
 import { Code, ConnectError } from '@connectrpc/connect'
-import { ledgerClient, recordClient } from '../api'
+import { ledgerClient, listClient, recordClient } from '../api'
 import { keyMatchesRoute } from '../composables/useRecordTypes'
 import { docstates, fieldEditable, isCalculated, validateField, validateImageValue, validateManualName, type ImageFieldValue } from '../fieldRules'
 import { itemSpanClass, planSections, type PlannedSection } from '../forms/layout'
@@ -77,8 +77,11 @@ import { formatWhen, formatWhenFull } from '../times'
 import { FieldValueSchema, type ActivityEvent, type FieldChange, type FieldState, type Record as RecordMessage, type RecordEvent, type RecordVersion, type FieldValue } from '../gen/athena/v1/records_pb'
 import type { LedgerRow, PostingGroupStatus, PostingLogEntry, PostingPlan, PostingPlanLine } from '../gen/athena/v1/ledger_pb'
 import type { Field, RecordType } from '../types'
+import type { SavedList } from '../gen/athena/v1/lists_pb'
 import { Badge } from '@/components/ui/badge'
 import ActionButton from '@/components/ActionButton.vue'
+import ConditionBuilder from '@/components/conditions/ConditionBuilder.vue'
+import { builderFieldsFor, compileTree, isEmptyTree, parseConditionTree, type BuilderField, type ConditionTree, type TreeField } from '@/conditions'
 import type { ActionItem } from '@/components/actions'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import DataTable, { type TableFilter } from '@/components/DataTable.vue'
@@ -153,6 +156,84 @@ const filterText = ref('')
 const appliedQuery = ref('')
 const appliedFilter = ref('')
 const statusSelected = ref<string[]>([])
+// Advanced filter (F4): a builder-built tree compiled to the expression the
+// F2 seam ANDs with the Status choices. Saved lists apply one click by
+// loading their stored tree here.
+const advancedOpen = ref(false)
+const advancedDraft = ref<ConditionTree | null>(null)
+const advancedTree = ref<ConditionTree | null>(null)
+const advancedExpr = ref('')
+const advancedError = ref('')
+const savedLists = ref<SavedList[]>([])
+const appliedListId = ref('')
+const recordBuilderFields = computed<BuilderField[]>(() => builderFieldsFor(props.recordType?.fields ?? []))
+const recordBuilderVars = computed<Record<string, TreeField>>(() => {
+  const vars: Record<string, TreeField> = {}
+  for (const f of recordBuilderFields.value) vars[f.name] = { kind: f.kind, currency: f.currency, scale: f.scale }
+  return vars
+})
+
+function cloneTree(tree: ConditionTree | null): ConditionTree | null {
+  return tree ? (JSON.parse(JSON.stringify(tree)) as ConditionTree) : null
+}
+
+async function loadSavedLists() {
+  const type = props.recordType
+  savedLists.value = []
+  appliedListId.value = ''
+  if (!type) return
+  try {
+    const res = await listClient.listLists({ recordTypeKey: type.name, pageSize: 50 })
+    savedLists.value = res.lists.filter((list) => parseConditionTree(list.conditionTree) !== null)
+  } catch {
+    // The chips stay hidden; the lists still work on the Reports page.
+    savedLists.value = []
+  }
+}
+
+function openAdvanced() {
+  advancedDraft.value = cloneTree(advancedTree.value)
+  advancedError.value = ''
+  advancedOpen.value = true
+}
+
+function applyTree(tree: ConditionTree | null, listId: string) {
+  if (isEmptyTree(tree)) {
+    advancedTree.value = null
+    advancedExpr.value = ''
+    appliedListId.value = ''
+    advancedOpen.value = false
+    return
+  }
+  try {
+    advancedExpr.value = compileTree(tree as ConditionTree, recordBuilderVars.value)
+  } catch (err) {
+    advancedError.value = err instanceof Error ? err.message : 'That filter does not compile.'
+    return
+  }
+  advancedTree.value = cloneTree(tree)
+  appliedListId.value = listId
+  advancedOpen.value = false
+}
+
+function applyAdvanced() {
+  applyTree(advancedDraft.value, '')
+}
+
+function clearAdvanced() {
+  advancedTree.value = null
+  advancedExpr.value = ''
+  appliedListId.value = ''
+  advancedOpen.value = false
+}
+
+function applyList(list: SavedList) {
+  const tree = parseConditionTree(list.conditionTree)
+  if (!tree) return
+  advancedDraft.value = cloneTree(tree)
+  advancedError.value = ''
+  applyTree(tree, list.id)
+}
 let previewTimer: ReturnType<typeof setTimeout> | undefined
 let previewRequest = 0
 let lastPreview = ''
@@ -213,18 +294,21 @@ watch(() => props.recordType?.name, () => {
   appliedQuery.value = ''
   appliedFilter.value = ''
   statusSelected.value = []
+  advancedTree.value = null
+  advancedExpr.value = ''
   selectedIds.value = []
   knownRevisions.clear()
+  void loadSavedLists()
   void load(true)
 }, { immediate: true })
 
 // The search box sends free text as the list query; the table already waits
 // for a pause in typing, so it applies at once here. The expression
-// override stays separate: the Status choices now, the Advanced filter
-// later (F4). One watcher over both halves lists once per burst, and
-// applying skips when nothing changed.
+// override stays separate: the Status choices and the Advanced filter
+// (F4). One watcher over the halves lists once per burst, and applying
+// skips when nothing changed.
 function currentExpression(): string {
-  return combineRecordFilter('', statusSelected.value.map(Number).filter((state) => Number.isInteger(state)))
+  return combineRecordFilter(advancedExpr.value, statusSelected.value.map(Number).filter((state) => Number.isInteger(state)))
 }
 function applyListFilter() {
   const expression = currentExpression()
@@ -233,7 +317,7 @@ function applyListFilter() {
   appliedFilter.value = expression
   void load(true)
 }
-watch([filterText, statusSelected], applyListFilter)
+watch([filterText, statusSelected, advancedExpr], applyListFilter)
 function onFiltersChanged(next: TableFilter[]) {
   statusSelected.value = next.find((filter) => filter.id === 'status')?.selected ?? []
   applyListFilter()
@@ -1339,6 +1423,21 @@ function attemptDetail(entry: PostingLogEntry): string {
     <template v-else>
       <div class="view-head"><div><h1>{{ recordType.label }}</h1><p v-if="recordType.description" class="lead">{{ recordType.description }}</p></div><ActionButton v-if="canCreate" kind="primary" label="New record" icon="plus" @press="openRecord('new')" /></div>
       <PullToRefresh :refreshing="loading" @refresh="load(false)">
+        <div class="mb-3 flex flex-wrap items-center gap-2">
+          <ActionButton kind="secondary" density="row" label="Advanced filter" icon="list-filter" :counter="advancedExpr !== '' ? 1 : null" @press="openAdvanced" />
+          <button
+            v-for="list in savedLists"
+            :key="list.id"
+            type="button"
+            class="h-8 rounded-3xl border px-3 text-sm"
+            :class="list.id === appliedListId ? 'border-transparent bg-primary text-primary-foreground' : 'border-border text-muted-foreground'"
+            :aria-pressed="list.id === appliedListId"
+            @click="applyList(list)"
+          >
+            {{ list.name }}
+          </button>
+          <ActionButton v-if="advancedExpr !== ''" kind="quiet" density="row" label="Clear filter" icon="x" @press="clearAdvanced" />
+        </div>
         <DataTable
           :key="recordType.name"
           :columns="tableColumns"
@@ -1375,6 +1474,15 @@ function attemptDetail(entry: PostingLogEntry): string {
           </template>
         </DataTable>
       </PullToRefresh>
+      <ResponsiveDialog v-model:open="advancedOpen" title="Advanced filter" :wide="true">
+        <p class="text-muted-foreground mb-2 text-sm">Show {{ recordType.label }} records matching the conditions. Saved lists apply one click from the chips above.</p>
+        <ConditionBuilder v-model="advancedDraft" :fields="recordBuilderFields" />
+        <p v-if="advancedError" class="text-destructive mt-2 text-sm" role="alert">{{ advancedError }}</p>
+        <template #footer>
+          <ActionButton kind="quiet" density="row" label="Clear" icon="x" @press="clearAdvanced" />
+          <ActionButton kind="primary" density="row" label="Apply filter" icon="check" @press="applyAdvanced" />
+        </template>
+      </ResponsiveDialog>
       <ConfirmDialog
         v-model:open="confirmingBulkDelete"
         :title="selectedIds.length === 1 ? 'Delete this record?' : `Delete ${selectedIds.length} records?`"

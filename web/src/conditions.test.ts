@@ -2,7 +2,7 @@
 // internal/expr CompileTree for representative trees (the Go suite pins
 // every operator; these guard the mirror against drift).
 import { describe, expect, it } from 'vitest'
-import { builderFieldsFor, compileTree, OPERATORS_FOR_TYPE, type ConditionOp, type TreeCondition, type TreeField } from './conditions'
+import { builderFieldsFor, compileTree, isEmptyTree, OPERATORS_FOR_TYPE, parseConditionTree, type ConditionOp, type TreeCondition, type TreeField } from './conditions'
 
 const fields: Record<string, TreeField> = {
   'doc.name': { kind: 'string' },
@@ -98,5 +98,32 @@ describe('builderFieldsFor', () => {
       { name: 'status', label: 'Status', type: 'Enum', values: [{ value: 'open' }, { value: 'shut' }] },
     ])
     expect(out[0].choices).toEqual(['open', 'shut'])
+  })
+})
+
+// The list chips parse stored trees and treat an empty one as clearing.
+describe('parseConditionTree', () => {
+  it('reads a stored tree', () => {
+    const tree = parseConditionTree('{"root":{"all":true,"conditions":[{"field":"doc.name","op":"is","values":["x"]}]}}')
+    expect(tree?.root.conditions).toHaveLength(1)
+  })
+
+  it('returns null for corrupt text and wrong shapes', () => {
+    expect(parseConditionTree('nope')).toBeNull()
+    expect(parseConditionTree('{"root":null}')).toBeNull()
+    expect(parseConditionTree('[]')).toBeNull()
+  })
+})
+
+describe('isEmptyTree', () => {
+  it('treats null and bare groups as empty', () => {
+    expect(isEmptyTree(null)).toBe(true)
+    expect(isEmptyTree({ root: { all: true, conditions: [] } })).toBe(true)
+    expect(isEmptyTree({ root: { all: true, groups: [{ all: false }] } })).toBe(true)
+  })
+
+  it('spots a condition at any depth', () => {
+    expect(isEmptyTree({ root: { all: true, conditions: [{ field: 'doc.a', op: 'is' }] } })).toBe(false)
+    expect(isEmptyTree({ root: { all: true, groups: [{ all: true, conditions: [{ field: 'doc.a', op: 'is' }] }] } })).toBe(false)
   })
 })

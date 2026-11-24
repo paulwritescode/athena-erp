@@ -30,6 +30,27 @@ export interface ConditionTree {
   root: TreeGroup
 }
 
+// parseConditionTree reads a stored tree, or null when the text is not one
+// (a corrupt list still lists; it just never applies).
+export function parseConditionTree(text: string): ConditionTree | null {
+  try {
+    const parsed = JSON.parse(text) as ConditionTree
+    if (!parsed || typeof parsed !== 'object' || !parsed.root || typeof parsed.root !== 'object') return null
+    return parsed
+  } catch {
+    return null
+  }
+}
+
+// isEmptyTree is true when the tree holds no conditions anywhere: applying
+// it clears the filter instead of compiling.
+export function isEmptyTree(tree: ConditionTree | null): boolean {
+  if (!tree) return true
+  const walk = (group: TreeGroup): boolean =>
+    (group.conditions?.length ?? 0) === 0 && (group.groups ?? []).every(walk)
+  return walk(tree.root)
+}
+
 export type TreeFieldKind = 'string' | 'decimal' | 'money' | 'date' | 'bool' | 'int'
 
 export interface TreeField {
