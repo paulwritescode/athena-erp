@@ -1,8 +1,8 @@
-# Stylus night report — night shift, 2026-11-24 (main 2630dd3)
+# Stylus night report — night shift, 2026-11-24 (main 12ee455)
 
 ## Summary
 
-Shift 3 + night shift have merged 48 code commits plus docs batches: train1, train2, C4s3 + fix, C5s1 (migration 20 + ADR-0031), train3, C4s4, D3s5 (D3 COMPLETE), C2 split 4–6, train4 (C1 6.10 + FU batch 2 + FU-H harness), C7 slice 1 (migration 21 + ADR-0032), and the night-shift decisions docs (section Z all decided, ADR-0023 amended, Apache-2.0 LICENSE/NOTICE). C1 6.12 verified commitless. Six lanes, 2-slot suite (Go serialized slot 0 with DB-env guard, web/browser slot 1). The user server runs headless on the merged code. All lanes moving; F1 + F6 in the merge pipeline.
+Shift 3 + night shift have merged about 100 code commits plus docs batches: the full C2 (events/jobs + secrets) and C4 (ledger masters) tasks are COMPLETE and ticked, as are D3, F1, F2, F6; F4 slice 1 (builder conditions engine + lists service/PDF/CLI) and four test-speed slices (full gate 836s, posting 853s → 19s) are in. Six lanes plus L7 test-speed, 2-slot suite (Go serialized slot 0 with DB-env guard, web/browser slot 1; suite default -p 2). The user server runs headless on the merged code. All lanes moving; 6 workers + 4 reviewers live.
 
 ## Merged this shift
 
@@ -27,25 +27,39 @@ Shift 3 + night shift have merged 48 code commits plus docs batches: train1, tra
 - **F3 slice 1** (`8b0efdf` → `a82d934`, 1 commit): field sheet + sections + Basics move + selects + glossary (3 variances disclosed). Browser caught 1 real state bug (fixed). Review PASS. Merge gate 1223s (17 Go ok, 670 web; auth/posting/server finished together — the Argon2-starvation evidence).
 - **C2 secrets slice 2** (`276130a` → `4616729`, 1 commit): internal/secrets core (refs, file provider, versions, bound envelopes, redaction). Review PASS (4 advisories). Gate 32s (cached Go + fresh web 646) after a registry-flake red. Disjoint-additive merge per Stylus ruling.
 - **C7 slice 4** (`da19c31` → `2630dd3`, 1 commit): Property 21 append-only cost correction (rapid, byte-identical history). Review PASS. Merge gate 843s (18 Go ok, 646 web).
+- **C2 secrets slice 3 + F2 slice 2** (main `3cc6022`): Property 16 keys (100 iterations, mutation-checked) + Desk type-to-filter on Records (Find verb, 150ms debounce, E2E). Both reviews PASS. F2 COMPLETE and ticked.
+- **C5 slice 3** (main `5795830`): Property 11 allocation sums (both levels). Review PASS.
+- **TS slice 1** (main `6c871c9`): cheap Argon2 in auth TestMain + production pins; auth 1178s → 188s alone. Solo merge per Stylus order.
+- **C2 secrets slice 4 + F7 slice 1** (main `89cf82d`): disposal jobs (exact Z4; guest gap pending markers) + bare-athena registry menu. Reviews PASS. -p 4 stopgap starts.
+- **F7 slice 2** (main `eb04345`): athena doctor (5 checks, exit/JSON contract, no leak). Review PASS. Suite default -p 2.
+- **C5 slice 4** (main `43ded7c`): realised FX as plans + current-period reversals (no sentinels). Review PASS.
+- **C2 secrets slice 5 + C4 slice 5 + C5 slice 5** (main `9b1c070`): secrets CLI; tree/uom CLI + determination as-of + Desk flags; Property 12 party-equals-control. Reviews PASS. C2 + C4 COMPLETE and ticked. C5s5's rapid .fail ruled debris (removed in C5s6).
+- **C7 train s5+fix+fix2+s6** (main `74d242d`, 4 commits): reservations/serial/FEFO/counts + re-hold revive + same-bin pin + Property 23. Reviews PASS (fix2 counter-proposal accepted by Stylus ruling (a): same-bin returns are the design; ADR-0032 line recorded).
+- **parseTime fix + TS train s2+s3** (main `f1fb4a0`): CLI ledger via EndpointConnector (ParseTime+UTC; found by F7s3 E2E) + stamped DB names/sweep + posting shared-DB (396s → 14s). Reviews PASS.
+- **F4 slice 1** (main `9cb58bd`, 17 commits): builder conditions engine (tree codec Go+TS, date(), eval/sets/simulate), Rules Builder modes (migration 24), lists service + gopdf PDF + CLI export + Desk UI + QueueMessages. gopdf v0.38.6 cleared after maroto failed the size budget (+15MB vs +1.2MB). Review PASS. Gate 1448s.
+- **CLI markers fix** (`ff18cb2`): F4s1 merge had left conflict markers in help text (compiled + passed tests; spotted by w-c1). Keep-both, build+vet green.
+- **TS slice 4** (main `12ee455`, 2 commits): shared-DB for ledger/jobs/events/stock + server stragglers. Review PASS. Gate 836s: posting 18.8s (was 853), server 223s, ledger 7.5s, jobs 11.6s, events 16.4s, stock 32.6s; auth 532s still the pole.
 
-## In progress (by lane, main 72caec6)
+## In progress (by lane, main 12ee455)
 
-- **L1 Books and posting:** w-c1 on C5 slice 2 (settlement.go, gating); C1 slice 7 (Z2 policy) briefed, queued after C5s2, C1 ticks on its merge.
-- **L2 Jobs, events, integration:** 21 landed — w-c2 adding migration 22 + gating secrets slice 1. C10 after secrets.
-- **L3 Masters and Packs:** C7 slice 2 + fix in re-review (r-c7s2 at fix tip 325cca0); slice 3 REVIEW PASS (merges after slice 2); w-c7 on slice 4 (Property 21 committed, gating); slice 11 wiring briefed.
-- **L4 Desk, first run, access:** F1 MERGED; w-f2 starting F2 type-to-filter (server free-text match + Desk search; Advanced-filter via F4 deferred).
-- **L5 Quality:** w-fu on F4 slice 1 (design committed 8651183; maroto v2.4.4 conditionally cleared with licence/size diligence; migration-23 DB gates held for 22).
-- **L6 Night asks:** F6 NEEDS_CHANGES (one-line step-ms) fixed, r-f6 re-reviewing; w-f7 on F7 slice 1 (gating). F8 waits for the tap-owner answer.
+- **L1 Books and posting:** C5 slice 6 backend PASS (d1923c5, r-c5s6 reviewing); w-c1 on slice 8 (open-item creation + ADR-0031 amend, voucher-scoped sourcing ruled). Slice 7 Desk panel waits for F4s2; slice 9 fixture+docs; C1 slice 7 (Z2) after C5.
+- **L2 Jobs, events, integration:** RESTING per Stylus L4-cap ruling (w-c2 stood down; C10s2 `47dd6e4` with r-c10s2). C10 migration 25 unblocked (23/24 merged) when w-c2 respawns.
+- **L3 Masters and Packs:** C7s7 fix with r-c7s7; C7s8 PASS `94b3aab` with r-c7s8; w-c7 on slice-9 backend (proto+server+CLI green, Desk page next, RecordsPage held for F4s2). Slice 11 wiring after.
+- **L4 Desk:** F3 slice 2 PASS `804c9fa` (compact builder per condition, browser green); review queued (reviewers at cap). w-f2 holding.
+- **L5 Quality:** F4 slice 2 built (Advanced filter + saved-list chips on RecordsPage, web 728 + browser green, Go queued); owns RecordsPage until merge. F4s3 + FU batch 3 after.
+- **L6 Pilot and shipping:** F7 slice 3 `2ac54d1` (completions + help + E2E 132/132) gating. F7 ticks on merge; F8 waits for tap owner.
+- **L7 Test speed:** w-ts on slice 5 (auth-waits probe sampled the TSs4 gate; files/cmd DDL survey done, read-only). Then -p shootout + GO_TEST_P.
 
 ## Blocked and why
 
-- Migration 23 (F4) waits for 22 (w-c2 gating slice 1 now). Hours, not stuck.
-- F7's menu cannot list backups (no backup command on main) — flagged for the slice verdict.
 - F8 waits for the user's tap-owner answer.
+- C10 slice 3 waits for a free worker slot (L2 rested for the L4 cap).
+- C5 slice 7 + C7 slice 9 RecordsPage touches wait for F4s2's merge (F4s2 owns RecordsPage).
+- Reviewer cap 4/4: F3s2 review queued; spawns on the next verdict. Disk hovers near the 8GB spawn floor (suite self-cleans at Go acquisition).
 
 ## Questions for the user
 
-Z10 licence — Satori is Personal-Use trial only (no licence/binaries in repo): buy a web licence or relent (interim: system stack on public pages, Desk loads Satori via local() only). F8 Homebrew tap owner. Notifications full-list page design. Copyright holder for LICENSE/NOTICE (interim: 'Copyright 2026 Athena contributors'; user to confirm). (Second suite slot: moot — slot classes hold.)
+Z10 licence — Satori is Personal-Use trial only (no licence/binaries in repo): buy a web licence or relent (interim: system stack on public pages, Desk loads Satori via local() only). F8 Homebrew tap owner. Notifications full-list page design. Copyright holder for LICENSE/NOTICE (interim: 'Copyright 2026 Athena contributors'; user to confirm).
 
 ## Errors and how they were handled
 
@@ -56,7 +70,13 @@ Z10 licence — Satori is Personal-Use trial only (no licence/binaries in repo):
 - Two C7s1 merge gates ran hollow (no .env.local in the fresh staging tree): caught pre-merge by package timings, voided, full-night audit run, real 1042s re-gate green; suite now refuses Go runs without DB env; MASTER.md staging rule fixed.
 - `make restart` from a managed session owned the user server (t5f died): server moved to hc terminal `athena-server` (no-parent/outlive, node PATH); MASTER.md merge rule now names the hc procedure; ~1 min downtime.
 - Stale ticks + future-dated log lines: re-derive every tick from log tail + locks; timestamps from `date`, verified against comms.jsonl.
+- Rogue direct `go test` during a gate (w-c7) + stale worktree `suite -p 8` (w-fu): suite-only rule + absolute main-repo tool paths broadcast; narrow -run <1min only.
+- npm registry flakes: shared pnpm store via CACHE_DIR on all gates.
+- Cold-cache 20m posting/server timeouts root-caused (Argon2 CPU starvation → -p 8→4→2 stopgaps → per-test DDL fsync storm found via probe): TS slices 1–4 are the structural fix (posting 853s → 19s in full runs).
+- mid-run `go clean -cache` red + disk-floor spawn refusals: ticker + suite self-clean at slot boundaries only; merged trees removed after every merge.
+- Unlogged worktree removals (merge9/c5-s5-r, ts-s4-r): main verified intact; forward rule is log every removal as CLOSED with path.
+- Conflict markers shipped inside a Go string by the F4s1 rebase (compiled + passed all tests): fixed in `ff18cb2`; suite now refuses Go runs on marked trees; marker-grep added to the merge checklist.
 
 ## Next up
 
-F1 merge; F6 merge on re-review PASS; secrets slice-1 review + merge (unblocks F4's DB gates); C5s2/C7s2/F7s1 reviews; F4 slice 1 (PDF diligence); C10; F8 needs tap owner.
+First review verdict (C5s6/C7s7/C10s2/C7s8) → tip gate → merge; F3s2 review; F7s3/F4s2-Go/C5s8 gates; F4s2 merge unblocks C5s7 + C7s9 RecordsPage; C10 slice 3 on a free slot; slice 5 + -p shootout; F8 needs tap owner.
