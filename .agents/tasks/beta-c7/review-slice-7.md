@@ -1,6 +1,18 @@
 # Review: C7 slice 7 stock-to-GL check (11.7)
 
-Verdict: NEEDS_CHANGES
+Verdict: PASS
+
+Re-verification of the slice-7 FIX at `91ea6ed` (on rebased s7 `9b227d2`): the fix
+delta is comment-only (`internal/stock/check.go`, 2 lines) and now reads "or the
+reused identical open row; `""` when the account matched" — matching the implemented
+and tested reuse behavior. `check.go`/`check_test.go` are byte-identical between the
+originally reviewed `471107e` and rebased `9b227d2`, so the rebase touched nothing
+under review. Gates re-run on `91ea6ed`: `gofmt -l cmd internal` empty,
+`go build ./...` ok, `go vet ./internal/stock/` ok, `affected` green
+(`ok athena-erp/internal/stock 268.421s`). The one NEEDS_CHANGES item is resolved;
+all five brief items hold.
+
+Original review below (superseded verdict: NEEDS_CHANGES):
 
 Tree: `athena-erp-c7-s7-r`, detached at `471107e` (on `9b1c070`), clean except the
 review-required `.env.local` copy. Slice-7 delta (`8fc3f90..471107e`) is
