@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import type { Field, RecordType } from '../types'
 import {
+  builderFieldsFor,
+  builderKindFor,
   changeType,
   childTypesOf,
+  compileConditionTree,
   composeTotal,
   fieldNameFromLabel,
   forgetSavedFields,
@@ -121,5 +124,35 @@ describe('totals composer', () => {
   it('targets numeric and money fields only', () => {
     for (const type of ['Number', 'Currency', 'Money', 'Quantity']) expect(isTotalTarget(type)).toBe(true)
     for (const type of ['Text', 'Date', 'Checkbox', 'Link', 'Enum']) expect(isTotalTarget(type)).toBe(false)
+  })
+})
+
+describe('condition builder mapping', () => {
+  it('maps field types to compile kinds like the server', () => {
+    for (const type of ['Number', 'Currency', 'Quantity']) expect(builderKindFor(type)).toBe('decimal')
+    expect(builderKindFor('Money')).toBe('money')
+    expect(builderKindFor('Date')).toBe('date')
+    expect(builderKindFor('Checkbox')).toBe('bool')
+    for (const type of ['Text', 'Long text', 'Email', 'Phone', 'Select', 'Enum', 'Link', 'Image']) expect(builderKindFor(type)).toBe('string')
+  })
+
+  it('qualifies sibling names and carries choices for autocomplete', () => {
+    const fields = builderFieldsFor([
+      field({ name: 'status', label: 'Status', type: 'Enum', values: [{ value: 'open', label: 'Open' }, { value: 'paid', label: 'Paid' }] }),
+      field({ name: 'total', label: 'Total', type: 'Money', currency: 'USD', scale: 2 }),
+    ])
+    expect(fields).toEqual([
+      { name: 'doc.status', label: 'Status', type: 'Enum', kind: 'string', currency: undefined, scale: undefined, choices: ['open', 'paid'] },
+      { name: 'doc.total', label: 'Total', type: 'Money', kind: 'money', currency: 'USD', scale: 2, choices: undefined },
+    ])
+  })
+
+  it('compiles a tree to a field expression and blanks empty or unfinished trees', () => {
+    const fields = builderFieldsFor([field({ name: 'qty', label: 'Qty', type: 'Number' })])
+    expect(compileConditionTree(null, fields)).toBe('')
+    expect(compileConditionTree({ root: { all: true, conditions: [] } }, fields)).toBe('')
+    expect(compileConditionTree({ root: { all: true, conditions: [{ field: 'doc.qty', op: 'more_than', values: [] }] } }, fields)).toBe('')
+    expect(compileConditionTree({ root: { all: true, conditions: [{ field: 'doc.qty', op: 'more_than', values: ['2'] }] } }, fields)).toBe(`doc.qty > dec('2')`)
+    expect(compileConditionTree({ root: { all: true, conditions: [{ field: 'doc.nope', op: 'is', values: ['x'] }] } }, fields)).toBe('')
   })
 })

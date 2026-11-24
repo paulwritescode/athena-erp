@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import type { Field, RecordType } from '../types'
 import ActionButton from '@/components/ActionButton.vue'
 import DetailSheet from '@/components/DetailSheet.vue'
+import ConditionBuilder from '@/components/conditions/ConditionBuilder.vue'
+import type { ConditionTree } from '@/conditions'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Input } from '@/components/ui/input'
@@ -12,8 +14,10 @@ import { ChevronDown } from '@/icons'
 import { gloss } from '@/copy/glossary'
 import { validateExpressionText } from '../fieldRules'
 import {
+  builderFieldsFor,
   changeType,
   childTypesOf,
+  compileConditionTree,
   composeTotal,
   fieldTypes,
   isTotalTarget,
@@ -35,6 +39,77 @@ const patterned = computed(() => ['Text', 'Long text', 'Phone'].includes(type.va
 const lengthLimited = computed(() => ['Text', 'Long text', 'Email', 'Phone'].includes(type.value))
 
 const siblings = computed(() => props.recordTypes.find((item) => item.name === props.currentTypeName)?.fields ?? [])
+
+// The four boolean conditions each offer the F4 builder beside a written
+// input, like the Rules page modes. The field holds the stored
+// expression; the builder compiles live into it, and an empty or
+// unfinished builder stores nothing. Written text is kept while the
+// builder is open: leaving Written with text the tree cannot show drops
+// the stale tree, and coming back with an empty builder restores the
+// kept text — so a peek never loses it. A finished build supersedes the
+// kept text. The formula stays written-only: the builder emits
+// true-or-false conditions, which a formula cannot hold.
+const conditionInputs = [
+  { name: 'required_if', label: 'Required when', id: 'fs-required-if', placeholder: 'doc.is_credit', help: 'Must be filled in while this is true.' },
+  { name: 'read_only_if', label: 'Read only when', id: 'fs-read-only-if', placeholder: 'doc.paid', help: 'Cannot be changed while this is true.' },
+  { name: 'validate', label: 'Must be true', id: 'fs-validate', placeholder: 'doc.rate >= dec(0)', help: 'Saving stops unless this is true.' },
+  { name: 'depends_on', label: 'Show when', id: 'fs-depends-on', placeholder: 'doc.is_stock_item', help: 'The desk hides the field while this is false.' },
+] as const
+type ConditionName = (typeof conditionInputs)[number]['name']
+const condMode = reactive<Record<string, 'builder' | 'text'>>({})
+const condTrees = reactive<Record<string, ConditionTree | null>>({})
+const condTexts = reactive<Record<string, string>>({})
+const builderFields = computed(() => builderFieldsFor(siblings.value))
+
+function resetConditions() {
+  for (const input of conditionInputs) {
+    condTexts[input.name] = props.field?.[input.name] ?? ''
+    condTrees[input.name] = null
+    condMode[input.name] = condTexts[input.name] ? 'text' : 'builder'
+  }
+}
+
+function compiledTree(name: ConditionName): string {
+  return compileConditionTree(condTrees[name] ?? null, builderFields.value)
+}
+
+function mirrorCondition(name: ConditionName) {
+  if (!props.field) return
+  const compiled = compiledTree(name)
+  if (condMode[name] === 'builder') {
+    if (compiled === '') delete props.field[name]
+    else props.field[name] = compiled
+  } else if (compiled === '') {
+    setExpression(name, condTexts[name] ?? '')
+  } else {
+    props.field[name] = compiled
+  }
+}
+
+function setTree(name: ConditionName, tree: ConditionTree) {
+  condTrees[name] = tree
+  if (compiledTree(name) !== '') condTexts[name] = ''
+  mirrorCondition(name)
+}
+
+function setConditionText(name: ConditionName, value: string | number) {
+  condTexts[name] = String(value)
+  setExpression(name, value)
+}
+
+function switchConditionMode(name: ConditionName, mode: 'builder' | 'text') {
+  if (!props.field || condMode[name] === mode) return
+  if (mode === 'builder' && (props.field[name] ?? '') !== compiledTree(name)) condTrees[name] = null
+  condMode[name] = mode
+  mirrorCondition(name)
+}
+
+// Written text the builder is not currently showing.
+function keptText(name: ConditionName): boolean {
+  const kept = (condTexts[name] ?? '').trim()
+  if (kept === '') return false
+  return kept !== compiledTree(name)
+}
 
 // Basics open; Rules and Advanced start collapsed.
 const basicsOpen = ref(true)
@@ -117,7 +192,7 @@ function syncChoiceText() {
   choiceText.value = (props.field?.values ?? []).map((choice) => `${choice.value}: ${choice.label}`).join('\n')
 }
 // The opener keeps this component mounted while it swaps fields, so a new
-// field resets the sections and the totals picks.
+// field resets the sections, the totals picks and the condition editors.
 watch(() => props.field, () => {
   syncChoiceText()
   basicsOpen.value = true
@@ -127,6 +202,7 @@ watch(() => props.field, () => {
   totalChild.value = ''
   totalField.value = ''
   resetTotalPicks()
+  resetConditions()
 }, { immediate: true })
 
 function editChoices(text: string) {
@@ -270,10 +346,20 @@ function onOpenChange(open: boolean) {
               <div><ActionButton kind="secondary" density="row" label="Use this total" icon="plus" @press="useTotal" /></div>
             </div>
             <div v-if="type !== 'Link' && type !== 'Image'" class="settings-field is-wide"><Label for="fs-formula">{{ gloss('fieldFormula').label }}</Label><Input id="fs-formula" :model-value="field.formula ?? ''" class="font-mono" placeholder="doc.qty * doc.rate" spellcheck="false" autocomplete="off" autocapitalize="off" :aria-invalid="expressionProblem('formula') ? 'true' : undefined" @update:model-value="setExpression('formula', $event)" /><p v-if="expressionProblem('formula')" class="field-error">{{ expressionProblem('formula') }}</p><p v-else class="settings-note">{{ gloss('fieldFormula').explanation }} It cannot use the current date or time.</p></div>
-            <div class="settings-field is-wide"><Label for="fs-required-if">Required when</Label><Input id="fs-required-if" :model-value="field.required_if ?? ''" class="font-mono" placeholder="doc.is_credit" spellcheck="false" autocomplete="off" autocapitalize="off" :aria-invalid="expressionProblem('required_if') ? 'true' : undefined" @update:model-value="setExpression('required_if', $event)" /><p v-if="expressionProblem('required_if')" class="field-error">{{ expressionProblem('required_if') }}</p><p v-else class="settings-note">Must be filled in while this is true.</p></div>
-            <div class="settings-field is-wide"><Label for="fs-read-only-if">Read only when</Label><Input id="fs-read-only-if" :model-value="field.read_only_if ?? ''" class="font-mono" placeholder="doc.paid" spellcheck="false" autocomplete="off" autocapitalize="off" :aria-invalid="expressionProblem('read_only_if') ? 'true' : undefined" @update:model-value="setExpression('read_only_if', $event)" /><p v-if="expressionProblem('read_only_if')" class="field-error">{{ expressionProblem('read_only_if') }}</p><p v-else class="settings-note">Cannot be changed while this is true.</p></div>
-            <div class="settings-field is-wide"><Label for="fs-validate">Must be true</Label><Input id="fs-validate" :model-value="field.validate ?? ''" class="font-mono" placeholder="doc.rate >= dec(0)" spellcheck="false" autocomplete="off" autocapitalize="off" :aria-invalid="expressionProblem('validate') ? 'true' : undefined" @update:model-value="setExpression('validate', $event)" /><p v-if="expressionProblem('validate')" class="field-error">{{ expressionProblem('validate') }}</p><p v-else class="settings-note">Saving stops unless this is true.</p></div>
-            <div class="settings-field is-wide"><Label for="fs-depends-on">Show when</Label><Input id="fs-depends-on" :model-value="field.depends_on ?? ''" class="font-mono" placeholder="doc.is_stock_item" spellcheck="false" autocomplete="off" autocapitalize="off" :aria-invalid="expressionProblem('depends_on') ? 'true' : undefined" @update:model-value="setExpression('depends_on', $event)" /><p v-if="expressionProblem('depends_on')" class="field-error">{{ expressionProblem('depends_on') }}</p><p v-else class="settings-note">The desk hides the field while this is false.</p></div>
+            <div v-for="input in conditionInputs" :key="input.name" class="settings-field is-wide" :data-testid="`condition-${input.name}`">
+              <div class="flex items-center justify-between gap-2">
+                <Label :for="condMode[input.name] === 'text' ? input.id : undefined">{{ input.label }}</Label>
+                <div class="flex items-center gap-1" role="group" :aria-label="`${input.label} editor`">
+                  <button type="button" class="h-7 rounded-3xl border px-2.5 text-xs" :class="condMode[input.name] === 'builder' ? 'border-transparent bg-primary text-primary-foreground' : 'border-border text-muted-foreground'" :aria-pressed="condMode[input.name] === 'builder'" @click="switchConditionMode(input.name, 'builder')">Builder</button>
+                  <button type="button" class="h-7 rounded-3xl border px-2.5 text-xs" :class="condMode[input.name] === 'text' ? 'border-transparent bg-primary text-primary-foreground' : 'border-border text-muted-foreground'" :aria-pressed="condMode[input.name] === 'text'" @click="switchConditionMode(input.name, 'text')">Written</button>
+                </div>
+              </div>
+              <ConditionBuilder v-if="condMode[input.name] === 'builder'" :model-value="condTrees[input.name] ?? null" :fields="builderFields" compact @update:model-value="setTree(input.name, $event)" />
+              <Input v-else :id="input.id" :model-value="field[input.name] ?? ''" class="font-mono" :placeholder="input.placeholder" spellcheck="false" autocomplete="off" autocapitalize="off" :aria-invalid="expressionProblem(input.name) ? 'true' : undefined" @update:model-value="setConditionText(input.name, $event)" />
+              <p v-if="condMode[input.name] === 'text' && expressionProblem(input.name)" class="field-error">{{ expressionProblem(input.name) }}</p>
+              <p v-else class="settings-note">{{ input.help }}</p>
+              <p v-if="condMode[input.name] === 'builder' && keptText(input.name)" class="settings-note">A written version is kept — switch back to Written to keep it.</p>
+            </div>
           </div>
         </CollapsibleContent>
       </Collapsible>

@@ -1,7 +1,9 @@
 // Field editing shared by the Record Type editor table and the field
 // settings sheet (F3): new-field tracking, label-to-key derivation, type
-// changes, and the totals composer over child numeric fields.
+// changes, the totals composer over child numeric fields, and the F4
+// condition-builder mapping for the sheet's Rules section.
 import { reactive } from 'vue'
+import { compileTree, type BuilderField, type ConditionTree, type TreeField } from '@/conditions'
 import { snakeKey } from '@/components/record-types/recordTypeKeys'
 import type { Field, RecordType } from '../types'
 
@@ -83,4 +85,38 @@ export function totalSourceFields(fields: Field[], targetType: string): Field[] 
 /** sum(doc.lines.amount) from picks. */
 export function composeTotal(fn: string, childKey: string, fieldKey: string): string {
   return `${fn}(doc.${childKey}.${fieldKey})`
+}
+
+/** Compile kind of a field's values; mirrors the server's exprKind and the Rules page mapping. */
+export function builderKindFor(type: string): TreeField['kind'] {
+  if (type === 'Number' || type === 'Currency' || type === 'Quantity') return 'decimal'
+  if (type === 'Money') return 'money'
+  if (type === 'Date') return 'date'
+  if (type === 'Checkbox') return 'bool'
+  return 'string'
+}
+
+/** Sibling fields as builder fields: doc-qualified names compile straight into field expressions. */
+export function builderFieldsFor(fields: Field[]): BuilderField[] {
+  return fields.map((f) => ({
+    name: `doc.${f.name}`,
+    label: f.label,
+    type: f.type,
+    kind: builderKindFor(f.type),
+    currency: f.currency,
+    scale: f.scale,
+    choices: f.values?.map((c) => c.value),
+  }))
+}
+
+/** Compiled expression for a builder tree, or '' when the tree is empty or unfinished. */
+export function compileConditionTree(tree: ConditionTree | null, fields: BuilderField[]): string {
+  if (!tree) return ''
+  const vars: Record<string, TreeField> = {}
+  for (const f of fields) vars[f.name] = { kind: f.kind, currency: f.currency, scale: f.scale }
+  try {
+    return compileTree(tree, vars)
+  } catch {
+    return ''
+  }
 }

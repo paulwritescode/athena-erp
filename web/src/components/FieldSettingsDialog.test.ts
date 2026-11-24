@@ -126,6 +126,25 @@ async function setInput(input: HTMLInputElement, value: string) {
   await flush()
 }
 
+function conditionBlock(name: string): HTMLElement {
+  const found = document.querySelector(`[data-testid="condition-${name}"]`)
+  if (!found) throw new Error(`no condition block ${name}`)
+  return found as HTMLElement
+}
+
+async function switchEditor(name: string, editor: 'Builder' | 'Written') {
+  const group = conditionBlock(name).querySelector('[role="group"]')
+  const button = [...(group?.querySelectorAll('button') ?? [])].find((item) => item.textContent === editor)
+  if (!button) throw new Error(`no ${editor} toggle for ${name}`)
+  click(button)
+  await flush()
+}
+
+function setSelect(select: HTMLSelectElement, value: string) {
+  select.value = value
+  select.dispatchEvent(new Event('change', { bubbles: true }))
+}
+
 describe('field settings sheet', () => {
   it('opens Basics with Rules and Advanced collapsed', async () => {
     stubMatchMedia(false)
@@ -214,9 +233,94 @@ describe('field settings sheet', () => {
     const { state } = await mountSheet(testField())
     click(sectionTrigger('Rules for this field'))
     await flush()
+    await switchEditor('validate', 'Written')
     await setInput(document.querySelector('#fs-validate') as HTMLInputElement, `doc.ok && '${'x'.repeat(1000)}'`)
     expect(state.validate).toContain('doc.ok')
     expect(document.querySelector('.field-error')?.textContent).toContain('at most 1000 characters')
+  })
+
+  it('builds a condition into the stored expression', async () => {
+    stubMatchMedia(false)
+    const { state } = await mountSheet(testField({ name: 'qty', label: 'Qty', type: 'Number' }), { currentTypeName: 'line' })
+    click(sectionTrigger('Rules for this field'))
+    await flush()
+    const block = conditionBlock('required_if')
+    expect(block.querySelector('[data-testid="condition-builder"]')).not.toBeNull()
+    expect(block.querySelector('#fs-required-if')).toBeNull()
+    const add = [...block.querySelectorAll('button')].find((button) => (button.textContent ?? '').includes('Add condition'))
+    if (!add) throw new Error('no Add condition button')
+    click(add)
+    await flush()
+    // Unfinished (no value yet): nothing stored.
+    expect(state.required_if).toBeUndefined()
+    const row = block.querySelector('[data-testid="condition-row"]') as HTMLElement
+    const selects = [...row.querySelectorAll('select')]
+    setSelect(selects[1] as HTMLSelectElement, 'more_than')
+    await flush()
+    await setInput(row.querySelector('input') as HTMLInputElement, '2')
+    expect(state.required_if).toBe(`doc.qty > dec('2')`)
+    const show = [...block.querySelectorAll('button')].find((button) => (button.textContent ?? '').includes('Show as expression'))
+    if (!show) throw new Error('no Show as expression button')
+    click(show)
+    await flush()
+    expect(block.querySelector('[data-testid="builder-expression"]')?.textContent).toBe(`doc.qty > dec('2')`)
+  })
+
+  it('round-trips between the builder and the written input', async () => {
+    stubMatchMedia(false)
+    const { state } = await mountSheet(testField({ name: 'qty', label: 'Qty', type: 'Number' }), { currentTypeName: 'line' })
+    click(sectionTrigger('Rules for this field'))
+    await flush()
+    const block = conditionBlock('required_if')
+    const add = [...block.querySelectorAll('button')].find((button) => (button.textContent ?? '').includes('Add condition'))
+    if (!add) throw new Error('no Add condition button')
+    click(add)
+    await flush()
+    const row = block.querySelector('[data-testid="condition-row"]') as HTMLElement
+    await setInput(row.querySelector('input') as HTMLInputElement, '2')
+    expect(state.required_if).toBe(`doc.qty == dec('2')`)
+    // Builder to written: the input shows the built expression.
+    await switchEditor('required_if', 'Written')
+    expect((document.querySelector('#fs-required-if') as HTMLInputElement).value).toBe(`doc.qty == dec('2')`)
+    expect(state.required_if).toBe(`doc.qty == dec('2')`)
+    // Written text survives a builder peek untouched.
+    await setInput(document.querySelector('#fs-required-if') as HTMLInputElement, 'doc.paid')
+    expect(state.required_if).toBe('doc.paid')
+    await switchEditor('required_if', 'Builder')
+    expect(conditionBlock('required_if').textContent).toContain('A written version is kept')
+    await switchEditor('required_if', 'Written')
+    expect((document.querySelector('#fs-required-if') as HTMLInputElement).value).toBe('doc.paid')
+    expect(state.required_if).toBe('doc.paid')
+  })
+
+  it('opens stored expressions as written and clears through the builder', async () => {
+    stubMatchMedia(false)
+    const { state } = await mountSheet(testField({ name: 'qty', label: 'Qty', type: 'Number', required_if: 'doc.paid' }), { currentTypeName: 'line' })
+    click(sectionTrigger('Rules for this field'))
+    await flush()
+    expect((document.querySelector('#fs-required-if') as HTMLInputElement).value).toBe('doc.paid')
+    expect(conditionBlock('required_if').querySelector('[data-testid="condition-builder"]')).toBeNull()
+    expect(conditionBlock('validate').querySelector('[data-testid="condition-builder"]')).not.toBeNull()
+    await switchEditor('required_if', 'Builder')
+    await flush()
+    expect(conditionBlock('required_if').querySelector('[data-testid="condition-builder"]')).not.toBeNull()
+    await switchEditor('required_if', 'Written')
+    expect(state.required_if).toBe('doc.paid')
+    // Build one condition, then remove it: the attribute clears.
+    await switchEditor('required_if', 'Builder')
+    const block = conditionBlock('required_if')
+    const add = [...block.querySelectorAll('button')].find((button) => (button.textContent ?? '').includes('Add condition'))
+    if (!add) throw new Error('no Add condition button')
+    click(add)
+    await flush()
+    const row = block.querySelector('[data-testid="condition-row"]') as HTMLElement
+    await setInput(row.querySelector('input') as HTMLInputElement, '2')
+    expect(state.required_if).toBe(`doc.qty == dec('2')`)
+    const remove = [...row.querySelectorAll('button')].find((button) => button.getAttribute('aria-label') === 'Remove condition')
+    if (!remove) throw new Error('no Remove condition button')
+    click(remove)
+    await flush()
+    expect(state.required_if).toBeUndefined()
   })
 
   it('keeps labels and help free of expression syntax', async () => {
