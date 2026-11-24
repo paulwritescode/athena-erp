@@ -88,6 +88,7 @@ When branch A's merge gate is green and branch B's gate already started on the o
 - Trains only bundle branches that already have REVIEW PASS at the same moment; never wait for a third car.
 - After every merge: push, `tasks.md` line within 10 minutes, `git worktree remove` for merged trees with no next slice, close their panes.
 - Each update names any branch that has REVIEW PASS but is not on `main` yet, and why.
+- After every rebase or pick, `git grep -n '^<<<<<<< \|^>>>>>>> '` on the tree before gating or pushing: markers inside strings compile and pass tests (ff18cb2 incident, spotted by w-c1). Suite also refuses Go runs on marked trees.
 
 ## Queue now (2026-11-23 evening, shift 3)
 

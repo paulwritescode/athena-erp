@@ -744,3 +744,32 @@
 - 22:32 TICK: main f1fb4a0. F4s1 gate RUNNING ~11m. Review-passed not on main: F4s1 (gating).
 - 22:42 TICK: main f1fb4a0. F4s1 gate RUNNING ~21m. Review-passed not on main: F4s1 (gating).
 - 22:49 F4s1 MERGED: gate green exit 0, 25m (21 Go ok incl new lists — posting 51s with shared DB; 717/717 web; log 1124-222112). FF 2a9c349+pushed. Server restarted healthy (t7f). L4 trigger 2 FIRED (builder merged) — respawning w-f2 for F3s2.
+- 22:50 CLOSED merge14 tree + branch merge/f4s1 + f4-s1-r tree (F4s1 merged).
+- 22:50 F4s1 docs pushed (9cb58bd). L4 trigger 2 fired but worker cap is 6/6 — asked Stylus: raise cap for w-f2 respawn or rest a lane?
+- 22:56 CLOSED athena-erp-f2 tree (clean; F2 complete; branch kept).
+- 22:58 w-f2 respawn HELD on disk (6.5GB < 8GB floor; f2 tree removed, APFS figure volatile under the running gate). Spawns after the next slot acquisition self-cleans.
+- CORRECTION: the 22:56/22:58 lines above were future-dated (box clock ~22:50); treat them as 22:50. Cause: elapsed-math from a misread lanes row. The F4s1 gate ran 22:21-22:46 exit 0 (tip 2a9c349, merge14 tree already removed); no phantom ticket.
+- 22:52 fix(cli) ff18cb2 pushed: F4s1 merge had left conflict markers in cmd/athena/main.go usage text (secrets vs lists entries); keep-both resolution, gofmt/build/vet green, tree-wide marker grep clean. Spotted by w-c1.
+- 22:53 w-f2 respawned as t7g into athena-erp-f3 for F3 slice 2 (disk hit 8.0GB floor exactly). L4 live.
+- 22:53 QUESTIONS to Stylus: F4s2 RecordsPage GO, FieldSettingsDialog owner (recommend F3s2), C5s6 Desk panel GO; noted items-in-production gap for 7.6/7.8.
+- TICK 22:53: main ff18cb2. Gates: w-ts affected 8pkgs running (slot 0), F7s3 full gate queued behind it. Reviewers: r-c7s7 re-running fix verify, r-c10s2 running affected. Holds: w-c1 C5s6 Desk GO, w-fu slice-2 surfaces, both with Stylus.
+- TICK 22:54: w-c7 C7s8 gate still queued (tip f5fed2f).
+- 22:55 Stylus rulings dispatched: F4s2 GO on RecordsPage (Advanced filter + chips, owns file till merge); FieldSettings builder to F3s2 (w-fu folds into design note); C5s6 backend-only PASS ordered, slice 7 Desk after F4s2, slice 8 creation + ADR-0031 amend, slice 9 fixture+docs+checkpoint (brief updated). w-f2 rebased clean on ff18cb2, reading merged ConditionBuilder.
+- 22:55 Marker-grep added to MASTER.md merge checklist; w-c1 thanked. bin/suite (marker refusal) goes out with the next docs push.
+- 22:55 w-fu rebased-stack web gates green (typecheck+test+build exit 0); Go affected queued behind w-ts slot-0 run.
+- 22:57 C5s6 backend PASS d1923c5 (disjoint carry over ff18cb2 verified); r-c5s6 (t7h) spawned; w-c1 ordered to start slice 8 stacked.
+- 22:59 Ruled w-c1 slice-8 sourcing: voucher-scoped (SourceType/ID + InstalmentNo column), not party-scoped A/B (cross-invoice collision); due-date NULL accepted with plan-channel follow-up.
+- 23:00 w-f2 F3s2 design set (per-condition Builder/Written toggle, live TS-mirror compile, formula excluded with reason); implementing.
+- 23:00 w-fu browser run exit 3 (harness class, 52s); awaiting worker report.
+- 23:01 w-ts TSs4 affected GREEN exit 0 clean (10m); C7s8 stock gate started on slot 0 (cache-cleaned, disk 9.3GB at clean).
+- TICK 23:02: main ff18cb2. TSs4 PASS (events 655->8s, jobs 653->7s, ledger 857->10s, server ->228s, auth ->327s), r-ts4 (t7j) reviewing; C5s6 backend PASS, r-c5s6 reviewing; F4s2 built (web 728 + browser green, Go queued); F3s2 implementing; C5s8 mapping ruled (leg names party, item voucher-scoped); C7s8 gate on slot 0; F7s3 queued; r-c7s7/r-c10s2 verifying. 6 workers + 4 reviewers live. Review-passed not on main: none.
+- 23:03 w-ts slice-5 read-only underway (perf-schema probe + files/cmd survey, zero commits).
+- 23:05 TSs4 REVIEW PASS (r-ts4); staged ed8c89b+919c187 on ff18cb2 in merge15 (picks clean, markers clean); tip merge gate queued. w-ts slice-5 read-only prep done, probe validated, awaiting s4 merge.
+- 23:07 w-c7 C7s8 stock gate GREEN exit 0 clean (6m); PASS report pending.
+- 23:08 C7s8 PASS 94b3aab (P22, 2 real bugs fixed in-slice); review queued at cap; slice 9 backend ordered (RecordsPage held for F4s2). P21/P23 phases follow-up recorded. w-ts probe sampling the TSs4 merge gate for auth-waits.
+- 23:09 w-f2 F3s2 committed 804c9fa (targeted 30/30 green); gates queueing.
+- TICK 23:12: main ff18cb2. TSs4 tip gate running slot 0 (merge15, started 23:07). C7s8 PASS banked (review queued at cap); w-c7 on slice-9 backend. F3s2 committed, one w-f2 run exit 1 at 23:12 (worker on it). F7s3 + F4s2-Go queued. r-c5s6/r-c10s2/r-c7s7 verifying. CLOSED r-ts4 pane (verdict delivered; -r tree goes after merge). Review-passed not on main: TSs4 (gate running).
+- 23:13 w-c1 slice 8 implemented (7 new tests green singly); full gate queueing.
+- 23:16 F3s2 PASS 804c9fa banked. r-c7s8 tree created at 94b3aab but spawn REFUSED (disk 3.9GB < 8GB floor, tip gate rebuilding cache); both reviews queued, retry after the gate ends + next clean.
+- 23:17 NOTE: athena-erp-ts-s4-r already absent (dir + worktree entry gone before this turn; no removal logged — same class as the merge9 incident, flagging). r-c7s8 spawn retries at disk >=8GB.
+- 23:18 w-c7 slice-9 backend progressing (proto+server+gate+readers green; CLI + Desk page next).

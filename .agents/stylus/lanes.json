@@ -8,7 +8,7 @@
     {"id": "L3", "name": "Masters, stock and Packs", "tasks": ["C4", "C7", "C3", "C8"],
      "about": "C4 13.3b + slice 4 → C7 stock (Z3) → C3 packaging (Z5) → C8."},
     {"id": "L4", "name": "Desk and public pages", "tasks": ["D3", "F1", "F2", "F3"],
-     "about": "D3 slices 4-5 → F1 + F2 (rebase on 6.10) → F3. RESTING (Stylus-accepted 2026-11-24, no buildable work): w-f2 respawns on (1) F3s1 NEEDS_CHANGES, (2) F4 builder merge, (3) F3s1 PASS + an unblocked user-facing item (F3s2 inputs, F5 prep)."},
+     "about": "D3 slices 4-5 → F1 + F2 (rebase on 6.10) → F3. LIVE 22:53: w-f2 (t7g) on F3 slice 2 builder embed after trigger 2 (F4s1 merged); L2 rested to free the slot per Stylus L4-cap ruling."},
     {"id": "L5", "name": "Quality, rules and docs", "tasks": ["FU", "F4", "D1", "D2"],
      "about": "FU batch 2 → decisions docs commit + ADRs (Z2, Z3, Z4, Z5) → F4 design-first → D1, D2."},
     {"id": "L6", "name": "Pilot and shipping", "tasks": ["F6", "F7", "F8", "F5", "D5", "D4"],
