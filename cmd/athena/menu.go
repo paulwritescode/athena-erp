@@ -58,8 +58,16 @@ func runMenu(in io.Reader, out io.Writer) error {
 	}
 }
 
+// menuHeader is the F6 CLI banner; the plain title stays as the fallback.
+func menuHeader() string {
+	if banner := usageBanner(); banner != "" {
+		return banner
+	}
+	return "Athena ERP " + version
+}
+
 func printMenu(out io.Writer) {
-	fmt.Fprintf(out, "Athena ERP %s\n\n", version)
+	fmt.Fprintf(out, "%s\n\n", menuHeader())
 	for i := range commands {
 		fmt.Fprintf(out, "  %2d  %-14s %s\n", i+1, commands[i].name, commands[i].short)
 	}

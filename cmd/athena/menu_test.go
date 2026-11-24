@@ -60,7 +60,10 @@ func runMenuWith(t *testing.T, input string) string {
 func TestMenuListsEveryRegisteredCommand(t *testing.T) {
 	out := runMenuWith(t, "q\n")
 	if !strings.Contains(out, "Athena ERP "+version) {
-		t.Fatalf("menu %q has no plain title with the version", out)
+		t.Fatalf("menu %q has no title with the version", out)
+	}
+	if !strings.Contains(out, asciiMark) {
+		t.Fatalf("menu %q has no F6 banner header", out)
 	}
 	for _, cmd := range commands {
 		if !strings.Contains(out, cmd.name) || !strings.Contains(out, cmd.short) {
