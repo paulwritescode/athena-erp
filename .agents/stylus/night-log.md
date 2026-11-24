@@ -565,3 +565,27 @@
 - 13:35 C5s3 docs pushed (5795830); merge3 + c5-s3-r trees + branch removed. w-c1 rebasing slice 4.
 - 13:36 w-c1 rebased on 5795830: slice 3 dropped merged-identical, slice 4 now 3b798c5 content-identical to 5c7b7bf (r-c5s4 review carries).
 - 13:38 TS slice 1 MERGED solo: auth gate green exit 0 (188s vs 1178s baseline, log 1124-133042). Master delta-review PASS (pins match password.go:33, test-only). Picked e73ec95->1c757a0 conflict-free, build+vet green, FF+pushed. No server restart (test-only, binary unaffected). No independent reviewer per explicit Stylus solo order (variance noted).
+- 13:35 CORRECTION: the 13:38 TS-merged log line was ~3 min future-dated; merge+docs landed ~13:34-13:35.
+- 13:35 TICK: main 6c054f9. r-f7s1 affected RUNNING (13:33). Review-passed not on main: none.
+- 13:40 F7s1 REVIEW PASS (r-f7s1, registry/menu/banner verified, affected green, 2 test-only follow-ups). Staged ad8f191 in merge4 (picks of 2e241ad+3dc48b7, code identical to reviewed, README diff main-side only); narrow OK, merge gate queued.
+- 13:40 TS slice-2 design in (timestamped names + SweepStale + sweep test + pool docs); implementing.
+- 13:45 TICK: main 6c054f9. w-c2 slice-4 affected RUNNING (13:36, senior ticket); F7s1 gate + F4 full + TS testdb + reviewers queued behind. Review-passed not on main: F7s1 (queued).
+- 13:47 C2s4 PASS (w-c2, 75bb9df on 3cc6022, lifetimes + disposal jobs, affected carried under disjoint rule, guest-anonymise gap honestly flagged). Spawning r-c2s4.
+- 13:55 TICK: main 6c054f9. F7s1 gate RUNNING ~8m. w-c2 slice-4 green (PASS reported); slice-5 gate queued. Review-passed not on main: F7s1 (gating).
+- 13:52 C2s4 REVIEW PASS (r-c2s4, lifetimes/disposal/Z4 verified, disjoint carry checked, no secret material). Staged fe41dcd in merge5 (pick of 75bb9df, new files identical); narrow OK, merge gate queued behind F7s1.
+- 14:05 TICK: main 6c054f9. F7s1 gate RUNNING ~18m; C2s4 gate queued behind. Review-passed not on main: F7s1 (gating), C2s4 (queued).
+- 14:08 Stylus DATA to w-ts: remaining cost is lock-wait/sleep/parallelism (39,795 lock waits, 50s timeout, -p 4, clocks); measure on full ./... runs.
+- 14:15 CORRECTION: F7s1 retry did NOT jump ahead — C2s4 acquired slot 0 at 14:08:40, retry queued 14:09:24 behind it. Order now: C2s4 gate, then F7s1 retry (rebase onto post-C2s4 main if needed, disjoint cmd/athena vs jobs/server).
+- 14:15 TICK: main 6c054f9. C2s4 gate RUNNING. Review-passed not on main: C2s4 (gating), F7s1 (retry queued).
+- 14:17 Stylus ORDER: GOFLAGS=-p=4 on every gate (F7s1 red as sole Go run = intra-run contention). C2s4 running gate left as-is; F7s1 retry re-queued as retry-p4 (old queued ticket orphan-free, verified no waiter/ticket left). Broadcast to 8 agents (queued tickets run as-is, fresh runs -p 4). Package times will be logged for w-ts comparison.
+- 14:18 -p 4 ACKs in from w-fu, w-c2 (6 pending).
+- 14:19 -p 4 ACKs in from r-f7s2, r-c5s4, w-ts (5/8; pending w-c1, w-c7, w-f7).
+- 14:20 -p 4 ACK from w-f7 (6/8; pending w-c1, w-c7).
+- 14:21 -p 4 ACK from w-c7 (7/8; pending w-c1).
+- 14:25 TICK: main 6c054f9. C2s4 gate RUNNING ~16m; F7s1 retry-p4 queued. -p 4 ACKs 7/8 (w-c1 pending). Review-passed not on main: C2s4 (gating), F7s1 (retry queued).
+- 14:35 TICK: main 6c054f9. F7s1 retry-p4 RUNNING (14:30); C2s4 retry-p4 queued. Both reds = posting-timeout contention. Review-passed not on main: F7s1 (retrying), C2s4 (retry queued).
+- 14:37 F7s1 retry-p4 GREEN exit 0, 6.8m (19 Go ok, 72 web files; log 1124-143015). -p 4 WORKS: posting 389s fresh (vs 1201s timeout at -p 8); rest cached from same-content red run. C2s4 retry-p4 running, so NO merge until it lands (never move main during a gate); order: C2s4 first, then F7s1 with disjoint rebase check.
+- 14:09 ERROR: F7s1 merge gate RED on contention, not code — panic: test timed out after 20m0s in internal/posting (running test 11s in; log 1124-134653). F7s1 touches cmd/athena+README only, zero posting interaction; matches tonight's lock-wait pattern (auth 1212s parallel vs 188s solo). Re-queueing as master ticket (jumps ahead of C2s4).
+- 14:45 TICK: main 032a090 (C2s4+F7s1). Server restarting (health pending). Docs commit next. Review-passed not on main: none.
+- 14:46 C2s4 MERGED: retry-p4 green exit 0, 6.2m (19 Go ok, posting 355s fresh, 684/684 web, log 1124-143705). FF fe41dcd+pushed.
+- 14:46 F7s1 MERGED after C2s4: retry-p4 green exit 0, 6.8m (19 Go ok, posting 390s fresh, 684/684 web, log 1124-143015). Rebases 7d49cef+032a090 conflict-free, code identical, build+vet green; FF+pushed. Server restarted healthy (t6q).
