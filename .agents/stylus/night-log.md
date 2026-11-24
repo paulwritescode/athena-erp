@@ -723,3 +723,9 @@
 - 21:29 PUSHED parseTime fix 6ef16c3 during TS gate (Stylus direct order + explicit sysmigrations carve-out; TS trial-pick clean, build+vet green — gate stands). Standing ruling recorded in MASTER.md for future cases.
 - 21:29 CLOSED scratch branch scratch/tsts-trial (trial-pick verified, cleaned late after cwd removal).
 - 21:33 parseTime fix MERGED: gate green exit 0, 28m cold-cache (19 Go ok, 684/684 web, log 1124-205909). FF 6ef16c3+pushed during TS gate (Stylus order + standing ruling; TS trial-pick clean, build+vet green). Server restarted healthy (t7c).
+- 21:34 CLOSED merge12 tree + branch merge/parsefix + parse-r tree (parseTime fix merged).
+- 21:34 parseTime docs pushed (787dc41, incl MASTER.md ruling); merge12 + branch CLOSED (parse-r self-removed). w-f7 unstashing F7s3.
+- 21:32 TICK: main 787dc41. TS train gate RUNNING (21:26). Review-passed not on main: TS train (gating).
+- 21:36 F7s3 committed 2ac54d1 (E2E 132/132 green on parseTime fix, generate stable); affected queued, full suite follows.
+- 21:43 TICK: main 787dc41. TS train gate RUNNING ~17m. Review-passed not on main: TS train (gating).
+- 21:50 TS train MERGED: gate green exit 0, 21m (20 Go ok — posting 32.7s in full run; 684/684 web, log 1124-212652). Rebased 0db0ca7->953c4d8 onto post-parseTime main conflict-free, 9/9 files identical, build+vet green; FF+pushed. Test-only: no server restart.

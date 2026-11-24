@@ -191,6 +191,7 @@ Order follows dependencies. Desk parts of each group follow the design system an
 - [ ] **F8. Ready to ship.** One `athena` binary (server+CLI+embedded Desk). GoReleaser (macOS/Linux, arm64/amd64, checksums, SBOM), `install.sh`, Homebrew tap (`athena-erp` unless `athena` free; tap owner OPEN), `athena version` (version/commit/date from flags), `athena setup` guided install. Names: Athena, Athena Core, Athena Desk, Athena Packs. No release published; tagging waits for the user.
 - **TS. Test speed (night-shift infrastructure, L7).** Full `make test` under 7 min; no test deleted or weakened.
   - Slice 1 merged 2026-11-24 (1c757a0, 1 commit): cheap Argon2 params in auth TestMain {8MiB,1,1} + production pins {64MiB,3,4} in the 2 password tests (save/restore, oracles unchanged; no production file touched). Auth-only gate 188s (baseline 1178s in full gate). Master delta-review (pins verified against password.go:33); solo merge per Stylus order. Open: slice 2 (TestMain stale-DB cleanup + pool-size docs), then package fixes.
+  - Slices 2+3 merged 2026-11-24 (953c4d8, 5-commit train): stamped throwaway names + SweepStale(1h) in auth/server TestMains + pool docs (slice 2); posting shared-DB conversion, 5/5 sites, zero keepers (slice 3). Reviews PASS. Before/after: posting 396.2s → 13.7s (~29x); train gate 21m (20 Go ok, posting 32.7s in full run, 684 web). Open: slice 4 (ledger/jobs/events/stock + server stragglers, implementing), then -p shootout + GO_TEST_P.
 
 ## N. Naming (inspiration, not rules; user approves before any rename)
 
