@@ -708,3 +708,18 @@
 - 20:22 TICK: main 9b1c070. C7 train gate RUNNING ~14m. Review-passed not on main: C7 train (gating), TSs3 (stacked on s2).
 - 20:32 TICK: main 9b1c070. C7 train gate RUNNING ~24m. Review-passed not on main: C7 train (gating), TSs3 (stacked on s2).
 - 20:38 C7 train MERGED: gate green exit 0, 27m (19 Go ok all fresh, 684/684 web, log 1124-200805). FF fb22709+pushed. Server restarted healthy (t79).
+- 20:39 CLOSED merge11 tree + branch merge/c7train + c7-s5-r tree (C7 train merged).
+- 20:39 C7 train docs pushed (74d242d); merge11 + branch CLOSED (c7-s5-r self-removed by reviewer). w-c7 rebasing.
+- 20:41 w-c7 rebased on 74d242d (train dropped as applied, s7+s8 ride, stock identical). Slice-8 gate ordered on new tip.
+- 20:42 TICK: main 74d242d. parseTime gate GREEN; C7s8 queued next. Review-passed not on main: TSs3 (stacked on s2).
+- 20:44 parseTime fix PASS (w-f7, 3a26f4d, cmd/athena 274s + server 439s green). Spawning r-parse.
+- 20:48 parseTime fix REVIEW PASS (r-parse, UTC fix + fail-before verified, gates green). Staging merge.
+- 20:53 TICK: main 74d242d. parseTime gate queued. Review-passed not on main: parseTime fix (queued), TSs3 (stacked on s2).
+- 20:55 TSs2 REVIEW PASS (r-ts2, sweep + names + TestMains, affected green; notes one red from my mid-run go-clean -cache — LESSON: never wipe build cache under a running gate, only at slot boundaries). TS train staging (s2+s3). r-ts2 CLOSED.
+- 21:02 TICK: main 74d242d. parseTime + TS train gates queued. Review-passed not on main: parseTime fix + TS train (queued).
+- 21:12 TICK: main 74d242d. parseTime gate RUNNING ~13m; TS train queued. Review-passed not on main: parseTime fix (gating), TS train (queued).
+- 21:22 TICK: main 74d242d. parseTime gate RUNNING ~23m (cold cache); TS train queued. Review-passed not on main: parseTime fix (gating), TS train (queued).
+- 21:27 parseTime gate GREEN (28m cold-cache, 19 Go ok, 684 web). Asked Stylus: push during TS gate (zero shared files, trial-pick first) or hold?
+- 21:29 PUSHED parseTime fix 6ef16c3 during TS gate (Stylus direct order + explicit sysmigrations carve-out; TS trial-pick clean, build+vet green — gate stands). Standing ruling recorded in MASTER.md for future cases.
+- 21:29 CLOSED scratch branch scratch/tsts-trial (trial-pick verified, cleaned late after cwd removal).
+- 21:33 parseTime fix MERGED: gate green exit 0, 28m cold-cache (19 Go ok, 684/684 web, log 1124-205909). FF 6ef16c3+pushed during TS gate (Stylus order + standing ruling; TS trial-pick clean, build+vet green). Server restarted healthy (t7c).

@@ -78,6 +78,10 @@ Write plainly. No claims you did not check.
 - MariaDB: `brew services start mariadb@11.8` on "connection refused".
 - Leave stale `test_athena_*` databases alone unless one blocks a test; then drop only the named one and log it.
 
+## Pushing a green gate while the next gate runs (Stylus standing ruling, 2026-11-24)
+
+When branch A's merge gate is green and branch B's gate already started on the old main, push A without asking when all hold: `git diff --name-only` of A and B share no files; neither touches proto, migrations (`sysmigrations.go`), `go.mod`/`go.sum`, `gate.go`, generated code or a package the other imports; B trial-picks cleanly onto the new main; `go build ./...` and `go vet ./...` pass on that combined tip. B's gate stands. Any overlap: B's gate is void and B re-gates on the combined tip. Log `PUSHED A (disjoint with B, standing ruling)`.
+
 ## Merge as you go (user order, 2026-11-24 02:33)
 
 - A branch with REVIEW PASS is merged to `main` in the next merge gate; no review-passed work waits in a worktree for a bigger train. Queue the merge gate (`suite --label "<task> merge"`) the moment the verdict lands; master's ticket goes first.
