@@ -125,7 +125,7 @@ running ConnectRPC boundary, cookie/CSRF session flow, permission gate and
 audit verification without changing business data. Bruno's desktop app and
 CLI are separate; install the CLI once with `pnpm add --global @usebruno/cli`.
 
-MariaDB tests read `ATHENA_TEST_DATABASE_URL`, a DSN for a user who can create and drop databases named `test_athena_*` (MariaDB grants this to every user by default). `make test` falls back to `ATHENA_DATABASE_URL` from `.env.local`. Each test creates its own empty database and drops it afterwards, so your Workspace data is never touched. MariaDB is the only tested database; PostgreSQL is implemented but untested ([ADR-0019](docs/decisions/adr-0019-postgresql-adapter.md), Proposed). The field-rule cases in `internal/server/testdata/field_rules.json` run in both Go and Vitest.
+MariaDB tests read `ATHENA_TEST_DATABASE_URL`, a DSN for a user who can create and drop databases named `test_athena_*` (MariaDB grants this to every user by default). `make test` falls back to `ATHENA_DATABASE_URL` from `.env.local`. Each test creates its own empty database and drops it afterwards, so your Workspace data is never touched. For local runs, set `innodb_buffer_pool_size=512M` in the MariaDB server configuration and restart it; the 128 MB default stalls once many `test_athena_*` databases exist. Databases left behind by killed runs are swept when older than an hour by the next suite start. MariaDB is the only tested database; PostgreSQL is implemented but untested ([ADR-0019](docs/decisions/adr-0019-postgresql-adapter.md), Proposed). The field-rule cases in `internal/server/testdata/field_rules.json` run in both Go and Vitest.
 
 ## Current limits
 

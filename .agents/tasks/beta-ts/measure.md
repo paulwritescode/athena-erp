@@ -56,6 +56,67 @@ Slice-1 edit (committed on `feat/test-speed`, test files only, 14+/3-):
 save/restore. `gofmt -l` clean, `go vet ./internal/auth` OK. No production
 file touched; no assert added/removed/weakened; no `t.Parallel` in package.
 
+## Slice 1 result (merged 1c757a0, pushed)
+
+Auth 188s vs 1178s log baseline (master's master-priority run). Fix is live.
+
+## Slice 2: stale-DB sweep + pool docs (IN PROGRESS)
+
+- `internal/testdb`: throwaway names are now
+  `test_athena_<pkg>_<unixts>_<rand12>` (pkg from a runtime caller walk, no
+  call-site changes); `SweepStale(1h)` drops provably-stale DBs (old name
+  timestamp, or pre-timestamp name with all tables older than 1h) and keeps
+  everything doubtful; wired into the auth + server TestMains (warn-only on
+  error). Live browser-harness DBs and old-binary live DBs are safe by the
+  fail-closed rule.
+- Maintained tests: `internal/testdb/sweep_test.go` (drop/keep/maxAge/table-
+  fallback/env-unset/pure parsing tables) + `internal/testdb/shape_test.go`
+  (name shape via `NewWithConfig`). Deterministic, no sleeps, skip-safe.
+- Docs: `innodb_buffer_pool_size=512M` recommendation in README tests section.
+
+| Run | Result |
+| --- | --- |
+| Focused `./internal/testdb` (master-priority, suite log 1124-155131) | GREEN `ok testdb 7.618s`, exit 0, 8s slot time |
+| `affected` (likely full fallback — testdb is widely imported) via suite | PENDING |
+
+## Stylus waiting-not-CPU data (F7s1 gate, carries slice 1)
+
+auth+posting still ~18 min inside full `./...` (auth 188s alone); server.test
+at 1.9% CPU with MariaDB idle. MariaDB: 39,795 row-lock waits, 1,625s total
+lock wait since start, `innodb_lock_wait_timeout` default 50s.
+
+## Stylus DDL-fsync finding (F7s2 -p 4 gate; REPRIORITISED)
+
+Test procs under 3% CPU while MariaDB runs nothing but CREATE/ALTER/RENAME
+from per-test migrations, disk ~11k transfers/s — every DDL is an fsync.
+Migrate-once-per-package (clone or TRUNCATE per test) outranks clocks and
+lock waits. `innodb_flush_log_at_trx_commit=2` is user-gated (same MariaDB
+holds real Workspace data) — TS will not set it.
+
+## Slice plan (current)
+
+- Slice 2 (in flight): stale-DB sweep + pool docs.
+- Slice 2a DROPPED (Stylus): after slices 2+3 land, measure `-p 2/4/8` on
+  one full `make test` each, then put the winner in the Makefile as
+  `go test -p $(GO_TEST_P)` with `GO_TEST_P ?= winner` (suite/dev override).
+  Stylus ruling: migrate-once (slice 3, posting first) outranks everything
+  else in L7; its gate goes master-priority like slice 1.
+- Slice 3+: migrate-once-per-package, slowest first, one package per slice.
+  Rank from F7s1 full gate (-p 8, CONTAINS slice 1, verified by ancestry):
+  posting FAIL 1201s (timeout), auth 1212s, server 917s, ledger 857s,
+  cmd/athena 844s, events 655s, jobs 653s, stock 582s, files 414s,
+  secrets 364s, store 8.6s, rest <1s. Auth at 1212s WITH cheap hashing
+  (188s alone) proves the wait is the shared DDL storm, not auth itself:
+  auth is the canary, not a target (already shared+cheap). Posting first.
+  Per-test DB call sites on main: cmd/athena 19, server 17 (mostly
+  intentional isolated), posting 5, store 5, events/files/jobs/ledger/
+  secrets/stock 1 each (single shared fixtures = per-test churn).
+- Later: lock-wait investigation (GET_LOCK 10s schema/owner locks,
+  per-session timeout precedent in `stock/movements_test.go:718`, workers
+  5s poll), sleep/clock injection, `-p 4` before/after numbers from gate
+  history.
+- Slice 5+: fixes from slice 3, by package.
+
 ## Ranked win list (preliminary; serial per-package numbers still pending)
 
 1. Argon2 test params (slice 1) — kills the parallel-run starvation; ~490s

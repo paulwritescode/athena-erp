@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"testing"
+	"time"
 
 	"athena-erp/internal/auth"
 	"athena-erp/internal/server"
@@ -26,6 +27,11 @@ func TestMain(m *testing.M) {
 	// The two password tests below pin the production cost explicitly for
 	// themselves, so the shipped default stays tested.
 	auth.DefaultParams = auth.Params{MemoryKiB: 8 * 1024, Time: 1, Threads: 1}
+	// Killed runs never drop their databases; sweep them before opening
+	// ours. A failed sweep warns, never fails the suite over hygiene.
+	if _, err := testdb.SweepStale(time.Hour); err != nil {
+		fmt.Fprintln(os.Stderr, "sweep stale test databases:", err)
+	}
 	shared, err := testdb.OpenShared()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "shared test database:", err)

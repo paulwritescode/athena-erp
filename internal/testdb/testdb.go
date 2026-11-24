@@ -4,8 +4,11 @@ package testdb
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
+	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -95,7 +98,7 @@ func createDatabase(dsn string) (db *sql.DB, cfg *mysql.Config, adminDB *sql.DB,
 	if err != nil {
 		return nil, nil, nil, "", fmt.Errorf("parse %s: %w", EnvURL, err)
 	}
-	name = namePrefix + strings.ReplaceAll(uuid.NewString(), "-", "")[:16]
+	name = throwawayName()
 
 	admin := cfg.Clone()
 	admin.DBName = ""
@@ -115,6 +118,189 @@ func createDatabase(dsn string) (db *sql.DB, cfg *mysql.Config, adminDB *sql.DB,
 		return nil, nil, nil, "", err
 	}
 	return db, cfg, adminDB, name, nil
+}
+
+// throwawayName builds a database name that records who made it and when:
+// test_athena_<pkg>_<unixts>_<rand>. The package is the first caller outside
+// this helper, so no call site changes; the timestamp lets SweepStale age
+// leftovers without trusting table metadata. Names stay well under
+// MariaDB's 64-character schema limit.
+func throwawayName() string {
+	return namePrefix + callerPackage() + "_" + strconv.FormatInt(time.Now().Unix(), 10) + "_" +
+		strings.ReplaceAll(uuid.NewString(), "-", "")[:12]
+}
+
+// callerPackage reports the last path element of the first package outside
+// internal/testdb on the call stack: the test code creating the database.
+// It answers "x" when the stack gives nothing usable. Test-binary package
+// names end in _test; that suffix is trimmed, so the auth and server
+// TestMains record "auth" and "server".
+func callerPackage() string {
+	for skip := 1; skip < 25; skip++ {
+		pc, _, _, ok := runtime.Caller(skip)
+		if !ok {
+			return "x"
+		}
+		fn := runtime.FuncForPC(pc)
+		if fn == nil {
+			continue
+		}
+		name := fn.Name()
+		if strings.Contains(name, "internal/testdb.") {
+			continue
+		}
+		if i := strings.LastIndex(name, "."); i >= 0 {
+			name = name[:i]
+		}
+		if i := strings.Index(name, "("); i >= 0 {
+			name = name[:i]
+		}
+		if i := strings.LastIndex(name, "/"); i >= 0 {
+			name = name[i+1:]
+		}
+		name = strings.TrimSuffix(name, "_test")
+		var clean strings.Builder
+		for _, r := range strings.ToLower(name) {
+			if r >= 'a' && r <= 'z' || r >= '0' && r <= '9' {
+				clean.WriteRune(r)
+			}
+		}
+		if pkg := clean.String(); len(pkg) > 0 {
+			if len(pkg) > 16 {
+				pkg = pkg[:16]
+			}
+			return pkg
+		}
+		return "x"
+	}
+	return "x"
+}
+
+// SweepStale drops throwaway databases older than maxAge and reports the
+// names it dropped. Killed runs (a go test timeout, a suite watchdog stop)
+// never run their cleanups, so without this their databases pile up on the
+// shared server and stall it; TestMain calls this before opening its own
+// database. A name is stale when its embedded timestamp is older than
+// maxAge, or when the name predates timestamps and every table in it is
+// older than maxAge; anything younger, tableless without a timestamp, or
+// unreadable is kept. Failures are returned for the caller to warn about,
+// never to fail the suite over hygiene, and a drop never touches a name
+// outside namePrefix. It returns (nil, nil) when EnvURL is unset.
+func SweepStale(maxAge time.Duration) ([]string, error) {
+	return sweepUnder(maxAge, namePrefix)
+}
+
+// sweepUnder is SweepStale scoped to one name prefix, so tests can prove
+// the drop behavior with extreme ages without touching databases they did
+// not stage (a browser pass may run beside the suite).
+func sweepUnder(maxAge time.Duration, prefix string) ([]string, error) {
+	dsn := os.Getenv(EnvURL)
+	if dsn == "" {
+		return nil, nil
+	}
+	cfg, err := mysql.ParseDSN(dsn)
+	if err != nil {
+		return nil, fmt.Errorf("parse %s: %w", EnvURL, err)
+	}
+	admin := cfg.Clone()
+	admin.DBName = ""
+	db, err := openDatabase(admin)
+	if err != nil {
+		return nil, err
+	}
+	defer db.Close()
+	rows, err := db.Query("SELECT SCHEMA_NAME FROM information_schema.SCHEMATA WHERE SCHEMA_NAME LIKE '" + likeEscape(prefix) + "%'")
+	if err != nil {
+		return nil, fmt.Errorf("list test databases: %w", err)
+	}
+	defer rows.Close()
+	var names []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, fmt.Errorf("list test databases: %w", err)
+		}
+		names = append(names, name)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list test databases: %w", err)
+	}
+	var dropped []string
+	var errs []error
+	for _, name := range names {
+		stale, err := sweepStale(db, name, maxAge)
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		if !stale || !validThrowawayName(name) {
+			continue
+		}
+		if _, err := db.Exec("DROP DATABASE IF EXISTS `" + name + "`"); err != nil {
+			errs = append(errs, fmt.Errorf("drop stale test database %s: %w", name, err))
+			continue
+		}
+		dropped = append(dropped, name)
+	}
+	if len(dropped) > 0 {
+		fmt.Fprintf(os.Stderr, "testdb: swept %d stale test databases: %s\n", len(dropped), strings.Join(dropped, ", "))
+	}
+	return dropped, errors.Join(errs...)
+}
+
+// sweepStale reports whether one throwaway database is provably older than
+// maxAge: by its embedded timestamp, or for pre-timestamp names by the
+// newest table in it. Doubt keeps the database.
+func sweepStale(db *sql.DB, name string, maxAge time.Duration) (bool, error) {
+	if born, ok := throwawayBirth(name); ok {
+		return time.Since(born) > maxAge, nil
+	}
+	var newest sql.NullTime
+	if err := db.QueryRow(`SELECT MAX(CREATE_TIME) FROM information_schema.TABLES WHERE TABLE_SCHEMA = ?`, name).Scan(&newest); err != nil {
+		return false, fmt.Errorf("age test database %s: %w", name, err)
+	}
+	if !newest.Valid {
+		return false, nil // No tables and no timestamp: unprovable, keep.
+	}
+	return time.Since(newest.Time) > maxAge, nil
+}
+
+// throwawayBirth reads the creation time from a throwawayName timestamp.
+// Pre-timestamp uuid names report ok=false.
+func throwawayBirth(name string) (time.Time, bool) {
+	rest, ok := strings.CutPrefix(name, namePrefix)
+	if !ok {
+		return time.Time{}, false
+	}
+	parts := strings.Split(rest, "_")
+	if len(parts) != 3 {
+		return time.Time{}, false
+	}
+	sec, err := strconv.ParseInt(parts[1], 10, 64)
+	if err != nil || sec <= 0 {
+		return time.Time{}, false
+	}
+	return time.Unix(sec, 0).UTC(), true
+}
+
+// likeEscape quotes a LIKE prefix so _ % and \ match literally.
+func likeEscape(prefix string) string {
+	escaped := strings.ReplaceAll(prefix, "\\", "\\\\")
+	escaped = strings.ReplaceAll(escaped, "_", "\\_")
+	return strings.ReplaceAll(escaped, "%", "\\%")
+}
+
+// validThrowawayName guards the DROP interpolation: only our own alphabet.
+func validThrowawayName(name string) bool {
+	if !strings.HasPrefix(name, namePrefix) || len(name) > 64 {
+		return false
+	}
+	for _, r := range name {
+		if r != '_' && (r < 'a' || r > 'z') && (r < '0' || r > '9') {
+			return false
+		}
+	}
+	return true
 }
 
 func openDB(t testing.TB, cfg *mysql.Config) *sql.DB {
