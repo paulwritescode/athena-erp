@@ -10,6 +10,7 @@ import ActionButton from '@/components/ActionButton.vue'
 import ActionGroup from '@/components/ActionGroup.vue'
 import type { ActionItem } from '@/components/actions'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import ConditionBuilder from '@/components/conditions/ConditionBuilder.vue'
 import ResponsiveDialog from '@/components/ResponsiveDialog.vue'
 import DataTable, { type TableFilter } from '@/components/DataTable.vue'
 import DetailSheet from '@/components/DetailSheet.vue'
@@ -27,6 +28,7 @@ import { Button } from '@/components/ui/button'
 import { Calendar } from '@/components/ui/calendar'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import type { BuilderField, ConditionTree } from '@/conditions'
 
 const emit = defineEmits<{ goHome: [] }>()
 
@@ -38,6 +40,12 @@ const disabledOpen = ref(false)
 const sheetOpen = ref(false)
 const wideSheetOpen = ref(false)
 const galleryName = ref('')
+const demoBuilderFields: BuilderField[] = [
+  { name: 'doc.name', label: 'Name', type: 'Text', kind: 'string' },
+  { name: 'doc.qty', label: 'Qty', type: 'Number', kind: 'decimal' },
+  { name: 'doc.due', label: 'Due', type: 'Date', kind: 'date' },
+]
+const demoBuilderTree = ref<ConditionTree>({ root: { all: true, conditions: [{ field: 'doc.qty', op: 'more_than', values: ['0'] }] } })
 const responsiveOpen = ref(false)
 const responsiveNote = ref('')
 
@@ -477,6 +485,14 @@ function onPick(next: unknown) {
           @next-page="serverPage += 1"
           @update:page-size="(size) => { serverSize = size; serverPage = 1 }"
         />
+      </div>
+    </section>
+
+    <section aria-labelledby="gal-builder">
+      <h2 id="gal-builder" class="text-lg font-medium">ConditionBuilder</h2>
+      <p class="text-muted-foreground mt-1 text-sm">No-code conditions: field, operator, value; groups join with match-all/any.</p>
+      <div class="mt-4 max-w-3xl">
+        <ConditionBuilder v-model="demoBuilderTree" :fields="demoBuilderFields" />
       </div>
     </section>
 
