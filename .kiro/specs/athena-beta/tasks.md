@@ -146,6 +146,7 @@ Order follows dependencies. Desk parts of each group follow the design system an
 - [ ] **C8. G12 Remaining ledgers.**
 - [ ] **C9. G14 Report engine, work queues, Activity timeline, Explain this movement.**
 - [ ] **C10. G15 Integration surface.** Attachments reuse the B9 Image storage.
+  - Slices 1–2 merged 2026-11-24 (1aa6106, 2 commits): ADR-0035 Proposed (migration 25 held, still open) + provider inbox (HMAC window, atomic dedupe, Operation_ID mapping, evidence events; secrets helpers; no mark-paid path). Review PASS. Merge gate 784s exit 0 clean (21 Go ok, 717 web). Open: slices 3–6 (Property 26, attachments/search/comments/import, surface, docs) when a worker slot frees (L2 rested).
 
 ## D. Product surface
 
