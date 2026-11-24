@@ -21,7 +21,7 @@ import {
   type SortingState,
   type Updater,
 } from '@tanstack/vue-table'
-import { ArrowDown, ArrowUp, ArrowUpDown, Check, ChevronDown, Ellipsis, Inbox, Minus, Plus, Search, X, icon } from '@/icons'
+import { ArrowDown, ArrowUp, ArrowUpDown, Check, ChevronDown, Ellipsis, Inbox, Minus, Plus, icon } from '@/icons'
 import ActionButton from '@/components/ActionButton.vue'
 import ActionGroup from '@/components/ActionGroup.vue'
 import BottomDrawer from '@/components/BottomDrawer.vue'
@@ -37,13 +37,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Input } from '@/components/ui/input'
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableEmpty, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { chunkByKind, type ActionItem } from './actions'
 import { dataTableFeatures, type DataTableColumn } from './dataTableFeatures'
+import DataTableSearch from './DataTableSearch.vue'
+import { searchPlaceholderFor } from './dataTableSearch'
 import HelpHint from '@/copy/HelpHint.vue'
 import type { GlossaryKey } from '@/copy/glossary'
 import { footerLeftText, pageText, rowNumber, selectionText } from '@/dataTableModel'
@@ -80,6 +81,9 @@ const props = withDefaults(defineProps<{
   rowActions?: (row: TData) => ActionItem[]
   search?: string
   searchPlaceholder?: string
+  /** Scope label the placeholder derives from when no explicit placeholder
+      is set ("Diet concern" shows "Find diet concerns…"). */
+  searchScope?: string
   filters?: TableFilter[]
   serverPaging?: ServerPaging | null
   showRowNumbers?: boolean
@@ -101,6 +105,7 @@ const props = withDefaults(defineProps<{
   getRowId: undefined,
   search: '',
   searchPlaceholder: '',
+  searchScope: '',
   filters: () => [],
   serverPaging: null,
   showRowNumbers: true,
@@ -316,13 +321,11 @@ function togglePage() {
 }
 
 // Toolbar models. Search and filters belong to the caller (they shape the
-// query); the table only edits and clears them.
-const searchDraft = computed({
-  get: () => props.search,
-  set: (value: string) => emit('update:search', value),
-})
-const showSearch = computed(() => props.searchPlaceholder !== '')
-const hasActiveFilters = computed(() => searchDraft.value.trim() !== '' || props.filters.some((filter) => filter.selected.length > 0))
+// query); the table only edits and clears them. An explicit placeholder
+// wins; otherwise it derives from the scope label.
+const searchPlaceholderText = computed(() => props.searchPlaceholder !== '' ? props.searchPlaceholder : (props.searchScope !== '' ? searchPlaceholderFor(props.searchScope) : ''))
+const showSearch = computed(() => searchPlaceholderText.value !== '')
+const hasActiveFilters = computed(() => props.search.trim() !== '' || props.filters.some((filter) => filter.selected.length > 0))
 const showSelectionBar = computed(() => hasBulk.value && selected.value.size > 0)
 const showToolbar = computed(() => showSearch.value || props.filters.length > 0 || showColumnsButton.value || hasBulk.value || !!slots['toolbar-actions'])
 
@@ -433,7 +436,7 @@ const tableWidth = computed(() => {
   return `${table.getTotalSize() + fixed}px`
 })
 const bodyColumnCount = computed(() => table.getAllColumns().length + (hasBulk.value ? 1 : 0) + (props.showRowNumbers ? 1 : 0) + (hasRowActions.value ? 1 : 0))
-const activeFilterCount = computed(() => props.filters.reduce((count, filter) => count + filter.selected.length, 0) + (searchDraft.value.trim() !== '' ? 1 : 0))
+const activeFilterCount = computed(() => props.filters.reduce((count, filter) => count + filter.selected.length, 0) + (props.search.trim() !== '' ? 1 : 0))
 </script>
 
 <template>
@@ -447,19 +450,7 @@ const activeFilterCount = computed(() => props.filters.reduce((count, filter) =>
         <ActionButton kind="quiet" density="row" label="Clear selection" icon="x" @press="clearSelection" />
       </template>
       <template v-else>
-        <div v-if="showSearch" class="relative w-full min-w-40 flex-1 sm:max-w-[480px]">
-          <Search class="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" aria-hidden="true" />
-          <Input v-model="searchDraft" type="text" :placeholder="searchPlaceholder" :aria-label="searchPlaceholder" class="pr-8! pl-9!" />
-          <button
-            v-if="searchDraft"
-            type="button"
-            aria-label="Clear search"
-            class="text-muted-foreground hover:text-foreground absolute top-1/2 right-2 grid size-6 -translate-y-1/2 place-items-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            @click="searchDraft = ''"
-          >
-            <X class="size-3.5" aria-hidden="true" />
-          </button>
-        </div>
+        <DataTableSearch v-if="showSearch" :model-value="props.search" :placeholder="searchPlaceholderText" @update:model-value="emit('update:search', $event)" />
         <div v-for="filter in filters" :key="filter.id" class="hidden min-[640px]:contents">
           <Popover>
             <PopoverTrigger as-child>

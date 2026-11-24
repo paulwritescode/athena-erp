@@ -150,6 +150,7 @@ const activity = ref<ActivityEvent[]>([])
 // entered so far (PreviewRecord). The server calculates and checks again on save.
 const states = reactive<Record<string, FieldState>>({})
 const filterText = ref('')
+const appliedQuery = ref('')
 const appliedFilter = ref('')
 const statusSelected = ref<string[]>([])
 let previewTimer: ReturnType<typeof setTimeout> | undefined
@@ -172,7 +173,7 @@ async function load(reset = true) {
   loading.value = true
   loadError.value = ''
   try {
-    const res = await recordClient.listRecords({ recordTypeKey: recordType.name, pageSize: pageSize.value, pageToken: pageTokens.value[page.value - 1] ?? '', filter: appliedFilter.value })
+    const res = await recordClient.listRecords({ recordTypeKey: recordType.name, pageSize: pageSize.value, pageToken: pageTokens.value[page.value - 1] ?? '', filter: appliedFilter.value, query: appliedQuery.value })
     if (request !== listRequest) return
     records.value = res.records
     for (const item of res.records) knownRevisions.set(item.id, item.revision)
@@ -209,6 +210,7 @@ function changePageSize(size: number) {
 
 watch(() => props.recordType?.name, () => {
   filterText.value = ''
+  appliedQuery.value = ''
   appliedFilter.value = ''
   statusSelected.value = []
   selectedIds.value = []
@@ -216,30 +218,25 @@ watch(() => props.recordType?.name, () => {
   void load(true)
 }, { immediate: true })
 
-// The search applies after a pause in typing; the Status filter applies at
-// once. Both combine into the one server expression. The watcher skips a
-// trailing call when the expression already applied (clearing filters, or
-// switching Record Types, applies at once through the same path).
-let filterTimer: ReturnType<typeof setTimeout> | undefined
+// The search box sends free text as the list query; the table already waits
+// for a pause in typing, so it applies at once here. The expression
+// override stays separate: the Status choices now, the Advanced filter
+// later (F4). One watcher over both halves lists once per burst, and
+// applying skips when nothing changed.
 function currentExpression(): string {
-  return combineRecordFilter(filterText.value, statusSelected.value.map(Number).filter((state) => Number.isInteger(state)))
+  return combineRecordFilter('', statusSelected.value.map(Number).filter((state) => Number.isInteger(state)))
 }
 function applyListFilter() {
-  appliedFilter.value = currentExpression()
+  const expression = currentExpression()
+  if (filterText.value === appliedQuery.value && expression === appliedFilter.value) return
+  appliedQuery.value = filterText.value
+  appliedFilter.value = expression
   void load(true)
 }
-watch(filterText, () => {
-  clearTimeout(filterTimer)
-  if (currentExpression() === appliedFilter.value) return
-  filterTimer = setTimeout(applyListFilter, 500)
-})
+watch([filterText, statusSelected], applyListFilter)
 function onFiltersChanged(next: TableFilter[]) {
   statusSelected.value = next.find((filter) => filter.id === 'status')?.selected ?? []
-  clearTimeout(filterTimer)
   applyListFilter()
-}
-function onClearFilters() {
-  clearTimeout(filterTimer)
 }
 
 // Opening an record changes the URL; the watcher below fills the form, so a
@@ -1353,7 +1350,7 @@ function attemptDetail(entry: PostingLogEntry): string {
           :bulk-actions="bulkActions"
           :row-actions="rowActions"
           v-model:search="filterText"
-          search-placeholder='Filter records, for example doc.total > dec("100")'
+          :search-scope="recordType.label"
           :filters="recordFilters"
           :server-paging="serverPaging"
           :loading="loading"
@@ -1368,7 +1365,6 @@ function attemptDetail(entry: PostingLogEntry): string {
           @row-action="onRowAction"
           @bulk-action="onBulkAction"
           @update:filters="onFiltersChanged"
-          @clear-filters="onClearFilters"
           @prev-page="prevPage"
           @next-page="nextPage"
           @update:page-size="changePageSize"

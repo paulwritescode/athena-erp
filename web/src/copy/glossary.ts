@@ -88,6 +88,9 @@ export const glossary = {
   fieldPattern: { label: 'Pattern', explanation: 'A regular expression the whole value must match.' },
   linkTarget: { label: 'Links to', explanation: 'The kind of record this field points to.' },
   fieldChoices: { label: 'Choices', explanation: 'Fixed options people pick from; a value is permanent once saved.' },
+  // Tables: narrowing the rows by typing.
+  find: { label: 'Find', explanation: 'Type to narrow the list to the rows that match.' },
+  clearSearch: { label: 'Clear search', explanation: 'Remove the search text and show every row again.' },
 } satisfies Record<string, GlossaryEntry>
 
 export type GlossaryKey = keyof typeof glossary
