@@ -15,12 +15,15 @@ passes never bypass `suite`.
 1. Verifies the current directory is an athena checkout, then `make build`s
    it (restoring `internal/webui/dist/.gitkeep` after; `bin/athena` stays).
 2. Creates its own `test_athena_*` database (never the dev database),
-   migrates it, ensures root, and invites the first owner through the CLI.
+   migrates it, ensures root, and issues root a reset challenge through the
+   CLI, completed on the real Desk form (no seeded sessions). Root bypasses
+   every gate, so lanes see all of Build — an Instance Owner would not (no
+   `build` permission, denied reads).
 3. Serves it on a probed-free loopback port with a fake HOME and scratch
    files dir (never the dev HOME — the user's server holds the install
    lock, so a shared HOME would refuse to start).
 4. Opens headless Chrome on a probed-free CDP port with a fresh profile.
-5. Completes first login in the Desk with the invite challenge (no seeded
+5. Completes the reset challenge on the Desk form as root (no seeded
    sessions), sets the requested theme, then runs your scenario.
 6. Screenshots to `--shots`, collects console/page errors throughout, and
    always closes Chrome and the server (try/finally — no orphans even on

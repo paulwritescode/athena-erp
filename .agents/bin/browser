@@ -7,10 +7,12 @@
 //
 // The driver builds the checkout in the current directory, starts
 // `athena serve` on a probed-free port with its own test_athena_* database
-// and fake HOME, invites the first owner through the CLI, completes first
-// login in the Desk, then runs <script> (a Node module exporting one async
-// function over the scenario helpers). It screenshots to --shots, collects
-// console/page errors throughout, and always closes Chrome and the server.
+// and fake HOME, issues root a reset challenge through the CLI, completes
+// it on the real Desk form (no seeded sessions), then runs <script> (a Node
+// module exporting one async function over the scenario helpers). Root
+// bypasses every gate, so lanes see all of Build. It screenshots to --shots,
+// collects console/page errors throughout, and always closes Chrome and the
+// server.
 //
 // Exit codes: 0 pass, 1 app failure (assertions, app errors, unbuildable
 // tree), 3 harness failure (timeouts with no app error, CDP drops, missing
@@ -54,7 +56,6 @@ const CDP_EXCLUDE = new Set([3781, 3791]);
 const SERVER_RANGE = [3052, 3079];
 const CDP_RANGE = [3771, 3799];
 const CHROME_MAC = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
-const OWNER = 'browserowner';
 const THEME_KEY = 'athena-theme';
 
 // parseArgs is pure (argv without node and script) for --self-test.
@@ -95,9 +96,9 @@ function parseDSN(dsn) {
   return { user: m[1], pass: m[2], host: m[3], port: m[4] };
 }
 
-function challengeFromInvite(output) {
-  const m = /Invite challenge, shown once: (\S+)/.exec(output || '');
-  if (!m) throw new HarnessError('invite output carried no challenge');
+function challengeFrom(output) {
+  const m = /(?:Invite|Reset) challenge, shown once: (\S+)/.exec(output || '');
+  if (!m) throw new HarnessError('CLI output carried no challenge');
   return m[1];
 }
 
@@ -146,8 +147,9 @@ function selfTest() {
   const d = parseDSN('u:p@tcp(127.0.0.1:3306)/db');
   eq([d.user, d.pass, d.host, d.port], ['u', 'p', '127.0.0.1', '3306'], 'dsn parse');
   throws(() => parseDSN('postgres://x'), EXIT_HARNESS, 'non-mysql dsn');
-  eq(challengeFromInvite('Created owner x.\nInvite challenge, shown once: abc-123\nDone\n'), 'abc-123', 'challenge parse');
-  throws(() => challengeFromInvite('nope'), EXIT_HARNESS, 'challenge missing');
+  eq(challengeFrom('Created owner x.\nInvite challenge, shown once: abc-123\nDone\n'), 'abc-123', 'invite challenge parse');
+  eq(challengeFrom('Reset started for administrator.\nReset challenge, shown once: xyz-9\nDone\n'), 'xyz-9', 'reset challenge parse');
+  throws(() => challengeFrom('nope'), EXIT_HARNESS, 'challenge missing');
   eq(checkDbName('test_athena_ok_1'), 'test_athena_ok_1', 'db name ok');
   throws(() => checkDbName('athena_dev'), EXIT_HARNESS, 'dev db refused');
   throws(() => checkDbName('test_athena_UPPER'), EXIT_HARNESS, 'upper db refused');
@@ -418,20 +420,25 @@ async function waitForDebugger(cdpPort, timeoutMs) {
   }
 }
 
-async function firstLogin(cdp, base, username, challenge, password) {
+// completeResetChallenge signs in as root through a CLI-issued reset
+// challenge on the real Desk form: no seeded sessions, and root bypasses
+// every gate, so lanes see all of Build (an Instance Owner cannot).
+async function completeResetChallenge(cdp, base, challenge, password) {
   await cdp('Page.navigate', { url: `${base}/` });
   await waitFor(cdp, `!!document.querySelector('.sign-in')`, 'sign-in page');
   await evaluate(cdp, `[...document.querySelectorAll('button')].find((b) => (b.textContent || '').includes('First login')).click()`);
-  await waitFor(cdp, `!!document.querySelector('#complete-username')`, 'first-login form');
+  await waitFor(cdp, `!!document.querySelector('#complete-username')`, 'challenge form');
+  await evaluate(cdp, `[...document.querySelectorAll('button')].find((b) => (b.textContent || '').trim() === 'Password reset').click()`);
+  await waitFor(cdp, `document.body.textContent.includes('Reset code')`, 'reset purpose picked');
   const set = (id, value) => `(document.querySelector('${id}') && (() => {
     const el = document.querySelector('${id}');
     el.focus(); el.value = ${JSON.stringify(value)};
     el.dispatchEvent(new Event('input', { bubbles: true }));
     return true;
   })())`;
-  for (const [id, value] of [['#complete-username', username], ['#complete-challenge', challenge],
+  for (const [id, value] of [['#complete-username', 'administrator'], ['#complete-challenge', challenge],
       ['#complete-password', password], ['#complete-confirm', password]]) {
-    if (!await evaluate(cdp, set(id, value))) throw new HarnessError(`first-login field ${id} missing`);
+    if (!await evaluate(cdp, set(id, value))) throw new HarnessError(`challenge field ${id} missing`);
   }
   await evaluate(cdp, `document.querySelector('form button[type="submit"]').click()`);
   await waitFor(cdp, `!document.querySelector('.sign-in')`, 'login to complete');
@@ -599,9 +606,9 @@ async function main() {
     athena(target, childEnv, ['migrate', 'up'], 'migrate up');
     athena(target, childEnv, ['user', 'list'], 'ensure root');
     const password = crypto.randomBytes(15).toString('base64url');
-    const inviteOut = athena(target, childEnv, ['user', 'invite', OWNER, '--owner'], 'invite owner');
-    const challenge = challengeFromInvite(inviteOut);
-    console.log('ok   owner invited (challenge captured, never printed)');
+    const resetOut = athena(target, childEnv, ['user', 'reset', 'administrator'], 'reset root');
+    const challenge = challengeFrom(resetOut);
+    console.log('ok   root reset issued (challenge captured, never printed)');
 
     const base = `http://127.0.0.1:${port}`;
     const serveLog = fs.openSync(path.join(shotsDir, 'serve.log'), 'w');
@@ -622,8 +629,8 @@ async function main() {
     await cdp('Log.enable');
     await cdp('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
 
-    await firstLogin(cdp, base, OWNER, challenge, password);
-    console.log(`ok   signed in as ${OWNER} through the invite challenge`);
+    await completeResetChallenge(cdp, base, challenge, password);
+    console.log('ok   signed in as administrator through the reset challenge');
     await setTheme(cdp, base, args.theme);
     await cdp('Page.navigate', { url: `${base}/` });
     await waitFor(cdp, `!document.querySelector('.sign-in')`, 'desk ready for the script');
