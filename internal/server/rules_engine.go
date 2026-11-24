@@ -14,6 +14,7 @@ import (
 
 	athenav1 "athena-erp/gen/athena/v1"
 	"athena-erp/internal/auth"
+	"athena-erp/internal/expr"
 	"athena-erp/internal/lifecycle"
 	"athena-erp/internal/notifications"
 	"athena-erp/internal/posting"
@@ -62,6 +63,11 @@ type storedRule struct {
 	Event    string
 	Priority int
 	Source   string
+	// Builder authoring; ConditionExpr set means the Rule runs without
+	// Starlark. SetsJSON holds derivation assignments.
+	ConditionExpr string
+	Message       string
+	SetsJSON      string
 }
 
 // ruleStackKey carries the Rules running in this call chain (rules.Stack).
@@ -125,7 +131,7 @@ func (e ruleEngine) hook(ctx context.Context, ev *lifecycle.Event) error {
 // loadRulesFor returns the enabled Rules of one Record Type and event in run
 // order: derivations, validations, guards, then priority, then key.
 func loadRulesFor(ctx context.Context, q querier, recordType, event string) ([]storedRule, error) {
-	rows, err := q.QueryContext(ctx, "SELECT name, version, rule_type, event, priority, source FROM athena_rules WHERE record_type = ? AND event = ? AND enabled = 1", recordType, event)
+	rows, err := q.QueryContext(ctx, "SELECT name, version, rule_type, event, priority, source, COALESCE(condition_expr, ''), COALESCE(message, ''), COALESCE(sets, '') FROM athena_rules WHERE record_type = ? AND event = ? AND enabled = 1", recordType, event)
 	if err != nil {
 		return nil, internalError("load rules", err)
 	}
@@ -134,7 +140,7 @@ func loadRulesFor(ctx context.Context, q querier, recordType, event string) ([]s
 	for rows.Next() {
 		var r storedRule
 		var kind string
-		if err := rows.Scan(&r.Key, &r.Version, &kind, &r.Event, &r.Priority, &r.Source); err != nil {
+		if err := rows.Scan(&r.Key, &r.Version, &kind, &r.Event, &r.Priority, &r.Source, &r.ConditionExpr, &r.Message, &r.SetsJSON); err != nil {
 			return nil, internalError("read rule", err)
 		}
 		r.Type = rules.Type(kind)
@@ -205,16 +211,20 @@ func (r ruleRun) execute(ctx context.Context) (rules.Outcome, error) {
 		refs, recordType = ruleRefs(*r.def), r.def.Name
 	}
 	var out rules.Outcome
-	program, compileErr := rules.Compile(r.rule.Type, source, refs)
 	p, accessErr := accessFor(ctx)
 	switch {
 	case stackErr != nil:
 		out = rules.Outcome{Status: rules.Errored, Code: rules.CodeCascadeLimit, Message: stackErr.Error()}
-	case compileErr != nil:
-		out = rules.Outcome{Status: rules.Errored, Code: "compile", Message: compileErr.Error()}
 	case accessErr != nil:
 		return rules.Outcome{}, accessErr
+	case r.rule.ConditionExpr != "":
+		out = r.runBuilder(ctx)
 	default:
+		program, compileErr := rules.Compile(r.rule.Type, source, refs)
+		if compileErr != nil {
+			out = rules.Outcome{Status: rules.Errored, Code: "compile", Message: compileErr.Error()}
+			break
+		}
 		host := &ruleHost{ctx: ctx, tx: r.tx, principal: p, def: r.def, doc: r.doc}
 		in := rules.Input{
 			Rule: r.rule.Key, Version: r.rule.Version, Event: r.event, RecordType: recordType, RecordID: r.recordID,
@@ -237,6 +247,82 @@ func (r ruleRun) execute(ctx context.Context) (rules.Outcome, error) {
 		return out, err
 	}
 	return out, nil
+}
+
+// runBuilder executes a builder Rule without Starlark: it compiles the
+// stored condition, evaluates it against the document, and either rejects
+// with the Rule's message (validation, guard) or applies its sets through
+// the document's writes, which mergeRuleWrites checks like a user's save.
+// Anything unexpected is an errored run, mirroring a Starlark failure.
+func (r ruleRun) runBuilder(ctx context.Context) rules.Outcome {
+	fail := func(code, message string) rules.Outcome {
+		return rules.Outcome{Status: rules.Errored, Code: code, Message: message}
+	}
+	start := ruleNow().UTC()
+	if r.def == nil {
+		return fail("config", "the Rule has no Record Type")
+	}
+	env, err := newExprEnvironment(ctx, r.engine.db, *r.def, nil)
+	if err != nil {
+		return fail("config", err.Error())
+	}
+	program, err := env.env.Compile(r.rule.ConditionExpr)
+	if err != nil {
+		return fail("compile", err.Error())
+	}
+	if program.Result != expr.Bool {
+		return fail("compile", "the condition must return yes or no")
+	}
+	evaluation, err := newEvaluation(&exprPlan{exprEnvironment: env, def: *r.def}, r.doc.Values, r.doc.System, nil)
+	if err != nil {
+		return fail("eval", err.Error())
+	}
+	holds, err := evaluation.runBool(program)
+	if err != nil {
+		return fail("eval", err.Error())
+	}
+	if r.rule.Type != rules.Derivation {
+		if holds {
+			return rules.Outcome{Status: rules.OK, Duration: ruleNow().UTC().Sub(start)}
+		}
+		return rules.Outcome{Status: rules.Rejected, Code: rules.CodeRejected, Message: r.rule.Message, Duration: ruleNow().UTC().Sub(start)}
+	}
+	out := rules.Outcome{Status: rules.OK, Duration: ruleNow().UTC().Sub(start)}
+	if !holds {
+		return out
+	}
+	var sets []builderSet
+	if r.rule.SetsJSON != "" {
+		if err := json.Unmarshal([]byte(r.rule.SetsJSON), &sets); err != nil {
+			return fail("compile", "the set fields are not valid JSON")
+		}
+	}
+	byField := fieldsByKey(*r.def)
+	for _, set := range sets {
+		field, ok := byField[set.Field]
+		if !ok {
+			return fail("compile", fmt.Sprintf("unknown field %q", set.Field))
+		}
+		valueProgram, err := env.env.Compile(set.ValueExpr)
+		if err != nil {
+			return fail("compile", fmt.Sprintf("%s: %s", set.Field, err.Error()))
+		}
+		if !formulaResultFits(field, valueProgram.Result) {
+			return fail("compile", fmt.Sprintf("%s: the value does not fit", set.Field))
+		}
+		value, err := valueProgram.Eval(evaluation.scope)
+		if err != nil {
+			return fail("eval", fmt.Sprintf("%s could not be calculated: %s", field.Label, connectMessage(err)))
+		}
+		arg, err := formulaArg(field, value)
+		if err != nil {
+			return fail("eval", fmt.Sprintf("%s could not be calculated: %s", field.Label, connectMessage(err)))
+		}
+		r.doc.Set(set.Field, arg)
+		out.Writes = append(out.Writes, rules.Write{Field: set.Field, Value: value})
+	}
+	out.Duration = ruleNow().UTC().Sub(start)
+	return out
 }
 
 // ruleNow is the time handed to Rules as ctx.now. Tests replace it.

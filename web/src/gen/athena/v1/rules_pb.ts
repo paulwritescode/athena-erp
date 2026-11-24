@@ -158,7 +158,8 @@ export type Rule = Message<"athena.v1.Rule"> & {
   version: bigint;
 
   /**
-   * SHA-256 of the source, lowercase hex.
+   * SHA-256 of the executed form, lowercase hex: the source, or the
+   * compiled expression for builder Rules.
    *
    * @generated from field: string source_hash = 3;
    */

@@ -231,7 +231,8 @@ type Rule struct {
 	Definition *RuleDefinition        `protobuf:"bytes,1,opt,name=definition,proto3" json:"definition,omitempty"`
 	// Starts at 1 and grows by one on every save.
 	Version int64 `protobuf:"varint,2,opt,name=version,proto3" json:"version,omitempty"`
-	// SHA-256 of the source, lowercase hex.
+	// SHA-256 of the executed form, lowercase hex: the source, or the
+	// compiled expression for builder Rules.
 	SourceHash string `protobuf:"bytes,3,opt,name=source_hash,json=sourceHash,proto3" json:"source_hash,omitempty"`
 	ModifiedBy string `protobuf:"bytes,4,opt,name=modified_by,json=modifiedBy,proto3" json:"modified_by,omitempty"`
 	// RFC 3339 time of the last save.

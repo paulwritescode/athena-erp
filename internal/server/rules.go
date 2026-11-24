@@ -14,6 +14,7 @@ import (
 	athenav1 "athena-erp/gen/athena/v1"
 	"athena-erp/internal/audit"
 	"athena-erp/internal/auth"
+	"athena-erp/internal/expr"
 	"athena-erp/internal/lifecycle"
 	"athena-erp/internal/posting"
 	"athena-erp/internal/rules"
@@ -29,6 +30,7 @@ var ruleKeyPattern = regexp.MustCompile(`^[a-z][a-z0-9_]{0,62}$`)
 const (
 	maxRuleLabel    = 255
 	maxRulePriority = 1000
+	maxRuleMessage  = 500
 	defaultRuns     = 50
 	maxRuns         = 200
 	// ruleAuditType is the Audit Log record type of Rule changes, next to
@@ -54,7 +56,16 @@ func (s ruleService) ready() error {
 }
 
 func definitionMessage(r storedRuleRow) *athenav1.RuleDefinition {
-	return &athenav1.RuleDefinition{Key: r.key, Label: r.label, RuleType: r.ruleType, RecordTypeKey: r.recordType, Event: r.event, Priority: int32(r.priority), Enabled: r.enabled, Source: r.source}
+	sets := []*athenav1.DerivationSet{}
+	if r.sets != "" {
+		var parsed []builderSet
+		if err := json.Unmarshal([]byte(r.sets), &parsed); err == nil {
+			for _, s := range parsed {
+				sets = append(sets, &athenav1.DerivationSet{Field: s.Field, ValueExpr: s.ValueExpr})
+			}
+		}
+	}
+	return &athenav1.RuleDefinition{Key: r.key, Label: r.label, RuleType: r.ruleType, RecordTypeKey: r.recordType, Event: r.event, Priority: int32(r.priority), Enabled: r.enabled, Source: r.source, ConditionTree: r.tree, ConditionExpr: r.expr, Message: r.notetext, Sets: sets}
 }
 
 // storedRuleRow is a whole athena_rules or athena_rule_versions row.
@@ -64,20 +75,27 @@ type storedRuleRow struct {
 	enabled                                 bool
 	version                                 int64
 	source, hash, actor                     string
+	tree, expr, notetext, sets              string
 	at                                      time.Time
+}
+
+// builderSet is one derivation assignment in storage JSON.
+type builderSet struct {
+	Field     string `json:"field"`
+	ValueExpr string `json:"value_expr"`
 }
 
 func (r storedRuleRow) message() *athenav1.Rule {
 	return &athenav1.Rule{Definition: definitionMessage(r), Version: r.version, SourceHash: r.hash, ModifiedBy: r.actor, ModifiedAt: r.at.UTC().Format(time.RFC3339)}
 }
 
-const ruleColumns = "name, label, rule_type, COALESCE(record_type, ''), COALESCE(event, ''), priority, enabled, version, source, source_hash, modified_by, updated_at"
+const ruleColumns = "name, label, rule_type, COALESCE(record_type, ''), COALESCE(event, ''), priority, enabled, version, source, source_hash, modified_by, updated_at, COALESCE(condition_tree, ''), COALESCE(condition_expr, ''), COALESCE(message, ''), COALESCE(sets, '')"
 
 type scanner interface{ Scan(...any) error }
 
 func scanRule(row scanner) (storedRuleRow, error) {
 	var r storedRuleRow
-	err := row.Scan(&r.key, &r.label, &r.ruleType, &r.recordType, &r.event, &r.priority, &r.enabled, &r.version, &r.source, &r.hash, &r.actor, &r.at)
+	err := row.Scan(&r.key, &r.label, &r.ruleType, &r.recordType, &r.event, &r.priority, &r.enabled, &r.version, &r.source, &r.hash, &r.actor, &r.at, &r.tree, &r.expr, &r.notetext, &r.sets)
 	return r, err
 }
 
@@ -121,17 +139,18 @@ func (s ruleService) GetRule(ctx context.Context, req *athenav1.GetRuleRequest) 
 	return &athenav1.GetRuleResponse{Rule: r.message()}, nil
 }
 
-// checkedRule is a definition that passed validation, with its Record Type.
+// checkedRule is a definition that passed validation, with its Record Type
+// and, for builder Rules, the compiled condition.
 type checkedRule struct {
-	def *athenav1.RuleDefinition
-	rt  *recordTypeDefinition
+	def      *athenav1.RuleDefinition
+	rt       *recordTypeDefinition
+	compiled string
 }
 
-// checkDefinition validates a Rule definition and compiles its source. Every
-// failure is an invalid-argument error; a source problem carries its line.
-func checkDefinition(ctx context.Context, q interface {
-	QueryRowContext(context.Context, string, ...any) *sql.Row
-}, def *athenav1.RuleDefinition) (checkedRule, error) {
+// checkDefinition validates a Rule definition and compiles its source or,
+// for builder Rules, its condition tree. Every failure is an
+// invalid-argument error; a source problem carries its line.
+func checkDefinition(ctx context.Context, q *sql.Tx, def *athenav1.RuleDefinition) (checkedRule, error) {
 	if !ruleKeyPattern.MatchString(def.GetKey()) {
 		return checkedRule{}, invalid("a Rule key starts with a lowercase letter and holds lowercase letters, digits and underscores, up to 63 characters")
 	}
@@ -145,8 +164,15 @@ func checkDefinition(ctx context.Context, q interface {
 	if def.GetPriority() < 0 || def.GetPriority() > maxRulePriority {
 		return checkedRule{}, invalid("the priority is between 0 and 1000")
 	}
-	if def.GetSource() == "" {
+	builder := strings.TrimSpace(def.GetConditionTree()) != ""
+	if builder && def.GetSource() != "" {
+		return checkedRule{}, invalid("write the Rule in Starlark or the builder, not both")
+	}
+	if !builder && def.GetSource() == "" {
 		return checkedRule{}, invalid("the Rule has no source")
+	}
+	if !builder && (def.GetMessage() != "" || len(def.GetSets()) > 0) {
+		return checkedRule{}, invalid("a message and set fields need a builder condition")
 	}
 	out := checkedRule{def: def}
 	var refs rules.Refs
@@ -169,8 +195,74 @@ func checkDefinition(ctx context.Context, q interface {
 		}
 		out.rt, refs = &rt, ruleRefs(rt)
 	}
-	if _, err := rules.Compile(kind, def.GetSource(), refs); err != nil {
+	if !builder {
+		if _, err := rules.Compile(kind, def.GetSource(), refs); err != nil {
+			return out, invalid(err.Error())
+		}
+		return out, nil
+	}
+	return checkBuilderDefinition(ctx, q, out, kind)
+}
+
+// checkBuilderDefinition validates a builder Rule: the tree compiles
+// against the Record Type, validation and guard carry a message, and every
+// derivation set names a field with a fitting expression.
+func checkBuilderDefinition(ctx context.Context, q querier, out checkedRule, kind rules.Type) (checkedRule, error) {
+	if kind != rules.Validation && kind != rules.Derivation && kind != rules.Guard {
+		return out, invalid("only validation, derivation and guard Rules come from the builder")
+	}
+	if out.rt == nil {
+		return out, invalid("a builder Rule needs the Record Type it belongs to")
+	}
+	def := out.def
+	var tree expr.Tree
+	if err := json.Unmarshal([]byte(def.GetConditionTree()), &tree); err != nil {
+		return out, invalid("the condition tree is not valid JSON")
+	}
+	env, err := newExprEnvironment(ctx, q, *out.rt, nil)
+	if err != nil {
+		return out, err
+	}
+	vars := make(map[string]expr.Variable, len(env.vars))
+	for _, v := range env.vars {
+		vars[v.Name] = v
+	}
+	compiled, err := expr.CompileTree(tree, vars)
+	if err != nil {
 		return out, invalid(err.Error())
+	}
+	out.compiled = compiled
+	message := strings.TrimSpace(def.GetMessage())
+	if kind == rules.Derivation {
+		if message != "" {
+			return out, invalid("a derivation sets fields instead of messaging")
+		}
+		if len(def.GetSets()) == 0 {
+			return out, invalid("a derivation sets at least one field")
+		}
+		for _, set := range def.GetSets() {
+			field, ok := env.byField[set.GetField()]
+			if !ok {
+				return out, invalid(fmt.Sprintf("unknown field %q", set.GetField()))
+			}
+			program, err := env.env.Compile(set.GetValueExpr())
+			if err != nil {
+				return out, invalid(fmt.Sprintf("%s: %s", set.GetField(), err.Error()))
+			}
+			if !formulaResultFits(field, program.Result) {
+				return out, invalid(fmt.Sprintf("%s: the value does not fit", set.GetField()))
+			}
+		}
+		return out, nil
+	}
+	if message == "" {
+		return out, invalid("say what the Rule reports when it fires")
+	}
+	if len([]rune(message)) > maxRuleMessage {
+		return out, invalid("the message holds up to 500 characters")
+	}
+	if len(def.GetSets()) > 0 {
+		return out, invalid("only a derivation sets fields")
 	}
 	return out, nil
 }
@@ -214,7 +306,21 @@ func (s ruleService) SaveRule(ctx context.Context, req *athenav1.SaveRuleRequest
 	case !exists && req.GetExpectedVersion() != 0:
 		return nil, connect.NewError(connect.CodeAborted, "this Rule no longer exists; reload and try again")
 	}
-	hash := rules.SourceHash(def.GetSource())
+	executed := def.GetSource()
+	setsJSON := ""
+	if checked.compiled != "" {
+		executed = checked.compiled
+		sets := make([]builderSet, 0, len(def.GetSets()))
+		for _, s := range def.GetSets() {
+			sets = append(sets, builderSet{Field: s.GetField(), ValueExpr: s.GetValueExpr()})
+		}
+		raw, err := json.Marshal(sets)
+		if err != nil {
+			return nil, err
+		}
+		setsJSON = string(raw)
+	}
+	hash := rules.SourceHash(executed)
 	enabled, diff := def.GetEnabled(), ""
 	if rules.Type(def.GetRuleType()) == rules.Posting {
 		// Activating a changed posting Rule replays its fixtures; a
@@ -224,25 +330,26 @@ func (s ruleService) SaveRule(ctx context.Context, req *athenav1.SaveRuleRequest
 			return nil, err
 		}
 	}
-	next := storedRuleRow{key: def.GetKey(), label: def.GetLabel(), ruleType: def.GetRuleType(), recordType: def.GetRecordTypeKey(), event: def.GetEvent(), priority: int(def.GetPriority()), enabled: enabled, version: 1, source: def.GetSource(), hash: hash, actor: actorName(ctx)}
+	next := storedRuleRow{key: def.GetKey(), label: def.GetLabel(), ruleType: def.GetRuleType(), recordType: def.GetRecordTypeKey(), event: def.GetEvent(), priority: int(def.GetPriority()), enabled: enabled, version: 1, source: def.GetSource(), hash: hash, actor: actorName(ctx), tree: def.GetConditionTree(), expr: checked.compiled, notetext: def.GetMessage(), sets: setsJSON}
 	if exists {
 		// A save that changes nothing is not a new version.
-		same := current.label == next.label && current.ruleType == next.ruleType && current.recordType == next.recordType && current.event == next.event && current.priority == next.priority && current.enabled == next.enabled && current.hash == hash
+		same := current.label == next.label && current.ruleType == next.ruleType && current.recordType == next.recordType && current.event == next.event && current.priority == next.priority && current.enabled == next.enabled && current.hash == hash &&
+			current.tree == next.tree && current.notetext == next.notetext && current.sets == next.sets
 		if same {
 			return &athenav1.SaveRuleResponse{Rule: current.message()}, nil
 		}
 		next.version = current.version + 1
-		_, err = tx.ExecContext(ctx, "UPDATE athena_rules SET label = ?, rule_type = ?, record_type = ?, event = ?, priority = ?, enabled = ?, version = ?, source = ?, source_hash = ?, modified_by = ?, updated_at = CURRENT_TIMESTAMP(3) WHERE name = ?",
-			next.label, next.ruleType, nullText(next.recordType), nullText(next.event), next.priority, next.enabled, next.version, next.source, hash, next.actor, next.key)
+		_, err = tx.ExecContext(ctx, "UPDATE athena_rules SET label = ?, rule_type = ?, record_type = ?, event = ?, priority = ?, enabled = ?, version = ?, source = ?, source_hash = ?, modified_by = ?, updated_at = CURRENT_TIMESTAMP(3), condition_tree = ?, condition_expr = ?, message = ?, sets = ? WHERE name = ?",
+			next.label, next.ruleType, nullText(next.recordType), nullText(next.event), next.priority, next.enabled, next.version, next.source, hash, next.actor, nullText(next.tree), nullText(next.expr), nullText(next.notetext), nullText(next.sets), next.key)
 	} else {
-		_, err = tx.ExecContext(ctx, "INSERT INTO athena_rules (name, label, rule_type, record_type, event, priority, enabled, version, source, source_hash, modified_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-			next.key, next.label, next.ruleType, nullText(next.recordType), nullText(next.event), next.priority, next.enabled, next.version, next.source, hash, next.actor)
+		_, err = tx.ExecContext(ctx, "INSERT INTO athena_rules (name, label, rule_type, record_type, event, priority, enabled, version, source, source_hash, modified_by, condition_tree, condition_expr, message, sets) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+			next.key, next.label, next.ruleType, nullText(next.recordType), nullText(next.event), next.priority, next.enabled, next.version, next.source, hash, next.actor, nullText(next.tree), nullText(next.expr), nullText(next.notetext), nullText(next.sets))
 	}
 	if err != nil {
 		return nil, writeError("save rule", err)
 	}
-	if _, err := tx.ExecContext(ctx, "INSERT INTO athena_rule_versions (rule_name, version, label, rule_type, record_type, event, priority, enabled, source, source_hash, actor, request_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-		next.key, next.version, next.label, next.ruleType, nullText(next.recordType), nullText(next.event), next.priority, next.enabled, next.source, hash, next.actor, requestID); err != nil {
+	if _, err := tx.ExecContext(ctx, "INSERT INTO athena_rule_versions (rule_name, version, label, rule_type, record_type, event, priority, enabled, source, source_hash, actor, request_id, condition_tree, condition_expr, message, sets) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+		next.key, next.version, next.label, next.ruleType, nullText(next.recordType), nullText(next.event), next.priority, next.enabled, next.source, hash, next.actor, requestID, nullText(next.tree), nullText(next.expr), nullText(next.notetext), nullText(next.sets)); err != nil {
 		return nil, writeError("save rule", err)
 	}
 	action := "rule_created"
@@ -613,7 +720,7 @@ func (s ruleService) ListRuleVersions(ctx context.Context, req *athenav1.ListRul
 	if _, err := requireSystem(ctx, auth.PermissionRulesRead); err != nil {
 		return nil, err
 	}
-	rows, err := s.db.QueryContext(ctx, "SELECT rule_name, label, rule_type, COALESCE(record_type, ''), COALESCE(event, ''), priority, enabled, version, source, source_hash, actor, created_at FROM athena_rule_versions WHERE rule_name = ? ORDER BY version DESC", req.GetKey())
+	rows, err := s.db.QueryContext(ctx, "SELECT rule_name, label, rule_type, COALESCE(record_type, ''), COALESCE(event, ''), priority, enabled, version, source, source_hash, actor, created_at, COALESCE(condition_tree, ''), COALESCE(condition_expr, ''), COALESCE(message, ''), COALESCE(sets, '') FROM athena_rule_versions WHERE rule_name = ? ORDER BY version DESC", req.GetKey())
 	if err != nil {
 		return nil, internalError("list rule versions", err)
 	}
@@ -659,8 +766,18 @@ func (s ruleService) SimulateRule(ctx context.Context, req *athenav1.SimulateRul
 	if err := tx.QueryRowContext(ctx, "SELECT version FROM athena_rules WHERE name = ?", def.GetKey()).Scan(&version); err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, internalError("read rule", err)
 	}
+	setsJSON := ""
+	if len(def.GetSets()) > 0 {
+		sets := make([]builderSet, 0, len(def.GetSets()))
+		for _, s := range def.GetSets() {
+			sets = append(sets, builderSet{Field: s.GetField(), ValueExpr: s.GetValueExpr()})
+		}
+		if raw, err := json.Marshal(sets); err == nil {
+			setsJSON = string(raw)
+		}
+	}
 	run := ruleRun{
-		engine: s.engine, rule: storedRule{Key: def.GetKey(), Version: version, Type: rules.Type(def.GetRuleType()), Event: def.GetEvent(), Priority: int(def.GetPriority())},
+		engine: s.engine, rule: storedRule{Key: def.GetKey(), Version: version, Type: rules.Type(def.GetRuleType()), Event: def.GetEvent(), Priority: int(def.GetPriority()), ConditionExpr: checked.compiled, Message: def.GetMessage(), SetsJSON: setsJSON},
 		def: checked.rt, tx: tx, event: def.GetEvent(), dryRun: true, source: def.GetSource(), recordID: req.GetRecordId(),
 	}
 	doc, err := simulationDocument(ctx, tx, p, checked.rt, req)
