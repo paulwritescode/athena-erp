@@ -6,8 +6,10 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	athenav1 "athena-erp/gen/athena/v1"
+	"athena-erp/internal/jobs"
 	"athena-erp/internal/types"
 )
 
@@ -151,4 +153,40 @@ func parseAsOf(asOf string) (string, error) {
 		return "", invalid("as of must be a date as YYYY-MM-DD")
 	}
 	return asOf, nil
+}
+
+// validateLifetime checks a Record Type's retention block (ADR-0033,
+// Req 8.16). An empty block means unset and is always valid; a set
+// block needs a known retention class, and its trigger, action and
+// archive readers must parse. Classes come from the disposal schedule
+// so validation and disposal can never disagree on the value set.
+func validateLifetime(lifetime Lifetime) error {
+	if lifetime.Profile == "" && lifetime.RetentionTrigger == "" && lifetime.RetentionClass == "" &&
+		lifetime.DisposalAction == "" && len(lifetime.ArchiveReaders) == 0 && !lifetime.Hold {
+		return nil
+	}
+	if utf8.RuneCountInString(lifetime.Profile) > 40 {
+		return invalid("the lifetime profile must be at most 40 characters")
+	}
+	switch lifetime.RetentionClass {
+	case jobs.ClassLedger, jobs.ClassInvoice, jobs.ClassStock, jobs.ClassAudit, jobs.ClassGuest:
+	default:
+		return invalid(fmt.Sprintf("retention class %q must be ledger, invoice, stock, audit or guest", lifetime.RetentionClass))
+	}
+	switch lifetime.RetentionTrigger {
+	case "", jobs.TriggerCreated, jobs.TriggerUpdated:
+	default:
+		return invalid(fmt.Sprintf("retention trigger %q must be created or updated", lifetime.RetentionTrigger))
+	}
+	switch lifetime.DisposalAction {
+	case "", jobs.ActionAnonymise, jobs.ActionDelete, jobs.ActionNone:
+	default:
+		return invalid(fmt.Sprintf("disposal action %q must be anonymise, delete or none", lifetime.DisposalAction))
+	}
+	for _, reader := range lifetime.ArchiveReaders {
+		if reader == "" || utf8.RuneCountInString(reader) > 140 {
+			return invalid("every archive reader must name a Role of at most 140 characters")
+		}
+	}
+	return nil
 }

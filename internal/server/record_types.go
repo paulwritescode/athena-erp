@@ -43,9 +43,14 @@ type recordTypeDefinition struct {
 	// Tree organises rows into a hierarchy through tree_parent_id; the
 	// kernel stores tree_path and tree_depth. EffectiveDated gives rows an
 	// end-exclusive effective range (ADR-0029).
-	Tree           bool              `json:"tree,omitempty"`
-	EffectiveDated bool              `json:"effective_dated,omitempty"`
-	Fields         []recordTypeField `json:"fields"`
+	Tree           bool `json:"tree,omitempty"`
+	EffectiveDated bool `json:"effective_dated,omitempty"`
+	// Lifetime carries the retention block (ADR-0033, Req 8.16). It is
+	// embedded with no tag so the definition JSON keeps the flat
+	// lifetime, retention_trigger, retention_class, disposal_action,
+	// archive_readers and hold keys.
+	Lifetime
+	Fields []recordTypeField `json:"fields"`
 	// Layout arranges the form. Nil means definition order.
 	Layout *formLayout `json:"layout,omitempty"`
 	// Revision is the active revision. It is read from the revision column,
@@ -92,6 +97,31 @@ type recordTypeField struct {
 type enumValue struct {
 	Value string `json:"value"`
 	Label string `json:"label"`
+}
+
+// Lifetime is a Record Type's retention block (ADR-0033, Req 8.16):
+// its lifetime profile, retention trigger, class, disposal action,
+// archive readers and hold behaviour. Zero means unset, and disposal
+// never touches an unset type's rows.
+type Lifetime struct {
+	Profile          string   `json:"lifetime,omitempty"`
+	RetentionTrigger string   `json:"retention_trigger,omitempty"`
+	RetentionClass   string   `json:"retention_class,omitempty"`
+	DisposalAction   string   `json:"disposal_action,omitempty"`
+	ArchiveReaders   []string `json:"archive_readers,omitempty"`
+	Hold             bool     `json:"hold,omitempty"`
+}
+
+// carryLifetime preserves stored lifetime attributes across saves.
+// The ConnectRPC contract cannot express lifetimes yet (L3 adds the
+// fields later), so a save carries the previous block forward instead
+// of wiping it; L3 must revisit this merge when the proto can set
+// and clear lifetimes explicitly.
+func carryLifetime(next *recordTypeDefinition, previous *recordTypeDefinition) {
+	if next.Lifetime.Profile == "" && next.Lifetime.RetentionTrigger == "" && next.Lifetime.RetentionClass == "" &&
+		next.Lifetime.DisposalAction == "" && len(next.Lifetime.ArchiveReaders) == 0 && !next.Lifetime.Hold && previous != nil {
+		next.Lifetime = previous.Lifetime
+	}
 }
 
 // recordTypeKeyPattern caps a key at 50 characters, so the table name
@@ -568,6 +598,7 @@ func prepareOne(ctx context.Context, conn sqlConn, recordType recordTypeDefiniti
 		}
 		return preparedSave{}, connect.NewError(connect.CodeAborted, "this Record Type was saved somewhere else; reload it and try again")
 	}
+	carryLifetime(&recordType, previous)
 	if err := validateRecordType(ctx, conn, recordType, previous); err != nil {
 		return preparedSave{}, err
 	}
@@ -781,6 +812,9 @@ func validateRecordType(ctx context.Context, conn sqlConn, recordType recordType
 		return err
 	}
 	if err := validateTreeEffective(recordType); err != nil {
+		return err
+	}
+	if err := validateLifetime(recordType.Lifetime); err != nil {
 		return err
 	}
 	if len(recordType.Fields) == 0 {
