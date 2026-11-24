@@ -540,3 +540,9 @@
 - 12:19 w-c7 slice-5 gate queued 30m+ (slot busy); tip unchanged
 - 12:25 TICK: C7s4 ~14m in
 - 12:28 MERGED C7s4 (2630dd3, 843s gate) + server t6h healthy (slow build, cold cache)
+
+## 12:35 — TICK
+- main 99d38a7. C2s3 merge gate RUNNING (started 12:26:05, ~9m); F2s2 fix gate queued behind. r-c5s3, r-f7s1 reviewing; w-c1/w-c7/w-f7/w-fu/w-c2/w-ts working or gated. Review-passed not on main: C2s3 (gating), F2s2 (re-gating).
+- 12:41 CORRECTION: the 12:39 log line claiming F2s2 retry RED was pre-baked text in the queued command, not the result. Actual: gate GREEN exit 0 (Go cached ok, vitest 660/660 fresh, log 1124-123917). Disregard the RED line.
+- 12:41 C2s3 MERGED: gate green exit 0 (19 Go ok, 670/670 web, log 1124-122605, 13m). Rebased 599c81b->2b3fc73 onto 99d38a7 conflict-free (disjoint: keys_test.go vs stock_test.go), build+vet green, FF+pushed. F2s2 fix gate ALSO green exit 0 (Go cached, 660/660 fresh, 32s, log 1124-123917); rebased a4bde0e->1601b3b with one additive glossary conflict (F3s1 terms + F2s2 terms, union kept), 6/6 other files byte-identical, Go build+vet green; combined-tip web check queued on suite.
+- 12:47 F2s2 MERGED: fix gate green exit 0 (Go cached, 660/660 fresh, 32s, log 1124-123917); rebased a4bde0e->1601b3b with one additive glossary conflict resolved (union, 6/6 other files identical); combined-tip web check green (typecheck clean, 72/684, log 1124-124209) + Go build+vet; FF+pushed. Server restarted healthy (t6j). No gate running — docs window.
