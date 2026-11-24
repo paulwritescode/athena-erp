@@ -167,8 +167,11 @@ follows read.
   filter" control that embeds this builder. Saved lists appear as one-click
   chips beside it when the Record Type has any.
 - **F3**: "Rules for this field" (required when, read only when, show
-  when, must be true) and formula inputs embed the builder in compact
-  (single-group) form. F3 Advanced keeps key/pattern/levels as selects.
+  when, must be true) embeds the builder in compact (single-group)
+  form — owned by F3 slice 2 (w-f2, Stylus ruling 2026-11-24), not F4.
+  F4 ships the shared `compact` prop on ConditionBuilder and stays out
+  of FieldSettingsDialog.vue. F3 Advanced keeps key/pattern/levels as
+  selects.
 
 ## 5. Desk idiom compliance
 
