@@ -5,6 +5,9 @@ ADDR ?= 127.0.0.1:3000
 ARGS ?= --addr $(ADDR)
 CACHE_DIR ?= $(CURDIR)/.cache
 export BUF_CACHE_DIR := $(CACHE_DIR)/buf
+# Parallel Go test packages. 4 won the 2026-11-24 shootout (513s full green
+# vs 836s at -p 2); override per run with make test GO_TEST_P=N.
+GO_TEST_P ?= 4
 
 generate: web-deps
 	buf generate
@@ -26,7 +29,7 @@ build: web-build
 test: web-deps
 	@set -a; if [ -f .env.local ]; then . ./.env.local; fi; set +a; \
 	export ATHENA_TEST_DATABASE_URL="$${ATHENA_TEST_DATABASE_URL:-$$ATHENA_DATABASE_URL}"; \
-	go test -timeout 20m ./... && CI=true pnpm --dir web run test
+	go test -p $(GO_TEST_P) -timeout 20m ./... && CI=true pnpm --dir web run test
 
 # Black-box ConnectRPC checks. Athena must already be running and the Bruno
 # CLI must be installed (`pnpm add --global @usebruno/cli`). The password is
