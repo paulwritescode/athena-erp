@@ -1,4 +1,4 @@
-# Stylus night report — night shift, 2026-11-24 (main 12ee455)
+# Stylus night report — night shift, 2026-11-24→25 (main 0897792)
 
 ## Summary
 
@@ -39,23 +39,31 @@ Shift 3 + night shift have merged about 100 code commits plus docs batches: the 
 - **F4 slice 1** (main `9cb58bd`, 17 commits): builder conditions engine (tree codec Go+TS, date(), eval/sets/simulate), Rules Builder modes (migration 24), lists service + gopdf PDF + CLI export + Desk UI + QueueMessages. gopdf v0.38.6 cleared after maroto failed the size budget (+15MB vs +1.2MB). Review PASS. Gate 1448s.
 - **CLI markers fix** (`ff18cb2`): F4s1 merge had left conflict markers in help text (compiled + passed tests; spotted by w-c1). Keep-both, build+vet green.
 - **TS slice 4** (main `12ee455`, 2 commits): shared-DB for ledger/jobs/events/stock + server stragglers. Review PASS. Gate 836s: posting 18.8s (was 853), server 223s, ledger 7.5s, jobs 11.6s, events 16.4s, stock 32.6s; auth 532s still the pole.
+- **C7 slice 7 + fix** (main `42b56ec`, 2 commits): stock-to-GL check + LogID doc fix. Review PASS (1 cycle). Gate 704s (21 Go ok, 717 web). Pushed during C10s2 gate per standing ruling.
+- **C10 slices 1–2** (main `7cff511`, 2 commits): ADR-0035 + provider inbox (HMAC, dedupe, Operation_ID). Review PASS. Gate 784s (21 Go ok, 717 web).
+- **F3 slice 2 + fix** (main `05e222b`, 2 commits): compact builder per condition; review found peek-deletes-expression (fixed + proven regression test). Gate 723s (21 Go ok, 724 web). Server restarted (t7n). F3 COMPLETE.
+- **C7 slice 8** (main `679e519`, 1 commit): Property 22 + 2 in-slice bugfixes (LIFO guards, value-sign legs). Review PASS. Gate 725s (22 Go ok, 724 web).
+- **C5 slice 6 backend** (main `ca6ad9d`, 1 commit): settlement RPCs + CLI + ledger:close; stale .fail deleted. Review PASS. Gate 694s (22 Go ok, 724 web; clean=false was a queue-time-head artifact). Server restarted (t7r). First push hit transient GitHub 500, retry green.
+- **C5 slice 8** (main `fd21f66`, 1 commit): open-item creation + ADR-0031 amend. Review PASS. Gate 759s (22 Go ok, 724 web). Server restarted (t7w).
+- **F4 train slices 2+3** (main `2d9b2cc`, 11 commits): lists:send + QueueMessages + lists Desk UI + Advanced filter + saved-list chips. Review PASS after 1 rebase-only cycle (inherited markers). Gate 693s (22 Go ok, 735 web). Server restarted (t7z). Unblocks C5s7, C7s9b, F5.
+- **TS slice 5** (main `0897792`, 4 commits): auth redundant-Up drop + cmd shared-DSN + GO_TEST_P ?= 4 (suite -p=4 in tooling). -p 4 wins 39% (513s vs 836s). Review PASS. Gate 561s (22 Go ok, 735 web). L7 resting; slot to F5.
 
-## In progress (by lane, main 12ee455)
+## In progress (by lane, main 0897792)
 
-- **L1 Books and posting:** C5 slice 6 backend PASS (d1923c5, r-c5s6 reviewing); w-c1 on slice 8 (open-item creation + ADR-0031 amend, voucher-scoped sourcing ruled). Slice 7 Desk panel waits for F4s2; slice 9 fixture+docs; C1 slice 7 (Z2) after C5.
-- **L2 Jobs, events, integration:** RESTING per Stylus L4-cap ruling (w-c2 stood down; C10s2 `47dd6e4` with r-c10s2). C10 migration 25 unblocked (23/24 merged) when w-c2 respawns.
-- **L3 Masters and Packs:** C7s7 fix with r-c7s7; C7s8 PASS `94b3aab` with r-c7s8; w-c7 on slice-9 backend (proto+server+CLI green, Desk page next, RecordsPage held for F4s2). Slice 11 wiring after.
-- **L4 Desk:** F3 slice 2 PASS `804c9fa` (compact builder per condition, browser green); review queued (reviewers at cap). w-f2 holding.
-- **L5 Quality:** F4 slice 2 built (Advanced filter + saved-list chips on RecordsPage, web 728 + browser green, Go queued); owns RecordsPage until merge. F4s3 + FU batch 3 after.
-- **L6 Pilot and shipping:** F7 slice 3 `2ac54d1` (completions + help + E2E 132/132) gating. F7 ticks on merge; F8 waits for tap owner.
-- **L7 Test speed:** w-ts on slice 5 (auth-waits probe sampled the TSs4 gate; files/cmd DDL survey done, read-only). Then -p shootout + GO_TEST_P.
+- **L1 Books and posting:** C5s6 + C5s8 merged; C5s9 PASS with r-c5s9; w-c1 building slice 7 Desk (settle-from-doc + prefill, Stylus-ruled). C5 ticks at slice 7; C1 slice 7 (Z2) after C5.
+- **L2 Jobs, events, integration:** C10s3 PASS (migration 25 + Property 26) with r-c10s3; w-c2 building slice 4 (attachments/search/comments/import).
+- **L3 Masters and Packs:** C7s9 backend with r-c7s9 (split ruled); w-c7 on 9b RecordsPage columns + slice-10 docs. Slice 11 wiring after.
+- **L4 Desk:** F3 COMPLETE. w-f2 (fresh tree) on F5 slice 1 (Circle Space sample; brief + Stylus additions binding).
+- **L5 Quality:** F4 slices 1–3 merged (F4 unticked); w-fu building slice 4 (field compare + Link hop, ≤2-hop ruling). FU batch 3 after.
+- **L6 Pilot and shipping:** F7 slice 3 rebased past C5s8 (settle integrated, E2E 136/136), re-gating. F7 ticks on merge; F8 waits for tap owner.
+- **L7 Test speed:** RESTING per Stylus ruling (slices 1–5 merged, full gate ~9min at -p 4); w-ts stood down, branch kept. Slice 6 (files, secrets, auth) when a lane frees.
 
 ## Blocked and why
 
 - F8 waits for the user's tap-owner answer.
-- C10 slice 3 waits for a free worker slot (L2 rested for the L4 cap).
-- C5 slice 7 + C7 slice 9 RecordsPage touches wait for F4s2's merge (F4s2 owns RecordsPage).
-- Reviewer cap 4/4: F3s2 review queued; spawns on the next verdict. Disk hovers near the 8GB spawn floor (suite self-cleans at Go acquisition).
+- C5s7 + C7s9b share RecordsPage.vue (both live; tight-hunk warnings sent; master resolves at merge).
+- F4 ticks at slice 4 (field-to-field + Link hop, building); F5 slice 3 uses it if merged, else pending.
+- TS slice 6 + C1 slice 7 wait for free lanes. Disk recovered to ~9GB (user cleared caches).
 
 ## Questions for the user
 
@@ -74,9 +82,13 @@ Z10 licence — Satori is Personal-Use trial only (no licence/binaries in repo):
 - npm registry flakes: shared pnpm store via CACHE_DIR on all gates.
 - Cold-cache 20m posting/server timeouts root-caused (Argon2 CPU starvation → -p 8→4→2 stopgaps → per-test DDL fsync storm found via probe): TS slices 1–4 are the structural fix (posting 853s → 19s in full runs).
 - mid-run `go clean -cache` red + disk-floor spawn refusals: ticker + suite self-clean at slot boundaries only; merged trees removed after every merge.
-- Unlogged worktree removals (merge9/c5-s5-r, ts-s4-r): main verified intact; forward rule is log every removal as CLOSED with path.
+- Unlogged worktree removals (merge9/c5-s5-r, ts-s4-r): main verified intact; forward rule is log every removal as CLOSED with path. LATER SOLVED: reviewers self-remove their -r trees on verdict (6 instances) — benign, now expected.
+- Bogus `suite lanes` invocation by master (no such subcommand): logged exit-1 triple, 0s, no slot harm; corrected in-log; Stylus added an unknown-command guard to suite.
+- Suite `clean=false` on the C5s6 merge gate was a queue-time-head artifact of the Stylus-ordered mid-queue rebase (reflog proved the gate ran on the rebased tip); suggestion for Stylus: capture head at run start.
+- Transient GitHub 500 on a push (remote Internal Server Error); retry green.
+- Orphaned go-build temps (~2GB from killed runs) + full disk blocked spawns twice; master cleans stale temps, user cleared tool caches.
 - Conflict markers shipped inside a Go string by the F4s1 rebase (compiled + passed all tests): fixed in `ff18cb2`; suite now refuses Go runs on marked trees; marker-grep added to the merge checklist.
 
 ## Next up
 
-First review verdict (C5s6/C7s7/C10s2/C7s8) → tip gate → merge; F3s2 review; F7s3/F4s2-Go/C5s8 gates; F4s2 merge unblocks C5s7 + C7s9 RecordsPage; C10 slice 3 on a free slot; slice 5 + -p shootout; F8 needs tap owner.
+First verdict (C10s3/C5s9/C7s9) → tip gate → merge; F7s3 PASS → review; F4s4 + C5s7 + C7s9b + C10s4 + F5s1 builds; F8 needs tap owner; TSs6 + C1s7 wait for lanes.

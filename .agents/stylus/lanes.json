@@ -4,17 +4,17 @@
     {"id": "L1", "name": "Books and posting", "tasks": ["C1", "C5", "C6", "C9"],
      "about": "C5 slice 1 merged; C1 6.10 voucher view (user GO) → C5 rest → C6 → C9."},
     {"id": "L2", "name": "Jobs and integration", "tasks": ["C2", "C10"],
-     "about": "C2 slices 4-6 incl. secrets per Z4 (new migration + ADR), then C10."},
+     "about": "C2 COMPLETE (ticked). C10 slices 1-2 merged. LIVE 00:45: w-c2 (t7p) on slice 3 (Property 26 + migration 25 file, unblocked); L4 rested to free the slot per Stylus swap ruling."},
     {"id": "L3", "name": "Masters, stock and Packs", "tasks": ["C4", "C7", "C3", "C8"],
      "about": "C4 13.3b + slice 4 → C7 stock (Z3) → C3 packaging (Z5) → C8."},
     {"id": "L4", "name": "Desk and public pages", "tasks": ["D3", "F1", "F2", "F3"],
-     "about": "D3 slices 4-5 → F1 + F2 (rebase on 6.10) → F3. LIVE 22:53: w-f2 (t7g) on F3 slice 2 builder embed after trigger 2 (F4s1 merged); L2 rested to free the slot per Stylus L4-cap ruling."},
+     "about": "D3 slices 4-5 → F1 + F2 (rebase on 6.10) → F3 (COMPLETE). LIVE 03:50: w-f2 (t80) on F5 Circle Space sample slice 1 (F4 merged); slot freed by resting L7 per Stylus ruling.",
     {"id": "L5", "name": "Quality, rules and docs", "tasks": ["FU", "F4", "D1", "D2"],
      "about": "FU batch 2 → decisions docs commit + ADRs (Z2, Z3, Z4, Z5) → F4 design-first → D1, D2."},
     {"id": "L6", "name": "Pilot and shipping", "tasks": ["F6", "F7", "F8", "F5", "D5", "D4"],
      "about": "F6 → F7 → F8 → F5 (after F4 design + C7 basics) → D5 (after C3) → D4."},
     {"id": "L7", "name": "Test speed", "tasks": ["TS"],
-     "about": "Measure-first suite speedup → full make test under 7 min; test-only changes, slices by package merged as they land."}
+     "about": "Slices 1-5 merged (full gate ~9min at -p 4). RESTING 03:50 per Stylus ruling (close enough; slot to F5): w-ts stood down, branch kept for slice 6 (files, secrets, auth) when a lane frees."}
   ],
   "blocked": {},
   "sharedFiles": {
