@@ -148,6 +148,80 @@ needs a Stylus order — in-flight lane), store migrate keepers,
 cmd/athena ~25 NewWithConfig sites (no TestMain; migrate_test is a
 migration-state keeper, rest need per-test shareability reads). Then the
 `-p 2` vs `-p 4` shootout on one full run each.
+
+## Slice 5a: auth profile + redundant-Up removal
+
+BEFORE auth-alone `-json` (suite, load ~11): GREEN 81.1s PASS.
+TestLastOwnerProperty 70.6s (87%), TestChallengeSingleUseProperty 2.2s,
+production-hash round-trip 0.2s, rest ~0.1s. Full top-20 in
+`/tmp/ts-auth-profile.json`.
+Findings: ZERO testdb.New in auth; ZERO timers/sleeps in package (expiry
+and lockout driven by SQL rows and fixed times; lockout tests loop 5
+attempts without waiting); `auth.Service.Now` clock seam already exists
+and challenge tests use it — clock injection has NO target.
+Fix: drop redundant per-fixture/per-iteration `store.Up` on the already
+migrated shared DB (ownerDB x100 race iters, challenge x2). Oracle
+untouched; alone-time cut only (gate waits are external DDL-tax).
+
+| Run | Result |
+| --- | --- |
+| AFTER auth-alone `-json` (suite) | GREEN 79.8s PASS (was 81.1s; owner property 70.6->68.7s — no-op Ups were ~13ms each; GET_LOCK churn per iteration gone). Alone-time cut only, as predicted. |
+
+## Slice 5b: cmd shared-DSN conversion
+
+TestMain (sweep + cheap hashing + shared migrate) + `sharedDSNEnv`
+helper + additive `Shared.Config()` accessor; ~20 class-A sites
+converted; keepers migrate/doctor-fresh/ledger-connector/5 workspace
+tests with why-comments. gofmt+vet+build clean.
+
+| Run | Result |
+| --- | --- |
+| AFTER cmd-alone `-json` (suite) | GREEN 44.2s PASS (61 tests). Top 7 are the keepers at ~5s each (5 workspace provisions + fresh-migrate connector + migrate-walk); every converted test <=0.36s. No cmd-alone before was run; before-story is gate history (844s @-p8 -> 246s @-p2). Full list in `/tmp/ts-cmd-after.json`. |
+
+## Slice 5c: -p 4 full retry (suite log 1125-031450)
+
+`env GOFLAGS=-p=4 make test CACHE_DIR=<shared>` (explicit `-p=` wins
+over the suite `-p 2` default): GREEN exit 0, **513s wall** (8.55 min)
+vs the -p 2 TSs4 gate 836s (13.9 min) — **-p 4 wins by 39%**.
+Per-package: auth 464.2s, server 271.8s, files 137.9s, cmd/athena 123.4s,
+secrets 98.9s, posting 58.3s, stock 38.7s, events 36.3s, ledger 22.1s,
+jobs 19.9s, store 3.5s, testdb 1.0s, rest <1s; web 74 files / 717 tests.
+7-min target NOT yet met: auth (464s) remains the pole; remaining DDL
+storm is files/secrets per-test migrates + cmd workspace keepers —
+next-slice candidates. Makefile `GO_TEST_P ?= 4` needs a Stylus order.
+
+## Slice 5 read-only prep (no commits until slice 4 merges)
+
+Perf probe `/tmp/ts-perf-probe.sh` (`once`|`watch`, validated 2026-11-24):
+read-only processlist + lock-counter samples every 5s into
+`/tmp/ts-perf/<gate>/`, DSN from the tree's `.env.local`, never printed.
+INNODB_TRX/metadata_locks/waits/INNODB STATUS need PROCESS (1227, no
+admin path here) — processlist states + counters carry the attribution;
+user can GRANT PROCESS if deeper data is ever needed. Baseline counters
+23:04: row_lock_waits 60022, row_lock_time 2001494ms, table_locks_waited
+2001. Watcher armed for the next Go run; rerun `watch` after each catch.
+
+First catch (w-c7 stock-only affected, 25 samples/2 min, `/tmp/ts-perf/1124-230522-*`):
+pure per-test migration DDL on fresh stamped DBs (CREATE TABLEs, ALTER/
+RENAME incl. the vocabulary_rename migration, DROP DATABASE churn), +527k
+queries, row-lock waits +2, no MDL waits (single package, no contention
+partner). Auth-waits attribution needs a gate with auth running — still
+to catch.
+
+files survey: mixed `package files` (pure) + `package files_test`
+(newFixture: New+migrate+files.Open on t.TempDir) — clean TestMain
+conversion, no parallel/DDL/goroutines.
+
+cmd/athena survey (all `package main`, 19 files, no TestMain): each test
+does NewWithConfig + t.Setenv DSN + t.Chdir(temp) and runs CLI commands
+in-process, migrating via `migrate up` itself (no store.Up in prod code).
+Shareable shape: shared pre-migrated DB + per-test Reset + shared-DSN env,
+needs a `Shared` DSN/cfg accessor (additive test-helper method).
+Keepers/flags: migrate_test (partial ups, fresh-status asserts); doctor
+likely asserts pending-migration warnings (verify); new_test +
+identity create whole workspaces with no visible DROP cleanup — read
+fully at implementation (server pollution + share-blocker risk);
+events/jobs "pending" hits are status words, not migration state.
 - Slice 4 (ORDERED): ledger/jobs/events/stock in ONE commit, plus the 17
   testdb.New calls left in server (brand/identity/etc.). testdb.New kept
   ONLY for tests that change migration state, with a why-comment.
