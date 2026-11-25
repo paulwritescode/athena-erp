@@ -848,3 +848,11 @@
 - 03:29 Stylus CORRECTION: suite -p=4 already set in main; w-ts commit is Makefile-only. Forwarded. bin/suite goes with next docs push.
 - 03:31 w-ts Makefile commit 752af24 (Makefile-only per correction); r-ts5 ordered to delta-review.
 - TICK 03:32: main fd21f66. F4 train gate RUNNING slot 0 (merge23, started 03:23). TSs5 REVIEW PASS (auth fix + cmd conversion + GO_TEST_P delta; r-ts5 closed) — staged 4 picks in merge24 (tip 9b0efcc, all clean), tip gate queued behind F4. r-c10s3/r-c5s9/r-c7s9 verifying. Review-passed not on main: F4 train (running), TSs5 (queued). Next: F4 merge (unblocks C5s7/C7s9b/F5), then TSs5.
+- 03:38 F4 TRAIN MERGED: gate green exit 0 clean, 693s (22 Go ok, 735 web, log 1125-032326-master.log). FF 9089f8d+pushed. Docs 2d9b2cc+pushed (incl suite -p=4 default). Server restarted healthy (t7z) for Desk+server changes. CLOSED merge23 tree. UNBLOCKED: C5s7 + C7s9b started (shared RecordsPage, tight-hunk warnings sent). Asked Stylus: F4 tick now vs slice 4, w-fu next (field-to-field?), F5 7th-slot vs wait.
+- 03:40 Stylus rulings: F4 unticked until slice 4; w-fu ordered to build slice 4 (field compare + Link hop) now; after TSs5 merges: close w-ts, spawn w-f2 for F5 in that slot (TSs6 waits).
+- 03:43 w-c1 on C5 slice 7 (rebased onto 2d9b2cc, slice 8 dropped as merged; reading spec + RecordsPage, tight hunks).
+- 03:41 w-c7 rebased onto 2d9b2cc as 66bfc2d (5 same-anchor conflicts w/ F4+C5, keep-both, rerere); build green; starting 9b (tight hunks).
+- 03:44 w-c1 slice-7 question (no payment marker; A/B/C); recommended A-as-dedicated-panel to Stylus, w-c1 on reads meanwhile.
+- 03:45 Stylus ruled C5s7 (A reshaped: settle-from-submitted-doc with prefill + toolbar entry, explicit-then-proportional visible split, no reverse, glossary words); ordered to w-c1.
+- TICK 03:43: main 2d9b2cc. TSs5 tip gate RUNNING slot 0 (merge24, started 03:35) — merge on green, then close w-ts + spawn w-f2/F5. C5s7 ruling forwarded (settle-from-doc + prefill + toolbar entry, visible split, glossary); w-c1 building. 3 reviewers verifying. Review-passed not on main: TSs5 (gate running). Next: TSs5 merge + L7/L4 swap.
+- 03:46 w-fu slice 4 started (branch empty on 9089f8d; design set). Ruled: Link paths up to 2 hops (example governs); one-line tighten if Stylus insists. Noting to Stylus next tick.
