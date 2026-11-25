@@ -246,9 +246,9 @@ try:
     with open(logf, "w") as log:
         env = dict(os.environ)
         # Fewer Go packages at once against the one MariaDB: -p 8 pushed internal/posting past 20 minutes
-        # inside a single make test; -p 4 gates still starved auth at 15:30, so -p 2 (2026-11-24). An explicit GOFLAGS wins.
+        # inside a single make test; -p 2 after per-test migrations starved auth (11-24 15:30); -p 4 again once TS slices 2-5 made database setup cheap (11-25: 513 s vs 836 s). An explicit -p wins.
         if "-p=" not in env.get("GOFLAGS", ""):
-            env["GOFLAGS"] = (env.get("GOFLAGS", "") + " -p=2").strip()
+            env["GOFLAGS"] = (env.get("GOFLAGS", "") + " -p=4").strip()
         if not shutil.which("node", path=env.get("PATH")):  # agent shells often miss nvm's node
             nvm = sorted(glob.glob(os.path.expanduser("~/.nvm/versions/node/*/bin")))
             if nvm:
